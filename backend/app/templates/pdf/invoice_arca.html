@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Factura {{ voucher.letter }}</title>
+	<style type="text/css">
+		@page {
+			size: A4;
+			margin: 15mm;
+		}
+		* {
+			box-sizing: border-box;
+			margin: 0;
+			padding: 0;
+		}
+		body {
+			font-family: sans-serif;
+			font-size: 11px;
+			color: #000;
+		}
+
+		/* Contenedor principal */
+		.invoice {
+			width: 100%;
+			border: 1px solid #000;
+		}
+
+		/* === ENCABEZADO EMISOR === */
+		.header {
+			width: 100%;
+			border-bottom: 2px solid #000;
+		}
+		.header td {
+			width: 50%;
+			vertical-align: top;
+			padding: 12px 15px;
+		}
+		.header-left {
+			border-right: none;
+			padding-right: 40px !important;
+		}
+		.header-right {
+			border-left: none;
+			padding-left: 40px !important;
+		}
+
+		/* Letra del comprobante (centrada entre las dos columnas) */
+		.letter-box {
+			width: 100%;
+			text-align: center;
+			border-bottom: 1px solid #000;
+			padding: 0;
+		}
+		.letter-box .letter {
+			display: inline-block;
+			border: 2px solid #000;
+			width: 55px;
+			height: 55px;
+			line-height: 55px;
+			font-size: 36px;
+			font-weight: bold;
+			text-align: center;
+			background: #fff;
+		}
+		.letter-box .letter-sub {
+			font-size: 8px;
+			display: block;
+			margin-top: -5px;
+			padding-bottom: 3px;
+		}
+
+		.business-name {
+			font-size: 22px;
+			font-weight: bold;
+			text-align: center;
+			margin-bottom: 8px;
+		}
+
+		.invoice-title {
+			font-size: 22px;
+			font-weight: bold;
+			margin-bottom: 8px;
+		}
+
+		.info-line {
+			margin: 3px 0;
+			font-size: 11px;
+		}
+		.info-line strong {
+			font-size: 11px;
+		}
+
+		/* === FILAS DE DATOS === */
+		.data-row {
+			width: 100%;
+			border-bottom: 1px solid #000;
+		}
+		.data-row td {
+			padding: 8px 15px;
+			vertical-align: top;
+		}
+
+		/* Fila con 2 columnas */
+		.two-col td {
+			width: 50%;
+		}
+
+		/* Fila con 3 columnas */
+		.three-col td:first-child { width: 35%; }
+		.three-col td:nth-child(2) { width: 25%; }
+		.three-col td:last-child { width: 40%; }
+
+		/* === TABLA DE ITEMS === */
+		.items-table {
+			width: 100%;
+			border-collapse: collapse;
+		}
+		.items-table th {
+			background: #c0c0c0;
+			border: 1px solid #000;
+			padding: 5px 4px;
+			font-size: 10px;
+			text-align: center;
+			font-weight: bold;
+		}
+		.items-table td {
+			border: 1px solid #ddd;
+			padding: 5px 4px;
+			font-size: 10px;
+			text-align: center;
+		}
+		.items-table td:nth-child(2) {
+			text-align: left;
+		}
+
+		/* === TOTALES === */
+		.totals-section {
+			width: 100%;
+			border-top: 2px solid #000;
+			border-bottom: 2px solid #000;
+		}
+		.totals-section td {
+			padding: 4px 15px;
+		}
+		.total-label {
+			text-align: right;
+			width: 85%;
+			font-weight: bold;
+			font-size: 12px;
+		}
+		.total-value {
+			text-align: right;
+			width: 15%;
+			font-weight: bold;
+			font-size: 12px;
+		}
+
+		/* === CAE y QR === */
+		.cae-section {
+			width: 100%;
+			border-bottom: 1px solid #000;
+		}
+		.cae-section td {
+			padding: 10px 15px;
+			vertical-align: top;
+		}
+		.cae-qr {
+			width: 40%;
+		}
+		.cae-info {
+			width: 60%;
+			text-align: right;
+			vertical-align: middle !important;
+		}
+		.cae-number {
+			font-size: 13px;
+			font-weight: bold;
+			margin-bottom: 5px;
+		}
+		.cae-expiration {
+			font-size: 13px;
+			font-weight: bold;
+		}
+		.qr-img {
+			width: 130px;
+			height: 130px;
+		}
+
+		/* === FOOTER === */
+		.footer {
+			text-align: center;
+			padding: 8px;
+			font-size: 10px;
+			color: #666;
+		}
+		.footer img {
+			height: 16px;
+			vertical-align: middle;
+		}
+	</style>
+</head>
+<body>
+
+<table class="invoice" cellspacing="0" cellpadding="0">
+
+	<!-- Letra del comprobante -->
+	<tr>
+		<td colspan="2">
+			<div class="letter-box">
+				<span class="letter">{{ voucher.letter }}</span>
+			</div>
+		</td>
+	</tr>
+
+	<!-- Encabezado: Emisor + Datos factura -->
+	<tr class="header">
+		<td class="header-left">
+			<div class="business-name">{{ business.name }}</div>
+			<p class="info-line"><strong>Razón social:</strong> {{ business.name }}</p>
+			<p class="info-line"><strong>Domicilio Comercial:</strong> {{ business.address or 'Sin domicilio' }}</p>
+			<p class="info-line"><strong>Condición Frente al IVA:</strong> {{ business.tax_condition }}</p>
+		</td>
+		<td class="header-right">
+			<div class="invoice-title">Factura</div>
+			<table cellspacing="0" cellpadding="0" style="width:100%">
+				<tr>
+					<td style="width:50%; padding:0"><p class="info-line"><strong>Punto de Venta: {{ voucher.sale_point }}</strong></p></td>
+					<td style="width:50%; padding:0"><p class="info-line"><strong>Comp. Nro: {{ voucher.comp_number }}</strong></p></td>
+				</tr>
+			</table>
+			<p class="info-line"><strong>Fecha de Emisión:</strong> {{ voucher.date }}</p>
+			<p class="info-line"><strong>CUIT:</strong> {{ business.cuit }}</p>
+			<p class="info-line"><strong>Ingresos Brutos:</strong> {{ business.iibb or '-' }}</p>
+			<p class="info-line"><strong>Fecha de Inicio de Actividades:</strong> {{ business.start_date or '-' }}</p>
+		</td>
+	</tr>
+
+	<!-- Período facturado -->
+	<tr>
+		<td colspan="2">
+			<table class="data-row three-col" cellspacing="0" cellpadding="0">
+				<tr>
+					<td><p class="info-line"><strong>Período Facturado Desde:</strong> {{ voucher.date }}</p></td>
+					<td><p class="info-line"><strong>Hasta:</strong> {{ voucher.date }}</p></td>
+					<td><p class="info-line"><strong>Fecha de Vto. para el pago:</strong> {{ voucher.due_date or voucher.date }}</p></td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+
+	<!-- Datos del receptor -->
+	<tr>
+		<td colspan="2">
+			<table class="data-row" cellspacing="0" cellpadding="0" style="width:100%">
+				<tr>
+					<td style="width:35%; padding:8px 15px"><p class="info-line"><strong>CUIL/CUIT:</strong> {{ client.document_number or '-' }}</p></td>
+					<td style="width:65%; padding:8px 15px"><p class="info-line"><strong>Apellido y Nombre / Razón social:</strong> {{ client.name }}</p></td>
+				</tr>
+				<tr>
+					<td style="padding:3px 15px 8px"><p class="info-line"><strong>Condición Frente al IVA:</strong> {{ client.tax_condition or 'Consumidor Final' }}</p></td>
+					<td style="padding:3px 15px 8px"><p class="info-line"><strong>Domicilio:</strong> {{ client.address or 'Sin domicilio' }}</p></td>
+				</tr>
+				<tr>
+					<td colspan="2" style="padding:3px 15px 8px"><p class="info-line"><strong>Condicion de venta:</strong> {{ voucher.payment_method or 'Efectivo' }}</p></td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+
+	<!-- Detalle de productos -->
+	<tr>
+		<td colspan="2" style="padding: 0">
+			<table class="items-table">
+				<tr>
+					<th>Código</th>
+					<th>Producto / Servicio</th>
+					<th>Cantidad</th>
+					<th>U. Medida</th>
+					<th>Precio Unit.</th>
+					<th>% Bonif.</th>
+					<th>Imp. Bonif.</th>
+					<th>Subtotal</th>
+				</tr>
+				{% for item in items %}
+				<tr>
+					<td>{{ item.code or '-' }}</td>
+					<td>{{ item.description }}</td>
+					<td>{{ item.quantity }}</td>
+					<td>{{ item.unit or 'Unidad' }}</td>
+					<td>{{ item.unit_price }}</td>
+					<td>{{ item.discount or '0,00' }}</td>
+					<td>{{ item.discount_amount or '0,00' }}</td>
+					<td>{{ item.subtotal }}</td>
+				</tr>
+				{% endfor %}
+			</table>
+		</td>
+	</tr>
+
+	<!-- Totales -->
+	<tr>
+		<td colspan="2" style="padding: 0">
+			<table class="totals-section" cellspacing="0" cellpadding="0" style="width:100%">
+				<tr>
+					<td class="total-label">Subtotal: $</td>
+					<td class="total-value">{{ totals.subtotal }}</td>
+				</tr>
+				<tr>
+					<td class="total-label">Importe Otros Tributos: $</td>
+					<td class="total-value">0,00</td>
+				</tr>
+				<tr>
+					<td class="total-label">Importe total: $</td>
+					<td class="total-value">{{ totals.total }}</td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+
+	<!-- CAE y QR -->
+	<tr>
+		<td colspan="2" style="padding: 0">
+			<table class="cae-section" cellspacing="0" cellpadding="0" style="width:100%">
+				<tr>
+					<td class="cae-qr">
+						{% if voucher.qr_data %}
+						<img class="qr-img" src="{{ voucher.qr_data }}" alt="QR AFIP">
+						{% endif %}
+					</td>
+					<td class="cae-info">
+						<p class="cae-number">CAE Nº: {{ voucher.cae }}</p>
+						<p class="cae-expiration">Fecha de Vto. de CAE: {{ voucher.cae_expiration }}</p>
+					</td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+
+	<!-- Footer -->
+	<tr>
+		<td colspan="2">
+			<div class="footer">
+				Sistema creado por <strong>Qeva AI</strong> · Contacto: +54 9 225 459-6618
+			</div>
+		</td>
+	</tr>
+
+</table>
+
+</body>
+</html>
