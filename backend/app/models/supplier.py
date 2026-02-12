@@ -49,6 +49,13 @@ class Supplier(BaseModel):
         secondary=supplier_category,
         backref="suppliers",
     )
+    category_discounts = relationship(
+        "SupplierCategoryDiscount",  # String reference para evitar circular import
+        back_populates="supplier",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        overlaps="supplier"  # Evitar warnings de overlaps
+    )
 
     def __repr__(self) -> str:
         return f"<Supplier {self.name}>"

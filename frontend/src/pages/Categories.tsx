@@ -163,9 +163,19 @@ export default function Categories() {
       key: 'name',
       header: 'Nombre',
       render: (item: Category) => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 group">
           <FolderTree size={16} className="text-primary-600" />
           <span className="font-medium text-gray-900 dark:text-white">{item.name}</span>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(item.name)
+              toast.success('Nombre copiado para importación', { duration: 1500, icon: '📋' })
+            }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded shadow-sm ml-2"
+            title="Copiar nombre para Excel"
+          >
+            📋 Copiar
+          </button>
         </div>
       ),
     },

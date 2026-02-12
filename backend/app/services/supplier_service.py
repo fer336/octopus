@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -22,10 +22,11 @@ class SupplierService:
         self.db = db
 
     async def create(self, business_id: UUID, data: SupplierCreate) -> Supplier:
-        """Crea un nuevo proveedor."""
-        # Extraer category_ids del dict
-        supplier_data = data.model_dump(exclude={'category_ids'})
+        """Crea un nuevo proveedor con descuentos por categoría."""
+        # Extraer category_ids y category_discounts del dict
+        supplier_data = data.model_dump(exclude={'category_ids', 'category_discounts'})
         category_ids = data.category_ids or []
+        category_discounts = data.category_discounts or []
         
         supplier = Supplier(
             business_id=business_id,
@@ -43,6 +44,19 @@ class SupplierService:
             supplier.categories = list(categories.scalars().all())
 
         self.db.add(supplier)
+        await self.db.flush()  # Para obtener el supplier.id
+        
+        # Crear descuentos por categoría
+        for cat_discount in category_discounts:
+            discount = SupplierCategoryDiscount(
+                supplier_id=supplier.id,
+                category_id=cat_discount.category_id,
+                discount_1=cat_discount.discount_1,
+                discount_2=cat_discount.discount_2,
+                discount_3=cat_discount.discount_3,
+            )
+            self.db.add(discount)
+
         await self.db.commit()
         await self.db.refresh(supplier)
         return supplier
@@ -118,7 +132,7 @@ class SupplierService:
         if not supplier:
             return None
 
-        update_data = data.model_dump(exclude_unset=True, exclude={'category_ids'})
+        update_data = data.model_dump(exclude_unset=True, exclude={'category_ids', 'category_discounts'})
         
         # Actualizar categorías si se proporcionan
         if data.category_ids is not None:
@@ -129,6 +143,26 @@ class SupplierService:
                 )
             )
             supplier.categories = list(categories.scalars().all())
+        
+        # Actualizar descuentos por categoría
+        if data.category_discounts is not None:
+            # Eliminar descuentos existentes
+            await self.db.execute(
+                delete(SupplierCategoryDiscount).where(
+                    SupplierCategoryDiscount.supplier_id == supplier_id
+                )
+            )
+            
+            # Crear nuevos descuentos
+            for cat_discount in data.category_discounts:
+                new_discount = SupplierCategoryDiscount(
+                    supplier_id=supplier_id,
+                    category_id=cat_discount.category_id,
+                    discount_1=cat_discount.discount_1,
+                    discount_2=cat_discount.discount_2,
+                    discount_3=cat_discount.discount_3,
+                )
+                self.db.add(new_discount)
         
         # Actualizar otros campos
         for field, value in update_data.items():

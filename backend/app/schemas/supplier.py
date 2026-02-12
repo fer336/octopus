@@ -10,6 +10,15 @@ from pydantic import EmailStr, Field
 from app.schemas.base import BaseResponse, BaseSchema
 
 
+class CategoryDiscountItem(BaseSchema):
+    """Descuento específico para una categoría."""
+    category_id: UUID
+    category_name: Optional[str] = None
+    discount_1: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    discount_2: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    discount_3: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+
+
 class SupplierCreate(BaseSchema):
     """Schema para crear un proveedor."""
 
@@ -28,6 +37,7 @@ class SupplierCreate(BaseSchema):
     default_discount_3: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     
     category_ids: Optional[List[UUID]] = Field(default=[], description="IDs de categorías asociadas")
+    category_discounts: Optional[List[CategoryDiscountItem]] = Field(default=[], description="Descuentos específicos por categoría")
 
 
 class SupplierUpdate(BaseSchema):
@@ -48,6 +58,7 @@ class SupplierUpdate(BaseSchema):
     default_discount_3: Optional[Decimal] = Field(None, ge=0, le=100)
     
     category_ids: Optional[List[UUID]] = Field(None, description="IDs de categorías asociadas")
+    category_discounts: Optional[List[CategoryDiscountItem]] = Field(None, description="Descuentos específicos por categoría")
 
 
 class SupplierResponse(BaseResponse):
@@ -68,6 +79,7 @@ class SupplierResponse(BaseResponse):
     default_discount_3: Decimal
     
     category_ids: List[UUID] = Field(default_factory=list, description="IDs de categorías asociadas")
+    category_discounts: List[CategoryDiscountItem] = Field(default_factory=list, description="Descuentos por categoría")
     
     @staticmethod
     def from_orm_with_categories(supplier: "Supplier") -> "SupplierResponse":

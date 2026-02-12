@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.schemas.base import MessageResponse, PaginatedResponse
-from app.schemas.supplier import SupplierCreate, SupplierListParams, SupplierResponse, SupplierUpdate
+from app.schemas.supplier import CategoryDiscountItem, SupplierCreate, SupplierListParams, SupplierResponse, SupplierUpdate
 from app.services.supplier_service import SupplierService
 from app.utils.security import get_current_business
 
@@ -124,3 +124,38 @@ async def delete_supplier(
         )
 
     return MessageResponse(message="Proveedor eliminado correctamente")
+
+
+@router.get("/{supplier_id}/category-discounts", response_model=list[CategoryDiscountItem])
+async def get_supplier_category_discounts(
+    supplier_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    business_id = Depends(get_current_business),
+):
+    """
+    Obtiene los descuentos específicos por categoría de un proveedor.
+    Incluye los nombres de las categorías para display.
+    """
+    from app.models.supplier_category_discount import SupplierCategoryDiscount
+    from app.models.category import Category
+    from sqlalchemy.orm import selectinload
+    
+    query = (
+        select(SupplierCategoryDiscount)
+        .options(selectinload(SupplierCategoryDiscount.category))
+        .where(SupplierCategoryDiscount.supplier_id == supplier_id)
+    )
+    
+    result = await db.execute(query)
+    discounts = result.scalars().all()
+    
+    return [
+        CategoryDiscountItem(
+            category_id=d.category_id,
+            category_name=d.category.name if d.category else None,
+            discount_1=d.discount_1,
+            discount_2=d.discount_2,
+            discount_3=d.discount_3,
+        )
+        for d in discounts
+    ]

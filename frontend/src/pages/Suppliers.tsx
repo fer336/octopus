@@ -254,9 +254,19 @@ export default function Suppliers() {
       header: 'Proveedor',
       render: (item: Supplier) => (
         <div>
-          <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-white">
+          <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-white group">
             <Truck size={16} className="text-blue-600" />
             {item.name}
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(item.name)
+                toast.success('Nombre copiado para importación', { duration: 1500, icon: '📋' })
+              }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity bg-emerald-500 hover:bg-emerald-600 text-white text-xs px-2 py-1 rounded shadow-sm"
+              title="Copiar nombre para Excel"
+            >
+              📋 Copiar
+            </button>
           </div>
           {item.cuit && <div className="text-xs text-gray-500 ml-6">{item.cuit}</div>}
         </div>

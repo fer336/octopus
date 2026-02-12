@@ -12,6 +12,7 @@ from app.models.price_history import PriceHistory
 from app.models.product import Product
 from app.models.supplier import Supplier
 from app.models.supplier_category import supplier_category
+from app.models.supplier_category_discount import SupplierCategoryDiscount
 from app.models.user import User
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
@@ -26,6 +27,7 @@ __all__ = [
     "Category",
     "Supplier",
     "supplier_category",
+    "SupplierCategoryDiscount",
     "Client",
     "Product",
     # Historial

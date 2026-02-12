@@ -432,11 +432,11 @@ class ExcelService:
         ws = wb.active
         ws.title = "Productos"
         
-        # Definir columnas (EXACTAMENTE las que pediste)
+        # Definir columnas (orden para importación)
         headers = [
-            'codigo', 'codigo_proveedor', 'nombre', 'categoria_id', 
-            'proveedor_id', 'precio_lista', 'descuento_suma', 'cargo_extra',
-            'precio_venta', 'iva', 'stock_actual'
+            'codigo', 'codigo_proveedor', 'nombre_proveedor', 'categoria', 
+            'nombre', 'stock', 'precio_lista', 'bonificaciones', 'cargo_extra',
+            'precio_venta'
         ]
         
         # Escribir headers con estilo
@@ -454,40 +454,42 @@ class ExcelService:
         
         # Escribir datos
         for row_idx, p in enumerate(products, 2):
-            # Calcular descuento_suma (suma simple de descuentos)
-            descuento_suma = float(p.discount_1 or 0) + float(p.discount_2 or 0) + float(p.discount_3 or 0)
+            # Formato de bonificaciones (ej: "10+5+2")
+            discounts = [
+                float(p.discount_1 or 0),
+                float(p.discount_2 or 0),
+                float(p.discount_3 or 0)
+            ]
+            bonificaciones_str = '+'.join([str(int(d)) for d in discounts if d > 0]) or '0'
             
             row_data = [
                 p.code or '',
                 p.supplier_code or '',
+                p.supplier.name if p.supplier else '',
+                p.category.name if p.category else '',
                 p.description or '',
-                str(p.category_id) if p.category_id else '',
-                str(p.supplier_id) if p.supplier_id else '',
+                int(p.current_stock) if p.current_stock else 0,
                 float(p.list_price) if p.list_price else 0.0,
-                descuento_suma,
+                bonificaciones_str,
                 float(p.extra_cost) if p.extra_cost else 0.0,
                 float(p.sale_price) if p.sale_price else 0.0,
-                float(p.iva_rate) if p.iva_rate else 21.0,
-                int(p.current_stock) if p.current_stock else 0,
             ]
             
             for col_idx, value in enumerate(row_data, 1):
                 cell = ws.cell(row=row_idx, column=col_idx, value=value)
                 
                 # Alineación según tipo
-                if col_idx == 3:  # nombre
+                if col_idx in [3, 4, 5]:  # nombre_proveedor, categoria, nombre
                     cell.alignment = Alignment(horizontal="left", vertical="center")
-                elif col_idx in [1, 2, 4, 5]:  # códigos e IDs
+                elif col_idx in [1, 2, 8]:  # código, codigo_proveedor, bonificaciones
                     cell.alignment = Alignment(horizontal="center", vertical="center")
                 else:  # números
                     cell.alignment = Alignment(horizontal="right", vertical="center")
                 
                 # Formato de números
-                if col_idx in [6, 8, 9]:  # precios
+                if col_idx in [7, 9, 10]:  # precio_lista, cargo_extra, precio_venta
                     cell.number_format = '#,##0.00'
-                elif col_idx in [7]:  # descuento_suma
-                    cell.number_format = '0.00'
-                elif col_idx in [11]:  # stock
+                elif col_idx == 6:  # stock
                     cell.number_format = '0'
                 
                 # Bordes
@@ -506,15 +508,14 @@ class ExcelService:
         column_widths = {
             'A': 15,  # codigo
             'B': 18,  # codigo_proveedor
-            'C': 40,  # nombre
-            'D': 10,  # categoria_id (mismo que iva)
-            'E': 10,  # proveedor_id (mismo que iva)
-            'F': 15,  # precio_lista
-            'G': 16,  # descuento_suma
-            'H': 14,  # cargo_extra
-            'I': 15,  # precio_venta
-            'J': 10,  # iva
-            'K': 14,  # stock_actual
+            'C': 25,  # nombre_proveedor
+            'D': 20,  # categoria
+            'E': 40,  # nombre (descripción del producto)
+            'F': 12,  # stock
+            'G': 15,  # precio_lista
+            'H': 16,  # bonificaciones
+            'I': 14,  # cargo_extra
+            'J': 15,  # precio_venta
         }
         
         for col, width in column_widths.items():
@@ -522,6 +523,57 @@ class ExcelService:
         
         # Freeze primera fila (header)
         ws.freeze_panes = "A2"
+        
+        # Crear hoja de REFERENCIA con categorías y proveedores
+        ws_ref = wb.create_sheet(title="Referencia")
+        
+        # Header de referencia
+        ws_ref['A1'] = 'CATEGORÍAS DISPONIBLES'
+        ws_ref['A1'].font = Font(bold=True, size=12, color="FFFFFF")
+        ws_ref['A1'].fill = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
+        
+        ws_ref['C1'] = 'PROVEEDORES DISPONIBLES'
+        ws_ref['C1'].font = Font(bold=True, size=12, color="FFFFFF")
+        ws_ref['C1'].fill = PatternFill(start_color="1976D2", end_color="1976D2", fill_type="solid")
+        
+        # Obtener categorías y proveedores para la referencia
+        categories_query = select(Category).where(
+            Category.business_id == business_id,
+            Category.deleted_at.is_(None)
+        ).order_by(Category.name)
+        
+        categories_result = await self.db.execute(categories_query)
+        categories = categories_result.scalars().all()
+        
+        suppliers_query = select(Supplier).where(
+            Supplier.business_id == business_id,
+            Supplier.deleted_at.is_(None)
+        ).order_by(Supplier.name)
+        
+        suppliers_result = await self.db.execute(suppliers_query)
+        suppliers = suppliers_result.scalars().all()
+        
+        # Escribir categorías
+        for idx, cat in enumerate(categories, 2):
+            cell = ws_ref.cell(row=idx, column=1, value=cat.name)
+            cell.alignment = Alignment(horizontal="left", vertical="center")
+            if idx % 2 == 0:
+                cell.fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
+        
+        # Escribir proveedores
+        for idx, sup in enumerate(suppliers, 2):
+            cell = ws_ref.cell(row=idx, column=3, value=sup.name)
+            cell.alignment = Alignment(horizontal="left", vertical="center")
+            if idx % 2 == 0:
+                cell.fill = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid")
+        
+        # Ajustar anchos de la hoja de referencia
+        ws_ref.column_dimensions['A'].width = 30
+        ws_ref.column_dimensions['C'].width = 30
+        
+        # Instrucciones
+        ws_ref['A' + str(len(categories) + 4)] = '💡 Copia estos nombres exactos a tu Excel en las columnas categoria/proveedor'
+        ws_ref['A' + str(len(categories) + 4)].font = Font(italic=True, color="666666")
         
         # Guardar a BytesIO
         output = io.BytesIO()

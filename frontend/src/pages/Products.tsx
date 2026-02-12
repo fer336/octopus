@@ -13,6 +13,7 @@ import categoriesService from '../api/categoriesService'
 import suppliersService from '../api/suppliersService'
 import ImportPreviewModal from '../components/products/ImportPreviewModal'
 import BulkDeleteModal from '../components/products/BulkDeleteModal'
+import ImportProgressModal from '../components/products/ImportProgressModal'
 
 export default function Products() {
   const queryClient = useQueryClient()
@@ -27,6 +28,11 @@ export default function Products() {
   const [showImportPreview, setShowImportPreview] = useState(false)
   const [importPreviewData, setImportPreviewData] = useState<ImportPreviewResponse | null>(null)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
+  const [showImportProgress, setShowImportProgress] = useState(false)
+  const [importProgress, setImportProgress] = useState(0)
+  const [importStatus, setImportStatus] = useState<'importing' | 'success' | 'error'>('importing')
+  const [importTotal, setImportTotal] = useState(0)
+  const [importMessage, setImportMessage] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // React Query para productos con filtros
@@ -97,22 +103,55 @@ export default function Products() {
     },
   })
 
-  // Manejo de importación Excel - Ahora con preview
+  // Manejo de importación Excel - Ahora con preview y modal de loading
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0]
+      
+      // Mostrar modal de loading mientras se parsea
+      setShowImportProgress(true)
+      setImportProgress(0)
+      setImportStatus('importing')
+      setImportMessage('Leyendo archivo Excel...')
       setIsImporting(true)
+      
+      // Simular progreso de lectura
+      const readInterval = setInterval(() => {
+        setImportProgress((prev) => {
+          if (prev >= 80) return prev
+          return prev + 20
+        })
+      }, 200)
+      
       try {
         // Llamar al endpoint de preview
         const preview = await productsService.previewImport(file)
-        setImportPreviewData(preview)
-        setShowImportPreview(true)
         
-        toast.success(`Archivo parseado: ${preview.total_rows} filas encontradas`, {
-          icon: '📄'
-        })
+        clearInterval(readInterval)
+        setImportProgress(100)
+        setImportMessage('Archivo procesado correctamente')
+        
+        // Esperar un momento para que se vea el 100%
+        setTimeout(() => {
+          setShowImportProgress(false)
+          setImportPreviewData(preview)
+          setShowImportPreview(true)
+          
+          toast.success(`${preview.total_rows} productos encontrados`, {
+            icon: '📄'
+          })
+        }, 500)
+        
       } catch (error: any) {
+        clearInterval(readInterval)
+        setImportStatus('error')
+        setImportMessage('Error al leer archivo')
+        
         toast.error('Error al leer archivo: ' + (error.response?.data?.detail || error.message))
+        
+        setTimeout(() => {
+          setShowImportProgress(false)
+        }, 2000)
       } finally {
         setIsImporting(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
@@ -120,26 +159,84 @@ export default function Products() {
     }
   }
 
-  // Confirmar importación después del preview
+  // Confirmar importación después del preview - CON PROGRESO REAL
   const handleConfirmImport = async (rows: ProductImportRow[]) => {
+    // Mostrar modal de progreso
+    setShowImportProgress(true)
+    setImportProgress(0)
+    setImportStatus('importing')
+    setImportTotal(rows.length)
+    setImportMessage('Preparando importación...')
+    setShowImportPreview(false) // Cerrar el preview
+
     try {
-      const result = await productsService.confirmImport({ rows })
+      // Dividir en lotes de 50 productos
+      const BATCH_SIZE = 50
+      const batches = []
+      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+        batches.push(rows.slice(i, i + BATCH_SIZE))
+      }
       
-      toast.success(`Importación completada: ${result.created} creados, ${result.updated} actualizados.`, {
+      let totalProcessed = 0
+      let totalCreated = 0
+      let totalUpdated = 0
+      const allErrors: string[] = []
+      
+      // Procesar cada lote
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i]
+        setImportMessage(`Importando lote ${i + 1} de ${batches.length}...`)
+        
+        const result = await productsService.confirmImport({ rows: batch })
+        
+        totalCreated += result.created
+        totalUpdated += result.updated
+        totalProcessed += batch.length
+        
+        if (result.errors) {
+          allErrors.push(...result.errors)
+        }
+        
+        // Actualizar progreso real
+        const progress = Math.round((totalProcessed / rows.length) * 100)
+        setImportProgress(progress)
+      }
+      
+      setImportProgress(100)
+      setImportStatus('success')
+      setImportMessage(`${totalCreated} creados, ${totalUpdated} actualizados`)
+      
+      toast.success(`Importación completada: ${totalCreated} creados, ${totalUpdated} actualizados.`, {
         duration: 5000,
         icon: '✅'
       })
       
-      if (result.errors && result.errors.length > 0) {
-        toast.error(`Hubo ${result.errors.length} errores. Revisa la consola.`)
-        console.error("Errores de importación:", result.errors)
+      if (allErrors.length > 0) {
+        toast.error(`Hubo ${allErrors.length} errores. Revisa la consola.`)
+        console.error("Errores de importación:", allErrors)
       }
       
       queryClient.invalidateQueries({ queryKey: ['products'] })
-      setShowImportPreview(false)
       setImportPreviewData(null)
+      
+      // Cerrar modal de progreso después de 2 segundos
+      setTimeout(() => {
+        setShowImportProgress(false)
+        setImportProgress(0)
+      }, 2000)
+      
     } catch (error: any) {
+      setImportStatus('error')
+      setImportMessage('Error al importar')
       toast.error('Error al confirmar importación: ' + (error.response?.data?.detail || error.message))
+      
+      // Cerrar modal de progreso después de 3 segundos
+      setTimeout(() => {
+        setShowImportProgress(false)
+        setImportProgress(0)
+        setShowImportPreview(true) // Re-abrir el preview para que puedan corregir
+      }, 3000)
+      
       throw error
     }
   }
@@ -946,6 +1043,8 @@ export default function Products() {
         }}
         onConfirm={handleConfirmImport}
         previewData={importPreviewData}
+        categories={categories}
+        suppliers={suppliers}
       />
 
       {/* Modal de confirmación de borrado masivo */}
@@ -954,6 +1053,17 @@ export default function Products() {
         onClose={() => setShowBulkDeleteModal(false)}
         onConfirm={handleBulkDeleteConfirm}
         totalProducts={productsData?.total || 0}
+      />
+
+      {/* Modal de progreso de importación */}
+      <ImportProgressModal
+        isOpen={showImportProgress}
+        progress={importProgress}
+        currentItem={Math.round((importProgress / 100) * importTotal)}
+        totalItems={importTotal}
+        status={importStatus}
+        message={importMessage}
+        errorMessage="Error al importar productos. Revisa los datos e intenta nuevamente."
       />
     </div>
   )
