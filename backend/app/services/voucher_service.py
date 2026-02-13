@@ -516,10 +516,10 @@ class VoucherService:
         }
         nc_type = nc_type_map[original_voucher.voucher_type]
         
-        # 4. Obtener siguiente número
-        last_number = int(business.last_invoice_number or "0")
-        next_number = last_number + 1
-        business.last_invoice_number = str(next_number).zfill(8)
+        # 4. Obtener siguiente número según el tipo de factura original
+        # Las NC NO incrementan el contador, AFIP les asigna el número automáticamente
+        # Usamos un número temporal que luego será reemplazado por el de AFIP
+        voucher_number = "PENDING"
         
         # 5. Crear voucher de NC
         from datetime import date
@@ -530,7 +530,7 @@ class VoucherService:
             voucher_type=nc_type,
             status=VoucherStatus.CONFIRMED,
             sale_point=business.sale_point or "0001",
-            number=business.last_invoice_number,
+            number=voucher_number,  # Temporal, será reemplazado por el número de AFIP
             date=date.today(),
             notes=f"NC de Factura {original_voucher.full_number}. Motivo: {reason}",
             show_prices=True,
