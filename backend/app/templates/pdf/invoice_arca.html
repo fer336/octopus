@@ -48,8 +48,7 @@
 		.letter-box {
 			width: 100%;
 			text-align: center;
-			border-bottom: 1px solid #000;
-			padding: 0;
+			padding: 10px 0;
 		}
 		.letter-box .letter {
 			display: inline-block;
@@ -215,13 +214,12 @@
 	<!-- Encabezado: Emisor + Datos factura -->
 	<tr class="header">
 		<td class="header-left">
-			<div class="business-name">{{ business.name }}</div>
 			<p class="info-line"><strong>Razón social:</strong> {{ business.name }}</p>
 			<p class="info-line"><strong>Domicilio Comercial:</strong> {{ business.address or 'Sin domicilio' }}</p>
 			<p class="info-line"><strong>Condición Frente al IVA:</strong> {{ business.tax_condition }}</p>
 		</td>
 		<td class="header-right">
-			<div class="invoice-title">{{ voucher.type_name }}</div>
+			<div class="invoice-title" style="text-align: center;">{{ voucher.type_name }}</div>
 			<table cellspacing="0" cellpadding="0" style="width:100%">
 				<tr>
 					<td style="width:50%; padding:0"><p class="info-line"><strong>Punto de Venta: {{ voucher.sale_point }}</strong></p></td>
