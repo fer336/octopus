@@ -194,8 +194,19 @@ async def create_credit_note(
             raise ValueError(f"Error al emitir NC en AFIP: {afip_result.get('error')}")
         
         # 5. Actualizar la NC con los datos de AFIP
+        from datetime import datetime
+        
         credit_note.cae = afip_result.get("CAE")
-        credit_note.cae_expiration = afip_result.get("CAEFchVto")
+        
+        # Convertir CAEFchVto de string a date
+        cae_expiration_str = afip_result.get("CAEFchVto")
+        if cae_expiration_str:
+            # Formato: "2026-02-23" o "20260223"
+            if "-" in cae_expiration_str:
+                credit_note.cae_expiration = datetime.strptime(cae_expiration_str, "%Y-%m-%d").date()
+            else:
+                credit_note.cae_expiration = datetime.strptime(cae_expiration_str, "%Y%m%d").date()
+        
         credit_note.number = str(afip_result.get("voucherNumber")).zfill(8)
         
         await db.commit()
