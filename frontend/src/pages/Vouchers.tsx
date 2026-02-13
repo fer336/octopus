@@ -3,10 +3,11 @@
  * Visualiza cotizaciones, remitos y facturas generadas.
  */
 import { useState } from 'react'
-import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle } from 'lucide-react'
+import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle, RotateCcw } from 'lucide-react'
 import { Button, Table, Pagination, Select, Modal, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import vouchersService from '../api/vouchersService'
+import CreditNoteModal from '../components/vouchers/CreditNoteModal'
 import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
 
@@ -33,6 +34,8 @@ export default function Vouchers() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [voucherToDelete, setVoucherToDelete] = useState<any>(null)
   const [deleteReason, setDeleteReason] = useState('')
+  const [showCreditNoteModal, setShowCreditNoteModal] = useState(false)
+  const [selectedVoucherForNC, setSelectedVoucherForNC] = useState<any>(null)
 
   // Query para comprobantes
   const { data: vouchersData, isLoading, error } = useQuery({
@@ -190,6 +193,21 @@ export default function Vouchers() {
                 >
                   <Download size={18} />
                 </button>
+                
+                {/* Botón Nota de Crédito - SOLO para facturas con CAE */}
+                {item.voucher_type.startsWith('invoice_') && item.cae && (
+                  <button
+                    onClick={() => {
+                      setSelectedVoucherForNC(item)
+                      setShowCreditNoteModal(true)
+                    }}
+                    className="p-1.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/30 rounded-lg transition-colors"
+                    title="Crear Nota de Crédito"
+                  >
+                    <RotateCcw size={18} />
+                  </button>
+                )}
+                
                 <button
                   onClick={() => {
                     setVoucherToDelete(item)
@@ -382,6 +400,19 @@ export default function Vouchers() {
           </div>
         )}
       </Modal>
+
+      {/* Modal de Nota de Crédito */}
+      <CreditNoteModal
+        isOpen={showCreditNoteModal}
+        onClose={() => {
+          setShowCreditNoteModal(false)
+          setSelectedVoucherForNC(null)
+        }}
+        voucher={selectedVoucherForNC}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['vouchers'] })
+        }}
+      />
     </div>
   )
 }

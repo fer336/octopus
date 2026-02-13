@@ -450,3 +450,167 @@ class VoucherService:
         }
         
         return pdf_service.generate_voucher_pdf(context)
+
+    async def create_credit_note(
+        self,
+        business_id: UUID,
+        original_voucher_id: UUID,
+        reason: str,
+        items_data: List[Dict[str, Any]],
+        user_id: UUID
+    ) -> Voucher:
+        """
+        Crea una Nota de Crédito a partir de una factura original.
+        
+        Args:
+            business_id: ID del negocio
+            original_voucher_id: ID de la factura original
+            reason: Motivo de la NC
+            items_data: Lista de items a devolver
+            user_id: ID del usuario que crea la NC
+            
+        Returns:
+            Voucher de tipo CREDIT_NOTE creado
+            
+        Raises:
+            ValueError: Si hay errores de validación
+        """
+        from app.schemas.credit_note import CreditNoteItemCreate
+        
+        # 1. Obtener y validar factura original
+        result = await self.db.execute(
+            select(Voucher)
+            .options(selectinload(Voucher.items))
+            .where(
+                Voucher.id == original_voucher_id,
+                Voucher.business_id == business_id
+            )
+        )
+        original_voucher = result.scalar_one_or_none()
+        
+        if not original_voucher:
+            raise ValueError("Factura original no encontrada")
+        
+        # Validar que sea una factura (no cotización ni remito)
+        if original_voucher.voucher_type not in [
+            VoucherType.INVOICE_A,
+            VoucherType.INVOICE_B,
+            VoucherType.INVOICE_C
+        ]:
+            raise ValueError("Solo se pueden crear Notas de Crédito de facturas")
+        
+        # Validar que tenga CAE (esté emitida)
+        if not original_voucher.cae:
+            raise ValueError("La factura original no tiene CAE. Debe estar emitida en AFIP")
+        
+        # 2. Obtener business para numeración
+        business = await self.db.get(Business, business_id)
+        if not business:
+            raise ValueError("Negocio no encontrado")
+        
+        # 3. Determinar tipo de NC según tipo de factura original
+        nc_type_map = {
+            VoucherType.INVOICE_A: VoucherType.CREDIT_NOTE_A,
+            VoucherType.INVOICE_B: VoucherType.CREDIT_NOTE_B,
+            VoucherType.INVOICE_C: VoucherType.CREDIT_NOTE_C,
+        }
+        nc_type = nc_type_map[original_voucher.voucher_type]
+        
+        # 4. Obtener siguiente número
+        last_number = int(business.last_invoice_number or "0")
+        next_number = last_number + 1
+        business.last_invoice_number = str(next_number).zfill(8)
+        
+        # 5. Crear voucher de NC
+        from datetime import date
+        
+        credit_note = Voucher(
+            business_id=business_id,
+            client_id=original_voucher.client_id,
+            voucher_type=nc_type,
+            status=VoucherStatus.CONFIRMED,
+            sale_point=business.sale_point or "0001",
+            number=business.last_invoice_number,
+            date=date.today(),
+            notes=f"NC de Factura {original_voucher.full_number}. Motivo: {reason}",
+            show_prices=True,
+            created_by=user_id,
+        )
+        
+        self.db.add(credit_note)
+        await self.db.flush()
+        
+        # 6. Crear items de la NC
+        subtotal = Decimal("0")
+        iva_amount = Decimal("0")
+        
+        for item_data in items_data:
+            # Validar que el producto exista en la factura original
+            original_item = next(
+                (i for i in original_voucher.items if str(i.product_id) == str(item_data["product_id"])),
+                None
+            )
+            if not original_item:
+                raise ValueError(f"El producto {item_data['product_id']} no está en la factura original")
+            
+            # Validar que la cantidad no supere la original
+            if item_data["quantity"] > original_item.quantity:
+                raise ValueError(
+                    f"La cantidad a devolver ({item_data['quantity']}) no puede ser mayor "
+                    f"a la cantidad original ({original_item.quantity})"
+                )
+            
+            # Obtener producto
+            product = await self.db.get(Product, item_data["product_id"])
+            if not product:
+                raise ValueError(f"Producto {item_data['product_id']} no encontrado")
+            
+            # Calcular precios (NEGATIVOS para NC)
+            quantity = Decimal(str(item_data["quantity"]))
+            unit_price = Decimal(str(item_data["unit_price"]))
+            discount = Decimal(str(item_data.get("discount_percent", 0)))
+            
+            item_subtotal = quantity * unit_price * (1 - discount / 100)
+            item_iva = item_subtotal * Decimal("0.21")  # IVA 21%
+            
+            # IMPORTANTE: Los montos de NC son NEGATIVOS
+            subtotal -= item_subtotal
+            iva_amount -= item_iva
+            
+            nc_item = VoucherItem(
+                voucher_id=credit_note.id,
+                product_id=product.id,
+                description=product.description,
+                quantity=quantity,
+                unit_price=unit_price,
+                discount_percent=discount,
+                iva_rate=Decimal("21"),
+                subtotal=item_subtotal,
+                iva_amount=item_iva,
+                total=item_subtotal + item_iva,
+            )
+            self.db.add(nc_item)
+        
+        # 7. Actualizar totales del voucher (NEGATIVOS)
+        credit_note.subtotal = subtotal
+        credit_note.iva_amount = iva_amount
+        credit_note.total = subtotal + iva_amount
+        
+        # 8. Validar que el total de la NC no supere el total de la factura original
+        if abs(credit_note.total) > original_voucher.total:
+            raise ValueError(
+                f"El total de la NC (${abs(credit_note.total)}) no puede superar "
+                f"el total de la factura original (${original_voucher.total})"
+            )
+        
+        await self.db.commit()
+        await self.db.refresh(credit_note)
+        
+        # Cargar relaciones
+        result = await self.db.execute(
+            select(Voucher)
+            .options(selectinload(Voucher.items))
+            .where(Voucher.id == credit_note.id)
+        )
+        return result.scalar_one()
+

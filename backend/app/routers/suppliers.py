@@ -138,6 +138,7 @@ async def get_supplier_category_discounts(
     """
     from app.models.supplier_category_discount import SupplierCategoryDiscount
     from app.models.category import Category
+    from sqlalchemy import select
     from sqlalchemy.orm import selectinload
     
     query = (

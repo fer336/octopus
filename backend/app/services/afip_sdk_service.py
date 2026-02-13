@@ -474,6 +474,111 @@ class AfipSdkService:
 
         return result
 
+    async def emit_credit_note(
+        self,
+        credit_note: Voucher,
+        client: Client,
+        original_voucher: Voucher,
+    ) -> Dict[str, Any]:
+        """
+        Emite una Nota de Crédito electrónica a partir de un Voucher.
+        
+        IMPORTANTE: Los montos de NC deben ser NEGATIVOS.
+        
+        Args:
+            credit_note: Voucher de tipo CREDIT_NOTE
+            client: Cliente del comprobante
+            original_voucher: Factura original que se está anulando/modificando
+            
+        Returns:
+            Diccionario con CAE, fecha vencimiento y número
+            
+        Raises:
+            ValueError: Si hay errores de validación
+        """
+        # Obtener tipo de comprobante AFIP
+        cbte_tipo = self.VOUCHER_TYPE_TO_CBTE_TIPO.get(credit_note.voucher_type)
+        if not cbte_tipo:
+            raise ValueError(
+                f"Tipo de comprobante no soportado: {credit_note.voucher_type}"
+            )
+        
+        # Obtener tipo de comprobante original
+        cbte_tipo_original = self.VOUCHER_TYPE_TO_CBTE_TIPO.get(original_voucher.voucher_type)
+        if not cbte_tipo_original:
+            raise ValueError(
+                f"Tipo de comprobante original no soportado: {original_voucher.voucher_type}"
+            )
+        
+        # Calcular totales (DEBEN SER NEGATIVOS para NC)
+        imp_neto = abs(float(credit_note.subtotal))
+        imp_iva = abs(float(credit_note.iva_amount))
+        imp_total = abs(float(credit_note.total))
+        
+        # Fecha del comprobante (formato YYYYMMDD)
+        cbte_fch = credit_note.date.strftime("%Y%m%d")
+        
+        # Obtener tipo de documento
+        doc_tipo = self._get_doc_type(client)
+        doc_nro = (
+            int(client.document_number.replace("-", ""))
+            if client.document_number
+            else 0
+        )
+        
+        # Si es Consumidor Final, DocTipo = 99, DocNro = 0
+        if doc_tipo == 99 or not client.document_number:
+            doc_tipo = 99
+            doc_nro = 0
+        
+        # Condición IVA del receptor
+        iva_condition = str(client.tax_condition) if client.tax_condition else "Consumidor Final"
+        condicion_iva_receptor_id = self.IVA_CONDITION_TO_ID.get(iva_condition, 5)
+        
+        # Desglose de IVA
+        iva_breakdown = self._calculate_iva_breakdown(credit_note)
+        
+        # IMPORTANTE: Comprobantes Asociados (CbtesAsoc)
+        # Es OBLIGATORIO para Notas de Crédito referenciar la factura original
+        cbtes_asoc = [{
+            "Tipo": cbte_tipo_original,
+            "PtoVta": int(original_voucher.sale_point),
+            "Nro": int(original_voucher.number),
+        }]
+        
+        # Construir datos del comprobante
+        data = {
+            "CantReg": 1,
+            "PtoVta": int(credit_note.sale_point),
+            "CbteTipo": cbte_tipo,
+            "Concepto": 1,  # 1 = Productos
+            "DocTipo": doc_tipo,
+            "DocNro": doc_nro,
+            "CbteFch": cbte_fch,
+            "ImpTotal": round(imp_total, 2),
+            "ImpTotConc": 0,
+            "ImpNeto": round(imp_neto, 2),
+            "ImpOpEx": 0,
+            "ImpTrib": 0,
+            "ImpIVA": round(imp_iva, 2),
+            "MonId": "PES",
+            "MonCotiz": 1,
+            "CondicionIVAReceptorId": condicion_iva_receptor_id,
+            "Iva": iva_breakdown,
+            "CbtesAsoc": cbtes_asoc,  # 🔑 CLAVE: Referencia a factura original
+        }
+        
+        logger.info(f"Emitiendo Nota de Crédito electrónica: {credit_note.full_number}")
+        logger.info(f"Referencia a factura original: {original_voucher.full_number}")
+        logger.info(f"Datos del comprobante: {data}")
+        
+        result = await self.create_next_voucher(data)
+        
+        if not result["success"]:
+            raise ValueError(f"Error de ARCA/AFIP: {result['error']}")
+        
+        return result
+
     # ================================================================
     # Diagnóstico
     # ================================================================

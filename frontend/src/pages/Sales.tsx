@@ -3,7 +3,7 @@
  * Permite crear cotizaciones, remitos y facturas.
  */
 import { useState, useEffect, useRef } from 'react'
-import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, ZoomIn, ZoomOut } from 'lucide-react'
+import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, ZoomIn, ZoomOut, Download, Printer, X } from 'lucide-react'
 import { Button, Modal, Select } from '../components/ui'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import productsService from '../api/productsService'
@@ -146,14 +146,21 @@ export default function Sales() {
         }
       }
       
-      // Descargar PDF con autenticación y abrirlo
+      // Descargar PDF con autenticación y abrirlo en modal
       try {
         const pdfBlob = await vouchersService.getPdf(data.id)
-        const pdfUrl = URL.createObjectURL(pdfBlob)
-        window.open(pdfUrl, '_blank')
+        const blobUrl = URL.createObjectURL(pdfBlob)
         
-        // Limpiar la URL del blob después de un tiempo
-        setTimeout(() => URL.revokeObjectURL(pdfUrl), 10000)
+        // Guardar la URL y la info del comprobante
+        setPdfUrl(blobUrl)
+        setPdfVoucherInfo({
+          type: data.voucher_type,
+          number: data.number
+        })
+        
+        // Abrir modal con el PDF
+        setShowPdfModal(true)
+        
       } catch (error) {
         toast.error('Error al abrir el PDF: ' + formatErrorMessage(error))
       }
@@ -178,11 +185,22 @@ export default function Sales() {
   const [showClientSelectorModal, setShowClientSelectorModal] = useState(false)
   const [showDraftsModal, setShowDraftsModal] = useState(false)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [showSaveDraftSuccessModal, setShowSaveDraftSuccessModal] = useState(false)
+  const [showDeleteDraftModal, setShowDeleteDraftModal] = useState(false)
+  const [draftToDelete, setDraftToDelete] = useState<string | null>(null)
+  const [showPdfModal, setShowPdfModal] = useState(false)
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [pdfVoucherInfo, setPdfVoucherInfo] = useState<{ type: string, number: string } | null>(null)
 
-  // Producto seleccionado
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  const [quantity, setQuantity] = useState('1')
-  const [discount, setDiscount] = useState('0')
+  // Panel de preview de productos seleccionados temporalmente con cantidad y descuento
+  interface TempProduct extends Product {
+    tempQuantity: number
+    tempDiscount: number
+  }
+  const [tempSelectedProducts, setTempSelectedProducts] = useState<TempProduct[]>([])
+  
+  // Flag para bloquear eventos de teclado temporalmente después de confirmar
+  const blockKeyboardEventsRef = useRef(false)
 
   // Formulario de cliente
   const [newClient, setNewClient] = useState<Partial<Client>>({
@@ -193,8 +211,10 @@ export default function Sales() {
   })
 
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const quantityInputRef = useRef<HTMLInputElement>(null)
   const clientNameInputRef = useRef<HTMLInputElement>(null)
+  
+  // Refs para los inputs del modal de configuración
+  const modalInputsRef = useRef<(HTMLInputElement | null)[]>([])
 
   // Filtrar productos según búsqueda
   const filteredProducts = allProducts
@@ -218,16 +238,36 @@ export default function Sales() {
   // Manejar eventos de teclado
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (showQuantityModal || showClientModal || showDraftsModal) return
+      // Bloquear eventos si están bloqueados temporalmente o hay modales abiertos
+      if (blockKeyboardEventsRef.current || showQuantityModal || showClientModal || showDraftsModal) return
 
-      if (e.key === 'Escape' && filteredProducts.length > 0) {
+      if (e.key === 'Escape') {
         e.preventDefault()
+        
+        // Si hay productos temporales, abrir modal para editar
+        if (tempSelectedProducts.length > 0) {
+          setShowQuantityModal(true)
+        } 
+        // Si NO hay temporales pero hay 1 producto filtrado, agregarlo y abrir modal
+        else if (filteredProducts.length === 1) {
+          const product = filteredProducts[0]
+          setTempSelectedProducts([{ ...product, tempQuantity: 1, tempDiscount: 0 }])
+          setShowQuantityModal(true)
+        }
+        // Si NO hay temporales pero hay un producto seleccionado, agregarlo y abrir modal
+        else if (filteredProducts.length > 0) {
+          const product = filteredProducts[selectedProductIndex]
+          if (product) {
+            setTempSelectedProducts([{ ...product, tempQuantity: 1, tempDiscount: 0 }])
+            setShowQuantityModal(true)
+          }
+        }
+      } else if (e.key === 'Enter' && filteredProducts.length > 0) {
+        e.preventDefault()
+        // Toggle el producto seleccionado actual en la lista temporal
         const product = filteredProducts[selectedProductIndex]
         if (product) {
-          setSelectedProduct(product)
-          setQuantity('1')
-          setDiscount('0')
-          setShowQuantityModal(true)
+          toggleProductInTemp(product)
         }
       } else if (e.key === 'ArrowDown' && filteredProducts.length > 0) {
         e.preventDefault()
@@ -242,7 +282,7 @@ export default function Sales() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [filteredProducts, selectedProductIndex, showQuantityModal, showClientModal, showDraftsModal])
+  }, [filteredProducts, selectedProductIndex, showQuantityModal, showClientModal, showDraftsModal, tempSelectedProducts])
 
   // Reset selected index cuando cambia la búsqueda
   useEffect(() => {
@@ -251,9 +291,17 @@ export default function Sales() {
 
   // Focus handlers
   useEffect(() => {
-    if (showQuantityModal && quantityInputRef.current) {
-      quantityInputRef.current.focus()
-      quantityInputRef.current.select()
+    if (showQuantityModal) {
+      // Focus en el primer input (cantidad del primer producto)
+      setTimeout(() => {
+        if (modalInputsRef.current[0]) {
+          modalInputsRef.current[0].focus()
+          modalInputsRef.current[0].select()
+        }
+      }, 100)
+    } else {
+      // Limpiar refs cuando se cierra
+      modalInputsRef.current = []
     }
   }, [showQuantityModal])
 
@@ -262,6 +310,25 @@ export default function Sales() {
       clientNameInputRef.current.focus()
     }
   }, [showClientModal])
+  
+  // Función para navegar entre inputs del modal
+  const handleModalInputKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      e.stopPropagation() // Evitar que el evento se propague al listener global
+      
+      const nextIndex = index + 1
+      
+      // Si hay un siguiente input, moverse a él
+      if (nextIndex < modalInputsRef.current.length) {
+        modalInputsRef.current[nextIndex]?.focus()
+        modalInputsRef.current[nextIndex]?.select()
+      } else {
+        // Si era el último input, agregar al carrito
+        confirmTempProducts()
+      }
+    }
+  }
 
   // Cargar borradores al iniciar
   useEffect(() => {
@@ -271,27 +338,83 @@ export default function Sales() {
     }
   }, [])
 
-  const addItemToCart = () => {
-    if (!selectedProduct) return
-
-    const qty = parseInt(quantity) || 1
-    const disc = parseFloat(discount) || 0
-
-    const existing = items.find(i => i.id === selectedProduct.id)
-    if (existing) {
-      setItems(items.map(i =>
-        i.id === selectedProduct.id
-          ? { ...i, quantity: i.quantity + qty, discount: disc }
-          : i
-      ))
+  // Toggle producto en lista temporal (agregar o quitar)
+  const toggleProductInTemp = (product: Product) => {
+    const alreadyInTemp = tempSelectedProducts.find(p => p.id === product.id)
+    
+    if (alreadyInTemp) {
+      // Si ya está, quitarlo
+      setTempSelectedProducts(tempSelectedProducts.filter(p => p.id !== product.id))
+      toast.success(`${product.description} quitado`, { duration: 1000, icon: '✓' })
     } else {
-      setItems([...items, { ...selectedProduct, quantity: qty, discount: disc }])
+      // Si no está, agregarlo
+      setTempSelectedProducts([...tempSelectedProducts, { ...product, tempQuantity: 1, tempDiscount: 0 }])
+      toast.success(`${product.description} agregado`, { duration: 1000, icon: '✓' })
+    }
+  }
+
+  // Remover producto temporal
+  const removeFromTemp = (productId: string) => {
+    setTempSelectedProducts(tempSelectedProducts.filter(p => p.id !== productId))
+  }
+
+  // Actualizar cantidad/descuento de producto temporal
+  const updateTempProduct = (productId: string, field: 'tempQuantity' | 'tempDiscount', value: number) => {
+    setTempSelectedProducts(tempSelectedProducts.map(p =>
+      p.id === productId ? { ...p, [field]: value } : p
+    ))
+  }
+
+  // Confirmar y agregar todos los productos temporales al carrito
+  const confirmTempProducts = () => {
+    if (tempSelectedProducts.length === 0) {
+      toast.error('No hay productos seleccionados')
+      return
     }
 
+    // Agregar cada producto con su cantidad y descuento configurados
+    const newItems = [...items]
+    tempSelectedProducts.forEach(product => {
+      const existing = newItems.find(i => i.id === product.id)
+      if (existing) {
+        existing.quantity += product.tempQuantity
+        existing.discount = product.tempDiscount
+      } else {
+        newItems.push({ 
+          ...product, 
+          quantity: product.tempQuantity, 
+          discount: product.tempDiscount 
+        })
+      }
+    })
+    setItems(newItems)
+
+    // Limpiar TODO completamente en el orden correcto
+    const count = tempSelectedProducts.length
+    
+    // 1. Bloquear eventos de teclado temporalmente para evitar que el Enter se propague
+    blockKeyboardEventsRef.current = true
+    
+    // 2. Cerrar modal
     setShowQuantityModal(false)
-    setSelectedProduct(null)
+    
+    // 3. Limpiar estados inmediatamente
+    setTempSelectedProducts([])
     setProductSearch('')
-    searchInputRef.current?.focus()
+    setSelectedProductIndex(0)
+    
+    // 4. Mostrar confirmación
+    toast.success(`${count} producto(s) agregados al carrito`)
+    
+    // 5. Focus en el buscador y desbloquear eventos después de un delay
+    setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.value = '' // Forzar limpieza del DOM
+        searchInputRef.current.focus()
+      }
+      // Desbloquear eventos después de que todo se haya procesado
+      blockKeyboardEventsRef.current = false
+    }, 150)
   }
 
   const removeItem = (id: string) => {
@@ -312,7 +435,7 @@ export default function Sales() {
 
   const handleClear = () => {
     if (items.length > 0 || selectedClient) {
-      if (confirm('¿Está seguro de que desea limpiar la pantalla?')) {
+      if (window.confirm('¿Está seguro de que desea limpiar la pantalla?')) {
         setItems([])
         setSelectedClient(null)
         setClientSearch('')
@@ -340,57 +463,64 @@ export default function Sales() {
   const handleConfirmGenerate = () => {
     setShowConfirmModal(false)
     
-    if (true) {
-      setIsGenerating(true)
-      
-      // Mapear tipo de comprobante (simplificado para MVP)
-      let backendType = 'quotation'
-      if (voucherType === 'receipt') backendType = 'receipt'
-      if (voucherType === 'invoice') {
-        // Lógica simple: Si es RI -> A, sino B
-        backendType = selectedClient.tax_condition === 'RI' ? 'invoice_a' : 'invoice_b'
-      }
-
-      // Obtener fecha local (sin conversión UTC)
-      const today = new Date()
-      const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-
-      const voucherData: VoucherCreate = {
-        client_id: selectedClient.id,
-        voucher_type: backendType as any,
-        date: localDate,
-        show_prices: voucherType !== 'receipt', // Remito sin precios por defecto (configurable)
-        items: items.map(item => ({
-          product_id: item.id,
-          quantity: item.quantity,
-          unit_price: item.sale_price, // Enviamos el precio base, el backend recalcula o valida
-          discount_percent: item.discount
-        }))
-      }
-
-      createVoucherMutation.mutate(voucherData)
+    if (!selectedClient) {
+      toast.error('Debe seleccionar un cliente')
+      return
     }
+    
+    setIsGenerating(true)
+    
+    // Mapear tipo de comprobante (simplificado para MVP)
+    let backendType = 'quotation'
+    if (voucherType === 'receipt') backendType = 'receipt'
+    if (voucherType === 'invoice') {
+      // Lógica simple: Si es RI -> A, sino B
+      backendType = selectedClient.tax_condition === 'RI' ? 'invoice_a' : 'invoice_b'
+    }
+
+    // Obtener fecha local (sin conversión UTC)
+    const today = new Date()
+    const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+    const voucherData: VoucherCreate = {
+      client_id: selectedClient.id,
+      voucher_type: backendType as any,
+      date: localDate,
+      show_prices: voucherType !== 'receipt', // Remito sin precios por defecto (configurable)
+      items: items.map(item => ({
+        product_id: item.id,
+        quantity: item.quantity,
+        unit_price: item.sale_price, // Enviamos el precio base, el backend recalcula o valida
+        discount_percent: item.discount
+      }))
+    }
+
+    createVoucherMutation.mutate(voucherData)
   }
 
   const handleSaveDraft = () => {
     if (items.length === 0) {
-      alert('No hay productos para guardar')
+      toast.error('No hay productos para guardar')
       return
     }
 
     if (!selectedClient) {
-      alert('Debe seleccionar un cliente antes de guardar el borrador')
+      toast.error('Debe seleccionar un cliente antes de guardar el borrador')
       return
     }
+
+    const currentSubtotal = items.reduce((acc, item) => acc + calculateItemTotal(item), 0)
+    const currentIva = currentSubtotal * 0.21
+    const currentTotal = currentSubtotal + currentIva
 
     const draft: Draft = {
       id: Date.now().toString(),
       voucherType,
       client: selectedClient,
       items,
-      subtotal,
-      iva,
-      total,
+      subtotal: currentSubtotal,
+      iva: currentIva,
+      total: currentTotal,
       createdAt: new Date().toISOString(),
     }
 
@@ -398,8 +528,10 @@ export default function Sales() {
     setDrafts(savedDrafts)
     localStorage.setItem('sales-drafts', JSON.stringify(savedDrafts))
 
-    alert('Borrador guardado correctamente')
+    // Mostrar modal de éxito
+    setShowSaveDraftSuccessModal(true)
 
+    // Limpiar después de guardar
     setItems([])
     setSelectedClient(null)
     setClientSearch('')
@@ -414,11 +546,55 @@ export default function Sales() {
     setShowDraftsModal(false)
   }
 
-  const deleteDraft = (draftId: string) => {
-    if (confirm('¿Está seguro de eliminar este borrador?')) {
-      const updatedDrafts = drafts.filter(d => d.id !== draftId)
+  const handleDeleteDraftClick = (draftId: string) => {
+    setDraftToDelete(draftId)
+    setShowDeleteDraftModal(true)
+  }
+
+  const confirmDeleteDraft = () => {
+    if (draftToDelete) {
+      const updatedDrafts = drafts.filter(d => d.id !== draftToDelete)
       setDrafts(updatedDrafts)
       localStorage.setItem('sales-drafts', JSON.stringify(updatedDrafts))
+      toast.success('Borrador eliminado correctamente')
+    }
+    setShowDeleteDraftModal(false)
+    setDraftToDelete(null)
+  }
+
+  const handleDownloadPdf = () => {
+    if (pdfUrl && pdfVoucherInfo) {
+      const link = document.createElement('a')
+      link.href = pdfUrl
+      link.download = `comprobante_${pdfVoucherInfo.type}_${pdfVoucherInfo.number}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      toast.success('PDF descargado correctamente')
+    }
+  }
+
+  const handlePrintPdf = () => {
+    if (pdfUrl) {
+      // Abrir en nueva ventana para imprimir
+      const printWindow = window.open(pdfUrl, '_blank')
+      if (printWindow) {
+        printWindow.onload = () => {
+          printWindow.print()
+        }
+      }
+    }
+  }
+
+  const handleClosePdfModal = () => {
+    setShowPdfModal(false)
+    // Limpiar URL después de cerrar
+    if (pdfUrl) {
+      setTimeout(() => {
+        URL.revokeObjectURL(pdfUrl)
+        setPdfUrl(null)
+        setPdfVoucherInfo(null)
+      }, 500)
     }
   }
 
@@ -572,66 +748,66 @@ export default function Sales() {
               </h3>
             </div>
             <div className="overflow-x-auto max-h-[35vh] overflow-y-auto">
-              <table className="w-full transition-all duration-200" style={{ fontSize: `${0.75 * zoomLevel}rem` }}>
+              <table className="w-full transition-all duration-200" style={{ fontSize: `${0.875 * zoomLevel}rem` }}>
                 <thead className="bg-gray-100 dark:bg-gray-900 sticky top-0">
                   <tr>
-                    <th className="px-2 py-1 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-600 dark:text-gray-400">Descripción</th>
-                    <th className="px-2 py-1 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: `${4 * zoomLevel}rem` }}>Cant.</th>
-                    <th className="px-2 py-1 text-right font-medium text-gray-600 dark:text-gray-400">Precio</th>
-                    <th className="px-2 py-1 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: `${4 * zoomLevel}rem` }}>Desc%</th>
-                    <th className="px-2 py-1 text-right font-medium text-gray-600 dark:text-gray-400">Total</th>
-                    <th className="px-2 py-1 w-8"></th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Descripción</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: `${5 * zoomLevel}rem` }}>Cant.</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Precio</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: `${5 * zoomLevel}rem` }}>Desc%</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Total</th>
+                    <th className="px-3 py-2 w-10"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {items.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-2 py-6 text-center text-gray-400">
-                        <ShoppingCart className="mx-auto mb-1 opacity-50" size={24 * zoomLevel} />
-                        <p>Sin productos</p>
+                      <td colSpan={7} className="px-3 py-6 text-center text-gray-400">
+                        <ShoppingCart className="mx-auto mb-1 opacity-50" size={28 * zoomLevel} />
+                        <p className="text-sm">Sin productos</p>
                       </td>
                     </tr>
                   ) : (
                     items.map(item => (
                       <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="px-2 py-1.5 font-medium">{item.code}</td>
-                        <td className="px-2 py-1.5">{item.description}</td>
-                        <td className="px-2 py-1.5 text-right">
+                        <td className="px-3 py-2 font-medium">{item.code}</td>
+                        <td className="px-3 py-2">{item.description}</td>
+                        <td className="px-3 py-2 text-right">
                           <input
                             type="number"
                             value={item.quantity}
                             onChange={(e) => updateItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
                             className="w-full text-right border rounded dark:bg-gray-700 dark:border-gray-600"
                             style={{ 
-                              fontSize: `${0.75 * zoomLevel}rem`,
-                              padding: `${0.125 * zoomLevel}rem ${0.25 * zoomLevel}rem`
+                              fontSize: `${0.875 * zoomLevel}rem`,
+                              padding: `${0.25 * zoomLevel}rem ${0.375 * zoomLevel}rem`
                             }}
                             min={1}
                           />
                         </td>
-                        <td className="px-2 py-1.5 text-right">${item.sale_price.toLocaleString()}</td>
-                        <td className="px-2 py-1.5 text-right">
+                        <td className="px-3 py-2 text-right">${item.sale_price.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right">
                           <input
                             type="number"
                             value={item.discount}
                             onChange={(e) => updateItem(item.id, 'discount', parseFloat(e.target.value) || 0)}
                             className="w-full text-right border rounded dark:bg-gray-700 dark:border-gray-600"
                             style={{ 
-                              fontSize: `${0.75 * zoomLevel}rem`,
-                              padding: `${0.125 * zoomLevel}rem ${0.25 * zoomLevel}rem`
+                              fontSize: `${0.875 * zoomLevel}rem`,
+                              padding: `${0.25 * zoomLevel}rem ${0.375 * zoomLevel}rem`
                             }}
                             min={0}
                             max={100}
                             step={0.1}
                           />
                         </td>
-                        <td className="px-2 py-1.5 text-right font-medium">
+                        <td className="px-3 py-2 text-right font-medium">
                           ${calculateItemTotal(item).toLocaleString()}
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           <button onClick={() => removeItem(item.id)} className="text-red-500 hover:text-red-700">
-                            <Trash2 size={14 * zoomLevel} />
+                            <Trash2 size={16 * zoomLevel} />
                           </button>
                         </td>
                       </tr>
@@ -652,58 +828,102 @@ export default function Sales() {
                   type="text"
                   value={productSearch}
                   onChange={(e) => setProductSearch(e.target.value)}
-                  placeholder="Buscar producto - Presione ESC para agregar"
+                  placeholder="Buscar - Enter/Doble Click: Seleccionar | ESC: Configurar y Cargar"
                   className="flex-1 text-xs bg-transparent border-none outline-none text-gray-700 dark:text-gray-300"
                 />
               </div>
             </div>
+            
+            {/* Panel de preview de productos seleccionados temporalmente */}
+            {tempSelectedProducts.length > 0 && (
+              <div className="p-2 bg-green-50 dark:bg-green-900/20 border-b border-green-200 dark:border-green-800">
+                <div className="flex items-start justify-between mb-1">
+                  <p className="text-xs font-semibold text-green-700 dark:text-green-300">
+                    Productos seleccionados ({tempSelectedProducts.length})
+                  </p>
+                  <button
+                    onClick={() => setTempSelectedProducts([])}
+                    className="text-xs text-red-600 hover:text-red-800 dark:text-red-400"
+                  >
+                    Limpiar
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {tempSelectedProducts.map(product => (
+                    <div
+                      key={product.id}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 rounded text-xs"
+                    >
+                      <span>{product.code}</span>
+                      <button
+                        onClick={() => removeFromTemp(product.id)}
+                        className="hover:text-red-600 dark:hover:text-red-400 ml-1"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="overflow-x-auto max-h-[30vh] overflow-y-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead className="bg-gray-100 dark:bg-gray-900 sticky top-0">
                   <tr>
-                    <th className="px-2 py-1 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-600 dark:text-gray-400">Descripción</th>
-                    <th className="px-2 py-1 text-right font-medium text-gray-600 dark:text-gray-400">Precio</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Descripción</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Precio</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-2 py-6 text-center text-gray-400">
-                        <p className="text-xs">
+                      <td colSpan={3} className="px-3 py-6 text-center text-gray-400">
+                        <p className="text-sm">
                           {productSearch ? 'No se encontraron productos' : 'Busque productos para agregar'}
                         </p>
                       </td>
                     </tr>
                   ) : (
-                    filteredProducts.map((product, index) => (
-                      <tr
-                        key={product.id}
-                        className={`cursor-pointer ${
-                          index === selectedProductIndex
-                            ? 'bg-blue-100 dark:bg-blue-900'
-                            : 'hover:bg-gray-50 dark:hover:bg-gray-700'
-                        }`}
-                        onClick={() => {
-                          setSelectedProduct(product)
-                          setQuantity('1')
-                          setDiscount('0')
-                          setShowQuantityModal(true)
-                        }}
-                      >
-                        <td className="px-2 py-1.5 font-medium">{product.code}</td>
-                        <td className="px-2 py-1.5">{product.description}</td>
-                        <td className="px-2 py-1.5 text-right">${product.sale_price.toLocaleString()}</td>
-                      </tr>
-                    ))
+                    filteredProducts.map((product, index) => {
+                      const isInTemp = tempSelectedProducts.find(p => p.id === product.id)
+                      return (
+                        <tr
+                          key={product.id}
+                          className={`cursor-pointer ${
+                            isInTemp 
+                              ? 'bg-green-100 dark:bg-green-900' 
+                              : index === selectedProductIndex
+                                ? 'bg-blue-100 dark:bg-blue-900'
+                                : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                          }`}
+                          onClick={() => setSelectedProductIndex(index)}
+                          onDoubleClick={() => toggleProductInTemp(product)}
+                        >
+                          <td className="px-3 py-2 font-medium">
+                            {isInTemp && <span className="text-green-600 dark:text-green-400 mr-1 text-base">✓</span>}
+                            {product.code}
+                          </td>
+                          <td className="px-3 py-2">{product.description}</td>
+                          <td className="px-3 py-2 text-right">${product.sale_price.toLocaleString()}</td>
+                        </tr>
+                      )
+                    })
                   )}
                 </tbody>
               </table>
             </div>
             <div className="p-2 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
-              <p className="text-xs text-gray-500">
-                ↑↓ Navegar | ESC Agregar producto
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500">
+                  ↑↓ Navegar | Enter o Doble Click Seleccionar/Deseleccionar | ESC Configurar
+                </p>
+                {tempSelectedProducts.length > 0 && (
+                  <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                    {tempSelectedProducts.length} seleccionado(s) - Presione ESC para configurar
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -754,60 +974,141 @@ export default function Sales() {
         </div>
       </div>
 
-      {/* Modal cantidad */}
-      <Modal isOpen={showQuantityModal} onClose={() => setShowQuantityModal(false)} title="Agregar producto">
-        {selectedProduct && (
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {selectedProduct.code} - {selectedProduct.description}
-              </p>
-              <p className="text-xs text-gray-500">
-                Precio: ${selectedProduct.sale_price.toLocaleString()}
-              </p>
-            </div>
+      {/* Modal configuración de productos seleccionados */}
+      <Modal 
+        isOpen={showQuantityModal} 
+        onClose={() => {
+          setShowQuantityModal(false)
+          // NO limpiamos tempSelectedProducts para que pueda volver a abrir con ESC
+        }} 
+        title="Configurar productos seleccionados"
+        size="xl"
+      >
+        <div className="space-y-4">
+          {tempSelectedProducts.length > 0 ? (
+            <>
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <p className="text-sm text-blue-900 dark:text-blue-200">
+                  <strong>Enter</strong> para navegar entre campos. Al completar el último campo, presioná <strong>Enter</strong> para agregar al carrito.
+                </p>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Cantidad
-              </label>
-              <input
-                ref={quantityInputRef}
-                type="number"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addItemToCart()}
-                className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
-                min={1}
-              />
-            </div>
+              <div className="max-h-96 overflow-y-auto border rounded-lg dark:border-gray-600">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100 dark:bg-gray-900 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Descripción</th>
+                      <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Precio</th>
+                      <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: '80px' }}>Cant.</th>
+                      <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: '80px' }}>Desc%</th>
+                      <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Subtotal</th>
+                      <th className="px-3 py-2 w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {tempSelectedProducts.map((product, productIndex) => {
+                      const subtotal = product.sale_price * product.tempQuantity
+                      const discountAmount = subtotal * (product.tempDiscount / 100)
+                      const total = subtotal - discountAmount
+                      
+                      // Índices de los inputs: cantidad = productIndex * 2, descuento = productIndex * 2 + 1
+                      const quantityInputIndex = productIndex * 2
+                      const discountInputIndex = productIndex * 2 + 1
+                      
+                      return (
+                        <tr key={product.id}>
+                          <td className="px-3 py-2 font-medium">{product.code}</td>
+                          <td className="px-3 py-2">{product.description}</td>
+                          <td className="px-3 py-2 text-right">${product.sale_price.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              ref={(el) => modalInputsRef.current[quantityInputIndex] = el}
+                              type="number"
+                              value={product.tempQuantity}
+                              onChange={(e) => updateTempProduct(product.id, 'tempQuantity', parseInt(e.target.value) || 1)}
+                              onKeyDown={(e) => handleModalInputKeyDown(e, quantityInputIndex)}
+                              className="w-full text-right text-sm px-2 py-1 border rounded dark:bg-gray-700 dark:border-gray-600"
+                              min={1}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              ref={(el) => modalInputsRef.current[discountInputIndex] = el}
+                              type="number"
+                              value={product.tempDiscount}
+                              onChange={(e) => updateTempProduct(product.id, 'tempDiscount', parseFloat(e.target.value) || 0)}
+                              onKeyDown={(e) => handleModalInputKeyDown(e, discountInputIndex)}
+                              className="w-full text-right text-sm px-2 py-1 border rounded dark:bg-gray-700 dark:border-gray-600"
+                              min={0}
+                              max={100}
+                              step={0.1}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right font-medium">
+                            ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-3 py-2">
+                            <button
+                              onClick={() => removeFromTemp(product.id)}
+                              className="text-red-500 hover:text-red-700"
+                              title="Quitar"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot className="bg-gray-50 dark:bg-gray-900">
+                    <tr>
+                      <td colSpan={5} className="px-3 py-2 text-right font-semibold text-gray-700 dark:text-gray-300">
+                        Total:
+                      </td>
+                      <td className="px-3 py-2 text-right font-bold text-lg text-gray-900 dark:text-white">
+                        ${tempSelectedProducts.reduce((acc, p) => {
+                          const subtotal = p.sale_price * p.tempQuantity
+                          const discountAmount = subtotal * (p.tempDiscount / 100)
+                          return acc + (subtotal - discountAmount)
+                        }, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Descuento adicional (%)
-              </label>
-              <input
-                type="number"
-                value={discount}
-                onChange={(e) => setDiscount(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addItemToCart()}
-                className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
-                min={0}
-                max={100}
-                step={0.1}
-              />
+              <div className="flex gap-2 pt-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowQuantityModal(false)} 
+                  className="flex-1"
+                >
+                  Continuar Seleccionando
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowQuantityModal(false)
+                    setTempSelectedProducts([])
+                  }} 
+                  className="flex-1 text-red-600 hover:text-red-700"
+                >
+                  Cancelar Todo
+                </Button>
+                <Button variant="primary" onClick={confirmTempProducts} className="flex-1">
+                  Agregar al Carrito
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <p>No hay productos seleccionados</p>
+              <p className="text-xs mt-2">Hacé doble click en los productos para seleccionarlos</p>
             </div>
-
-            <div className="flex gap-2 pt-2">
-              <Button variant="outline" onClick={() => setShowQuantityModal(false)} className="flex-1">
-                Cancelar
-              </Button>
-              <Button variant="primary" onClick={addItemToCart} className="flex-1">
-                Agregar
-              </Button>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </Modal>
 
       {/* Modal cliente - REUTILIZA ESTE EN LA PÁGINA DE CLIENTES */}
@@ -1014,7 +1315,7 @@ export default function Sales() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => deleteDraft(draft.id)}
+                      onClick={() => handleDeleteDraftClick(draft.id)}
                       className="text-xs text-red-600 hover:text-red-700 hover:border-red-600"
                     >
                       <Trash2 size={14} />
@@ -1157,6 +1458,136 @@ export default function Sales() {
               {voucherType === 'invoice' ? 'Emitir Factura Electrónica' : 'Confirmar'}
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Modal de confirmación de borrador guardado */}
+      <Modal 
+        isOpen={showSaveDraftSuccessModal} 
+        onClose={() => setShowSaveDraftSuccessModal(false)} 
+        title="Borrador Guardado"
+      >
+        <div className="space-y-4">
+          <div className="text-center py-4">
+            <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-3">
+              <Save className="text-green-600 dark:text-green-400" size={24} />
+            </div>
+            <p className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              Borrador guardado correctamente
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Podés recuperarlo desde el botón "Borradores"
+            </p>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <Button 
+              variant="primary" 
+              onClick={() => setShowSaveDraftSuccessModal(false)} 
+              className="flex-1"
+            >
+              Aceptar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal de confirmación para eliminar borrador */}
+      <Modal 
+        isOpen={showDeleteDraftModal} 
+        onClose={() => {
+          setShowDeleteDraftModal(false)
+          setDraftToDelete(null)
+        }} 
+        title="Eliminar Borrador"
+      >
+        <div className="space-y-4">
+          <div className="text-center py-4">
+            <div className="mx-auto w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-3">
+              <Trash2 className="text-red-600 dark:text-red-400" size={24} />
+            </div>
+            <p className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              ¿Está seguro de eliminar este borrador?
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Esta acción no se puede deshacer
+            </p>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowDeleteDraftModal(false)
+                setDraftToDelete(null)
+              }} 
+              className="flex-1"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="primary" 
+              onClick={confirmDeleteDraft} 
+              className="flex-1 bg-red-600 hover:bg-red-700"
+            >
+              Eliminar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal visor de PDF */}
+      <Modal 
+        isOpen={showPdfModal} 
+        onClose={handleClosePdfModal}
+        title="Comprobante Generado"
+        size="xl"
+      >
+        <div className="space-y-4">
+          {pdfUrl && (
+            <>
+              {/* Visor de PDF con iframe */}
+              <div className="bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600">
+                <iframe
+                  src={pdfUrl}
+                  className="w-full h-[70vh]"
+                  title="Visor de PDF"
+                />
+              </div>
+
+              {/* Botones de acción */}
+              <div className="flex gap-2 pt-2">
+                <Button 
+                  variant="outline" 
+                  onClick={handleDownloadPdf}
+                  className="flex-1"
+                >
+                  <Download size={16} className="mr-2" />
+                  Descargar PDF
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={handlePrintPdf}
+                  className="flex-1"
+                >
+                  <Printer size={16} className="mr-2" />
+                  Imprimir
+                </Button>
+                <Button 
+                  variant="primary" 
+                  onClick={handleClosePdfModal}
+                  className="flex-1"
+                >
+                  <X size={16} className="mr-2" />
+                  Cerrar
+                </Button>
+              </div>
+
+              <p className="text-xs text-center text-gray-500 dark:text-gray-400">
+                El PDF también está disponible desde la lista de comprobantes
+              </p>
+            </>
+          )}
         </div>
       </Modal>
     </div>
