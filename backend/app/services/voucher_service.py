@@ -250,18 +250,22 @@ class VoucherService:
             
         # Determinar letra
         letter = "X"
-        if "invoice_a" in voucher.voucher_type.value: letter = "A"
-        elif "invoice_b" in voucher.voucher_type.value: letter = "B"
-        elif "invoice_c" in voucher.voucher_type.value: letter = "C"
-        elif "receipt" in voucher.voucher_type.value: letter = "R"
+        if "invoice_a" in voucher.voucher_type.value or "credit_note_a" in voucher.voucher_type.value:
+            letter = "A"
+        elif "invoice_b" in voucher.voucher_type.value or "credit_note_b" in voucher.voucher_type.value:
+            letter = "B"
+        elif "invoice_c" in voucher.voucher_type.value or "credit_note_c" in voucher.voucher_type.value:
+            letter = "C"
+        elif "receipt" in voucher.voucher_type.value:
+            letter = "R"
         
-        # Si es factura con CAE, usar template ARCA
-        is_arca_invoice = (
-            "invoice" in voucher.voucher_type.value
+        # Si es factura o NC con CAE, usar template ARCA
+        is_arca_document = (
+            ("invoice" in voucher.voucher_type.value or "credit_note" in voucher.voucher_type.value)
             and voucher.cae
         )
 
-        if is_arca_invoice:
+        if is_arca_document:
             return self._generate_arca_pdf(voucher, letter)
         else:
             return self._generate_voucher_pdf(voucher, letter)
@@ -269,6 +273,13 @@ class VoucherService:
     def _generate_arca_pdf(self, voucher, letter: str) -> bytes:
         """Genera PDF de factura electrónica ARCA con CAE, QR y formato fiscal."""
         from app.services.afip_sdk_service import AfipSdkService
+
+        # Determinar tipo de documento
+        type_name = "FACTURA"
+        if "credit_note" in voucher.voucher_type.value:
+            type_name = "NOTA DE CRÉDITO"
+        elif "debit_note" in voucher.voucher_type.value:
+            type_name = "NOTA DE DÉBITO"
 
         # Dirección del cliente
         client_address_parts = []
@@ -354,6 +365,7 @@ class VoucherService:
             },
             "voucher": {
                 "letter": letter,
+                "type_name": type_name,  # "FACTURA" o "NOTA DE CRÉDITO"
                 "sale_point": voucher.sale_point or "0001",
                 "comp_number": voucher.number or "00000001",
                 "date": voucher.date.strftime("%d/%m/%Y"),
