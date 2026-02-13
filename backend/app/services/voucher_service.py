@@ -533,7 +533,7 @@ class VoucherService:
             number=voucher_number,  # Temporal, será reemplazado por el número de AFIP
             date=date.today(),
             notes=f"NC de Factura {original_voucher.full_number}. Motivo: {reason}",
-            show_prices=True,
+            show_prices="S",  # S = Sí, N = No (String, no Boolean)
             created_by=user_id,
         )
         
@@ -543,6 +543,7 @@ class VoucherService:
         # 6. Crear items de la NC
         subtotal = Decimal("0")
         iva_amount = Decimal("0")
+        line_number = 1
         
         for item_data in items_data:
             # Validar que el producto exista en la factura original
@@ -580,16 +581,20 @@ class VoucherService:
             nc_item = VoucherItem(
                 voucher_id=credit_note.id,
                 product_id=product.id,
+                code=product.code,  # Código del producto (obligatorio)
                 description=product.description,
                 quantity=quantity,
+                unit=product.unit or "unidad",  # Unidad de medida
                 unit_price=unit_price,
                 discount_percent=discount,
                 iva_rate=Decimal("21"),
                 subtotal=item_subtotal,
                 iva_amount=item_iva,
                 total=item_subtotal + item_iva,
+                line_number=line_number,  # Número de línea correlativo
             )
             self.db.add(nc_item)
+            line_number += 1
         
         # 7. Actualizar totales del voucher (NEGATIVOS)
         credit_note.subtotal = subtotal
