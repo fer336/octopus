@@ -14,6 +14,7 @@ import {
   BarChart3,
   Settings,
   Octagon,
+  TrendingUp,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -22,6 +23,7 @@ const navItems = [
   { path: '/sales', icon: ShoppingCart, label: 'Ventas' },
   { path: '/comprobantes', icon: FileText, label: 'Comprobantes' },
   { path: '/products', icon: Package, label: 'Productos' },
+  { path: '/price-update', icon: TrendingUp, label: 'Actualizar Precios' },
   { path: '/clients', icon: Users, label: 'Clientes' },
   { path: '/suppliers', icon: Truck, label: 'Proveedores' },
   { path: '/categories', icon: FolderTree, label: 'Categorías' },

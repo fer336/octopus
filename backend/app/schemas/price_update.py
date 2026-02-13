@@ -6,7 +6,7 @@ from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_serializer
 
 from app.schemas.base import BaseSchema
 
@@ -54,6 +54,12 @@ class PriceUpdatePreviewItem(BaseSchema):
     new_value: Decimal
     change_amount: Decimal
     change_percentage: Decimal
+
+    # Serializar Decimals como float para JSON
+    @field_serializer('current_value', 'new_value', 'change_amount', 'change_percentage')
+    def serialize_decimal(self, value: Decimal) -> float:
+        """Convierte Decimal a float para JSON."""
+        return float(value)
 
 
 class PriceUpdatePreviewResponse(BaseSchema):

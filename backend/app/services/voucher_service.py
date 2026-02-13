@@ -356,6 +356,7 @@ class VoucherService:
                 "tax_condition": voucher.business.tax_condition,
                 "iibb": "-",
                 "start_date": "-",
+                "logo_url": voucher.business.logo_url,
             },
             "client": {
                 "name": voucher.client.name,
@@ -394,6 +395,8 @@ class VoucherService:
             ],
             "totals": {
                 "subtotal": f"{voucher.subtotal:,.2f}",
+                "discount": f"{sum((item.unit_price * item.quantity * (item.discount_percent or 0) / 100) for item in voucher.items):,.2f}",
+                "iva": f"{voucher.iva_amount:,.2f}",
                 "total": f"{voucher.total:,.2f}",
             },
         }
@@ -454,9 +457,8 @@ class VoucherService:
             ],
             "totals": {
                 "subtotal": f"{voucher.subtotal:,.2f}",
-                "discount": "0.00",
-                "iva_21": f"{voucher.iva_amount:,.2f}",
-                "iva_105": "0.00",
+                "discount": f"{sum((item.unit_price * item.quantity * (item.discount_percent or 0) / 100) for item in voucher.items):,.2f}",
+                "iva": f"{voucher.iva_amount:,.2f}",
                 "total": f"{voucher.total:,.2f}"
             }
         }
@@ -630,4 +632,3 @@ class VoucherService:
             .where(Voucher.id == credit_note.id)
         )
         return result.scalar_one()
-

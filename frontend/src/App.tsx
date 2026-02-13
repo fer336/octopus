@@ -17,6 +17,7 @@ import AuthCallback from './pages/AuthCallback'
 import Dashboard from './pages/Dashboard'
 import Sales from './pages/Sales'
 import Products from './pages/Products'
+import PriceUpdate from './pages/PriceUpdate'
 import Clients from './pages/Clients'
 import Suppliers from './pages/Suppliers'
 import Categories from './pages/Categories'
@@ -108,6 +109,7 @@ export default function App() {
               <Route index element={<Dashboard />} />
               <Route path="sales" element={<Sales />} />
               <Route path="products" element={<Products />} />
+              <Route path="price-update" element={<PriceUpdate />} />
               <Route path="clients" element={<Clients />} />
               <Route path="suppliers" element={<Suppliers />} />
               <Route path="categories" element={<Categories />} />

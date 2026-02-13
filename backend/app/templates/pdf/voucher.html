@@ -1,316 +1,327 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Comprobante</title>
-    <style>
-        @page {
-            size: A4;
-            margin: 1cm;
-        }
-        body {
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            color: #333;
-            margin: 0;
-            padding: 0;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            position: relative;
-            height: 150px;
-            border-bottom: 1px solid #000;
-            margin-bottom: 10px;
-        }
-        /* Bloque Izquierdo: Emisor (Negocio) */
-        .issuer-info {
-            width: 40%;
-            text-align: left;
-            padding-right: 10px;
-        }
-        .issuer-logo {
-            max-height: 60px;
-            margin-bottom: 10px;
-        }
-        .issuer-name {
-            font-weight: bold;
-            font-size: 16px;
-            text-transform: uppercase;
+	<meta charset="utf-8">
+	<title>{{ voucher.type_name }} {{ voucher.letter }}</title>
+	<style type="text/css">
+		@page {
+			size: A4;
+			margin: 10mm;
+		}
+		* {
+			box-sizing: border-box;
+			margin: 0;
+			padding: 0;
+		}
+		body {
+			font-family: sans-serif;
+			font-size: 11px;
+			color: #000;
+		}
+
+		/* Contenedor principal */
+		.invoice {
+			width: 100%;
+			border: 1px solid #000;
+		}
+
+		/* === ENCABEZADO === */
+		.header-container {
+			width: 100%;
+			border-bottom: 1px solid #000;
+			position: relative;
+            min-height: 160px;
+		}
+        
+        /* Línea vertical central absoluta */
+        .header-vertical-line {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background-color: #000;
+            transform: translateX(-50%);
+            z-index: 1;
         }
         
-        /* Bloque Central: Letra */
-        .letter-box {
-            position: absolute;
-            left: 50%;
-            top: 0;
-            transform: translateX(-50%);
-            width: 60px;
-            height: 50px;
-            background-color: #fff;
-            color: #000;
-            border: 3px solid #000;
-            text-align: center;
-            font-weight: bold;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-        .letter {
-            font-size: 30px;
-            line-height: 30px;
-            font-weight: bold;
-        }
-        .letter-code {
-            font-size: 10px;
-            font-weight: bold;
-        }
-        .center-line-top {
-            position: absolute;
-            left: 50%;
-            top: 0;
-            height: 0px;
-            border-left: 1px solid #000;
-        }
-        .center-line-bottom {
-            position: absolute;
-            left: 50%;
-            top: 50px;
-            bottom: 0;
-            border-left: 1px solid #000;
-        }
-
-        /* Bloque Derecho: Datos del Comprobante */
-        .voucher-info {
-            width: 40%;
-            text-align: right;
-            padding-left: 10px;
-        }
-        .voucher-title {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-        .voucher-data-row {
-            margin-bottom: 5px;
-        }
-        .label {
-            font-weight: bold;
-        }
-
-        /* Bloque Cliente (Usuario) */
-        .client-info {
-            border: 1px solid #ccc;
-            background-color: #f9f9f9;
-            padding: 10px;
-            margin-bottom: 20px;
-            display: flex;
-            flex-wrap: wrap;
-        }
-        .client-field {
-            width: 50%;
-            margin-bottom: 5px;
-        }
-
-        /* Tabla de Items */
-        .items-table {
+        .header-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
+            position: relative;
+            z-index: 2;
         }
-        .items-table th {
-            background-color: #eee;
-            border-bottom: 2px solid #000;
-            padding: 8px;
-            text-align: left;
-            font-size: 11px;
-            text-transform: uppercase;
+        
+        .header-col-left {
+            width: 50%;
+            vertical-align: top;
+            padding: 15px 15px 10px 15px;
         }
-        .items-table td {
-            border-bottom: 1px solid #ccc;
-            padding: 8px;
-            font-size: 11px;
-        }
-        .text-right { text-align: right; }
-        .text-center { text-align: center; }
-
-        /* Totales */
-        .totals-section {
-            float: right;
-            width: 40%;
-        }
-        .total-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 5px 0;
-            border-bottom: 1px solid #eee;
-        }
-        .total-final {
-            font-size: 16px;
-            font-weight: bold;
-            border-top: 2px solid #000;
-            margin-top: 5px;
-            padding-top: 5px;
+        
+        .header-col-right {
+            width: 50%;
+            vertical-align: top;
+            padding: 15px 15px 10px 30px;
         }
 
-        /* Pie de página (CAE) */
-        .footer-fiscal {
-            clear: both;
-            margin-top: 50px;
-            border-top: 1px dotted #ccc;
-            padding-top: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+		/* Letra del comprobante */
+		.letter-box-container {
+			position: absolute;
+			top: 0;
+			left: 50%;
+			transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 0 5px;
+            z-index: 10;
+		}
+		.letter-box {
+			border: 1px solid #000;
+			width: 40px;
+			height: 40px;
+			line-height: 38px;
+			font-size: 24px;
+			font-weight: bold;
+			text-align: center;
+			background: #fff;
+		}
+
+		.business-name {
+			font-size: 20px;
+			font-weight: bold;
+			margin-bottom: 8px;
+		}
+        
+        .invoice-title {
+			font-size: 20px;
+			font-weight: bold;
+			margin-bottom: 15px;
+            text-align: center;
+		}
+
+		.info-line {
+			margin: 3px 0;
+			font-size: 11px;
+            line-height: 1.3;
+		}
+		.info-line strong {
+			font-weight: bold;
+		}
+
+        .logo-img {
+            max-height: 50px;
+            max-width: 180px;
+            margin-bottom: 8px;
+            display: block;
         }
-    </style>
+
+		/* === CLIENTE === */
+        .client-container {
+            border-bottom: 1px solid #000;
+            position: relative;
+        }
+        
+        .client-table {
+            width: 100%;
+            border-collapse: collapse;
+            position: relative;
+            z-index: 2;
+        }
+        .client-col-left {
+            width: 50%;
+            vertical-align: top;
+            padding: 10px 15px;
+        }
+        .client-col-right {
+            width: 50%;
+            vertical-align: top;
+            padding: 10px 15px 10px 30px;
+        }
+
+		/* === TABLA DE ITEMS === */
+		.items-table {
+			width: 100%;
+			border-collapse: collapse;
+		}
+		.items-table th {
+			background: #c0c0c0;
+			border: 1px solid #000;
+            border-top: none;
+            border-left: none;
+            border-right: 1px solid #000;
+			padding: 5px 4px;
+			font-size: 10px;
+			text-align: center;
+			font-weight: bold;
+		}
+        .items-table th:last-child {
+            border-right: none;
+        }
+		.items-table td {
+			border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
+			padding: 5px 4px;
+			font-size: 10px;
+			text-align: center;
+		}
+        .items-table td:last-child {
+            border-right: none;
+        }
+		.items-table td:nth-child(3) {
+			text-align: left;
+		}
+
+		/* === TOTALES === */
+		.totals-section {
+			width: 100%;
+			border-top: 2px solid #000;
+			border-bottom: 2px solid #000;
+		}
+		.totals-section td {
+			padding: 6px 4px;
+		}
+		.total-label-inline {
+			text-align: right;
+			width: auto;
+			font-weight: bold;
+			font-size: 12px;
+			white-space: nowrap;
+            padding-left: 10px;
+            padding-right: 4px;
+		}
+		.total-value-inline {
+			text-align: left;
+			width: auto;
+			font-weight: bold;
+			font-size: 12px;
+            padding-right: 15px;
+		}
+
+		/* === FOOTER === */
+		.footer {
+			text-align: center;
+			padding: 8px;
+			font-size: 10px;
+			color: #666;
+		}
+        .signature-section {
+            margin-top: 30px;
+            text-align: center;
+            padding: 10px;
+        }
+	</style>
 </head>
 <body>
 
-    <div class="header">
-        <!-- Izquierda: Datos del Negocio -->
-        <div class="issuer-info">
-            {% if business.logo_url %}
-            <img src="{{ business.logo_url }}" class="issuer-logo" alt="Logo">
-            {% else %}
-            <div class="issuer-name">{{ business.name }}</div>
-            {% endif %}
-            
-            <p>{{ business.address }}</p>
-            <p>{{ business.city }}, {{ business.province }}</p>
-            <p><span class="label">Tel:</span> {{ business.phone }}</p>
-            <p><span class="label">Email:</span> {{ business.email }}</p>
-            <p><span class="label">Condición IVA:</span> {{ business.tax_condition }}</p>
+<div class="invoice">
+    <!-- Header -->
+    <div class="header-container">
+        <!-- Línea vertical central absoluta -->
+        <div class="header-vertical-line"></div>
+        
+        <div class="letter-box-container">
+            <div class="letter-box">{{ voucher.letter }}</div>
         </div>
-
-        <!-- Centro: Letra -->
-        <div class="letter-box">
-            <div class="letter">{{ voucher.letter }}</div>
-        </div>
-        <div class="center-line-bottom"></div>
-
-        <!-- Derecha: Datos del Comprobante -->
-        <div class="voucher-info">
-            <div class="voucher-title">{{ voucher.type_name }}</div>
-            <div class="voucher-data-row">
-                <span class="label">N° Comp:</span> {{ voucher.number }}
-            </div>
-            <div class="voucher-data-row">
-                <span class="label">Fecha:</span> {{ voucher.date }}
-            </div>
-            <div class="voucher-data-row">
-                <span class="label">CUIT:</span> {{ business.cuit }}
-            </div>
-            <div class="voucher-data-row">
-                <span class="label">IIBB:</span> {{ business.iibb }}
-            </div>
-            <div class="voucher-data-row">
-                <span class="label">Inicio Actividades:</span> {{ business.start_date }}
-            </div>
-        </div>
+        
+        <table class="header-table">
+            <tr>
+                <td class="header-col-left">
+                    {% if business.logo_url %}
+                    <img class="logo-img" src="{{ business.logo_url }}" alt="Logo">
+                    {% endif %}
+                    <div class="business-name">{{ business.name }}</div>
+                    <div class="info-line"><strong>Domicilio Comercial:</strong> {{ business.address or 'Sin domicilio' }}</div>
+                    <div class="info-line"><strong>Condición Frente al IVA:</strong> {{ business.tax_condition }}</div>
+                    <br>
+                    <div class="info-line"><strong>Período Facturado Desde:</strong> {{ voucher.date }}</div>
+                    <div class="info-line"><strong>Hasta:</strong> {{ voucher.date }}</div>
+                </td>
+                <td class="header-col-right">
+                    <div class="invoice-title">{{ voucher.type_name }}</div>
+                    <div class="info-line"><strong>Punto de Venta:</strong> {{ voucher.sale_point }}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>Comp. Nro:</strong> {{ voucher.comp_number }}</div>
+                    <div class="info-line"><strong>Fecha de Emisión:</strong> {{ voucher.date }}</div>
+                    <div class="info-line"><strong>Fecha de Vto. para el pago:</strong> {{ voucher.due_date or voucher.date }}</div>
+                    <div class="info-line"><strong>CUIT:</strong> {{ business.cuit }}</div>
+                    <div class="info-line"><strong>Ingresos Brutos:</strong> {{ business.iibb or '-' }}</div>
+                    <div class="info-line"><strong>Fecha de Inicio de Actividades:</strong> {{ business.start_date or '-' }}</div>
+                </td>
+            </tr>
+        </table>
     </div>
 
-    <!-- Datos del Cliente (Usuario) -->
-    <div class="client-info">
-        <div class="client-field"><span class="label">Cliente:</span> {{ client.name }}</div>
-        <div class="client-field"><span class="label">{{ client.document_type }}:</span> {{ client.document_number }}</div>
-        <div class="client-field"><span class="label">Domicilio:</span> {{ client.address }} - {{ client.city }}</div>
-        <div class="client-field"><span class="label">Condición IVA:</span> {{ client.tax_condition }}</div>
-        {% if client.phone %}
-        <div class="client-field"><span class="label">Teléfono:</span> {{ client.phone }}</div>
-        {% endif %}
+    <!-- Client -->
+    <div class="client-container">
+        <table class="client-table">
+            <tr>
+                <td class="client-col-left">
+                    <div class="info-line"><strong>Apellido y Nombre / Razón social:</strong> {{ client.name }}</div>
+                    <div class="info-line"><strong>Domicilio:</strong> {{ client.address or 'Sin domicilio' }}</div>
+                </td>
+                <td class="client-col-right">
+                    <div class="info-line"><strong>CUIL/CUIT:</strong> {{ client.document_number or '-' }}</div>
+                    <div class="info-line"><strong>Condición Frente al IVA:</strong> {{ client.tax_condition or 'Consumidor Final' }}</div>
+                    <div class="info-line"><strong>Condición de venta:</strong> {{ voucher.payment_method or 'Efectivo' }}</div>
+                </td>
+            </tr>
+        </table>
     </div>
 
-    <!-- Tabla de Productos -->
+    <!-- Items -->
     <table class="items-table">
         <thead>
             <tr>
-                <th style="width: 10%;">Código</th>
-                <th style="width: 40%;">Descripción</th>
-                <th style="width: 10%;" class="text-center">Cant.</th>
-                {% if voucher.show_prices %}
-                <th style="width: 10%;" class="text-right">Precio Unit.</th>
-                <th style="width: 10%;" class="text-right">Bonif.</th>
-                <th style="width: 10%;" class="text-right">Subtotal</th>
-                {% endif %}
+                <th style="width: 10%">Cantidad</th>
+                <th style="width: 15%">Código</th>
+                <th style="width: 45%">Producto / Servicio</th>
+                <th style="width: 10%">Precio Unit.</th>
+                <th style="width: 10%">% Bonif.</th>
+                <th style="width: 10%">Subtotal</th>
             </tr>
         </thead>
         <tbody>
             {% for item in items %}
             <tr>
-                <td>{{ item.code }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>{{ item.code or '-' }}</td>
                 <td>{{ item.description }}</td>
-                <td class="text-center">{{ item.quantity }}</td>
-                {% if voucher.show_prices %}
-                <td class="text-right">${{ item.unit_price }}</td>
-                <td class="text-right">{{ item.discount }}%</td>
-                <td class="text-right">${{ item.subtotal }}</td>
-                {% endif %}
+                <td>{{ item.unit_price }}</td>
+                <td>{{ item.discount or '0,00' }}</td>
+                <td>{{ item.subtotal }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 
-    <!-- Totales (Solo si corresponde) -->
+    <!-- Totals -->
     {% if voucher.show_prices %}
-    <div class="totals-section">
-        <div class="total-row">
-            <span>Subtotal:</span>
-            <span>${{ totals.subtotal }}</span>
-        </div>
-        {% if totals.discount != "0.00" and totals.discount != "0" %}
-        <div class="total-row">
-            <span>Descuento Global:</span>
-            <span>-${{ totals.discount }}</span>
-        </div>
-        {% endif %}
-        {% if totals.iva_21 != "0.00" and totals.iva_21 != "0" %}
-        <div class="total-row">
-            <span>IVA 21%:</span>
-            <span>${{ totals.iva_21 }}</span>
-        </div>
-        {% endif %}
-        {% if totals.iva_105 != "0.00" and totals.iva_105 != "0" %}
-        <div class="total-row">
-            <span>IVA 10.5%:</span>
-            <span>${{ totals.iva_105 }}</span>
-        </div>
-        {% endif %}
-        <div class="total-row total-final">
-            <span>TOTAL:</span>
-            <span>${{ totals.total }}</span>
-        </div>
-    </div>
+    <table class="totals-section" cellspacing="0" cellpadding="0" style="width: 100%; table-layout: auto;">
+        <tr>
+            <td class="total-label-inline"><strong>Subtotal: $</strong></td>
+            <td class="total-value-inline">{{ totals.subtotal }}</td>
+            
+            <td class="total-label-inline"><strong>Bonificación: $</strong></td>
+            <td class="total-value-inline">{{ totals.discount }}</td>
+            
+            <td class="total-label-inline"><strong>IVA: $</strong></td>
+            <td class="total-value-inline">{{ totals.iva }}</td>
+            
+            <td class="total-label-inline"><strong>Importe total: $</strong></td>
+            <td class="total-value-inline">{{ totals.total }}</td>
+        </tr>
+    </table>
     {% endif %}
 
-    <!-- Pie Fiscal (CAE/QR) -->
-    {% if voucher.cae %}
-    <div class="footer-fiscal">
-        <div style="width: 70%;">
-            <p><strong>CAE:</strong> {{ voucher.cae }}</p>
-            <p><strong>Vencimiento CAE:</strong> {{ voucher.cae_due_date }}</p>
-            <p class="text-xs">Comprobante Autorizado por ARCA (AFIP)</p>
-        </div>
-        <div style="width: 30%; text-align: right;">
-            {% if voucher.qr_data %}
-            <!-- Aquí iría la imagen del QR -->
-            <img src="data:image/png;base64,{{ voucher.qr_data }}" width="100" height="100">
-            {% endif %}
-        </div>
+    <!-- Footer -->
+    <div class="footer">
+        Sistema creado por <strong>Qeva AI</strong> · Contacto: +54 9 225 459-6618
     </div>
-    {% endif %}
-
-    <!-- Pie Simple (Cotización/Remito) -->
-    {% if not voucher.cae %}
-    <div style="margin-top: 50px; text-align: center; border-top: 1px solid #ccc; padding-top: 10px; color: #666;">
-        <p>Documento no válido como factura.</p>
-        {% if voucher.letter == 'R' %}
+    
+    {% if voucher.letter == 'R' %}
+    <div class="signature-section">
         <p>Recibí conforme: ....................................................................</p>
-        {% endif %}
     </div>
     {% endif %}
+
+</div>
 
 </body>
 </html>
