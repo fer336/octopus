@@ -16,6 +16,10 @@ from app.models.product import Product
 from app.schemas.base import MessageResponse, PaginatedResponse, BulkDeleteResponse
 from app.schemas.product import ProductCreate, ProductListParams, ProductResponse, ProductUpdate
 from app.schemas.excel_schemas import ImportPreviewResponse, ImportConfirmRequest, ImportConfirmResponse
+from app.schemas.price_update import (
+    PriceUpdateRequest, PriceUpdatePreviewResponse, PriceUpdateApplyResponse,
+    PriceUpdatePreviewItem, UpdateType, FieldToUpdate
+)
 from app.services.product_service import ProductService
 from app.services.excel_service import ExcelService
 from app.utils.security import get_current_business, get_current_user
@@ -436,3 +440,149 @@ async def bulk_delete_products(
             "deleted_count": 0,
             "message": f"Error: {str(e)}"
         }
+
+@router.post("/price-update/preview", response_model=PriceUpdatePreviewResponse)
+async def preview_price_update(
+    request: PriceUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    business_id = Depends(get_current_business),
+):
+    """
+    Preview de actualización masiva de precios.
+    Muestra los cambios antes de aplicarlos.
+    """
+    from decimal import Decimal as D
+    from sqlalchemy.orm import selectinload
+    
+    # Obtener productos con relaciones
+    query = (
+        select(Product)
+        .options(
+            selectinload(Product.category),
+            selectinload(Product.supplier)
+        )
+        .where(
+            Product.id.in_(request.product_ids),
+            Product.business_id == business_id,
+            Product.deleted_at.is_(None)
+        )
+    )
+    
+    result = await db.execute(query)
+    products = result.scalars().all()
+    
+    items = []
+    field_map = {
+        FieldToUpdate.LIST_PRICE: ("list_price", "Precio de Lista"),
+        FieldToUpdate.DISCOUNT_1: ("discount_1", "Descuento 1"),
+        FieldToUpdate.DISCOUNT_2: ("discount_2", "Descuento 2"),
+        FieldToUpdate.DISCOUNT_3: ("discount_3", "Descuento 3"),
+        FieldToUpdate.EXTRA_COST: ("extra_cost", "Cargo Extra"),
+        FieldToUpdate.CURRENT_STOCK: ("current_stock", "Stock Actual"),
+    }
+    
+    field_attr, field_name = field_map[request.field]
+    
+    for product in products:
+        current_value = D(str(getattr(product, field_attr)))
+        
+        # Calcular nuevo valor según el tipo
+        if request.update_type == UpdateType.INCREASE:
+            new_value = current_value * (D("1") + request.value / D("100"))
+        elif request.update_type == UpdateType.DECREASE:
+            new_value = current_value * (D("1") - request.value / D("100"))
+        elif request.update_type == UpdateType.REMOVE_INCREASE:
+            new_value = current_value / (D("1") + request.value / D("100"))
+        elif request.update_type == UpdateType.SET_VALUE:
+            new_value = request.value
+        else:
+            new_value = current_value
+        
+        new_value = round(new_value, 2)
+        change_amount = new_value - current_value
+        change_percentage = ((new_value - current_value) / current_value * D("100")) if current_value > 0 else D("0")
+        
+        items.append(PriceUpdatePreviewItem(
+            id=product.id,
+            code=product.code,
+            description=product.description,
+            category_name=product.category.name if product.category else None,
+            supplier_name=product.supplier.name if product.supplier else None,
+            current_value=current_value,
+            new_value=new_value,
+            change_amount=change_amount,
+            change_percentage=round(change_percentage, 2)
+        ))
+    
+    update_descriptions = {
+        UpdateType.INCREASE: f"Aumentar {request.value}%",
+        UpdateType.DECREASE: f"Disminuir {request.value}%",
+        UpdateType.REMOVE_INCREASE: f"Quitar aumento de {request.value}%",
+        UpdateType.SET_VALUE: f"Establecer en {request.value}",
+    }
+    
+    return PriceUpdatePreviewResponse(
+        total_products=len(items),
+        field_name=field_name,
+        update_description=update_descriptions[request.update_type],
+        items=items
+    )
+
+
+@router.post("/price-update/apply", response_model=PriceUpdateApplyResponse)
+async def apply_price_update(
+    request: PriceUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    business_id = Depends(get_current_business),
+):
+    """Aplica actualización masiva de precios."""
+    from decimal import Decimal as D
+    
+    query = select(Product).where(
+        Product.id.in_(request.product_ids),
+        Product.business_id == business_id,
+        Product.deleted_at.is_(None)
+    )
+    
+    result = await db.execute(query)
+    products = result.scalars().all()
+    
+    field_attr = {
+        FieldToUpdate.LIST_PRICE: "list_price",
+        FieldToUpdate.DISCOUNT_1: "discount_1",
+        FieldToUpdate.DISCOUNT_2: "discount_2",
+        FieldToUpdate.DISCOUNT_3: "discount_3",
+        FieldToUpdate.EXTRA_COST: "extra_cost",
+        FieldToUpdate.CURRENT_STOCK: "current_stock",
+    }[request.field]
+    
+    count = 0
+    for product in products:
+        current_value = D(str(getattr(product, field_attr)))
+        
+        if request.update_type == UpdateType.INCREASE:
+            new_value = current_value * (D("1") + request.value / D("100"))
+        elif request.update_type == UpdateType.DECREASE:
+            new_value = current_value * (D("1") - request.value / D("100"))
+        elif request.update_type == UpdateType.REMOVE_INCREASE:
+            new_value = current_value / (D("1") + request.value / D("100"))
+        elif request.update_type == UpdateType.SET_VALUE:
+            new_value = request.value
+        else:
+            new_value = current_value
+        
+        setattr(product, field_attr, round(new_value, 2))
+        
+        if request.field in [FieldToUpdate.LIST_PRICE, FieldToUpdate.DISCOUNT_1, 
+                             FieldToUpdate.DISCOUNT_2, FieldToUpdate.DISCOUNT_3, 
+                             FieldToUpdate.EXTRA_COST]:
+            product.calculate_prices()
+        
+        count += 1
+    
+    await db.commit()
+    
+    return PriceUpdateApplyResponse(
+        updated_count=count,
+        message=f"Se actualizaron {count} productos correctamente"
+    )
