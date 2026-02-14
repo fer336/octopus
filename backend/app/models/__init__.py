@@ -8,6 +8,8 @@ from app.models.category import Category
 from app.models.client import Client
 from app.models.client_account import ClientAccount, MovementType
 from app.models.payment import Payment, PaymentMethod
+from app.models.payment_method import PaymentMethodCatalog
+from app.models.voucher_payment import VoucherPayment
 from app.models.price_history import PriceHistory
 from app.models.product import Product
 from app.models.supplier import Supplier
@@ -40,6 +42,8 @@ __all__ = [
     # Pagos y cuenta corriente
     "Payment",
     "PaymentMethod",
+    "PaymentMethodCatalog",
+    "VoucherPayment",
     "ClientAccount",
     "MovementType",
 ]

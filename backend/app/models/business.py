@@ -67,6 +67,7 @@ class Business(BaseModel):
     clients = relationship("Client", back_populates="business", lazy="dynamic")
     suppliers = relationship("Supplier", back_populates="business", lazy="dynamic")
     categories = relationship("Category", back_populates="business", lazy="dynamic")
+    payment_methods_catalog = relationship("PaymentMethodCatalog", back_populates="business", lazy="dynamic")
 
     def __repr__(self) -> str:
         return f"<Business {self.name}>"

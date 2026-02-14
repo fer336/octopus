@@ -107,6 +107,7 @@ class Voucher(BaseModel):
         lazy="selectin",
     )
     payments = relationship("Payment", back_populates="voucher", lazy="dynamic")
+    voucher_payments = relationship("VoucherPayment", back_populates="voucher", cascade="all, delete-orphan", lazy="selectin")
     
     # TODO: Descomentar cuando la migración se ejecute correctamente
     # # Relación jerárquica (para Notas de Crédito que apuntan a una Factura)
