@@ -942,6 +942,26 @@ export default function Sales() {
               Resumen
             </h3>
 
+            {/* Input de descuento general */}
+            <div className="mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                Descuento General
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={generalDiscount}
+                  onChange={(e) => setGeneralDiscount(parseFloat(e.target.value) || 0)}
+                  className="flex-1 px-3 py-2 text-sm text-right border rounded-lg dark:bg-gray-700 dark:border-gray-600 font-medium"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  placeholder="0"
+                />
+                <span className="text-sm font-medium text-gray-500">%</span>
+              </div>
+            </div>
+
             <div className="space-y-2 mb-4 text-xs">
               <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
                 <span>Subtotal items</span>
