@@ -46,7 +46,7 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
       {/* Logo */}
       <div className="h-16 flex items-center px-3 border-b border-gray-800">
         <img
-          src="/octopus-logo.png"
+          src="/octopus-logo-blue.png"
           alt="Octopus"
           className="h-14 w-14 flex-shrink-0 object-contain"
         />
