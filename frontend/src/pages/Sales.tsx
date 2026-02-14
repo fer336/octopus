@@ -60,7 +60,6 @@ interface Draft {
   iva: number
   total: number
   generalDiscount: number
-  bonification: number
   createdAt: string
 }
 
@@ -104,9 +103,8 @@ export default function Sales() {
   const [zoomLevel, setZoomLevel] = useState(1) // 1 = 100% (normal)
   const [isGenerating, setIsGenerating] = useState(false)
   
-  // Descuentos y bonificaciones generales
+  // Descuento general
   const [generalDiscount, setGeneralDiscount] = useState(0) // Descuento % sobre subtotal
-  const [bonification, setBonification] = useState(0) // Bonificación en $ fijo
 
   // Mutation para crear comprobante
   const createVoucherMutation = useMutation({
@@ -176,7 +174,6 @@ export default function Sales() {
       setSelectedClient(null)
       setClientSearch('')
       setGeneralDiscount(0)
-      setBonification(0)
       setProductSearch('')
     },
     onError: (error: any) => {
@@ -450,7 +447,6 @@ export default function Sales() {
         setProductSearch('')
         setVoucherType('quotation')
         setGeneralDiscount(0)
-        setBonification(0)
       }
     }
   }
@@ -524,11 +520,10 @@ export default function Sales() {
       voucherType,
       client: selectedClient,
       items,
-      subtotal: subtotalAfterBonification,
+      subtotal: subtotalAfterDiscount,
       iva: iva,
       total: total,
       generalDiscount,
-      bonification,
       createdAt: new Date().toISOString(),
     }
 
@@ -552,7 +547,6 @@ export default function Sales() {
     setClientSearch(draft.client.name)
     setItems(draft.items)
     setGeneralDiscount(draft.generalDiscount || 0)
-    setBonification(draft.bonification || 0)
     setShowDraftsModal(false)
   }
 
@@ -638,13 +632,12 @@ export default function Sales() {
     })
   }
 
-  // Cálculos de totales con descuentos y bonificaciones
+  // Cálculos de totales con descuento general
   const subtotalItems = items.reduce((acc, item) => acc + calculateItemTotal(item), 0)
   const discountAmount = subtotalItems * (generalDiscount / 100)
   const subtotalAfterDiscount = subtotalItems - discountAmount
-  const subtotalAfterBonification = subtotalAfterDiscount - bonification
-  const iva = subtotalAfterBonification * 0.21
-  const total = subtotalAfterBonification + iva
+  const iva = subtotalAfterDiscount * 0.21
+  const total = subtotalAfterDiscount + iva
 
   return (
     <div className="space-y-3">
@@ -832,85 +825,6 @@ export default function Sales() {
             </div>
           </div>
 
-          {/* Panel de Descuentos y Totales */}
-          {items.length > 0 && (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-lg shadow-sm border-2 border-blue-200 dark:border-blue-800 p-4">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Ajustes y Totales</h3>
-              
-              <div className="grid grid-cols-2 gap-4 mb-3">
-                {/* Descuento General */}
-                <div className="space-y-1">
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
-                    Descuento General (%)
-                  </label>
-                  <input
-                    type="number"
-                    value={generalDiscount}
-                    onChange={(e) => setGeneralDiscount(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 text-sm text-right border rounded-lg dark:bg-gray-700 dark:border-gray-600 font-medium"
-                    min={0}
-                    max={100}
-                    step={0.1}
-                    placeholder="0"
-                  />
-                </div>
-
-                {/* Bonificación */}
-                <div className="space-y-1">
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
-                    Bonificación ($)
-                  </label>
-                  <input
-                    type="number"
-                    value={bonification}
-                    onChange={(e) => setBonification(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 text-sm text-right border rounded-lg dark:bg-gray-700 dark:border-gray-600 font-medium"
-                    min={0}
-                    step={0.01}
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-
-              {/* Resumen de totales */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 space-y-2 border border-gray-200 dark:border-gray-700">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Subtotal items:</span>
-                  <span className="font-medium">${subtotalItems.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-                
-                {generalDiscount > 0 && (
-                  <div className="flex justify-between text-sm text-red-600 dark:text-red-400">
-                    <span>Descuento ({generalDiscount}%):</span>
-                    <span className="font-medium">-${discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                  </div>
-                )}
-                
-                {bonification > 0 && (
-                  <div className="flex justify-between text-sm text-red-600 dark:text-red-400">
-                    <span>Bonificación:</span>
-                    <span className="font-medium">-${bonification.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                  </div>
-                )}
-                
-                <div className="flex justify-between text-sm font-medium pt-2 border-t border-gray-200 dark:border-gray-700">
-                  <span className="text-gray-700 dark:text-gray-300">Subtotal:</span>
-                  <span className="text-gray-900 dark:text-white">${subtotalAfterBonification.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">IVA (21%):</span>
-                  <span className="font-medium">${iva.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-                
-                <div className="flex justify-between text-lg font-bold pt-2 border-t-2 border-blue-300 dark:border-blue-600">
-                  <span className="text-gray-900 dark:text-white">TOTAL:</span>
-                  <span className="text-blue-600 dark:text-blue-400">${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* TABLA INFERIOR - Búsqueda */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
             <div className="p-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
@@ -1041,16 +955,9 @@ export default function Sales() {
                 </div>
               )}
               
-              {bonification > 0 && (
-                <div className="flex justify-between text-sm text-red-600 dark:text-red-400">
-                  <span>Bonificación</span>
-                  <span className="font-medium">-${bonification.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-              )}
-              
               <div className="flex justify-between text-sm text-gray-700 dark:text-gray-300 pt-1 border-t border-gray-200 dark:border-gray-700">
                 <span className="font-medium">Subtotal</span>
-                <span className="font-semibold">${subtotalAfterBonification.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span className="font-semibold">${subtotalAfterDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
               
               <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
@@ -1539,6 +1446,61 @@ export default function Sales() {
                 <span className="font-medium text-gray-900 dark:text-white">{items.length}</span>
               </div>
 
+              {/* Descuento General Editable */}
+              <div className="pt-3 border-t border-blue-200 dark:border-blue-700">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Descuento general:
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={generalDiscount}
+                      onChange={(e) => setGeneralDiscount(parseFloat(e.target.value) || 0)}
+                      className="w-20 px-2 py-1 text-sm text-right border rounded dark:bg-gray-700 dark:border-gray-600"
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      placeholder="0"
+                    />
+                    <span className="text-sm text-gray-500">%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Desglose de totales */}
+              <div className="space-y-2 pt-2 border-t border-blue-200 dark:border-blue-700">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">Subtotal:</span>
+                  <span className="font-medium">${subtotalItems.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+
+                {generalDiscount > 0 && (
+                  <div className="flex justify-between text-sm text-red-600 dark:text-red-400">
+                    <span>Descuento ({generalDiscount}%):</span>
+                    <span className="font-medium">-${discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between text-sm font-medium pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <span className="text-gray-700 dark:text-gray-300">Subtotal:</span>
+                  <span>${subtotalAfterDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">IVA (21%):</span>
+                  <span className="font-medium">${iva.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+
+                {/* Total final */}
+                <div className="flex justify-between pt-2 border-t-2 border-blue-300 dark:border-blue-600">
+                  <span className="font-bold text-gray-900 dark:text-white text-base">TOTAL:</span>
+                  <span className="font-bold text-xl text-blue-600 dark:text-blue-400">
+                    ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
               {/* Desglose de totales */}
               <div className="space-y-2 pt-3 border-t border-blue-200 dark:border-blue-700">
                 <div className="flex justify-between text-sm">
@@ -1566,28 +1528,10 @@ export default function Sales() {
                   </span>
                 </div>
 
-                {/* Bonificación */}
-                <div className="flex justify-between items-center text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-600 dark:text-gray-400">Bonificación $:</span>
-                    <input
-                      type="number"
-                      value={bonification}
-                      onChange={(e) => setBonification(parseFloat(e.target.value) || 0)}
-                      className="w-24 px-2 py-0.5 text-xs text-right border rounded dark:bg-gray-700 dark:border-gray-600"
-                      min={0}
-                      step={0.01}
-                    />
-                  </div>
-                  <span className="font-medium text-red-600 dark:text-red-400">
-                    -${bonification.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-
                 {/* Subtotal después de descuentos */}
                 <div className="flex justify-between text-sm pt-2 border-t border-gray-200 dark:border-gray-700">
                   <span className="text-gray-700 dark:text-gray-300 font-medium">Subtotal:</span>
-                  <span className="font-semibold">${subtotalAfterBonification.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-semibold">${subtotalAfterDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
 
                 {/* IVA */}
