@@ -13,7 +13,6 @@ import {
   FileText,
   BarChart3,
   Settings,
-  Octagon,
   TrendingUp,
 } from 'lucide-react'
 import { clsx } from 'clsx'
@@ -46,7 +45,11 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
     >
       {/* Logo */}
       <div className="h-16 flex items-center px-4 border-b border-gray-800">
-        <Octagon className="h-8 w-8 text-primary-500 flex-shrink-0" />
+        <img
+          src="/octopus-logo.png"
+          alt="OctopusTrack"
+          className="h-10 w-10 flex-shrink-0 object-contain"
+        />
         {!isCollapsed && (
           <span className="ml-3 text-xl font-bold truncate">OctopusTrack</span>
         )}
