@@ -107,11 +107,40 @@ class Voucher(BaseModel):
         lazy="selectin",
     )
     payments = relationship("Payment", back_populates="voucher", lazy="dynamic")
+    
+    # TODO: Descomentar cuando la migración se ejecute correctamente
+    # # Relación jerárquica (para Notas de Crédito que apuntan a una Factura)
+    # related_voucher_id = Column(UUID(as_uuid=True), ForeignKey("vouchers.id"), nullable=True)
+    # 
+    # # Relación con comprobante padre (ej: NC -> Factura original)
+    # related_voucher = relationship(
+    #     "Voucher",
+    #     remote_side="Voucher.id",
+    #     back_populates="credit_notes",
+    #     foreign_keys=[related_voucher_id],
+    # )
+    # 
+    # # Hijos (ej: Factura -> NCs asociadas)
+    # credit_notes = relationship(
+    #     "Voucher",
+    #     back_populates="related_voucher",
+    #     foreign_keys=[related_voucher_id],
+    #     lazy="selectin",
+    # )
 
     @property
     def full_number(self) -> str:
         """Retorna el número completo del comprobante."""
         return f"{self.sale_point}-{self.number}"
+
+    @property
+    def has_credit_note(self) -> bool:
+        """Indica si el comprobante tiene notas de crédito asociadas."""
+        if not self.credit_notes:
+            return False
+        # Verificar si alguno de los hijos es una nota de crédito
+        # Convertimos enum a string por seguridad
+        return any("credit_note" in str(child.voucher_type) for child in self.credit_notes)
 
     def __repr__(self) -> str:
         return f"<Voucher {self.voucher_type.value} {self.full_number}>"
