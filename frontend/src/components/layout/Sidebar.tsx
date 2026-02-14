@@ -44,14 +44,15 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
       )}
     >
       {/* Logo */}
-      <div className="h-16 flex items-center px-4 border-b border-gray-800">
+      <div className="h-20 flex items-center justify-center px-4 border-b border-gray-800 bg-gradient-to-r from-blue-600 to-blue-700">
         <img
           src="/octopus-logo.png"
           alt="OctopusTrack"
-          className="h-10 w-10 flex-shrink-0 object-contain"
+          className="h-16 w-16 flex-shrink-0 object-contain brightness-0 invert"
+          style={{ filter: 'brightness(0) invert(1) sepia(1) saturate(10000%) hue-rotate(190deg)' }}
         />
         {!isCollapsed && (
-          <span className="ml-3 text-xl font-bold truncate">OctopusTrack</span>
+          <span className="ml-3 text-2xl font-bold truncate text-white">OctopusTrack</span>
         )}
       </div>
 
