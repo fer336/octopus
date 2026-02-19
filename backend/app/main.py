@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import close_db
-from app.routers import auth, categories, clients, products, suppliers, dashboard, pdf_test, vouchers, arca, business
+from app.routers import auth, categories, clients, products, suppliers, dashboard, pdf_test, vouchers, arca, business, payment_methods
 
 settings = get_settings()
 
@@ -48,6 +48,8 @@ async def log_cors_config():
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    # Soporta desarrollo local con localhost/127.0.0.1 en cualquier puerto
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -67,6 +69,7 @@ app.include_router(pdf_test.router, prefix=settings.API_V1_PREFIX)
 app.include_router(vouchers.router, prefix=settings.API_V1_PREFIX)
 app.include_router(arca.router, prefix=settings.API_V1_PREFIX)
 app.include_router(business.router, prefix=settings.API_V1_PREFIX)
+app.include_router(payment_methods.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health", tags=["Health"])

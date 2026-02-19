@@ -145,7 +145,7 @@ export default function Vouchers() {
       header: 'Cliente',
       render: (item: any) => (
         <span className="text-sm">
-          Cliente #{item.client_id.substring(0, 8)}...
+          {item.client ? item.client.name : `Cliente #${item.client_id.substring(0, 8)}...`}
         </span>
       ),
     },
@@ -173,10 +173,11 @@ export default function Vouchers() {
     {
       key: 'actions',
       header: 'Acciones',
+      className: 'text-center',
       render: (item: any) => {
         const isDeleted = !!item.deleted_at
         return (
-          <div className="flex gap-2 justify-end">
+          <div className="flex gap-2 justify-center">
             {!isDeleted && (
               <>
                 <button
@@ -194,8 +195,8 @@ export default function Vouchers() {
                   <Download size={18} />
                 </button>
                 
-                {/* Botón Nota de Crédito - SOLO para facturas con CAE */}
-                {item.voucher_type.startsWith('invoice_') && item.cae && (
+                {/* Botón Nota de Crédito - SOLO para facturas con CAE y SIN NC previa */}
+                {item.voucher_type.startsWith('invoice_') && item.cae && !item.has_credit_note && (
                   <button
                     onClick={() => {
                       setSelectedVoucherForNC(item)
@@ -206,6 +207,16 @@ export default function Vouchers() {
                   >
                     <RotateCcw size={18} />
                   </button>
+                )}
+
+                {/* Indicador de NC emitida */}
+                {item.has_credit_note && (
+                  <span 
+                    className="p-1.5 text-orange-500 cursor-help" 
+                    title="Esta factura ya tiene una Nota de Crédito asociada"
+                  >
+                    <RotateCcw size={18} className="opacity-50" />
+                  </span>
                 )}
                 
                 <button

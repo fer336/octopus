@@ -4,12 +4,13 @@
  */
 import { useState, useEffect, useRef } from 'react'
 import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, ZoomIn, ZoomOut, Download, Printer, X } from 'lucide-react'
-import { Button, Modal, Select } from '../components/ui'
+import { Button, Modal, Select, Input } from '../components/ui'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import productsService from '../api/productsService'
 import clientsService from '../api/clientsService'
-import vouchersService, { VoucherCreate } from '../api/vouchersService'
+import vouchersService, { VoucherCreate, VoucherPayment } from '../api/vouchersService'
 import arcaService from '../api/arcaService'
+import paymentMethodsService from '../api/paymentMethodsService'
 import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
 
@@ -63,6 +64,12 @@ interface Draft {
   createdAt: string
 }
 
+interface PaymentSelectionState {
+  selected: boolean
+  amount: string
+  reference: string
+}
+
 const documentTypes = [
   { value: 'CUIT', label: 'CUIT' },
   { value: 'CUIL', label: 'CUIL' },
@@ -91,6 +98,13 @@ export default function Sales() {
     retry: false,
   })
 
+  // React Query para métodos de pago
+  const { data: paymentMethodsData } = useQuery({
+    queryKey: ['payment-methods'],
+    queryFn: () => paymentMethodsService.getAll(),
+    retry: false,
+  })
+
   const allProducts = productsData?.items || []
   const allClients = clientsData?.items || []
   const [voucherType, setVoucherType] = useState<VoucherType>('quotation')
@@ -102,6 +116,7 @@ export default function Sales() {
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [zoomLevel, setZoomLevel] = useState(1) // 1 = 100% (normal)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [paymentSelections, setPaymentSelections] = useState<Record<string, PaymentSelectionState>>({})
   
   // Descuento general
   const [generalDiscount, setGeneralDiscount] = useState(0) // Descuento % sobre subtotal
@@ -175,6 +190,7 @@ export default function Sales() {
       setClientSearch('')
       setGeneralDiscount(0)
       setProductSearch('')
+      resetPaymentSelections()
     },
     onError: (error: any) => {
       toast.error(formatErrorMessage(error))
@@ -239,6 +255,28 @@ export default function Sales() {
     c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
     c.document_number.includes(clientSearch)
   )
+
+  const paymentMethods = paymentMethodsData || []
+
+  useEffect(() => {
+    if (!paymentMethodsData || paymentMethodsData.length === 0) return
+
+    setPaymentSelections((prev) => {
+      const next = { ...prev }
+
+      paymentMethodsData.forEach((method) => {
+        if (!next[method.id]) {
+          next[method.id] = {
+            selected: false,
+            amount: '',
+            reference: ''
+          }
+        }
+      })
+
+      return next
+    })
+  }, [paymentMethodsData])
 
   // Manejar eventos de teclado
   useEffect(() => {
@@ -447,6 +485,7 @@ export default function Sales() {
         setProductSearch('')
         setVoucherType('quotation')
         setGeneralDiscount(0)
+        resetPaymentSelections()
       }
     }
   }
@@ -467,12 +506,18 @@ export default function Sales() {
   }
 
   const handleConfirmGenerate = () => {
-    setShowConfirmModal(false)
-    
     if (!selectedClient) {
       toast.error('Debe seleccionar un cliente')
       return
     }
+
+    const paymentValidation = validatePayments()
+    if (!paymentValidation.valid) {
+      toast.error(paymentValidation.message || 'Verifique los métodos de pago')
+      return
+    }
+
+    setShowConfirmModal(false)
     
     setIsGenerating(true)
     
@@ -498,7 +543,8 @@ export default function Sales() {
         quantity: item.quantity,
         unit_price: item.sale_price, // Enviamos el precio base, el backend recalcula o valida
         discount_percent: item.discount
-      }))
+      })),
+      payments: buildPaymentsPayload(),
     }
 
     createVoucherMutation.mutate(voucherData)
@@ -632,12 +678,144 @@ export default function Sales() {
     })
   }
 
+  // Restablecer selección de métodos de pago
+  const resetPaymentSelections = () => {
+    if (paymentMethods.length === 0) {
+      setPaymentSelections({})
+      return
+    }
+
+    const next: Record<string, PaymentSelectionState> = {}
+    paymentMethods.forEach((method) => {
+      next[method.id] = {
+        selected: false,
+        amount: '',
+        reference: ''
+      }
+    })
+
+    setPaymentSelections(next)
+  }
+
+  // Activar o desactivar un método de pago
+  const handleTogglePayment = (methodId: string, selected: boolean) => {
+    setPaymentSelections((prev) => {
+      const current = prev[methodId] || { selected: false, amount: '', reference: '' }
+      return {
+        ...prev,
+        [methodId]: {
+          ...current,
+          selected,
+          amount: selected ? current.amount : '',
+          reference: selected ? current.reference : ''
+        }
+      }
+    })
+  }
+
+  // Actualizar monto de un método de pago
+  const handlePaymentAmountChange = (methodId: string, value: string) => {
+    setPaymentSelections((prev) => ({
+      ...prev,
+      [methodId]: {
+        ...prev[methodId],
+        amount: value
+      }
+    }))
+  }
+
+  // Actualizar referencia de un método de pago
+  const handlePaymentReferenceChange = (methodId: string, value: string) => {
+    setPaymentSelections((prev) => ({
+      ...prev,
+      [methodId]: {
+        ...prev[methodId],
+        reference: value
+      }
+    }))
+  }
+
+  // Construir payload de pagos para el backend
+  const buildPaymentsPayload = (): VoucherPayment[] | undefined => {
+    const payload = paymentMethods
+      .map((method) => {
+        const selection = paymentSelections[method.id]
+        if (!selection?.selected) return null
+
+        const amountValue = Number(selection.amount)
+        if (!Number.isFinite(amountValue) || amountValue <= 0) return null
+
+        const referenceValue = selection.reference?.trim()
+        return {
+          payment_method_id: method.id,
+          amount: amountValue,
+          reference: referenceValue ? referenceValue : undefined
+        }
+      })
+      .filter(Boolean) as VoucherPayment[]
+
+    return payload.length > 0 ? payload : undefined
+  }
+
+  // Validar montos y referencias de pagos
+  const validatePayments = () => {
+    if (paymentMethods.length === 0) {
+      if (voucherType === 'invoice') {
+        return { valid: false, message: 'No hay métodos de pago disponibles para facturas' }
+      }
+      return { valid: true }
+    }
+
+    for (const method of paymentMethods) {
+      const selection = paymentSelections[method.id]
+      if (!selection?.selected) continue
+
+      const amountValue = Number(selection.amount)
+      if (!Number.isFinite(amountValue) || amountValue <= 0) {
+        return { valid: false, message: `Ingrese un monto válido para ${method.name}` }
+      }
+
+      if (method.requires_reference && !selection.reference?.trim()) {
+        return { valid: false, message: `${method.name} requiere referencia` }
+      }
+    }
+
+    const assignedTotal = paymentMethods.reduce((acc, method) => {
+      const selection = paymentSelections[method.id]
+      if (!selection?.selected) return acc
+      const amountValue = Number(selection.amount)
+      return acc + (Number.isFinite(amountValue) ? amountValue : 0)
+    }, 0)
+
+    if (voucherType === 'invoice' && assignedTotal <= 0) {
+      return { valid: false, message: 'Debe cargar al menos un método de pago para facturas' }
+    }
+
+    const difference = Math.abs(assignedTotal - total)
+    if (assignedTotal > 0 && difference > 0.01) {
+      return { valid: false, message: 'La suma de pagos no coincide con el total del comprobante' }
+    }
+
+    return { valid: true }
+  }
+
   // Cálculos de totales con descuento general
   const subtotalItems = items.reduce((acc, item) => acc + calculateItemTotal(item), 0)
   const discountAmount = subtotalItems * (generalDiscount / 100)
   const subtotalAfterDiscount = subtotalItems - discountAmount
   const iva = subtotalAfterDiscount * 0.21
   const total = subtotalAfterDiscount + iva
+
+  const assignedPaymentsTotal = paymentMethods.reduce((acc, method) => {
+    const selection = paymentSelections[method.id]
+    if (!selection?.selected) return acc
+    const amountValue = Number(selection.amount)
+    return acc + (Number.isFinite(amountValue) ? amountValue : 0)
+  }, 0)
+
+  const shouldShowPaymentDifference = assignedPaymentsTotal > 0 || voucherType === 'invoice'
+  const paymentDifference = shouldShowPaymentDifference ? total - assignedPaymentsTotal : 0
+  const isPaymentBalanced = shouldShowPaymentDifference ? Math.abs(paymentDifference) <= 0.01 : true
 
   return (
     <div className="space-y-3">
@@ -1491,7 +1669,7 @@ export default function Sales() {
               {/* Desglose de totales */}
               <div className="space-y-2 pt-2 border-t border-blue-200 dark:border-blue-700">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Subtotal:</span>
+                  <span className="text-gray-600 dark:text-gray-400">Subtotal items:</span>
                   <span className="font-medium">${subtotalItems.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
 
@@ -1520,54 +1698,88 @@ export default function Sales() {
                   </span>
                 </div>
               </div>
+            </div>
+          </div>
 
-              {/* Desglose de totales */}
-              <div className="space-y-2 pt-3 border-t border-blue-200 dark:border-blue-700">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Subtotal items:</span>
-                  <span className="font-medium">${subtotalItems.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-
-                {/* Descuento general */}
-                <div className="flex justify-between items-center text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-600 dark:text-gray-400">Descuento general:</span>
-                    <input
-                      type="number"
-                      value={generalDiscount}
-                      onChange={(e) => setGeneralDiscount(parseFloat(e.target.value) || 0)}
-                      className="w-16 px-2 py-0.5 text-xs text-right border rounded dark:bg-gray-700 dark:border-gray-600"
-                      min={0}
-                      max={100}
-                      step={0.1}
-                    />
-                    <span className="text-gray-500">%</span>
-                  </div>
-                  <span className="font-medium text-red-600 dark:text-red-400">
-                    -${discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-
-                {/* Subtotal después de descuentos */}
-                <div className="flex justify-between text-sm pt-2 border-t border-gray-200 dark:border-gray-700">
-                  <span className="text-gray-700 dark:text-gray-300 font-medium">Subtotal:</span>
-                  <span className="font-semibold">${subtotalAfterDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-
-                {/* IVA */}
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">IVA (21%):</span>
-                  <span className="font-medium">${iva.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-
-                {/* Total final */}
-                <div className="flex justify-between pt-2 border-t-2 border-blue-300 dark:border-blue-600">
-                  <span className="font-bold text-gray-900 dark:text-white text-base">TOTAL:</span>
-                  <span className="font-bold text-xl text-blue-600 dark:text-blue-400">
-                    ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
+          {/* Métodos de pago */}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Métodos de pago</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {voucherType === 'invoice'
+                    ? 'Obligatorio para facturas.'
+                    : 'Opcional para cotizaciones y remitos.'}
+                </p>
               </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Total asignado</p>
+                <p className={`text-sm font-semibold ${isPaymentBalanced ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                  ${assignedPaymentsTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            </div>
+
+            {paymentMethods.length === 0 ? (
+              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                No hay métodos de pago configurados para este negocio.
+              </p>
+            ) : (
+              <div className="mt-3 space-y-3">
+                {paymentMethods.map((method) => {
+                  const selection = paymentSelections[method.id]
+                  const isSelected = selection?.selected || false
+
+                  return (
+                    <div key={method.id} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => handleTogglePayment(method.id, e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {method.name}
+                          </span>
+                          {method.requires_reference && (
+                            <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                              Requiere referencia
+                            </span>
+                          )}
+                        </label>
+
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={selection?.amount || ''}
+                          onChange={(e) => handlePaymentAmountChange(method.id, e.target.value)}
+                          placeholder="Monto"
+                          disabled={!isSelected}
+                          className="text-right"
+                        />
+
+                        <Input
+                          type="text"
+                          value={selection?.reference || ''}
+                          onChange={(e) => handlePaymentReferenceChange(method.id, e.target.value)}
+                          placeholder={method.requires_reference ? 'Referencia obligatoria' : 'Referencia (opcional)'}
+                          disabled={!isSelected}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="mt-3 flex items-center justify-between text-sm">
+              <span className="text-gray-600 dark:text-gray-400">Diferencia:</span>
+              <span className={`font-semibold ${isPaymentBalanced ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                ${paymentDifference.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
             </div>
           </div>
 

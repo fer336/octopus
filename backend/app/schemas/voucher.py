@@ -11,6 +11,8 @@ from pydantic import Field
 from app.models.voucher import VoucherStatus, VoucherType
 from app.schemas.base import BaseResponse, BaseSchema
 
+from app.schemas.client import ClientResponse
+from app.schemas.payment_method import VoucherPaymentCreate
 
 class VoucherItemCreate(BaseSchema):
     """Schema para crear un ítem de comprobante."""
@@ -34,6 +36,7 @@ class VoucherCreate(BaseSchema):
     show_prices: bool = True  # Para remitos
     
     items: List[VoucherItemCreate]
+    payments: Optional[List[VoucherPaymentCreate]] = Field(default=None, description="Métodos de pago (opcional para cotizaciones/remitos, obligatorio para facturas)")
 
 
 class VoucherItemResponse(BaseResponse):
@@ -54,6 +57,7 @@ class VoucherItemResponse(BaseResponse):
 class VoucherResponse(BaseResponse):
     """Schema de respuesta para comprobante."""
 
+    client: Optional[ClientResponse] = None
     client_id: UUID
     voucher_type: VoucherType
     status: VoucherStatus
@@ -69,5 +73,8 @@ class VoucherResponse(BaseResponse):
     cae: Optional[str]
     cae_expiration: Optional[date]
     barcode: Optional[str]
+    
+    # Indica si tiene notas de crédito asociadas (para UI)
+    has_credit_note: bool = False
     
     items: List[VoucherItemResponse]

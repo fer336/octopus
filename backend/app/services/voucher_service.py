@@ -143,6 +143,43 @@ class VoucherService:
         for item in items_db:
             item.voucher_id = voucher.id
             self.db.add(item)
+        
+        # 4. Procesar pagos si se enviaron
+        if data.payments:
+            from app.models.voucher_payment import VoucherPayment
+            from app.models.payment_method import PaymentMethodCatalog
+            
+            # Validar que la suma de pagos = total del voucher
+            total_payments = sum(p.amount for p in data.payments)
+            
+            # Permitir pequeñas diferencias por redondeo (0.01)
+            if abs(total_payments - total_final) > Decimal("0.01"):
+                raise ValueError(
+                    f"La suma de pagos (${total_payments}) no coincide con el total del comprobante (${total_final})"
+                )
+            
+            # Crear registros de pago
+            for payment_data in data.payments:
+                # Verificar que el método de pago exista y esté activo
+                payment_method = await self.db.get(PaymentMethodCatalog, payment_data.payment_method_id)
+                if not payment_method or payment_method.business_id != business_id:
+                    raise ValueError(f"Método de pago {payment_data.payment_method_id} no encontrado")
+                
+                if not payment_method.is_active:
+                    raise ValueError(f"Método de pago '{payment_method.name}' está inactivo")
+                
+                # Validar referencia si es requerida
+                if payment_method.requires_reference and not payment_data.reference:
+                    raise ValueError(f"El método '{payment_method.name}' requiere número de referencia")
+                
+                # Crear el pago
+                voucher_payment = VoucherPayment(
+                    voucher_id=voucher.id,
+                    payment_method_id=payment_data.payment_method_id,
+                    amount=payment_data.amount,
+                    reference=payment_data.reference,
+                )
+                self.db.add(voucher_payment)
             
         await self.db.commit()
         await self.db.refresh(voucher)
@@ -549,6 +586,7 @@ class VoucherService:
             notes=f"NC de Factura {original_voucher.full_number}. Motivo: {reason}",
             show_prices="S",  # S = Sí, N = No (String, no Boolean)
             created_by=user_id,
+            related_voucher_id=original_voucher.id,
         )
         
         self.db.add(credit_note)

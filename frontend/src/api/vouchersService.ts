@@ -10,6 +10,12 @@ export interface VoucherItemCreate {
   discount_percent: number
 }
 
+export interface VoucherPayment {
+  payment_method_id: string
+  amount: number
+  reference?: string
+}
+
 export interface VoucherCreate {
   client_id: string
   voucher_type: 'quotation' | 'receipt' | 'invoice_a' | 'invoice_b' | 'invoice_c'
@@ -17,6 +23,7 @@ export interface VoucherCreate {
   notes?: string
   show_prices: boolean
   items: VoucherItemCreate[]
+  payments?: VoucherPayment[]
 }
 
 export interface Voucher {
