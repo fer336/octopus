@@ -18,9 +18,13 @@ from app.schemas.voucher import VoucherCreate, VoucherResponse, ConvertQuotation
 from app.schemas.credit_note import CreditNoteCreate
 from app.services.voucher_service import VoucherService
 from app.services.afip_sdk_service import AfipSdkService
+from app.services.cash_register_service import get_open_cash_register
 from app.utils.security import get_current_business, get_current_user
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+
+# Tipos de comprobante que requieren caja abierta para emitirse
+INVOICE_TYPES = {VoucherType.INVOICE_A, VoucherType.INVOICE_B, VoucherType.INVOICE_C}
 
 router = APIRouter(prefix="/vouchers", tags=["Ventas"])
 
@@ -67,7 +71,17 @@ async def create_voucher(
     """
     Crea un nuevo comprobante (Cotización, Remito, Factura).
     Calcula totales y descuenta stock si corresponde.
+    Las facturas (A, B, C) requieren que haya una caja abierta.
     """
+    # Validar caja abierta para facturas
+    if data.voucher_type in INVOICE_TYPES:
+        open_register = await get_open_cash_register(db, business_id)
+        if not open_register:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No hay una caja abierta. Debe abrir la caja antes de emitir facturas."
+            )
+
     service = VoucherService(db)
     try:
         voucher = await service.create(business_id, data, current_user.id)
@@ -198,7 +212,16 @@ async def convert_quotation_to_invoice(
     - Marca la cotización como 'facturada' (irreversible sin Nota de Crédito).
     - El tipo de factura (A o B) se determina automáticamente según la condición fiscal del cliente.
     - Para revertir: emitir una Nota de Crédito Fiscal desde la factura generada.
+    - Requiere caja abierta.
     """
+    # Validar caja abierta antes de convertir
+    open_register = await get_open_cash_register(db, business_id)
+    if not open_register:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No hay una caja abierta. Debe abrir la caja antes de emitir facturas."
+        )
+
     service = VoucherService(db)
     try:
         payments_raw = None
@@ -240,7 +263,16 @@ async def create_credit_note(
     - **items**: Lista de productos a devolver (cantidad no puede superar la original)
     
     La NC se emite automáticamente en ARCA/AFIP con referencia a la factura original (CbtesAsoc).
+    Requiere caja abierta.
     """
+    # Validar caja abierta antes de emitir NC
+    open_register = await get_open_cash_register(db, business_id)
+    if not open_register:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No hay una caja abierta. Debe abrir la caja antes de emitir Notas de Crédito."
+        )
+
     service = VoucherService(db)
     
     try:

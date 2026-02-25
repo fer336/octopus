@@ -649,6 +649,7 @@ export default function Sales() {
       voucher_type: backendType as any,
       date: localDate,
       show_prices: voucherType !== 'receipt', // Remito sin precios por defecto (configurable)
+      general_discount: generalDiscount,
       items: items.map(item => ({
         product_id: item.id,
         quantity: item.quantity,
@@ -2001,10 +2002,10 @@ export default function Sales() {
         isOpen={showConfirmModal} 
         onClose={() => setShowConfirmModal(false)} 
         title={voucherType === 'invoice' ? 'Confirmar Emisión de Factura Electrónica' : `Confirmar ${voucherTypes.find(v => v.value === voucherType)?.label}`}
-        size="xl"
+        size={voucherType === 'invoice' ? 'xl' : 'lg'}
       >
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className={voucherType === 'invoice' ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : ''}>
             {/* Detalles Venta */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <div className="space-y-2 text-sm">
@@ -2080,16 +2081,13 @@ export default function Sales() {
               </div>
             </div>
 
-            {/* Métodos de pago */}
+            {/* Métodos de pago — solo para facturas */}
+            {voucherType === 'invoice' && (
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Métodos de pago</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {voucherType === 'invoice'
-                    ? 'Obligatorio para facturas.'
-                    : 'Opcional para cotizaciones y remitos.'}
-                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Obligatorio para facturas.</p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-gray-500 dark:text-gray-400">Total asignado</p>
@@ -2203,6 +2201,7 @@ export default function Sales() {
               </span>
             </div>
           </div>
+          )} {/* fin panel métodos de pago */}
           </div>
 
           {voucherType === 'invoice' && (

@@ -74,11 +74,15 @@ class VoucherService:
             date=data.date,
             notes=data.notes,
             show_prices="S" if data.show_prices else "N",
+            general_discount=data.general_discount,
         )
         
         total_subtotal = Decimal(0)
         total_iva = Decimal(0)
         total_final = Decimal(0)
+        
+        # Factor de descuento general aplicado sobre cada línea
+        general_discount_factor = 1 - (data.general_discount / 100)
         
         items_db = []
 
@@ -88,28 +92,25 @@ class VoucherService:
             if not product or product.business_id != business_id:
                 raise ValueError(f"Producto {item_data.product_id} no encontrado")
             
-            # Recalcular precios con datos frescos de la BD
-            # Nota: Usamos el precio del producto actual, pero aplicamos el descuento enviado
-            # O podríamos usar el unit_price enviado si permitimos overrides manuales.
-            # Por seguridad, usemos el precio base del producto y apliquemos descuentos.
-            
-            # Precio unitario (con bonificaciones del producto ya aplicadas en sale_price, pero necesitamos el neto sin IVA)
-            # product.net_price es el precio con descuentos aplicados, sin IVA.
-            unit_price = product.net_price
-            
-            # Aplicar descuento adicional de la venta
-            discount_factor = 1 - (item_data.discount_percent / 100)
-            subtotal_line = unit_price * item_data.quantity * discount_factor
-            
-            # Calcular IVA
+            # El frontend calcula: subtotalItems = Σ(sale_price × qty × (1 - item_disc%))
+            # luego aplica: subtotalAfterDiscount = subtotalItems × (1 - general_disc%)
+            # y finalmente: total = subtotalAfterDiscount × 1.21  (IVA sobre subtotal)
+            # Replicamos exactamente esa lógica para que los totales coincidan.
+            unit_price = product.sale_price
+
+            # Subtotal de la línea con descuentos (equivale al "subtotalItems" del frontend por ítem)
+            item_discount_factor = 1 - (item_data.discount_percent / 100)
+            subtotal_line = unit_price * item_data.quantity * item_discount_factor * general_discount_factor
+
+            # IVA y total siguiendo la misma lógica del frontend
             iva_line = subtotal_line * (product.iva_rate / 100)
             total_line = subtotal_line + iva_line
-            
+
             # Acumular totales generales
             total_subtotal += subtotal_line
             total_iva += iva_line
             total_final += total_line
-            
+
             # Crear item
             voucher_item = VoucherItem(
                 product_id=product.id,
@@ -674,6 +675,9 @@ class VoucherService:
         # 5. Crear la factura
         from datetime import date as date_type
 
+        # Heredar el descuento general de la cotización original
+        quotation_general_discount = quotation.general_discount or Decimal(0)
+
         invoice = Voucher(
             business_id=business_id,
             client_id=quotation.client_id,
@@ -685,6 +689,7 @@ class VoucherService:
             date=date_type.today(),
             notes=f"Facturado desde Cotización {quotation.full_number}",
             show_prices="S",
+            general_discount=quotation_general_discount,
         )
 
         total_subtotal = Decimal(0)
@@ -692,16 +697,20 @@ class VoucherService:
         total_final = Decimal(0)
         items_db = []
 
+        # Factor de descuento general heredado de la cotización
+        general_discount_factor = 1 - (quotation_general_discount / 100)
+
         # 6. Copiar items de la cotización a la factura (con precios frescos de BD)
         for i, item_data in enumerate(quotation.items):
             product = await self.db.get(Product, item_data.product_id)
             if not product or product.business_id != business_id:
                 raise ValueError(f"Producto {item_data.product_id} no encontrado o no pertenece al negocio")
 
-            # Usar precio actual del producto (neto sin IVA)
-            unit_price = product.net_price
-            discount_factor = 1 - (item_data.discount_percent / 100)
-            subtotal_line = unit_price * item_data.quantity * discount_factor
+            # Replicar la lógica del frontend: subtotal = sale_price × qty × descuentos,
+            # luego iva = subtotal × iva_rate, total = subtotal + iva
+            unit_price = product.sale_price
+            item_discount_factor = 1 - (item_data.discount_percent / 100)
+            subtotal_line = unit_price * item_data.quantity * item_discount_factor * general_discount_factor
             iva_line = subtotal_line * (product.iva_rate / 100)
             total_line = subtotal_line + iva_line
 

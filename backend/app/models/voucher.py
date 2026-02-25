@@ -73,6 +73,9 @@ class Voucher(BaseModel):
     date = Column(Date, nullable=False)
     due_date = Column(Date, nullable=True)  # Vigencia de cotización o vencimiento
 
+    # Descuento general del comprobante (% aplicado sobre el subtotal de todos los ítems)
+    general_discount = Column(Numeric(5, 2), default=0, nullable=False)
+
     # Totales
     subtotal = Column(Numeric(12, 2), default=0, nullable=False)  # Sin IVA
     iva_amount = Column(Numeric(12, 2), default=0, nullable=False)

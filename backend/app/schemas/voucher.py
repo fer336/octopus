@@ -34,6 +34,7 @@ class VoucherCreate(BaseSchema):
     date: date
     notes: Optional[str] = None
     show_prices: bool = True  # Para remitos
+    general_discount: Decimal = Field(default=Decimal("0"), ge=0, le=100, description="Descuento general (%) aplicado sobre el subtotal de todos los ítems")
     
     items: List[VoucherItemCreate]
     payments: Optional[List[VoucherPaymentCreate]] = Field(default=None, description="Métodos de pago (opcional para cotizaciones/remitos, obligatorio para facturas)")

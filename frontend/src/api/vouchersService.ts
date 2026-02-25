@@ -22,6 +22,7 @@ export interface VoucherCreate {
   date: string
   notes?: string
   show_prices: boolean
+  general_discount: number
   items: VoucherItemCreate[]
   payments?: VoucherPayment[]
 }
