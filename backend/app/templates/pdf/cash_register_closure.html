@@ -10,42 +10,49 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: sans-serif;
+      font-family: "Courier New", Courier, monospace;
       font-size: 11px;
-      color: #1f2937;
+      color: #000;
+      background: #fff;
     }
 
     /* ─── Header membrete ─────────────────────────────────── */
     .header {
-      border-bottom: 2px solid #2563eb;
-      padding-bottom: 10px;
-      margin-bottom: 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
+      border-bottom: 2px solid #000;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+    }
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .header-table td {
+      vertical-align: top;
+      padding: 0;
     }
     .business-name {
       font-size: 16px;
       font-weight: bold;
-      color: #1d4ed8;
+      color: #000;
+      text-transform: uppercase;
     }
     .business-info {
       font-size: 10px;
-      color: #6b7280;
-      margin-top: 3px;
+      color: #000;
+      margin-top: 2px;
       line-height: 1.5;
     }
-    .report-title-box {
-      text-align: right;
-    }
     .report-title {
-      font-size: 14px;
+      font-size: 15px;
       font-weight: bold;
-      color: #1f2937;
+      color: #000;
+      text-align: right;
+      text-transform: uppercase;
     }
     .report-subtitle {
       font-size: 10px;
-      color: #6b7280;
+      color: #000;
+      text-align: right;
       margin-top: 2px;
     }
 
@@ -53,30 +60,29 @@
     .info-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 16px;
+      gap: 6px;
+      margin-bottom: 10px;
     }
     .info-card {
-      border: 1px solid #e5e7eb;
-      border-radius: 6px;
-      padding: 8px 10px;
+      border: 1px solid #000;
+      padding: 6px 8px;
     }
     .info-card-title {
       font-size: 9px;
       font-weight: bold;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: #6b7280;
-      margin-bottom: 4px;
+      color: #000;
+      margin-bottom: 3px;
     }
     .info-card-value {
       font-size: 12px;
       font-weight: bold;
-      color: #1f2937;
+      color: #000;
     }
     .info-card-sub {
       font-size: 10px;
-      color: #6b7280;
+      color: #000;
       margin-top: 2px;
     }
 
@@ -86,11 +92,11 @@
       font-weight: bold;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: #2563eb;
-      border-bottom: 1px solid #dbeafe;
-      padding-bottom: 4px;
-      margin-bottom: 8px;
-      margin-top: 14px;
+      color: #000;
+      border-bottom: 1px solid #000;
+      padding-bottom: 3px;
+      margin-bottom: 6px;
+      margin-top: 12px;
     }
 
     /* ─── Tabla principal de métodos de pago ─────────────── */
@@ -100,90 +106,95 @@
       font-size: 10px;
     }
     thead tr {
-      background-color: #1d4ed8;
-      color: white;
+      background-color: #fff;
+      color: #000;
     }
     thead th {
-      padding: 6px 8px;
+      padding: 5px 6px;
       text-align: left;
-      font-weight: 600;
+      font-weight: bold;
       font-size: 9px;
       text-transform: uppercase;
       letter-spacing: 0.03em;
+      border: 1px solid #000;
     }
     thead th.right { text-align: right; }
-    tbody tr { border-bottom: 1px solid #f3f4f6; }
-    tbody tr:nth-child(even) { background-color: #f9fafb; }
+    tbody tr { border-bottom: 1px solid #000; }
     tbody td {
-      padding: 6px 8px;
-      color: #374151;
+      padding: 5px 6px;
+      color: #000;
+      border: 1px solid #000;
     }
     tbody td.right {
       text-align: right;
-      font-family: monospace;
+      font-family: "Courier New", Courier, monospace;
     }
-    tbody td.positive { color: #059669; font-weight: 600; }
-    tbody td.negative { color: #dc2626; font-weight: 600; }
-    tfoot tr { background-color: #1e3a8a; color: white; }
+    tfoot tr {
+      background-color: #fff;
+      color: #000;
+    }
     tfoot td {
-      padding: 7px 8px;
+      padding: 5px 6px;
       font-weight: bold;
       font-size: 11px;
+      border: 1px solid #000;
+      border-top: 2px solid #000;
     }
     tfoot td.right {
       text-align: right;
-      font-family: monospace;
+      font-family: "Courier New", Courier, monospace;
     }
 
     /* ─── Resumen de efectivo ─────────────────────────────── */
     .cash-summary {
-      border: 1px solid #e5e7eb;
-      border-radius: 6px;
-      padding: 10px 12px;
-      margin-top: 14px;
+      border: 1px solid #000;
+      padding: 8px 10px;
+      margin-top: 10px;
     }
     .cash-summary-row {
       display: flex;
       justify-content: space-between;
       padding: 4px 0;
       font-size: 11px;
-      border-bottom: 1px solid #f3f4f6;
+      border-bottom: 1px solid #000;
     }
     .cash-summary-row:last-child { border-bottom: none; }
     .cash-summary-row.total {
       font-weight: bold;
       font-size: 12px;
-      padding-top: 6px;
+      padding-top: 5px;
       margin-top: 2px;
     }
-    .cash-summary-row.difference-ok { color: #059669; }
-    .cash-summary-row.difference-bad { color: #dc2626; }
-    .cash-value { font-family: monospace; }
+    .cash-value { font-family: "Courier New", Courier, monospace; }
 
     /* ─── Tabla de movimientos ───────────────────────────── */
     .movements-table tbody td { font-size: 9.5px; }
 
     /* ─── Motivo de diferencia ──────────────────────────── */
     .difference-reason {
-      margin-top: 10px;
-      border-left: 3px solid #dc2626;
-      background-color: #fef2f2;
-      padding: 6px 10px;
-      border-radius: 0 4px 4px 0;
+      margin-top: 8px;
+      border: 1px solid #000;
+      border-left: 3px solid #000;
+      padding: 5px 8px;
       font-size: 10px;
-      color: #991b1b;
+      color: #000;
     }
     .difference-reason strong { display: block; margin-bottom: 2px; }
 
     /* ─── Footer ─────────────────────────────────────────── */
     .footer {
-      margin-top: 20px;
-      border-top: 1px solid #e5e7eb;
-      padding-top: 8px;
-      display: flex;
-      justify-content: space-between;
+      margin-top: 16px;
+      border-top: 1px solid #000;
+      padding-top: 6px;
+    }
+    .footer-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .footer-table td {
       font-size: 9px;
-      color: #9ca3af;
+      color: #000;
+      vertical-align: middle;
     }
 
   </style>
@@ -192,19 +203,23 @@
 
   <!-- ── Membrete ──────────────────────────────────────────── -->
   <div class="header">
-    <div>
-      <div class="business-name">{{ business.name }}</div>
-      <div class="business-info">
-        CUIT: {{ business.cuit }}<br>
-        {% if business.address %}{{ business.address }}{% if business.city %}, {{ business.city }}{% endif %}<br>{% endif %}
-        {% if business.phone %}Tel: {{ business.phone }}{% endif %}
-      </div>
-    </div>
-    <div class="report-title-box">
-      <div class="report-title">CIERRE DE CAJA</div>
-      <div class="report-subtitle">{{ closed_date }}</div>
-      <div class="report-subtitle">Generado: {{ generated_at }}</div>
-    </div>
+    <table class="header-table">
+      <tr>
+        <td style="width: 55%;">
+          <div class="business-name">{{ business.name }}</div>
+          <div class="business-info">
+            CUIT: {{ business.cuit }}<br>
+            {% if business.address %}{{ business.address }}{% if business.city %}, {{ business.city }}{% endif %}<br>{% endif %}
+            {% if business.phone %}Tel: {{ business.phone }}{% endif %}
+          </div>
+        </td>
+        <td style="width: 45%;">
+          <div class="report-title">Cierre de Caja</div>
+          <div class="report-subtitle">{{ closed_date }}</div>
+          <div class="report-subtitle">Generado: {{ generated_at }}</div>
+        </td>
+      </tr>
+    </table>
   </div>
 
   <!-- ── Cards de datos ────────────────────────────────────── -->
@@ -250,8 +265,8 @@
         <td class="right">{{ m.total_sales_fmt }}</td>
         <td class="right">{{ m.total_payments_received_fmt }}</td>
         <td class="right">{{ m.total_income_fmt }}</td>
-        <td class="right {% if m.total_expense > 0 %}negative{% endif %}">{{ m.total_expense_fmt }}</td>
-        <td class="right {% if m.net >= 0 %}positive{% else %}negative{% endif %}">{{ m.net_fmt }}</td>
+        <td class="right">{{ m.total_expense_fmt }}</td>
+        <td class="right">{{ m.net_fmt }}</td>
       </tr>
       {% endif %}
       {% endfor %}
@@ -286,7 +301,7 @@
       <span>Efectivo físico contado</span>
       <span class="cash-value">{{ counted_cash_fmt }}</span>
     </div>
-    <div class="cash-summary-row total {% if difference == 0 %}difference-ok{% else %}difference-bad{% endif %}">
+    <div class="cash-summary-row total">
       <span>Diferencia</span>
       <span class="cash-value">{{ difference_fmt }}</span>
     </div>
@@ -319,7 +334,7 @@
         <td>{{ mv.description }}</td>
         <td>{{ mv.type_label }}</td>
         <td>{{ mv.method_label }}</td>
-        <td class="right {% if mv.is_expense %}negative{% else %}positive{% endif %}">
+        <td class="right">
           {% if mv.is_expense %}-{% else %}+{% endif %}{{ mv.amount_fmt }}
         </td>
       </tr>
@@ -330,8 +345,12 @@
 
   <!-- ── Footer ─────────────────────────────────────────────── -->
   <div class="footer">
-    <span>{{ business.name }} — Sistema OctopusTrack</span>
-    <span>Cierre generado el {{ generated_at }}</span>
+    <table class="footer-table">
+      <tr>
+        <td>{{ business.name }} — Sistema OctopusTrack</td>
+        <td style="text-align: right;">Cierre generado el {{ generated_at }}</td>
+      </tr>
+    </table>
   </div>
 
 </body>

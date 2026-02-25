@@ -15,7 +15,7 @@
         }
         body {
             font-family: "Courier New", Courier, monospace;
-            font-size: 10px;
+            font-size: 12px;
             color: #000;
             background: #fff;
         }
@@ -36,32 +36,32 @@
             padding: 0;
         }
         .business-name {
-            font-size: 14px;
+            font-size: 16px;
             font-weight: bold;
             color: #000;
             text-transform: uppercase;
         }
         .business-info {
-            font-size: 9px;
+            font-size: 11px;
             color: #000;
             margin-top: 1px;
         }
         .order-title {
-            font-size: 13px;
+            font-size: 15px;
             font-weight: bold;
             color: #000;
             text-align: right;
             text-transform: uppercase;
         }
         .order-number {
-            font-size: 10px;
+            font-size: 12px;
             font-weight: bold;
             color: #000;
             text-align: right;
             margin-top: 2px;
         }
         .order-meta {
-            font-size: 9px;
+            font-size: 11px;
             color: #000;
             text-align: right;
             margin-top: 1px;
@@ -79,7 +79,7 @@
         }
         .supplier-bar td {
             padding: 1px 0;
-            font-size: 9px;
+            font-size: 11px;
             vertical-align: top;
         }
         .supplier-label {
@@ -93,7 +93,7 @@
 
         /* ===== ESTADO ===== */
         .status-text {
-            font-size: 9px;
+            font-size: 11px;
             font-weight: bold;
             text-transform: uppercase;
             border: 1px solid #000;
@@ -113,15 +113,13 @@
         }
         table.items thead th {
             padding: 5px 4px;
-            text-align: left;
-            font-size: 8px;
+            text-align: center;
+            font-size: 10px;
             font-weight: bold;
             text-transform: uppercase;
             border: 1px solid #000;
             white-space: nowrap;
         }
-        table.items thead th.right  { text-align: right; }
-        table.items thead th.center { text-align: center; }
 
         table.items tbody tr {
             background: #fff;
@@ -129,64 +127,37 @@
         table.items tbody td {
             padding: 4px 4px;
             border: 1px solid #000;
-            font-size: 9px;
+            font-size: 11px;
             vertical-align: middle;
+            text-align: center;
         }
-        table.items tbody td.right {
-            text-align: right;
-            font-family: "Courier New", Courier, monospace;
-        }
-        table.items tbody td.center { text-align: center; }
         table.items tbody td.code {
             font-family: "Courier New", Courier, monospace;
             white-space: nowrap;
         }
 
         /* ===== COLUMNAS ===== */
-        col.col-code      { width: 7%; }
-        col.col-desc      { width: 25%; }
-        col.col-category  { width: 10%; }
-        col.col-sys-stock { width: 7%; }
-        col.col-counted   { width: 7%; }
+        col.col-code      { width: 8%; }
+        col.col-desc      { width: 28%; }
         col.col-qty       { width: 7%; }
-        col.col-cost      { width: 13%; }
-        col.col-iva       { width: 6%; }
-        col.col-subtotal  { width: 13%; }
+        col.col-list      { width: 11%; }
+        col.col-bonif     { width: 11%; }
+        col.col-cost      { width: 11%; }
+        col.col-iva       { width: 7%; }
+        col.col-subtotal  { width: 11%; }
+        col.col-total     { width: 12%; }
 
-        /* ===== TOTALES ===== */
-        .totals-section {
-            margin-top: 6px;
-            display: flex;
-            justify-content: flex-end;
-        }
-        .totals-table {
-            border-collapse: collapse;
-            min-width: 260px;
+        /* ===== TOTALES (pie de tabla — fila única) ===== */
+        table.items tfoot td {
+            padding: 4px 4px;
             border: 1px solid #000;
-        }
-        .totals-table td {
-            padding: 3px 8px;
-            font-size: 10px;
-            border-bottom: 1px solid #000;
-        }
-        .totals-table .label {
-            color: #000;
-            text-align: right;
-            padding-right: 12px;
-        }
-        .totals-table .value {
-            text-align: right;
-            font-family: "Courier New", Courier, monospace;
-            font-weight: bold;
-            min-width: 100px;
-        }
-        .totals-table .total-row td {
-            background: #fff;
-            color: #000;
-            font-size: 11px;
-            font-weight: bold;
             border-top: 2px solid #000;
-            border-bottom: none;
+            font-size: 11px;
+            vertical-align: middle;
+        }
+        table.items tfoot tr.total-row td {
+            font-size: 12px;
+            font-weight: bold;
         }
 
         /* ===== NOTAS ===== */
@@ -194,13 +165,13 @@
             margin-top: 6px;
             border: 1px solid #000;
             padding: 4px 8px;
-            font-size: 9px;
+            font-size: 11px;
             color: #000;
         }
         .notes-label {
             font-weight: bold;
             margin-bottom: 2px;
-            font-size: 8px;
+            font-size: 10px;
             text-transform: uppercase;
         }
 
@@ -215,7 +186,7 @@
             border-collapse: collapse;
         }
         .footer-table td {
-            font-size: 8px;
+            font-size: 10px;
             color: #000;
             vertical-align: middle;
         }
@@ -242,7 +213,7 @@
                 </td>
                 <td style="width: 45%;">
                     <div class="order-title">Orden de Pedido</div>
-                    <div class="order-number"># {{ order_number }}</div>
+                    <div class="order-number"># {{ order.sale_point }}-{{ order.number }}</div>
                     <div class="order-meta">Fecha: {{ order_date }}</div>
                     <div class="order-meta" style="margin-top: 3px;">
                         Estado: <span class="status-text">{% if order.status.value == 'confirmed' %}Confirmada{% else %}Borrador{% endif %}</span>
@@ -279,25 +250,25 @@
         <colgroup>
             <col class="col-code">
             <col class="col-desc">
-            <col class="col-category">
-            <col class="col-sys-stock">
-            <col class="col-counted">
             <col class="col-qty">
+            <col class="col-list">
+            <col class="col-bonif">
             <col class="col-cost">
             <col class="col-iva">
             <col class="col-subtotal">
+            <col class="col-total">
         </colgroup>
         <thead>
             <tr>
                 <th>Código</th>
                 <th>Descripción</th>
-                <th>Categoría</th>
-                <th class="center">Stock Sist.</th>
-                <th class="center">Contado</th>
-                <th class="center">Cant. Pedir</th>
-                <th class="right">Precio Costo</th>
-                <th class="center">IVA %</th>
-                <th class="right">Subtotal</th>
+                <th>Cant. Pedir</th>
+                <th>P. Lista</th>
+                <th>Bonificaciones</th>
+                <th>P. Costo</th>
+                <th>IVA %</th>
+                <th>Subtotal</th>
+                <th>P. Final (c/IVA)</th>
             </tr>
         </thead>
         <tbody>
@@ -305,39 +276,38 @@
             <tr>
                 <td class="code">{{ item.product_code or '—' }}</td>
                 <td>{{ item.product_description or '—' }}</td>
-                <td>{{ item.category_name or '—' }}</td>
-                <td class="center">{{ item.system_stock }}</td>
-                <td class="center">
-                    {% if item.counted_stock is not none %}{{ item.counted_stock }}{% else %}—{% endif %}
+                <td style="font-weight: bold;">{{ item.quantity_to_order }}</td>
+                <td>
+                    {% if item.product and item.product.list_price %}
+                        $ {{ "%.2f"|format(item.product.list_price) }}
+                    {% else %}—{% endif %}
                 </td>
-                <td class="center" style="font-weight: bold;">{{ item.quantity_to_order }}</td>
-                <td class="right">$ {{ "%.2f"|format(item.unit_cost) }}</td>
-                <td class="center">{{ item.iva_rate }}%</td>
-                <td class="right" style="font-weight: bold;">$ {{ "%.2f"|format(item.subtotal) }}</td>
+                <td>
+                    {% if item.product and item.product.discount_display %}
+                        {{ item.product.discount_display }}
+                    {% else %}—{% endif %}
+                </td>
+                <td>$ {{ "%.2f"|format(item.unit_cost) }}</td>
+                <td>{{ item.iva_rate }}%</td>
+                <td>$ {{ "%.2f"|format(item.subtotal) }}</td>
+                <td style="font-weight: bold;">$ {{ "%.2f"|format(item.total) }}</td>
             </tr>
             {% endfor %}
         </tbody>
-    </table>
-
-    <!-- TOTALES -->
-    <div class="totals-section">
-        <table class="totals-table">
-            <tr>
-                <td class="label">Subtotal neto (sin IVA):</td>
-                <td class="value">$ {{ "%.2f"|format(order.subtotal) }}</td>
-            </tr>
-            {% for iva_group in iva_breakdown %}
-            <tr>
-                <td class="label">IVA {{ iva_group.rate }}%:</td>
-                <td class="value">$ {{ "%.2f"|format(iva_group.amount) }}</td>
-            </tr>
-            {% endfor %}
+        <tfoot>
+            <!-- Una sola fila con desglose IVA | TOTAL DE LA ORDEN | subtotal | total -->
             <tr class="total-row">
-                <td class="label">TOTAL DE LA ORDEN:</td>
-                <td class="value">$ {{ "%.2f"|format(order.total) }}</td>
+                <td colspan="5" style="font-size: 10px; font-weight: normal; text-align: center;">
+                    {% for iva_group in iva_breakdown %}
+                        IVA {{ iva_group.rate }}%: $ {{ "%.2f"|format(iva_group.amount) }}{% if not loop.last %} &nbsp;·&nbsp; {% endif %}
+                    {% endfor %}
+                </td>
+                <td colspan="2" style="text-align: center; font-weight: bold;">TOTAL DE LA ORDEN:</td>
+                <td style="text-align: center;">$ {{ "%.2f"|format(order.subtotal) }}</td>
+                <td style="text-align: center; font-size: 13px; font-weight: bold;">$ {{ "%.2f"|format(order.total) }}</td>
             </tr>
-        </table>
-    </div>
+        </tfoot>
+    </table>
 
     <!-- NOTAS -->
     {% if order.notes %}
