@@ -1,7 +1,8 @@
 /**
  * Dashboard principal.
- * Muestra resumen de ventas, métricas y alertas.
+ * Muestra resumen de ventas, métricas y alertas con filtro por mes.
  */
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   TrendingUp,
@@ -12,16 +13,51 @@ import {
   DollarSign,
   ArrowUpRight,
   ArrowDownRight,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import dashboardService from '../api/dashboardService'
 import { Button } from '../components/ui'
 
+const MONTH_NAMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
+
 export default function Dashboard() {
+  const today = new Date()
+  const [filterMonth, setFilterMonth] = useState(today.getMonth() + 1) // 1-12
+  const [filterYear, setFilterYear] = useState(today.getFullYear())
+
   const { data: summary, isLoading, error } = useQuery({
-    queryKey: ['dashboard-summary'],
-    queryFn: () => dashboardService.getSummary(),
+    queryKey: ['dashboard-summary', filterMonth, filterYear],
+    queryFn: () => dashboardService.getSummary({ month: filterMonth, year: filterYear }),
     retry: false,
   })
+
+  // Navegar al mes anterior
+  const goPrevMonth = () => {
+    if (filterMonth === 1) {
+      setFilterMonth(12)
+      setFilterYear(y => y - 1)
+    } else {
+      setFilterMonth(m => m - 1)
+    }
+  }
+
+  // Navegar al mes siguiente (no permitir futuro)
+  const goNextMonth = () => {
+    const isCurrentMonth = filterMonth === today.getMonth() + 1 && filterYear === today.getFullYear()
+    if (isCurrentMonth) return
+    if (filterMonth === 12) {
+      setFilterMonth(1)
+      setFilterYear(y => y + 1)
+    } else {
+      setFilterMonth(m => m + 1)
+    }
+  }
+
+  const isCurrentMonth = filterMonth === today.getMonth() + 1 && filterYear === today.getFullYear()
 
   if (isLoading) {
     return (
@@ -34,7 +70,7 @@ export default function Dashboard() {
   if (error) {
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
     const isUnauthorized = errorMessage.includes('401') || errorMessage.includes('Unauthorized')
-    
+
     if (isUnauthorized) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
@@ -61,18 +97,20 @@ export default function Dashboard() {
 
   const stats = [
     {
-      title: 'Ventas Totales',
-      value: '$0', // TODO: Conectar cuando existan ventas
-      change: 'Sin datos',
-      trend: 'neutral',
+      title: 'Ventas del Mes',
+      value: `$${(summary?.total_sales || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      change: summary?.total_invoices
+        ? `${summary.total_invoices} factura${summary.total_invoices !== 1 ? 's' : ''} emitida${summary.total_invoices !== 1 ? 's' : ''}`
+        : 'Sin facturas',
+      trend: (summary?.total_sales || 0) > 0 ? 'up' : 'neutral',
       icon: TrendingUp,
       color: 'green',
     },
     {
       title: 'Productos',
       value: summary?.total_products.toString() || '0',
-      change: summary?.low_stock_products 
-        ? `${summary.low_stock_products} bajo stock` 
+      change: summary?.low_stock_products
+        ? `${summary.low_stock_products} bajo stock`
         : 'Stock saludable',
       trend: summary?.low_stock_products ? 'down' : 'neutral',
       icon: Package,
@@ -88,7 +126,7 @@ export default function Dashboard() {
     },
     {
       title: 'Valor Inventario',
-      value: `$${(summary?.total_value || 0).toLocaleString()}`,
+      value: `$${(summary?.total_value || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       change: 'Costo total',
       trend: 'neutral',
       icon: DollarSign,
@@ -108,8 +146,32 @@ export default function Dashboard() {
             Resumen de actividad y métricas del negocio
           </p>
         </div>
-        <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-700">
-          {new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+
+        {/* Selector de mes */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={goPrevMonth}
+            className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            title="Mes anterior"
+          >
+            <ChevronLeft size={16} className="text-gray-600 dark:text-gray-300" />
+          </button>
+          <div className="text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 min-w-[160px] text-center">
+            {MONTH_NAMES[filterMonth - 1]} {filterYear}
+            {isCurrentMonth && (
+              <span className="ml-1.5 text-[10px] text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wide">
+                actual
+              </span>
+            )}
+          </div>
+          <button
+            onClick={goNextMonth}
+            disabled={isCurrentMonth}
+            className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Mes siguiente"
+          >
+            <ChevronRight size={16} className="text-gray-600 dark:text-gray-300" />
+          </button>
         </div>
       </div>
 
@@ -172,14 +234,14 @@ export default function Dashboard() {
               </span>
             )}
           </div>
-          
+
           {summary?.low_stock_products && summary.low_stock_products > 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-center">
               <p className="text-gray-600 dark:text-gray-300 mb-4">
                 Tienes productos con stock crítico.
               </p>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => window.location.href = '/products?low_stock=true'}
               >
                 Ver Productos
@@ -199,28 +261,28 @@ export default function Dashboard() {
             Acciones Rápidas
           </h2>
           <div className="grid grid-cols-2 gap-4">
-            <button 
+            <button
               onClick={() => window.location.href = '/sales'}
               className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-dashed border-gray-200 dark:border-gray-600"
             >
               <ShoppingCart className="h-6 w-6 text-blue-500 mb-2" />
               <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Nueva Venta</span>
             </button>
-            <button 
+            <button
               onClick={() => window.location.href = '/products'}
               className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-dashed border-gray-200 dark:border-gray-600"
             >
               <Package className="h-6 w-6 text-indigo-500 mb-2" />
               <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Agregar Producto</span>
             </button>
-            <button 
+            <button
               onClick={() => window.location.href = '/clients'}
               className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-dashed border-gray-200 dark:border-gray-600"
             >
               <Users className="h-6 w-6 text-green-500 mb-2" />
               <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Nuevo Cliente</span>
             </button>
-            <button 
+            <button
               onClick={() => window.location.href = '/reports'}
               className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-dashed border-gray-200 dark:border-gray-600"
             >

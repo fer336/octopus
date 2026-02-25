@@ -673,37 +673,46 @@ export default function Products() {
             Gestión del inventario con cálculo automático de precios
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {/* Botones de acción */}
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleImport} 
-            className="hidden" 
-            accept=".xlsx, .xls" 
+        <div className="flex items-center gap-1.5">
+          {/* Botones de acción — solo iconos con tooltip */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImport}
+            className="hidden"
+            accept=".xlsx, .xls"
           />
-          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isImporting}>
-            <Upload size={18} className="mr-2" />
-            {isImporting ? 'Importando...' : 'Importar'}
-          </Button>
-          <Button variant="outline" onClick={handleExport}>
-            <Download size={18} className="mr-2" />
-            Exportar
-          </Button>
-          <Button variant="outline" onClick={handleBackup} className="border-blue-300 text-blue-600 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/20">
-            <Database size={18} className="mr-2" />
-            Backup Completo
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => setShowBulkDeleteModal(true)} 
-            className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+            title={isImporting ? 'Importando...' : 'Importar Excel'}
+            className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
           >
-            <AlertTriangle size={18} className="mr-2" />
-            Borrar Todo
-          </Button>
-          <Button onClick={() => handleOpenModal()}>
-            <Plus size={18} className="mr-2" />
+            <Upload size={17} />
+          </button>
+          <button
+            onClick={handleExport}
+            title="Exportar Excel"
+            className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <Download size={17} />
+          </button>
+          <button
+            onClick={handleBackup}
+            title="Backup Completo"
+            className="p-2 rounded-lg border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+          >
+            <Database size={17} />
+          </button>
+          <button
+            onClick={() => setShowBulkDeleteModal(true)}
+            title="Borrar Todos los Productos"
+            className="p-2 rounded-lg border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          >
+            <AlertTriangle size={17} />
+          </button>
+          <Button onClick={() => handleOpenModal()} className="ml-1">
+            <Plus size={17} className="mr-1.5" />
             Nuevo Producto
           </Button>
         </div>
