@@ -12,6 +12,49 @@ Sistema ERP para gestión comercial de sanitarios, ferreterías y corralones.
 - **Reportes** de ventas, stock y cuentas corrientes
 - **Tema claro/oscuro**
 
+## Capturas del Sistema
+
+### Dashboard
+![Dashboard](docs/screenshots/01-dashboard.png)
+
+### Nueva Venta
+![Nueva Venta](docs/screenshots/03-ventas.png)
+
+### Comprobantes
+![Comprobantes](docs/screenshots/05-comprobantes.png)
+
+### Factura Electrónica (PDF)
+![Factura PDF](docs/screenshots/04-factura-pdf.png)
+
+### Productos
+![Productos](docs/screenshots/02-productos.png)
+
+### Actualización Masiva de Precios
+![Actualización de Precios](docs/screenshots/07-actualizacion-precios.png)
+
+### Clientes
+![Clientes](docs/screenshots/08-clientes.png)
+
+### Proveedores
+![Proveedores](docs/screenshots/09-proveedores.png)
+
+### Categorías
+![Categorías](docs/screenshots/10-categorias.png)
+
+### Caja
+![Caja](docs/screenshots/11-caja.png)
+
+### Reportes
+![Reportes](docs/screenshots/12-reportes.png)
+
+### Control de Inventario
+![Inventario](docs/screenshots/13-inventario.png)
+
+### Orden de Pedido (PDF)
+![Orden de Pedido PDF](docs/screenshots/14-orden-pedido-pdf.png)
+
+---
+
 ## Stack Tecnológico
 
 ### Backend
