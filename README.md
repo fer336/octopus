@@ -279,6 +279,32 @@ python scripts/generate_schema.py
 
 Ver `.env.example` para la lista completa de variables.
 
+## Roadmap
+
+Funcionalidades planificadas para próximas versiones:
+
+### 🤖 Agente de IA para Cotizaciones
+Integración de un agente conversacional que permita generar cotizaciones mediante lenguaje natural. El usuario podrá describir lo que necesita ("necesito 3 caños de 1 pulgada y 2 llaves de paso") y el agente buscará los productos en el inventario, armará la cotización automáticamente y la dejará lista para confirmar o editar.
+
+### 📄 OCR para Presupuestos de Proveedores
+Carga de listas de precios y presupuestos de proveedores mediante foto o PDF. El sistema extraerá automáticamente los productos, códigos y precios usando OCR, y los comparará contra el inventario existente para actualizar precios o dar de alta productos nuevos.
+
+### 📱 App Mobile
+Versión mobile para consulta de stock, emisión de comprobantes y gestión de caja desde cualquier dispositivo.
+
+### 📊 Dashboard Avanzado
+Gráficos interactivos de ventas por período, comparativas con meses anteriores, ranking de productos más vendidos y proyecciones.
+
+### 🔔 Notificaciones y Alertas
+Alertas automáticas por stock crítico, vencimiento de CAE, facturas impagas y objetivos de venta.
+
+### 🔗 Integraciones
+- **MercadoLibre**: sincronización de stock y precios con publicaciones
+- **WhatsApp**: envío de cotizaciones y facturas directamente al cliente
+- **Bancos**: conciliación automática de transferencias con pagos registrados
+
+---
+
 ## Licencia
 
 Todos los derechos reservados.
