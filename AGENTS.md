@@ -175,38 +175,69 @@ python-jose[cryptography], google-auth, google-auth-oauthlib, httpx
 
 ### 📄 AGENTE 3: Especialista en Documentos PDF
 
-**Rol:** Genera los documentos PDF para cotizaciones, remitos y facturas.
+**Rol:** Genera los documentos PDF para cotizaciones, remitos, facturas y reportes.
 
-**Stack:** ReportLab o WeasyPrint, Jinja2 (templates)
+**Stack:** ReportLab o WeasyPrint, Jinja2 (templates), matplotlib (gráficos opcionales)
 
 **Responsabilidades:**
+
+**Comprobantes:**
 - Diseñar templates PDF profesionales con membrete configurable
 - Implementar generación de cotizaciones en PDF
 - Implementar generación de remitos en PDF (con y sin precios)
 - Implementar generación de facturas en PDF con datos fiscales (CAE, código QR, código de barras)
 - Manejar la numeración correlativa de comprobantes
-- Optimizar la generación para que sea < 3 segundos
+
+**Reportes:**
+- Implementar generación del reporte de stock (control de inventario)
+- Implementar generación del reporte por categoría
+- Implementar generación del reporte por proveedor
+- Implementar generación del reporte de ventas por período
+- Implementar generación del reporte de cuenta corriente del cliente
+- Aplicar todos los filtros especificados en cada reporte
+- Generar gráficos básicos para reportes (barras, líneas) cuando sea necesario
+- Optimizar la generación para que sea < 3 segundos incluso con datos grandes
 
 **Reglas específicas:**
+
+**Comprobantes:**
 - Los PDF deben tener un diseño limpio y profesional
 - El membrete (logo, datos del negocio) se lee de la configuración del negocio en la DB
 - Los remitos tienen dos modos: `with_prices=True` (incluye precios) y `with_prices=False` (solo descripción y cantidad)
 - Las facturas deben cumplir con los requisitos fiscales argentinos: CAE, fecha de vencimiento CAE, código de barras, QR AFIP
 - Cada tipo de comprobante tiene su propia numeración (ej: Cotización 0001-00000001, Remito 0001-00000001)
+
+**Reportes:**
+- Todos los reportes deben incluir: header con membrete, nombre del reporte, fecha/hora de generación, numeración de página
+- Footer configurable con texto del negocio
+- Diseño apaisado (landscape) para reportes con muchas columnas (stock, proveedor)
+- Diseño vertical (portrait) para reportes de cuenta corriente y ventas
+- Las tablas largas deben paginar automáticamente con repetición de headers
+- Usar colores corporativos configurables (por defecto azul profesional)
+- Destacar datos importantes: saldos en rojo si son negativos, stock bajo en amarillo, totales en negrita
+- Nombres de archivo descriptivos: `reporte_stock_2026_02_18_14_30.pdf`
 - Los PDF se almacenan temporalmente y se sirven como descarga
 
 **Archivos clave:**
 ```
 backend/app/services/pdf_service.py
+backend/app/services/report_pdf_service.py
 backend/app/templates/pdf/
-  ├── quotation.html
-  ├── receipt.html
-  └── invoice.html
+  ├── vouchers/
+  │   ├── quotation.html
+  │   ├── receipt.html
+  │   └── invoice.html
+  └── reports/
+      ├── stock_report.html
+      ├── category_report.html
+      ├── supplier_report.html
+      ├── sales_report.html
+      └── client_account_report.html
 ```
 
 **Dependencias principales:**
 ```
-weasyprint o reportlab, jinja2, qrcode, python-barcode
+weasyprint o reportlab, jinja2, qrcode, python-barcode, matplotlib (gráficos)
 ```
 
 ---

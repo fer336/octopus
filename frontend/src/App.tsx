@@ -2,7 +2,7 @@
  * Componente principal de la aplicación.
  * Configura providers, rutas y layout.
  */
-import React from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
@@ -11,19 +11,33 @@ import { ThemeProvider, useTheme } from './context/ThemeContext'
 import { useAuthStore } from './stores/authStore'
 import MainLayout from './components/layout/MainLayout'
 
-// Páginas
+// Páginas públicas (carga inmediata — necesarias antes de auth)
 import Login from './pages/Login'
 import AuthCallback from './pages/AuthCallback'
-import Dashboard from './pages/Dashboard'
-import Sales from './pages/Sales'
-import Products from './pages/Products'
-import PriceUpdate from './pages/PriceUpdate'
-import Clients from './pages/Clients'
-import Suppliers from './pages/Suppliers'
-import Categories from './pages/Categories'
-import Vouchers from './pages/Vouchers'
-import Reports from './pages/Reports'
-import Settings from './pages/Settings'
+
+// Páginas protegidas con lazy load — cada una genera su propio chunk
+// El browser solo descarga el código cuando el usuario navega a esa ruta
+const Dashboard  = lazy(() => import('./pages/Dashboard'))
+const Sales      = lazy(() => import('./pages/Sales'))
+const Products   = lazy(() => import('./pages/Products'))
+const PriceUpdate = lazy(() => import('./pages/PriceUpdate'))
+const Clients    = lazy(() => import('./pages/Clients'))
+const Suppliers  = lazy(() => import('./pages/Suppliers'))
+const Categories = lazy(() => import('./pages/Categories'))
+const Vouchers   = lazy(() => import('./pages/Vouchers'))
+const Reports    = lazy(() => import('./pages/Reports'))
+const Settings   = lazy(() => import('./pages/Settings'))
+const Cash       = lazy(() => import('./pages/Cash'))
+const Inventory  = lazy(() => import('./pages/Inventory'))
+
+// Skeleton de carga entre navegaciones
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
+    </div>
+  )
+}
 
 // Cliente de React Query
 const queryClient = new QueryClient({
@@ -37,7 +51,7 @@ const queryClient = new QueryClient({
 })
 
 // Componente para rutas protegidas
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children }: { children: ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const isLoading = useAuthStore((state) => state.isLoading)
 
@@ -97,7 +111,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
 
-            {/* Rutas protegidas */}
+            {/* Rutas protegidas — cada página carga solo cuando se navega */}
             <Route
               path="/"
               element={
@@ -106,16 +120,42 @@ export default function App() {
                 </ProtectedRoute>
               }
             >
-              <Route index element={<Dashboard />} />
-              <Route path="sales" element={<Sales />} />
-              <Route path="products" element={<Products />} />
-              <Route path="price-update" element={<PriceUpdate />} />
-              <Route path="clients" element={<Clients />} />
-              <Route path="suppliers" element={<Suppliers />} />
-              <Route path="categories" element={<Categories />} />
-              <Route path="comprobantes" element={<Vouchers />} />
-              <Route path="reports" element={<Reports />} />
-              <Route path="settings" element={<Settings />} />
+              <Route index element={
+                <Suspense fallback={<PageLoader />}><Dashboard /></Suspense>
+              } />
+              <Route path="sales" element={
+                <Suspense fallback={<PageLoader />}><Sales /></Suspense>
+              } />
+              <Route path="products" element={
+                <Suspense fallback={<PageLoader />}><Products /></Suspense>
+              } />
+              <Route path="price-update" element={
+                <Suspense fallback={<PageLoader />}><PriceUpdate /></Suspense>
+              } />
+              <Route path="clients" element={
+                <Suspense fallback={<PageLoader />}><Clients /></Suspense>
+              } />
+              <Route path="suppliers" element={
+                <Suspense fallback={<PageLoader />}><Suppliers /></Suspense>
+              } />
+              <Route path="categories" element={
+                <Suspense fallback={<PageLoader />}><Categories /></Suspense>
+              } />
+              <Route path="comprobantes" element={
+                <Suspense fallback={<PageLoader />}><Vouchers /></Suspense>
+              } />
+              <Route path="caja" element={
+                <Suspense fallback={<PageLoader />}><Cash /></Suspense>
+              } />
+              <Route path="inventory" element={
+                <Suspense fallback={<PageLoader />}><Inventory /></Suspense>
+              }/>
+              <Route path="reports" element={
+                <Suspense fallback={<PageLoader />}><Reports /></Suspense>
+              } />
+              <Route path="settings" element={
+                <Suspense fallback={<PageLoader />}><Settings /></Suspense>
+              } />
             </Route>
 
             {/* Ruta por defecto */}

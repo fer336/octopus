@@ -3,7 +3,7 @@
  * Visualiza cotizaciones, remitos y facturas generadas.
  */
 import { useState } from 'react'
-import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle, RotateCcw } from 'lucide-react'
+import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle, RotateCcw, FileMinus, ExternalLink } from 'lucide-react'
 import { Button, Table, Pagination, Select, Modal, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import vouchersService from '../api/vouchersService'
@@ -12,11 +12,17 @@ import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
 
 const voucherTypeLabels: Record<string, { label: string; color: string; icon: any }> = {
-  quotation: { label: 'Cotización', color: 'blue', icon: FileText },
-  receipt: { label: 'Remito', color: 'orange', icon: Truck },
-  invoice_a: { label: 'Factura A', color: 'green', icon: Receipt },
-  invoice_b: { label: 'Factura B', color: 'green', icon: Receipt },
-  invoice_c: { label: 'Factura C', color: 'green', icon: Receipt },
+  quotation:      { label: 'Cotización',      color: 'blue',   icon: FileText  },
+  receipt:        { label: 'Remito',           color: 'orange', icon: Truck     },
+  invoice_a:      { label: 'Factura A',        color: 'green',  icon: Receipt   },
+  invoice_b:      { label: 'Factura B',        color: 'green',  icon: Receipt   },
+  invoice_c:      { label: 'Factura C',        color: 'green',  icon: Receipt   },
+  credit_note_a:  { label: 'Nota de Crédito A', color: 'red',  icon: FileMinus },
+  credit_note_b:  { label: 'Nota de Crédito B', color: 'red',  icon: FileMinus },
+  credit_note_c:  { label: 'Nota de Crédito C', color: 'red',  icon: FileMinus },
+  debit_note_a:   { label: 'Nota de Débito A',  color: 'purple', icon: FileMinus },
+  debit_note_b:   { label: 'Nota de Débito B',  color: 'purple', icon: FileMinus },
+  debit_note_c:   { label: 'Nota de Débito C',  color: 'purple', icon: FileMinus },
 }
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -80,6 +86,25 @@ export default function Vouchers() {
     }
   }
 
+  // Mapa de ID → número formateado, construido desde los items cargados
+  const voucherNumberMap: Record<string, string> = {}
+  if (vouchersData?.items) {
+    for (const v of vouchersData.items) {
+      voucherNumberMap[v.id] = `${v.sale_point}-${v.number}`
+    }
+  }
+
+  const handleViewRelatedPdf = async (relatedId: string) => {
+    try {
+      const pdfBlob = await vouchersService.getPdf(relatedId)
+      const pdfUrl = URL.createObjectURL(pdfBlob)
+      window.open(pdfUrl, '_blank')
+      setTimeout(() => URL.revokeObjectURL(pdfUrl), 10000)
+    } catch {
+      toast.error('No se pudo abrir el comprobante relacionado')
+    }
+  }
+
   const handleDownloadPdf = async (voucherId: string, voucherNumber: string) => {
     try {
       const pdfBlob = await vouchersService.getPdf(voucherId)
@@ -106,12 +131,39 @@ export default function Vouchers() {
       render: (item: any) => {
         const typeInfo = voucherTypeLabels[item.voucher_type] || { label: item.voucher_type, color: 'gray', icon: FileText }
         const Icon = typeInfo.icon
+        const isInvoiced = (item.voucher_type === 'quotation' || item.voucher_type === 'receipt') && item.invoiced_voucher_id
+        const hasCreditNote = item.voucher_type?.startsWith('invoice_') && item.has_credit_note
+        const isCreditNote = item.voucher_type?.startsWith('credit_note_')
         return (
-          <div className="flex items-center gap-2">
-            <Icon size={16} className={`text-${typeInfo.color}-600`} />
+          <div className="flex items-center gap-2 flex-wrap">
+            <Icon size={16} className={`text-${typeInfo.color}-600 shrink-0`} />
             <span className={`text-xs font-medium text-${typeInfo.color}-700 dark:text-${typeInfo.color}-400`}>
               {typeInfo.label}
             </span>
+            {isInvoiced && (
+              <span
+                title="Este comprobante ya fue facturado"
+                className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-600 text-white text-[10px] font-bold leading-none shrink-0"
+              >
+                F
+              </span>
+            )}
+            {hasCreditNote && (
+              <span
+                title="Tiene una Nota de Crédito asociada"
+                className="inline-flex items-center px-1.5 h-5 rounded-full bg-red-500 text-white text-[9px] font-bold leading-none shrink-0"
+              >
+                NC
+              </span>
+            )}
+            {isCreditNote && (
+              <span
+                title="Nota de Crédito Fiscal"
+                className="inline-flex items-center px-1.5 h-5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700 text-[9px] font-bold leading-none shrink-0"
+              >
+                NC
+              </span>
+            )}
           </div>
         )
       },
@@ -119,11 +171,45 @@ export default function Vouchers() {
     {
       key: 'number',
       header: 'Número',
-      render: (item: any) => (
-        <span className="font-mono text-sm font-medium">
-          {item.sale_point}-{item.number}
-        </span>
-      ),
+      render: (item: any) => {
+        // Referencia a factura generada (cotización/remito facturado)
+        const invoicedRef = item.invoiced_voucher_id
+          ? voucherNumberMap[item.invoiced_voucher_id] || 'Ver factura'
+          : null
+
+        // Referencia a factura original (nota de crédito)
+        const relatedRef = item.related_voucher_id && item.voucher_type?.startsWith('credit_note_')
+          ? voucherNumberMap[item.related_voucher_id] || 'Ver factura'
+          : null
+
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="font-mono text-sm font-medium">
+              {item.sale_point}-{item.number}
+            </span>
+            {invoicedRef && (
+              <button
+                onClick={() => handleViewRelatedPdf(item.invoiced_voucher_id)}
+                className="flex items-center gap-1 text-[11px] text-green-600 dark:text-green-400 hover:underline w-fit"
+                title="Ver la factura generada desde este comprobante"
+              >
+                <ExternalLink size={10} />
+                Fact. {invoicedRef}
+              </button>
+            )}
+            {relatedRef && (
+              <button
+                onClick={() => handleViewRelatedPdf(item.related_voucher_id)}
+                className="flex items-center gap-1 text-[11px] text-red-500 dark:text-red-400 hover:underline w-fit"
+                title="Ver la factura original de esta Nota de Crédito"
+              >
+                <ExternalLink size={10} />
+                Fact. {relatedRef}
+              </button>
+            )}
+          </div>
+        )
+      },
     },
     {
       key: 'date',
@@ -310,11 +396,14 @@ export default function Vouchers() {
             onChange={(e) => setFilterType(e.target.value)}
             options={[
               { value: '', label: 'Todos los Tipos' },
-              { value: 'quotation', label: 'Cotizaciones' },
-              { value: 'receipt', label: 'Remitos' },
-              { value: 'invoice_a', label: 'Facturas A' },
-              { value: 'invoice_b', label: 'Facturas B' },
-              { value: 'invoice_c', label: 'Facturas C' },
+              { value: 'quotation',     label: 'Cotizaciones' },
+              { value: 'receipt',       label: 'Remitos' },
+              { value: 'invoice_a',     label: 'Facturas A' },
+              { value: 'invoice_b',     label: 'Facturas B' },
+              { value: 'invoice_c',     label: 'Facturas C' },
+              { value: 'credit_note_a', label: 'Notas de Crédito A' },
+              { value: 'credit_note_b', label: 'Notas de Crédito B' },
+              { value: 'credit_note_c', label: 'Notas de Crédito C' },
             ]}
           />
           

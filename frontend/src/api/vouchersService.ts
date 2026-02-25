@@ -26,9 +26,32 @@ export interface VoucherCreate {
   payments?: VoucherPayment[]
 }
 
+export interface VoucherItem {
+  id: string
+  product_id: string
+  code: string
+  description: string
+  quantity: number
+  unit: string
+  unit_price: number
+  discount_percent: number
+  iva_rate: number
+  subtotal: number
+  total: number
+}
+
+export interface VoucherClient {
+  id: string
+  name: string
+  document_type: string
+  document_number: string
+  tax_condition: string
+}
+
 export interface Voucher {
   id: string
   client_id: string
+  client?: VoucherClient
   voucher_type: string
   status: string
   sale_point: string
@@ -38,7 +61,11 @@ export interface Voucher {
   iva_amount: number
   total: number
   cae?: string
-  items: any[]
+  cae_expiration?: string
+  has_credit_note: boolean
+  /** ID de la factura generada (solo en cotizaciones). Si existe, la cotización ya fue facturada. */
+  invoiced_voucher_id?: string | null
+  items: VoucherItem[]
 }
 
 export interface PaginatedVouchers {
@@ -88,6 +115,36 @@ const vouchersService = {
     await httpClient.delete(`/vouchers/${id}/delete`, {
       params: { reason }
     })
+  },
+
+  /**
+   * Lista los comprobantes pendientes de facturar (cotizaciones y/o remitos sin invoiced_voucher_id).
+   */
+  getPendingQuotations: async (params?: {
+    page?: number
+    per_page?: number
+    search?: string
+    voucher_type?: 'quotation' | 'receipt'
+    date_from?: string
+    date_to?: string
+  }): Promise<PaginatedVouchers> => {
+    const response = await httpClient.get('/vouchers/pending-quotations', { params })
+    return response.data
+  },
+
+  /**
+   * Convierte una cotización en factura electrónica.
+   * Una vez convertida, la cotización queda marcada como facturada.
+   * Para revertir: emitir Nota de Crédito Fiscal desde la factura generada.
+   */
+  convertToInvoice: async (
+    quotationId: string,
+    payments?: VoucherPayment[]
+  ): Promise<Voucher> => {
+    const response = await httpClient.post(`/vouchers/${quotationId}/convert-to-invoice`, {
+      payments: payments ?? null,
+    })
+    return response.data
   },
 }
 

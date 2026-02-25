@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Cierre de Caja — {{ closed_date }}</title>
+  <style type="text/css">
+    @page {
+      size: A4;
+      margin: 15mm 15mm 15mm 15mm;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: sans-serif;
+      font-size: 11px;
+      color: #1f2937;
+    }
+
+    /* ─── Header membrete ─────────────────────────────────── */
+    .header {
+      border-bottom: 2px solid #2563eb;
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .business-name {
+      font-size: 16px;
+      font-weight: bold;
+      color: #1d4ed8;
+    }
+    .business-info {
+      font-size: 10px;
+      color: #6b7280;
+      margin-top: 3px;
+      line-height: 1.5;
+    }
+    .report-title-box {
+      text-align: right;
+    }
+    .report-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #1f2937;
+    }
+    .report-subtitle {
+      font-size: 10px;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+
+    /* ─── Cards de datos de apertura/cierre ──────────────── */
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .info-card {
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+    .info-card-title {
+      font-size: 9px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+    .info-card-value {
+      font-size: 12px;
+      font-weight: bold;
+      color: #1f2937;
+    }
+    .info-card-sub {
+      font-size: 10px;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+
+    /* ─── Sección title ──────────────────────────────────── */
+    .section-title {
+      font-size: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #2563eb;
+      border-bottom: 1px solid #dbeafe;
+      padding-bottom: 4px;
+      margin-bottom: 8px;
+      margin-top: 14px;
+    }
+
+    /* ─── Tabla principal de métodos de pago ─────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10px;
+    }
+    thead tr {
+      background-color: #1d4ed8;
+      color: white;
+    }
+    thead th {
+      padding: 6px 8px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    thead th.right { text-align: right; }
+    tbody tr { border-bottom: 1px solid #f3f4f6; }
+    tbody tr:nth-child(even) { background-color: #f9fafb; }
+    tbody td {
+      padding: 6px 8px;
+      color: #374151;
+    }
+    tbody td.right {
+      text-align: right;
+      font-family: monospace;
+    }
+    tbody td.positive { color: #059669; font-weight: 600; }
+    tbody td.negative { color: #dc2626; font-weight: 600; }
+    tfoot tr { background-color: #1e3a8a; color: white; }
+    tfoot td {
+      padding: 7px 8px;
+      font-weight: bold;
+      font-size: 11px;
+    }
+    tfoot td.right {
+      text-align: right;
+      font-family: monospace;
+    }
+
+    /* ─── Resumen de efectivo ─────────────────────────────── */
+    .cash-summary {
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-top: 14px;
+    }
+    .cash-summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      font-size: 11px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .cash-summary-row:last-child { border-bottom: none; }
+    .cash-summary-row.total {
+      font-weight: bold;
+      font-size: 12px;
+      padding-top: 6px;
+      margin-top: 2px;
+    }
+    .cash-summary-row.difference-ok { color: #059669; }
+    .cash-summary-row.difference-bad { color: #dc2626; }
+    .cash-value { font-family: monospace; }
+
+    /* ─── Tabla de movimientos ───────────────────────────── */
+    .movements-table tbody td { font-size: 9.5px; }
+
+    /* ─── Motivo de diferencia ──────────────────────────── */
+    .difference-reason {
+      margin-top: 10px;
+      border-left: 3px solid #dc2626;
+      background-color: #fef2f2;
+      padding: 6px 10px;
+      border-radius: 0 4px 4px 0;
+      font-size: 10px;
+      color: #991b1b;
+    }
+    .difference-reason strong { display: block; margin-bottom: 2px; }
+
+    /* ─── Footer ─────────────────────────────────────────── */
+    .footer {
+      margin-top: 20px;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #9ca3af;
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- ── Membrete ──────────────────────────────────────────── -->
+  <div class="header">
+    <div>
+      <div class="business-name">{{ business.name }}</div>
+      <div class="business-info">
+        CUIT: {{ business.cuit }}<br>
+        {% if business.address %}{{ business.address }}{% if business.city %}, {{ business.city }}{% endif %}<br>{% endif %}
+        {% if business.phone %}Tel: {{ business.phone }}{% endif %}
+      </div>
+    </div>
+    <div class="report-title-box">
+      <div class="report-title">CIERRE DE CAJA</div>
+      <div class="report-subtitle">{{ closed_date }}</div>
+      <div class="report-subtitle">Generado: {{ generated_at }}</div>
+    </div>
+  </div>
+
+  <!-- ── Cards de datos ────────────────────────────────────── -->
+  <div class="info-grid">
+    <div class="info-card">
+      <div class="info-card-title">Apertura</div>
+      <div class="info-card-value">{{ opened_at }}</div>
+      <div class="info-card-sub">Operador: {{ opener_name }}</div>
+    </div>
+    <div class="info-card">
+      <div class="info-card-title">Cierre</div>
+      <div class="info-card-value">{{ closed_at }}</div>
+      <div class="info-card-sub">Operador: {{ closer_name }}</div>
+    </div>
+    <div class="info-card">
+      <div class="info-card-title">Fondo inicial</div>
+      <div class="info-card-value">{{ opening_amount }}</div>
+    </div>
+    <div class="info-card">
+      <div class="info-card-title">Total de movimientos</div>
+      <div class="info-card-value">{{ total_movements }}</div>
+    </div>
+  </div>
+
+  <!-- ── Desglose por método de pago ───────────────────────── -->
+  <div class="section-title">Desglose por Método de Pago</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Método</th>
+        <th class="right">Ventas</th>
+        <th class="right">Cobros CC</th>
+        <th class="right">Ingresos</th>
+        <th class="right">Egresos</th>
+        <th class="right">Neto</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in by_method %}
+      {% if m.total_sales > 0 or m.total_payments_received > 0 or m.total_income > 0 or m.total_expense > 0 %}
+      <tr>
+        <td>{{ m.label }}</td>
+        <td class="right">{{ m.total_sales_fmt }}</td>
+        <td class="right">{{ m.total_payments_received_fmt }}</td>
+        <td class="right">{{ m.total_income_fmt }}</td>
+        <td class="right {% if m.total_expense > 0 %}negative{% endif %}">{{ m.total_expense_fmt }}</td>
+        <td class="right {% if m.net >= 0 %}positive{% else %}negative{% endif %}">{{ m.net_fmt }}</td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td>TOTAL</td>
+        <td class="right">{{ total_sales_fmt }}</td>
+        <td class="right">{{ total_payments_fmt }}</td>
+        <td class="right">{{ total_income_fmt }}</td>
+        <td class="right">{{ total_expense_fmt }}</td>
+        <td class="right">{{ total_net_fmt }}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- ── Resumen de efectivo ───────────────────────────────── -->
+  <div class="cash-summary">
+    <div class="cash-summary-row">
+      <span>Fondo inicial</span>
+      <span class="cash-value">{{ opening_amount }}</span>
+    </div>
+    <div class="cash-summary-row">
+      <span>Neto en efectivo del día</span>
+      <span class="cash-value">{{ cash_net_fmt }}</span>
+    </div>
+    <div class="cash-summary-row total">
+      <span>Efectivo esperado al cierre</span>
+      <span class="cash-value">{{ expected_cash_fmt }}</span>
+    </div>
+    <div class="cash-summary-row total">
+      <span>Efectivo físico contado</span>
+      <span class="cash-value">{{ counted_cash_fmt }}</span>
+    </div>
+    <div class="cash-summary-row total {% if difference == 0 %}difference-ok{% else %}difference-bad{% endif %}">
+      <span>Diferencia</span>
+      <span class="cash-value">{{ difference_fmt }}</span>
+    </div>
+  </div>
+
+  {% if difference_reason %}
+  <div class="difference-reason">
+    <strong>Motivo de la diferencia:</strong>
+    {{ difference_reason }}
+  </div>
+  {% endif %}
+
+  <!-- ── Movimientos del día ───────────────────────────────── -->
+  {% if movements %}
+  <div class="section-title">Movimientos del Día</div>
+  <table class="movements-table">
+    <thead>
+      <tr>
+        <th>Hora</th>
+        <th>Descripción</th>
+        <th>Tipo</th>
+        <th>Método</th>
+        <th class="right">Monto</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for mv in movements %}
+      <tr>
+        <td>{{ mv.time }}</td>
+        <td>{{ mv.description }}</td>
+        <td>{{ mv.type_label }}</td>
+        <td>{{ mv.method_label }}</td>
+        <td class="right {% if mv.is_expense %}negative{% else %}positive{% endif %}">
+          {% if mv.is_expense %}-{% else %}+{% endif %}{{ mv.amount_fmt }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- ── Footer ─────────────────────────────────────────────── -->
+  <div class="footer">
+    <span>{{ business.name }} — Sistema OctopusTrack</span>
+    <span>Cierre generado el {{ generated_at }}</span>
+  </div>
+
+</body>
+</html>

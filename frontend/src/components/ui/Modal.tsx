@@ -43,11 +43,11 @@ export default function Modal({
   if (!isOpen) return null
 
   const sizes = {
-    sm: 'max-w-md',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl',
-    full: 'max-w-[90vw]',
+    sm: 'max-w-md w-full',
+    md: 'max-w-lg w-full',
+    lg: 'max-w-3xl w-full',
+    xl: 'max-w-6xl w-full',
+    full: 'max-w-[90vw] w-full',
   }
 
   return (

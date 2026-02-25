@@ -109,25 +109,28 @@ class Voucher(BaseModel):
     payments = relationship("Payment", back_populates="voucher", lazy="dynamic")
     voucher_payments = relationship("VoucherPayment", back_populates="voucher", cascade="all, delete-orphan", lazy="selectin")
     
-    # TODO: Descomentar cuando la migración se ejecute correctamente
-    # # Relación jerárquica (para Notas de Crédito que apuntan a una Factura)
-    # related_voucher_id = Column(UUID(as_uuid=True), ForeignKey("vouchers.id"), nullable=True)
-    # 
-    # # Relación con comprobante padre (ej: NC -> Factura original)
-    # related_voucher = relationship(
-    #     "Voucher",
-    #     remote_side="Voucher.id",
-    #     back_populates="credit_notes",
-    #     foreign_keys=[related_voucher_id],
-    # )
-    # 
-    # # Hijos (ej: Factura -> NCs asociadas)
-    # credit_notes = relationship(
-    #     "Voucher",
-    #     back_populates="related_voucher",
-    #     foreign_keys=[related_voucher_id],
-    #     lazy="selectin",
-    # )
+    # Relación jerárquica (para Notas de Crédito que apuntan a una Factura)
+    related_voucher_id = Column(UUID(as_uuid=True), ForeignKey("vouchers.id"), nullable=True, index=True)
+
+    # Campo para trackear si una cotización ya fue facturada
+    # Cuando una cotización se convierte en factura, se guarda el ID de la factura generada
+    invoiced_voucher_id = Column(UUID(as_uuid=True), ForeignKey("vouchers.id"), nullable=True, index=True)
+
+    # Relación con comprobante padre (ej: NC -> Factura original)
+    related_voucher = relationship(
+        "Voucher",
+        remote_side="Voucher.id",
+        back_populates="credit_notes",
+        foreign_keys="Voucher.related_voucher_id",
+    )
+
+    # Hijos (ej: Factura -> NCs asociadas)
+    credit_notes = relationship(
+        "Voucher",
+        back_populates="related_voucher",
+        foreign_keys="Voucher.related_voucher_id",
+        lazy="selectin",
+    )
 
     @property
     def full_number(self) -> str:

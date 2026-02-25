@@ -169,3 +169,50 @@ async def logout():
     descartando los tokens almacenados.
     """
     return {"message": "Sesión cerrada correctamente", "success": True}
+
+
+@router.post("/dev-login", response_model=TokenResponse)
+async def dev_login(
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Login de desarrollo para testing E2E.
+    Solo disponible cuando DEBUG=True.
+    Obtiene el primer usuario activo de la base de datos y genera tokens JWT.
+    """
+    if not settings.DEBUG:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Endpoint no disponible en producción",
+        )
+
+    from sqlalchemy import select
+    from app.models.user import User
+
+    # Obtener el primer usuario activo
+    query = select(User).where(User.is_active.is_(True)).limit(1)
+    result = await db.execute(query)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No hay usuarios en la base de datos",
+        )
+
+    from app.utils.security import create_access_token, create_refresh_token
+
+    access_token = create_access_token(user.id, user.email)
+    refresh_token = create_refresh_token(user.id)
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": {
+            "id": str(user.id),
+            "email": user.email,
+            "name": user.name,
+            "picture": user.picture,
+        },
+    }

@@ -18,6 +18,15 @@ from app.models.supplier_category_discount import SupplierCategoryDiscount
 from app.models.user import User
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
+from app.models.cash_register import (
+    CashRegister,
+    CashMovement,
+    CashRegisterStatus,
+    CashMovementType,
+    CashPaymentMethod,
+)
+from app.models.purchase_order import PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus
+from app.models.price_update_draft import PriceUpdateDraft
 
 __all__ = [
     # Base
@@ -46,4 +55,14 @@ __all__ = [
     "VoucherPayment",
     "ClientAccount",
     "MovementType",
+    # Caja
+    "CashRegister",
+    "CashMovement",
+    "CashRegisterStatus",
+    "CashMovementType",
+    "CashPaymentMethod",
+    # Órdenes de pedido
+    "PurchaseOrder",
+    "PurchaseOrderItem",
+    "PurchaseOrderStatus",
 ]

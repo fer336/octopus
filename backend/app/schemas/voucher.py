@@ -54,6 +54,14 @@ class VoucherItemResponse(BaseResponse):
     total: Decimal
 
 
+class ConvertQuotationToInvoice(BaseSchema):
+    """Schema para convertir una cotización en factura."""
+    payments: Optional[List[VoucherPaymentCreate]] = Field(
+        default=None,
+        description="Métodos de pago (requerido para que quede registrado el cobro)"
+    )
+
+
 class VoucherResponse(BaseResponse):
     """Schema de respuesta para comprobante."""
 
@@ -76,5 +84,8 @@ class VoucherResponse(BaseResponse):
     
     # Indica si tiene notas de crédito asociadas (para UI)
     has_credit_note: bool = False
-    
+
+    # ID de la factura generada a partir de esta cotización (None = pendiente de facturar)
+    invoiced_voucher_id: Optional[UUID] = None
+
     items: List[VoucherItemResponse]

@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte de Stock - Demo</title>
+    <style>
+        /* Reset y configuración base */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Configuración de página para impresión/PDF */
+        @page {
+            size: A4 landscape;
+            margin: 1.5cm 1cm;
+        }
+
+        @media print {
+            thead {
+                display: table-header-group;
+            }
+            
+            tbody {
+                display: table-row-group;
+            }
+            
+            tr {
+                page-break-inside: avoid;
+            }
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 10pt;
+            color: #1f2937;
+            background-color: #f9fafb;
+            padding: 20px;
+        }
+
+        .page {
+            background: white;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        /* Header del reporte */
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #2563eb;
+        }
+
+        .business-info {
+            flex: 1;
+        }
+
+        .business-logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+        }
+
+        .business-logo svg {
+            width: 50px;
+            height: 50px;
+            fill: white;
+        }
+
+        .business-name {
+            font-size: 20pt;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+
+        .business-details {
+            font-size: 9pt;
+            color: #6b7280;
+            line-height: 1.6;
+        }
+
+        .report-info {
+            text-align: right;
+            flex: 1;
+        }
+
+        .report-title {
+            font-size: 24pt;
+            font-weight: 700;
+            color: #2563eb;
+            margin-bottom: 10px;
+        }
+
+        .report-meta {
+            font-size: 9pt;
+            color: #6b7280;
+            line-height: 1.8;
+        }
+
+        .report-meta strong {
+            color: #374151;
+        }
+
+        /* Filtros aplicados */
+        .filters-section {
+            background: #eff6ff;
+            border-left: 4px solid #2563eb;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .filters-title {
+            font-size: 10pt;
+            font-weight: 600;
+            color: #1e40af;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filters-list {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            font-size: 9pt;
+            color: #374151;
+        }
+
+        .filter-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .filter-badge {
+            background: #2563eb;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        /* Tabla de productos */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+            font-size: 9pt;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: white;
+        }
+
+        thead th {
+            padding: 12px 10px;
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 8pt;
+        }
+
+        thead th.text-right {
+            text-align: right;
+        }
+
+        thead th.text-center {
+            text-align: center;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #e5e7eb;
+            transition: background-color 0.2s;
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+
+        tbody tr:hover {
+            background-color: #f3f4f6;
+        }
+
+        tbody td {
+            padding: 10px;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        /* Códigos y descripciones */
+        .product-code {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .product-description {
+            color: #1f2937;
+            font-weight: 500;
+        }
+
+        /* Badges de categorías */
+        .category-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #dbeafe;
+            color: #1e40af;
+            border-radius: 4px;
+            font-size: 8pt;
+            font-weight: 600;
+        }
+
+        /* Destacados especiales */
+        .highlight-low-stock {
+            background-color: #fef3c7 !important;
+        }
+
+        .highlight-low-stock td {
+            color: #92400e;
+            font-weight: 600;
+        }
+
+        .stock-low {
+            color: #dc2626;
+            font-weight: 700;
+        }
+
+        .stock-normal {
+            color: #059669;
+            font-weight: 600;
+        }
+
+        /* Precios */
+        .price {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+        }
+
+        .price-highlight {
+            color: #2563eb;
+            font-weight: 700;
+        }
+
+        /* Sección de totales */
+        .totals-section {
+            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+            border-left: 4px solid #2563eb;
+            padding: 25px;
+            margin-top: 30px;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .totals-title {
+            font-size: 14pt;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .totals-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+
+        .total-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .total-label {
+            font-size: 9pt;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .total-value {
+            font-size: 20pt;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .total-value.negative {
+            color: #dc2626;
+        }
+
+        .total-value.warning {
+            color: #f59e0b;
+        }
+
+        .total-value.success {
+            color: #059669;
+        }
+
+        /* Footer */
+        .report-footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e5e7eb;
+            text-align: center;
+            font-size: 8pt;
+            color: #9ca3af;
+        }
+
+        .page-number {
+            font-weight: 600;
+            color: #6b7280;
+        }
+
+        /* Responsive para preview en pantalla */
+        @media screen and (max-width: 1024px) {
+            .page {
+                padding: 20px;
+            }
+
+            .totals-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            table {
+                font-size: 8pt;
+            }
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .page {
+                box-shadow: none;
+                max-width: none;
+                padding: 0;
+            }
+
+            .no-print {
+                display: none;
+            }
+        }
+
+        /* Botón de imprimir (solo para preview) */
+        .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3);
+            transition: all 0.2s;
+            z-index: 1000;
+        }
+
+        .print-button:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(37, 99, 235, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <button class="print-button no-print" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+
+    <div class="page">
+        <!-- Header del Reporte -->
+        <div class="report-header">
+            <div class="business-info">
+                <div class="business-logo">
+                    <!-- Ícono de octopus/paquete -->
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3.375 3C2.339 3 1.5 3.84 1.5 4.875v.75c0 1.036.84 1.875 1.875 1.875h17.25c1.035 0 1.875-.84 1.875-1.875v-.75C22.5 3.839 21.66 3 20.625 3H3.375Z" />
+                        <path fill-rule="evenodd" d="m3.087 9 .54 9.176A3 3 0 0 0 6.62 21h10.757a3 3 0 0 0 2.995-2.824L20.913 9H3.087Zm6.163 3.75A.75.75 0 0 1 10 12h4a.75.75 0 0 1 0 1.5h-4a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="business-name">Ferretería El Progreso</div>
+                <div class="business-details">
+                    <strong>CUIT:</strong> 30-12345678-9<br>
+                    <strong>Dirección:</strong> Av. San Martín 1234, Capital Federal<br>
+                    <strong>Teléfono:</strong> (011) 4567-8900 | <strong>Email:</strong> ventas@elprogreso.com.ar
+                </div>
+            </div>
+
+            <div class="report-info">
+                <div class="report-title">Control de Stock</div>
+                <div class="report-meta">
+                    <strong>Fecha de generación:</strong> 18/02/2026 14:30<br>
+                    <strong>Generado por:</strong> Juan Pérez<br>
+                    <strong>Página:</strong> <span class="page-number">1 de 3</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtros Aplicados -->
+        <div class="filters-section">
+            <div class="filters-title">📊 Filtros Aplicados</div>
+            <div class="filters-list">
+                <div class="filter-item">
+                    <span>Estado:</span> <span class="filter-badge">Solo Activos</span>
+                </div>
+                <div class="filter-item">
+                    <span>Ordenado por:</span> <span class="filter-badge">Stock Ascendente</span>
+                </div>
+                <div class="filter-item">
+                    <span>Agrupación:</span> <span class="filter-badge">Por Categoría</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla de Productos -->
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 10%;">Código</th>
+                    <th style="width: 25%;">Descripción</th>
+                    <th style="width: 12%;">Categoría</th>
+                    <th style="width: 15%;">Proveedor</th>
+                    <th class="text-right" style="width: 8%;">Stock</th>
+                    <th class="text-right" style="width: 10%;">P. Costo</th>
+                    <th class="text-right" style="width: 10%;">P. Venta</th>
+                    <th class="text-right" style="width: 10%;">Valor Stock</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Productos con stock bajo - DESTACADOS -->
+                <tr class="highlight-low-stock">
+                    <td class="product-code">PLM-001</td>
+                    <td class="product-description">Caño PVC 110mm x 3mts</td>
+                    <td><span class="category-badge">Plomería</span></td>
+                    <td>Tigre S.A.</td>
+                    <td class="text-right stock-low">3</td>
+                    <td class="text-right price">$ 8.500,00</td>
+                    <td class="text-right price">$ 12.750,00</td>
+                    <td class="text-right price-highlight">$ 25.500,00</td>
+                </tr>
+
+                <tr class="highlight-low-stock">
+                    <td class="product-code">PLM-015</td>
+                    <td class="product-description">Codo PVC 90° 110mm</td>
+                    <td><span class="category-badge">Plomería</span></td>
+                    <td>Tigre S.A.</td>
+                    <td class="text-right stock-low">5</td>
+                    <td class="text-right price">$ 1.200,00</td>
+                    <td class="text-right price">$ 1.800,00</td>
+                    <td class="text-right price-highlight">$ 6.000,00</td>
+                </tr>
+
+                <!-- Productos normales -->
+                <tr>
+                    <td class="product-code">PLM-002</td>
+                    <td class="product-description">Caño PVC 63mm x 3mts</td>
+                    <td><span class="category-badge">Plomería</span></td>
+                    <td>Tigre S.A.</td>
+                    <td class="text-right stock-normal">45</td>
+                    <td class="text-right price">$ 4.800,00</td>
+                    <td class="text-right price">$ 7.200,00</td>
+                    <td class="text-right price-highlight">$ 216.000,00</td>
+                </tr>
+
+                <tr>
+                    <td class="product-code">PLM-003</td>
+                    <td class="product-description">Curva PVC 90° 63mm</td>
+                    <td><span class="category-badge">Plomería</span></td>
+                    <td>Tigre S.A.</td>
+                    <td class="text-right stock-normal">120</td>
+                    <td class="text-right price">$ 850,00</td>
+                    <td class="text-right price">$ 1.275,00</td>
+                    <td class="text-right price-highlight">$ 102.000,00</td>
+                </tr>
+
+                <tr>
+                    <td class="product-code">SAN-001</td>
+                    <td class="product-description">Inodoro Corto Blanco Ferrum</td>
+                    <td><span class="category-badge">Sanitarios</span></td>
+                    <td>Ferrum Argentina</td>
+                    <td class="text-right stock-normal">12</td>
+                    <td class="text-right price">$ 85.000,00</td>
+                    <td class="text-right price">$ 127.500,00</td>
+                    <td class="text-right price-highlight">$ 1.020.000,00</td>
+                </tr>
+
+                <tr>
+                    <td class="product-code">SAN-002</td>
+                    <td class="product-description">Lavatorio Ferrum Andina Blanco</td>
+                    <td><span class="category-badge">Sanitarios</span></td>
+                    <td>Ferrum Argentina</td>
+                    <td class="text-right stock-normal">8</td>
+                    <td class="text-right price">$ 45.000,00</td>
+                    <td class="text-right price">$ 67.500,00</td>
+                    <td class="text-right price-highlight">$ 360.000,00</td>
+                </tr>
+
+                <tr>
+                    <td class="product-code">FER-001</td>
+                    <td class="product-description">Cemento Portland x 50kg</td>
+                    <td><span class="category-badge">Materiales</span></td>
+                    <td>Loma Negra</td>
+                    <td class="text-right stock-normal">250</td>
+                    <td class="text-right price">$ 7.800,00</td>
+                    <td class="text-right price">$ 11.700,00</td>
+                    <td class="text-right price-highlight">$ 1.950.000,00</td>
+                </tr>
+
+                <tr>
+                    <td class="product-code">FER-002</td>
+                    <td class="product-description">Cal Hidratada x 25kg</td>
+                    <td><span class="category-badge">Materiales</span></td>
+                    <td>Loma Negra</td>
+                    <td class="text-right stock-normal">180</td>
+                    <td class="text-right price">$ 3.200,00</td>
+                    <td class="text-right price">$ 4.800,00</td>
+                    <td class="text-right price-highlight">$ 576.000,00</td>
+                </tr>
+
+                <tr>
+                    <td class="product-code">HER-001</td>
+                    <td class="product-description">Martillo Carpintero 25mm Stanley</td>
+                    <td><span class="category-badge">Herramientas</span></td>
+                    <td>Stanley Argentina</td>
+                    <td class="text-right stock-normal">35</td>
+                    <td class="text-right price">$ 12.500,00</td>
+                    <td class="text-right price">$ 18.750,00</td>
+                    <td class="text-right price-highlight">$ 437.500,00</td>
+                </tr>
+
+                <tr>
+                    <td class="product-code">HER-002</td>
+                    <td class="product-description">Destornillador Phillips 1/4"</td>
+                    <td><span class="category-badge">Herramientas</span></td>
+                    <td>Stanley Argentina</td>
+                    <td class="text-right stock-normal">68</td>
+                    <td class="text-right price">$ 3.500,00</td>
+                    <td class="text-right price">$ 5.250,00</td>
+                    <td class="text-right price-highlight">$ 238.000,00</td>
+                </tr>
+
+                <tr>
+                    <td class="product-code">PIN-001</td>
+                    <td class="product-description">Pintura Látex Interior Alba x 20L</td>
+                    <td><span class="category-badge">Pinturería</span></td>
+                    <td>Alba Pinturas</td>
+                    <td class="text-right stock-normal">42</td>
+                    <td class="text-right price">$ 28.000,00</td>
+                    <td class="text-right price">$ 42.000,00</td>
+                    <td class="text-right price-highlight">$ 1.176.000,00</td>
+                </tr>
+
+                <tr>
+                    <td class="product-code">PIN-002</td>
+                    <td class="product-description">Pintura Esmalte Sintético Negro x 4L</td>
+                    <td><span class="category-badge">Pinturería</span></td>
+                    <td>Alba Pinturas</td>
+                    <td class="text-right stock-normal">28</td>
+                    <td class="text-right price">$ 15.600,00</td>
+                    <td class="text-right price">$ 23.400,00</td>
+                    <td class="text-right price-highlight">$ 436.800,00</td>
+                </tr>
+
+                <tr class="highlight-low-stock">
+                    <td class="product-code">ELE-001</td>
+                    <td class="product-description">Cable Unipolar 2.5mm x 100mts</td>
+                    <td><span class="category-badge">Electricidad</span></td>
+                    <td>Prysmian</td>
+                    <td class="text-right stock-low">4</td>
+                    <td class="text-right price">$ 45.000,00</td>
+                    <td class="text-right price">$ 67.500,00</td>
+                    <td class="text-right price-highlight">$ 180.000,00</td>
+                </tr>
+
+                <tr>
+                    <td class="product-code">ELE-002</td>
+                    <td class="product-description">Llave Térmica 2x25A</td>
+                    <td><span class="category-badge">Electricidad</span></td>
+                    <td>Schneider Electric</td>
+                    <td class="text-right stock-normal">55</td>
+                    <td class="text-right price">$ 8.900,00</td>
+                    <td class="text-right price">$ 13.350,00</td>
+                    <td class="text-right price-highlight">$ 489.500,00</td>
+                </tr>
+
+                <tr>
+                    <td class="product-code">ABE-001</td>
+                    <td class="product-description">Grifo Monocomando Lavatorio FV</td>
+                    <td><span class="category-badge">Sanitarios</span></td>
+                    <td>FV Argentina</td>
+                    <td class="text-right stock-normal">18</td>
+                    <td class="text-right price">$ 52.000,00</td>
+                    <td class="text-right price">$ 78.000,00</td>
+                    <td class="text-right price-highlight">$ 936.000,00</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Sección de Totales -->
+        <div class="totals-section">
+            <div class="totals-title">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 24px; height: 24px;">
+                    <path fill-rule="evenodd" d="M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.035.84 1.875 1.875 1.875h12.75c1.035 0 1.875-.84 1.875-1.875V12.75A3.75 3.75 0 0 0 16.5 9h-1.875a1.875 1.875 0 0 1-1.875-1.875V5.25A3.75 3.75 0 0 0 9 1.5H5.625ZM7.5 15a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 7.5 15Zm.75 2.25a.75.75 0 0 0 0 1.5H12a.75.75 0 0 0 0-1.5H8.25Z" clip-rule="evenodd" />
+                    <path d="M12.971 1.816A5.23 5.23 0 0 1 14.25 5.25v1.875c0 .207.168.375.375.375H16.5a5.23 5.23 0 0 1 3.434 1.279 9.768 9.768 0 0 0-6.963-6.963Z" />
+                </svg>
+                Resumen del Inventario
+            </div>
+            <div class="totals-grid">
+                <div class="total-item">
+                    <div class="total-label">Total de Productos</div>
+                    <div class="total-value">15</div>
+                </div>
+                <div class="total-item">
+                    <div class="total-label">Stock Total (Unidades)</div>
+                    <div class="total-value success">873</div>
+                </div>
+                <div class="total-item">
+                    <div class="total-label">Valor Total del Stock</div>
+                    <div class="total-value success">$ 8.149.300,00</div>
+                </div>
+                <div class="total-item">
+                    <div class="total-label">Productos Stock Bajo</div>
+                    <div class="total-value warning">3</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="report-footer">
+            <p><strong>OctopusTrack</strong> - Sistema de Gestión Comercial | Ferretería El Progreso</p>
+            <p style="margin-top: 5px;">Este reporte contiene información confidencial. Uso exclusivo interno.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estado de Cuenta Corriente - Demo</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 2cm 1.5cm;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 10pt;
+            color: #1f2937;
+            background-color: #f9fafb;
+            padding: 20px;
+        }
+
+        .page {
+            background: white;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        /* Header */
+        .report-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #2563eb;
+        }
+
+        .business-name {
+            font-size: 22pt;
+            font-weight: 700;
+            color: #2563eb;
+            margin-bottom: 5px;
+        }
+
+        .report-title {
+            font-size: 18pt;
+            font-weight: 600;
+            color: #374151;
+            margin-top: 15px;
+        }
+
+        .report-date {
+            font-size: 9pt;
+            color: #6b7280;
+            margin-top: 5px;
+        }
+
+        /* Client info */
+        .client-section {
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            border-left: 4px solid #2563eb;
+        }
+
+        .client-title {
+            font-size: 11pt;
+            font-weight: 700;
+            color: #1e40af;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .client-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            font-size: 9pt;
+        }
+
+        .client-field {
+            display: flex;
+            gap: 8px;
+        }
+
+        .client-field strong {
+            color: #374151;
+            min-width: 100px;
+        }
+
+        .client-field span {
+            color: #1f2937;
+        }
+
+        /* Account summary */
+        .summary-section {
+            margin-bottom: 30px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .summary-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .summary-card.debt {
+            border-color: #dc2626;
+            background: #fef2f2;
+        }
+
+        .summary-label {
+            font-size: 9pt;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .summary-value {
+            font-size: 18pt;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .summary-value.negative {
+            color: #dc2626;
+        }
+
+        .summary-value.positive {
+            color: #059669;
+        }
+
+        /* Movements table */
+        .movements-title {
+            font-size: 12pt;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 25px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+            font-size: 9pt;
+        }
+
+        thead {
+            background: #2563eb;
+            color: white;
+        }
+
+        thead th {
+            padding: 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 8pt;
+            text-transform: uppercase;
+        }
+
+        thead th.text-right {
+            text-align: right;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+
+        tbody td {
+            padding: 10px;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        /* Movement types */
+        .movement-type {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 8pt;
+            font-weight: 600;
+        }
+
+        .type-factura {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .type-pago {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .type-nota {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        /* Amounts */
+        .amount-debit {
+            color: #dc2626;
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+        }
+
+        .amount-credit {
+            color: #059669;
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+        }
+
+        .amount-balance {
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+        }
+
+        .balance-negative {
+            color: #dc2626;
+            background: #fef2f2;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .balance-positive {
+            color: #059669;
+        }
+
+        /* Overdue section */
+        .overdue-section {
+            background: #fef2f2;
+            border-left: 4px solid #dc2626;
+            padding: 20px;
+            border-radius: 0 8px 8px 0;
+            margin-top: 20px;
+        }
+
+        .overdue-title {
+            font-size: 11pt;
+            font-weight: 700;
+            color: #dc2626;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .overdue-item {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .overdue-info {
+            font-size: 9pt;
+        }
+
+        .overdue-days {
+            background: #dc2626;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 8pt;
+        }
+
+        /* Footer */
+        .report-footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e5e7eb;
+            text-align: center;
+            font-size: 8pt;
+            color: #9ca3af;
+        }
+
+        /* Print button */
+        .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3);
+            z-index: 1000;
+        }
+
+        .print-button:hover {
+            background: #1d4ed8;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .page {
+                box-shadow: none;
+                padding: 0;
+            }
+
+            .print-button {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="print-button" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+
+    <div class="page">
+        <!-- Header -->
+        <div class="report-header">
+            <div class="business-name">Ferretería El Progreso</div>
+            <div style="font-size: 9pt; color: #6b7280; margin-top: 5px;">
+                CUIT: 30-12345678-9 | Av. San Martín 1234, Capital Federal
+            </div>
+            <div class="report-title">Estado de Cuenta Corriente</div>
+            <div class="report-date">Generado el 18/02/2026 a las 14:45 hs</div>
+        </div>
+
+        <!-- Client Info -->
+        <div class="client-section">
+            <div class="client-title">📋 Información del Cliente</div>
+            <div class="client-grid">
+                <div class="client-field">
+                    <strong>Razón Social:</strong>
+                    <span>Construcciones López S.R.L.</span>
+                </div>
+                <div class="client-field">
+                    <strong>CUIT:</strong>
+                    <span>30-98765432-1</span>
+                </div>
+                <div class="client-field">
+                    <strong>Condición IVA:</strong>
+                    <span>Responsable Inscripto</span>
+                </div>
+                <div class="client-field">
+                    <strong>Teléfono:</strong>
+                    <span>(011) 4321-9876</span>
+                </div>
+                <div class="client-field">
+                    <strong>Email:</strong>
+                    <span>admin@lopezconst.com.ar</span>
+                </div>
+                <div class="client-field">
+                    <strong>Dirección:</strong>
+                    <span>Av. Corrientes 5678, CABA</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Summary -->
+        <div class="summary-section">
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="summary-label">Saldo Anterior</div>
+                    <div class="summary-value negative">$ -125.000,00</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Facturado Período</div>
+                    <div class="summary-value">$ 285.500,00</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Pagos Recibidos</div>
+                    <div class="summary-value positive">$ 200.000,00</div>
+                </div>
+                <div class="summary-card debt">
+                    <div class="summary-label">⚠️ Saldo Actual</div>
+                    <div class="summary-value negative">$ -210.500,00</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Movements -->
+        <div class="movements-title">📊 Detalle de Movimientos (Enero 2026)</div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 12%;">Fecha</th>
+                    <th style="width: 15%;">Tipo</th>
+                    <th style="width: 20%;">Comprobante</th>
+                    <th class="text-right" style="width: 18%;">Debe</th>
+                    <th class="text-right" style="width: 18%;">Haber</th>
+                    <th class="text-right" style="width: 17%;">Saldo</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="background: #f3f4f6; font-weight: 600;">
+                    <td colspan="5">Saldo inicial</td>
+                    <td class="text-right">
+                        <span class="amount-balance balance-negative">$ -125.000,00</span>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td>05/01/2026</td>
+                    <td><span class="movement-type type-factura">Factura</span></td>
+                    <td>FC-A 0001-00001234</td>
+                    <td class="text-right amount-debit">$ 85.500,00</td>
+                    <td class="text-right">-</td>
+                    <td class="text-right">
+                        <span class="amount-balance balance-negative">$ -210.500,00</span>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td>10/01/2026</td>
+                    <td><span class="movement-type type-pago">Pago</span></td>
+                    <td>Transferencia #4567</td>
+                    <td class="text-right">-</td>
+                    <td class="text-right amount-credit">$ 100.000,00</td>
+                    <td class="text-right">
+                        <span class="amount-balance balance-negative">$ -110.500,00</span>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td>15/01/2026</td>
+                    <td><span class="movement-type type-factura">Factura</span></td>
+                    <td>FC-A 0001-00001235</td>
+                    <td class="text-right amount-debit">$ 125.000,00</td>
+                    <td class="text-right">-</td>
+                    <td class="text-right">
+                        <span class="amount-balance balance-negative">$ -235.500,00</span>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td>18/01/2026</td>
+                    <td><span class="movement-type type-nota">N. Crédito</span></td>
+                    <td>NC-A 0001-00000015</td>
+                    <td class="text-right">-</td>
+                    <td class="text-right amount-credit">$ 25.000,00</td>
+                    <td class="text-right">
+                        <span class="amount-balance balance-negative">$ -210.500,00</span>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td>22/01/2026</td>
+                    <td><span class="movement-type type-factura">Factura</span></td>
+                    <td>FC-A 0001-00001236</td>
+                    <td class="text-right amount-debit">$ 75.000,00</td>
+                    <td class="text-right">-</td>
+                    <td class="text-right">
+                        <span class="amount-balance balance-negative">$ -285.500,00</span>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td>28/01/2026</td>
+                    <td><span class="movement-type type-pago">Pago</span></td>
+                    <td>Efectivo Recibo #0123</td>
+                    <td class="text-right">-</td>
+                    <td class="text-right amount-credit">$ 75.000,00</td>
+                    <td class="text-right">
+                        <span class="amount-balance balance-negative">$ -210.500,00</span>
+                    </td>
+                </tr>
+
+                <tr style="background: #fef2f2; font-weight: 700; border-top: 2px solid #dc2626;">
+                    <td colspan="3" style="text-align: right; padding-right: 15px;">TOTALES:</td>
+                    <td class="text-right amount-debit">$ 285.500,00</td>
+                    <td class="text-right amount-credit">$ 200.000,00</td>
+                    <td class="text-right">
+                        <span class="amount-balance balance-negative">$ -210.500,00</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Overdue Invoices -->
+        <div class="overdue-section">
+            <div class="overdue-title">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 20px; height: 20px;">
+                    <path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd" />
+                </svg>
+                Facturas Vencidas
+            </div>
+
+            <div class="overdue-item">
+                <div class="overdue-info">
+                    <strong>FC-A 0001-00001234</strong><br>
+                    <span style="color: #6b7280;">Fecha: 05/01/2026 | Monto: <strong style="color: #dc2626;">$ 85.500,00</strong></span>
+                </div>
+                <div class="overdue-days">44 días vencida</div>
+            </div>
+
+            <div class="overdue-item">
+                <div class="overdue-info">
+                    <strong>FC-A 0001-00001235</strong><br>
+                    <span style="color: #6b7280;">Fecha: 15/01/2026 | Monto: <strong style="color: #dc2626;">$ 100.000,00</strong></span>
+                </div>
+                <div class="overdue-days">34 días vencida</div>
+            </div>
+
+            <div class="overdue-item">
+                <div class="overdue-info">
+                    <strong>FC-A 0001-00001236</strong><br>
+                    <span style="color: #6b7280;">Fecha: 22/01/2026 | Monto: <strong style="color: #dc2626;">$ 25.000,00</strong></span>
+                </div>
+                <div class="overdue-days">27 días vencida</div>
+            </div>
+
+            <div style="margin-top: 15px; padding: 12px; background: white; border-radius: 6px; text-align: center;">
+                <strong style="color: #dc2626; font-size: 11pt;">Total Vencido: $ 210.500,00</strong>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="report-footer">
+            <p><strong>OctopusTrack</strong> - Sistema de Gestión Comercial</p>
+            <p style="margin-top: 5px;">Este documento es un extracto de cuenta corriente. Conservar para futuras consultas.</p>
+            <p style="margin-top: 10px; color: #dc2626; font-weight: 600;">
+                Por favor regularizar los pagos vencidos. Consultas: (011) 4567-8900
+            </p>
+        </div>
+    </div>
+</body>
+</html>

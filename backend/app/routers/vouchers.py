@@ -14,7 +14,7 @@ from app.models.voucher import Voucher, VoucherType, VoucherStatus
 from app.models.business import Business
 from app.models.client import Client
 from app.schemas.base import PaginatedResponse
-from app.schemas.voucher import VoucherCreate, VoucherResponse
+from app.schemas.voucher import VoucherCreate, VoucherResponse, ConvertQuotationToInvoice
 from app.schemas.credit_note import CreditNoteCreate
 from app.services.voucher_service import VoucherService
 from app.services.afip_sdk_service import AfipSdkService
@@ -88,9 +88,11 @@ async def get_voucher_pdf(
     """
     Genera y descarga el PDF del comprobante.
     """
+    print(f"🔍 [PDF] Solicitud de PDF para voucher: {voucher_id}, business: {business_id}")
     service = VoucherService(db)
     try:
         pdf_bytes = await service.generate_pdf(voucher_id, business_id)
+        print(f"✅ [PDF] PDF generado exitosamente. Tamaño: {len(pdf_bytes)} bytes")
         
         return StreamingResponse(
             io.BytesIO(pdf_bytes),
@@ -100,9 +102,18 @@ async def get_voucher_pdf(
             }
         )
     except ValueError as e:
+        print(f"❌ [PDF] Error ValueError: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
+        )
+    except Exception as e:
+        print(f"❌ [PDF] Error inesperado: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al generar PDF: {str(e)}"
         )
 
 
@@ -128,6 +139,89 @@ async def delete_voucher(
         )
     
     return {"message": "Comprobante eliminado correctamente"}
+
+
+@router.get("/pending-quotations", response_model=PaginatedResponse[VoucherResponse])
+async def list_pending_quotations(
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=100, ge=1, le=200),
+    search: Optional[str] = Query(default=None),
+    voucher_type: Optional[VoucherType] = Query(default=None, description="Filtrar por tipo: quotation o receipt"),
+    date_from: Optional[str] = Query(default=None, description="Fecha desde (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(default=None, description="Fecha hasta (YYYY-MM-DD)"),
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """
+    Lista las cotizaciones y remitos pendientes de facturar.
+    
+    Retorna comprobantes (cotización o remito) que:
+    - No tienen factura asociada (invoiced_voucher_id es NULL)
+    - No están eliminados
+    
+    Filtros disponibles: tipo (quotation/receipt), fecha desde/hasta, texto de búsqueda.
+    """
+    service = VoucherService(db)
+    vouchers, total = await service.list_pending_quotations(
+        business_id=business_id,
+        page=page,
+        per_page=per_page,
+        search=search,
+        voucher_type=voucher_type,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    pages = (total + per_page - 1) // per_page if per_page else 0
+
+    return PaginatedResponse(
+        items=[VoucherResponse.model_validate(v) for v in vouchers],
+        total=total,
+        page=page,
+        per_page=per_page,
+        pages=pages,
+    )
+
+
+@router.post("/{quotation_id}/convert-to-invoice", response_model=VoucherResponse, status_code=status.HTTP_201_CREATED)
+async def convert_quotation_to_invoice(
+    quotation_id: UUID,
+    data: ConvertQuotationToInvoice,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    current_user = Depends(get_current_user),
+):
+    """
+    Convierte una cotización en factura electrónica.
+    
+    - Crea una nueva factura con los mismos items de la cotización.
+    - Marca la cotización como 'facturada' (irreversible sin Nota de Crédito).
+    - El tipo de factura (A o B) se determina automáticamente según la condición fiscal del cliente.
+    - Para revertir: emitir una Nota de Crédito Fiscal desde la factura generada.
+    """
+    service = VoucherService(db)
+    try:
+        payments_raw = None
+        if data.payments:
+            payments_raw = [p.model_dump() for p in data.payments]
+
+        invoice = await service.convert_quotation_to_invoice(
+            business_id=business_id,
+            quotation_id=quotation_id,
+            payments=payments_raw,
+            user_id=current_user.id,
+        )
+        return VoucherResponse.model_validate(invoice)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al convertir cotización: {str(e)}"
+        )
 
 
 @router.post("/{voucher_id}/credit-note", response_model=VoucherResponse, status_code=status.HTTP_201_CREATED)

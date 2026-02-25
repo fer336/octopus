@@ -1,0 +1,3420 @@
+[
+  {
+    "id": "TC001",
+    "title": "Dashboard loads and shows all KPI cards and stock alert panel",
+    "description": "Verifies the authenticated dashboard renders the 4 KPI KPI cards and the stock alert panel.",
+    "category": "Dashboard KPIs",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Total products\" KPI card is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Total clients\" KPI card is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Low stock\" KPI card is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Dashboard shows inventory value KPI and stock alert panel",
+    "description": "Verifies the dashboard shows the inventory value KPI card and the stock alert panel area.",
+    "category": "Dashboard KPIs",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Inventory value\" KPI card is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Stock alerts\" panel is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Quick action: New Sale navigates to Sales screen",
+    "description": "Verifies clicking the \"New Sale\" quick action navigates to the /sales page.",
+    "category": "Dashboard KPIs",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click the quick-action button \"New Sale\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/sales\""
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Quick action: Add Product navigates to Products catalog",
+    "description": "Verifies clicking the \"Add Product\" quick action navigates to the /products page.",
+    "category": "Dashboard KPIs",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click the quick-action button \"Add Product\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/products\""
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Quick action: New Client navigates to Clients management",
+    "description": "Verifies clicking the \"New Client\" quick action navigates to the /clients page.",
+    "category": "Dashboard KPIs",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click the quick-action button \"New Client\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/clients\""
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Quick action: Reports navigates to Reports page placeholder",
+    "description": "Verifies clicking the \"Reports\" quick action navigates to /reports and renders the reports index placeholder UI.",
+    "category": "Dashboard KPIs",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click the quick-action button \"Reports\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/reports\""
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Create a new product from Products page and confirm it appears in the table",
+    "description": "Verifies a user can create a product via the New Product modal and see it listed afterward.",
+    "category": "Product CRUD",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Productos\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/products\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Nuevo Producto\""
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Save a newly created product and verify it is visible in the products table",
+    "description": "Verifies saving a valid product succeeds and the created product is visible after closing the modal.",
+    "category": "Product CRUD",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Productos\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Nuevo Producto\""
+      },
+      {
+        "type": "action",
+        "description": "Type \"AUTO-PROD-001\" into the \"Código\" field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Producto E2E Auto\" into the \"Descripción\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Guardar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"AUTO-PROD-001\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Edit an existing product and trigger server-side validation error on save",
+    "description": "Verifies editing a product and saving invalid values shows validation messages and prevents save completion.",
+    "category": "Product CRUD",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Productos\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Click the edit icon on the first visible product row"
+      },
+      {
+        "type": "action",
+        "description": "Type \"-1\" into the \"Precio lista\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Guardar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"error\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Verify field-level validation message is shown for an invalid discount during edit",
+    "description": "Verifies invalid bonificación input shows a field-level validation message and the modal remains open.",
+    "category": "Product CRUD",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Productos\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Click the edit icon on the first visible product row"
+      },
+      {
+        "type": "action",
+        "description": "Type \"150\" into the \"Bonificación 1\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Guardar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Bonificación\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Filter products by category and confirm results update",
+    "description": "Verifies category filtering updates the visible product list.",
+    "category": "Product CRUD",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Productos\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Select the first non-empty option from the \"Categoría\" filter dropdown"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Products table\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Filter products by supplier and confirm results update",
+    "description": "Verifies supplier filtering updates the visible product list.",
+    "category": "Product CRUD",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Productos\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Select the first non-empty option from the \"Proveedor\" filter dropdown"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Products table\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Paginate products results from Products page",
+    "description": "Verifies the user can move to the next page of products and see the page state change.",
+    "category": "Product CRUD",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Productos\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Siguiente\" pagination button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Página\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Attempt to confirm import is blocked when no file is selected",
+    "description": "Verifies the UI prevents confirming import when a file has not been chosen.",
+    "category": "Excel Import Products",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Productos\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/products\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Importar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Importación\" modal is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Confirmar Importación\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Seleccioná un archivo\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Cancelar\" in the import modal"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/products\""
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Cash not open: generate voucher triggers 'No hay caja abierta' and open cash to continue",
+    "description": "Verifies that when cash is required and not open, the user can open cash from the modal and resume voucher generation.",
+    "category": "Sales Voucher Creation",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Ventas\" or \"Sales\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/sales"
+      },
+      {
+        "type": "action",
+        "description": "Select \"Factura\" from the voucher type selector"
+      },
+      {
+        "type": "action",
+        "description": "Click on the client search/autocomplete field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Cliente\" into the client search field"
+      },
+      {
+        "type": "action",
+        "description": "Click on the first client option shown in the autocomplete results"
+      },
+      {
+        "type": "action",
+        "description": "Click on the product search field"
+      },
+      {
+        "type": "action",
+        "description": "Type a valid product code into the product search field"
+      },
+      {
+        "type": "action",
+        "description": "Press \"Enter\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Generar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"No hay caja abierta\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Abrir y Continuar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Monto de apertura\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on the opening amount field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"10000\" into the opening amount field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Confirmar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Caja abierta\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Switch voucher type to 'Remito' and ensure generation flow is available",
+    "description": "Verifies the user can change voucher type to Remito and still proceed to the generation confirmation step.",
+    "category": "Sales Voucher Creation",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Ventas\" or \"Sales\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/sales"
+      },
+      {
+        "type": "action",
+        "description": "Select \"Remito\" from the voucher type selector"
+      },
+      {
+        "type": "action",
+        "description": "Click on the client search/autocomplete field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Cliente\" into the client search field"
+      },
+      {
+        "type": "action",
+        "description": "Click on the first client option shown in the autocomplete results"
+      },
+      {
+        "type": "action",
+        "description": "Click on the product search field"
+      },
+      {
+        "type": "action",
+        "description": "Type a valid product name into the product search field"
+      },
+      {
+        "type": "action",
+        "description": "Press \"Enter\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Generar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Confirmar\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "Prevent generation when no client selected",
+    "description": "Verifies the UI blocks or warns when attempting to generate a voucher without selecting a client.",
+    "category": "Sales Voucher Creation",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Ventas\" or \"Sales\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/sales"
+      },
+      {
+        "type": "action",
+        "description": "Select \"Factura\" from the voucher type selector"
+      },
+      {
+        "type": "action",
+        "description": "Click on the product search field"
+      },
+      {
+        "type": "action",
+        "description": "Type a valid product code into the product search field"
+      },
+      {
+        "type": "action",
+        "description": "Press \"Enter\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Generar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Seleccione un cliente\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "Prevent generation when cart has no items",
+    "description": "Verifies the UI blocks or warns when attempting to generate a voucher with an empty cart.",
+    "category": "Sales Voucher Creation",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Ventas\" or \"Sales\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/sales"
+      },
+      {
+        "type": "action",
+        "description": "Select \"Factura\" from the voucher type selector"
+      },
+      {
+        "type": "action",
+        "description": "Click on the client search/autocomplete field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Cliente\" into the client search field"
+      },
+      {
+        "type": "action",
+        "description": "Click on the first client option shown in the autocomplete results"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Generar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Agregue productos\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC019",
+    "title": "Product search with no results shows a visible 'no matches' state",
+    "description": "Verifies that searching for a non-existent product does not add to cart and shows a visible no-results message/state.",
+    "category": "Sales Voucher Creation",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Ventas\" or \"Sales\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/sales"
+      },
+      {
+        "type": "action",
+        "description": "Click on the product search field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"PROD-NO-EXISTE-999\" into the product search field"
+      },
+      {
+        "type": "action",
+        "description": "Press \"Enter\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Sin resultados\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC020",
+    "title": "Edit cart row with invalid quantity shows validation and does not proceed",
+    "description": "Verifies quantity validation by attempting to set quantity to 0 and confirming a visible error state or blocked generation.",
+    "category": "Sales Voucher Creation",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Ventas\" or \"Sales\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/sales"
+      },
+      {
+        "type": "action",
+        "description": "Click on the client search/autocomplete field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Cliente\" into the client search field"
+      },
+      {
+        "type": "action",
+        "description": "Click on the first client option shown in the autocomplete results"
+      },
+      {
+        "type": "action",
+        "description": "Click on the product search field"
+      },
+      {
+        "type": "action",
+        "description": "Type a valid product code into the product search field"
+      },
+      {
+        "type": "action",
+        "description": "Press \"Enter\""
+      },
+      {
+        "type": "action",
+        "description": "Click on the quantity field in the cart row"
+      },
+      {
+        "type": "action",
+        "description": "Type \"0\" into the quantity field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Generar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Cantidad inválida\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC021",
+    "title": "Create a new client from Clients page and verify it appears in the list with account balance column",
+    "description": "Verifies a user can create a client via the Nuevo cliente modal and see it in the list including the account balance column.",
+    "category": "Client CRUD",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Clientes\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/clients\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the clients list/table is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC022",
+    "title": "Search clients by name and verify results update",
+    "description": "Verifies searching by client name filters or updates the visible client rows.",
+    "category": "Client CRUD",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Clientes\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the client search input is visible"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Juan\" into the client search input"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the clients list/table is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC023",
+    "title": "Search clients by document number (CUIT/DNI) and verify results update",
+    "description": "Verifies searching by CUIT/DNI filters or updates the visible client rows.",
+    "category": "Client CRUD",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Clientes\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the client search input is visible"
+      },
+      {
+        "type": "action",
+        "description": "Type \"20123456789\" into the client search input"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the clients list/table is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC024",
+    "title": "Open Nuevo cliente modal and verify all required fields are present",
+    "description": "Verifies the create-client modal opens and exposes core fields including tax condition and full address inputs.",
+    "category": "Client CRUD",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Clientes\" in the main navigation menu"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Nuevo cliente\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Nuevo cliente\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the client form field \"Razón social\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC025",
+    "title": "Create a new client with full details and verify it appears in list",
+    "description": "Verifies end-to-end client creation with razon social, CUIT/DNI, IVA condition, address, phone, and email, then verifies the client appears in the list.",
+    "category": "Client CRUD",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Clientes\" in the main navigation menu"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Nuevo cliente\""
+      },
+      {
+        "type": "action",
+        "description": "Type \"Cliente Test E2E 01\" into the \"Razón social\" field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"20333444559\" into the \"CUIT/DNI\" field"
+      },
+      {
+        "type": "action",
+        "description": "Select \"Responsable Inscripto\" from the \"Condición IVA\" dropdown"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Calle Falsa 123\" into the \"Dirección\" field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"1144556677\" into the \"Teléfono\" field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"cliente.e2e.01@example.com\" into the \"Email\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Guardar\" / \"Save\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Cliente Test E2E 01\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the \"Saldo\" / \"Balance\" column header is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC026",
+    "title": "Edit an existing client and verify updated value is shown in the list",
+    "description": "Verifies editing a client via the edit modal persists changes and the updated data is visible in the list.",
+    "category": "Client CRUD",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Clientes\" in the main navigation menu"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Cliente Test\" into the client search input"
+      },
+      {
+        "type": "action",
+        "description": "Click the edit (pencil) icon on the first visible client row"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Editar cliente\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Cliente Test Editado\" into the \"Razón social\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Guardar\" / \"Save\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Cliente Test Editado\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC027",
+    "title": "Verify account balance is visible for clients in the list",
+    "description": "Verifies the clients list displays an account balance column and at least one visible row shows a balance value.",
+    "category": "Client CRUD",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Clientes\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the \"Saldo\" / \"Balance\" column header is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify at least one client row is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC028",
+    "title": "Delete icon is not wired: clicking trash does not remove the client (known limitation validation)",
+    "description": "Verifies the trash/delete icon produces no visible deletion effect and the client remains visible, matching the known limitation.",
+    "category": "Client CRUD",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Clientes\" in the main navigation menu"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Cliente\" into the client search input"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify at least one client row is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click the trash/delete icon on the first visible client row"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify at least one client row is still visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Cliente\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC029",
+    "title": "Create a new supplier using the 3-tab modal and see it listed",
+    "description": "Verifies a user can create a supplier by completing General, Commercial conditions, and Categories tabs and the supplier appears in the suppliers list.",
+    "category": "Supplier CRUD",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Proveedores\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/suppliers\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Nuevo Proveedor\""
+      }
+    ]
+  },
+  {
+    "id": "TC030",
+    "title": "Complete General tab fields and proceed through tabs in the supplier modal",
+    "description": "Verifies the supplier creation modal allows entering General information (razón social and CUIT) and moving to the next tab.",
+    "category": "Supplier CRUD",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Proveedores\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Nuevo Proveedor\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"General\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC031",
+    "title": "Save supplier with chain discounts in Commercial conditions",
+    "description": "Verifies a user can enter bonificaciones (chain discounts) under Commercial conditions and successfully save the supplier.",
+    "category": "Supplier CRUD",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Proveedores\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Nuevo Proveedor\""
+      },
+      {
+        "type": "action",
+        "description": "Type \"Proveedor E2E Bonificaciones\" into the \"Razón social\" field"
+      }
+    ]
+  },
+  {
+    "id": "TC032",
+    "title": "Select multiple categories for a supplier and save",
+    "description": "Verifies categories can be multi-selected on the Categories tab and the supplier can be saved successfully.",
+    "category": "Supplier CRUD",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Proveedores\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Nuevo Proveedor\""
+      },
+      {
+        "type": "action",
+        "description": "Type \"Proveedor E2E Categorías\" into the \"Razón social\" field"
+      }
+    ]
+  },
+  {
+    "id": "TC033",
+    "title": "Search suppliers and verify matching results are shown",
+    "description": "Verifies the suppliers search filters the list based on entered text.",
+    "category": "Supplier CRUD",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Proveedores\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/suppliers\""
+      },
+      {
+        "type": "action",
+        "description": "Type \"Proveedor\" into the suppliers search field"
+      }
+    ]
+  },
+  {
+    "id": "TC034",
+    "title": "Create a new category from Categories page",
+    "description": "Verifies a user can create a new category using the Nueva Categoría modal and see it in the list.",
+    "category": "Category CRUD",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" (Sign in) button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Categorías\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/categories\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Nueva Categoría\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Nueva Categoría\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Categoría E2E - Ferretería\" into the Name (Nombre) field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Creada por prueba E2E\" into the Description (Descripción) field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Guardar\" (Save) button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Categoría E2E - Ferretería\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC035",
+    "title": "Cancel category creation closes modal without changes",
+    "description": "Verifies canceling out of the Nueva Categoría modal does not add a new category to the list.",
+    "category": "Category CRUD",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" (Sign in) button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Categorías\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/categories\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Nueva Categoría\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Nueva Categoría\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Categoría E2E - No Guardar\" into the Name (Nombre) field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Cancelar\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Nueva Categoría\" is not visible"
+      }
+    ]
+  },
+  {
+    "id": "TC036",
+    "title": "Attempt to save a category with missing required name shows validation feedback",
+    "description": "Verifies the modal prevents saving when the Name field is empty and displays a visible validation message or disabled save state.",
+    "category": "Category CRUD",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" (Sign in) button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Categorías\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/categories\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Nueva Categoría\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Nueva Categoría\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Type \"\" into the Name (Nombre) field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Guardar\" (Save) button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Nombre\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC037",
+    "title": "Cancel deletion keeps the category in the list",
+    "description": "Verifies canceling the delete confirmation dialog does not remove the category from the list.",
+    "category": "Category CRUD",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" (Sign in) button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Categorías\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/categories\""
+      },
+      {
+        "type": "action",
+        "description": "Type \"Categoría\" into the category search field"
+      },
+      {
+        "type": "action",
+        "description": "Click the trash (delete) icon for the first visible category row"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Confirmar\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Cancelar\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Confirmar\" is not visible"
+      }
+    ]
+  },
+  {
+    "id": "TC038",
+    "title": "Close the create/edit modal using Escape key",
+    "description": "Verifies the category modal can be dismissed using the Escape key and returns to the list view.",
+    "category": "Category CRUD",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" (Sign in) button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Categorías\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/categories\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Nueva Categoría\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Nueva Categoría\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Press \"Escape\" key"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Nueva Categoría\" is not visible"
+      }
+    ]
+  },
+  {
+    "id": "TC039",
+    "title": "Open cash register, register an income movement, and close cash with zero difference",
+    "description": "Verifies the full happy path lifecycle: open cash, add income, close with matching physical cash, and return to 'Sin caja abierta' state.",
+    "category": "Cash Register",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username or email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Caja\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/caja\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Sin caja abierta\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"1000\" into the opening amount field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Abrir Caja\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Caja abierta\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Monto apertura\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click \"+ Ingreso\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Ingreso\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Venta mostrador\" into the description field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"500\" into the amount field"
+      },
+      {
+        "type": "action",
+        "description": "Select \"Efectivo\" from the method dropdown"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Confirmar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Venta mostrador\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"500\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Cerrar Caja\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Cierre de caja\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"1500\" into the \"Efectivo físico contado\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Confirmar Cierre\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Caja cerrada exitosamente\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Sin caja abierta\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC040",
+    "title": "Close cash with mismatch succeeds after providing reason",
+    "description": "Verifies closure flow when there is a difference: user must enter a reason and can then confirm closure successfully.",
+    "category": "Cash Register",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username or email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Caja\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/caja\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Cerrar Caja\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Cerrar Caja\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Cierre de caja\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"0\" into the \"Efectivo físico contado\" field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Diferencia por cambio\" into the \"Motivo\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Confirmar Cierre\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Caja cerrada exitosamente\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Sin caja abierta\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC041",
+    "title": "Register an expense (egreso) movement and see it reflected in movements table",
+    "description": "Verifies that an expense movement can be recorded and appears in the movements table with the entered details.",
+    "category": "Cash Register",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username or email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Caja\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/caja\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"- Egreso\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click \"- Egreso\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Egreso\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Pago proveedor\" into the description field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"200\" into the amount field"
+      },
+      {
+        "type": "action",
+        "description": "Select \"Efectivo\" from the method dropdown"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Confirmar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Pago proveedor\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"200\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC042",
+    "title": "Open cash requires opening amount (cannot open with empty amount)",
+    "description": "Verifies that the cash cannot be opened without providing an opening amount and an inline error is shown.",
+    "category": "Cash Register",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username or email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Caja\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/caja\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Sin caja abierta\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Abrir Caja\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Requerido\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Sin caja abierta\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC043",
+    "title": "Income movement requires mandatory fields and blocks confirmation until provided",
+    "description": "Verifies field-level validation for creating an income movement (e.g., missing description or amount).",
+    "category": "Cash Register",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username or email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Caja\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/caja\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"+ Ingreso\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Ingreso\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Confirmar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Requerido\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Confirmar\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC044",
+    "title": "Cancel closing cash returns to cash screen without closing",
+    "description": "Verifies that the user can back out of the closing dialog and the cash remains open.",
+    "category": "Cash Register",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username or email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" or \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Caja\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/caja\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Cerrar Caja\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Cerrar Caja\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Cierre de caja\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Cancelar\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Cerrar Caja\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC045",
+    "title": "Create and confirm a new purchase order from Inventory and see it listed",
+    "description": "Verifies a user can create a new purchase order via Nueva Orden de Pedido, confirm it, and see the created order in the inventory list.",
+    "category": "Inventory Purchase Orders",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Inventory\" / \"Inventario\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/inventory\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Nueva Orden de Pedido\""
+      }
+    ]
+  },
+  {
+    "id": "TC046",
+    "title": "Generate planilla from modal using Supplier filter and proceed to count entry screen",
+    "description": "Verifies that selecting a supplier in the new order modal generates the planilla and takes the user to the counted stock entry view.",
+    "category": "Inventory Purchase Orders",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Inventory\" / \"Inventario\" in the main navigation menu"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Nueva Orden de Pedido\""
+      },
+      {
+        "type": "action",
+        "description": "Select a supplier from the supplier dropdown in the modal"
+      },
+      {
+        "type": "action",
+        "description": "Click the modal button to \"Generar\" / \"Confirmar\" the planilla"
+      }
+    ]
+  },
+  {
+    "id": "TC047",
+    "title": "Enter counted stock for a product and review suggested quantities",
+    "description": "Verifies that entering counted stock updates/reveals suggested quantities to order in the order detail workflow.",
+    "category": "Inventory Purchase Orders",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Inventory\" / \"Inventario\" in the main navigation menu"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Nueva Orden de Pedido\""
+      },
+      {
+        "type": "action",
+        "description": "Select a supplier from the supplier dropdown in the modal"
+      },
+      {
+        "type": "action",
+        "description": "Click the modal button to \"Generar\" / \"Confirmar\" the planilla"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Stock contado\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC048",
+    "title": "Confirm order from the order detail view and verify it appears in the list",
+    "description": "Verifies that confirming an order from the detail view succeeds and the order is visible in the purchase orders list.",
+    "category": "Inventory Purchase Orders",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Inventory\" / \"Inventario\" in the main navigation menu"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Nueva Orden de Pedido\""
+      },
+      {
+        "type": "action",
+        "description": "Select a supplier from the supplier dropdown in the modal"
+      },
+      {
+        "type": "action",
+        "description": "Click the modal button to \"Generar\" / \"Confirmar\" the planilla"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Confirmar Orden\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Orden\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC049",
+    "title": "Filter purchase orders by supplier and verify filtered results update",
+    "description": "Verifies that filtering the purchase orders list by supplier updates the visible list results.",
+    "category": "Inventory Purchase Orders",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Inventory\" / \"Inventario\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/inventory\""
+      },
+      {
+        "type": "action",
+        "description": "Select a supplier from the supplier filter dropdown"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Proveedor\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC050",
+    "title": "Filter purchase orders by category and verify filtered results update",
+    "description": "Verifies that filtering the purchase orders list by product category updates the visible list results.",
+    "category": "Inventory Purchase Orders",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Inventory\" / \"Inventario\" in the main navigation menu"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/inventory\""
+      },
+      {
+        "type": "action",
+        "description": "Select a category from the category filter dropdown"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Categoría\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC051",
+    "title": "Open an existing order detail using the eye icon",
+    "description": "Verifies that clicking the eye icon opens a purchase order detail view from the list.",
+    "category": "Inventory Purchase Orders",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Inventory\" / \"Inventario\" in the main navigation menu"
+      },
+      {
+        "type": "action",
+        "description": "Click the eye icon to view an order detail"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Detalle\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC052",
+    "title": "Confirm a DRAFT order and handle conflict error toast (invalid state)",
+    "description": "Verifies that confirming a draft order that is already confirmed externally shows the expected error toast and stays in DRAFT view.",
+    "category": "Inventory Purchase Orders",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Inventory\" / \"Inventario\" in the main navigation menu"
+      },
+      {
+        "type": "action",
+        "description": "Select \"DRAFT\" / \"Borrador\" from the status filter dropdown"
+      },
+      {
+        "type": "action",
+        "description": "Click the eye icon to view a draft order detail"
+      },
+      {
+        "type": "action",
+        "description": "Click the checkmark icon to confirm the draft order"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"No se pudo confirmar: estado inválido\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC053",
+    "title": "Delete a DRAFT order from the list and verify it is removed",
+    "description": "Verifies that a draft purchase order can be deleted via the trash icon and no longer appears in the list.",
+    "category": "Inventory Purchase Orders",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Ingresar\" / \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Inventory\" / \"Inventario\" in the main navigation menu"
+      },
+      {
+        "type": "action",
+        "description": "Select \"DRAFT\" / \"Borrador\" from the status filter dropdown"
+      },
+      {
+        "type": "action",
+        "description": "Click the trash icon to delete a draft order"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Borrador\" is not visible"
+      }
+    ]
+  },
+  {
+    "id": "TC054",
+    "title": "Soft delete a voucher with a mandatory reason",
+    "description": "Verifies that deleting a voucher requires a reason and that the voucher is removed from the active list or marked as deleted after confirmation.",
+    "category": "Voucher History",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Comprobantes\" navigation item"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/comprobantes\""
+      },
+      {
+        "type": "action",
+        "description": "Click the trash (delete) icon on the first visible voucher row"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Reason\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Anulación por error de carga\" into the reason field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Confirm\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Anulación por error de carga\" is not visible"
+      }
+    ]
+  },
+  {
+    "id": "TC055",
+    "title": "Deletion confirm dialog blocks confirm when reason is empty",
+    "description": "Verifies that the delete confirmation cannot proceed when the reason field is left empty.",
+    "category": "Voucher History",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Comprobantes\" navigation item"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/comprobantes\""
+      },
+      {
+        "type": "action",
+        "description": "Click the trash (delete) icon on the first visible voucher row"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Delete voucher confirmation dialog\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Confirm\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Delete voucher confirmation dialog\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC056",
+    "title": "Cancel deletion keeps voucher unchanged",
+    "description": "Verifies that canceling the delete confirmation closes the dialog and leaves the voucher visible in the list.",
+    "category": "Voucher History",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Comprobantes\" navigation item"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/comprobantes\""
+      },
+      {
+        "type": "action",
+        "description": "Type \"0001\" into the voucher number search input"
+      },
+      {
+        "type": "action",
+        "description": "Click the trash (delete) icon on the first visible voucher row"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Delete voucher confirmation dialog\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Cancel\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Delete voucher confirmation dialog\" is not visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Vouchers table\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC057",
+    "title": "Pagination navigates between voucher list pages",
+    "description": "Verifies that voucher history pagination controls move between pages and update the visible list.",
+    "category": "Voucher History",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Comprobantes\" navigation item"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/comprobantes\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Pagination controls\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Next\" pagination button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Page 2\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Previous\" pagination button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Page 1\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC058",
+    "title": "Filters persist while paging through results",
+    "description": "Verifies that selected voucher type/status filters remain applied when navigating to the next page of results.",
+    "category": "Voucher History",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Comprobantes\" navigation item"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/comprobantes\""
+      },
+      {
+        "type": "action",
+        "description": "Select a voucher type option from the voucher type filter dropdown"
+      },
+      {
+        "type": "action",
+        "description": "Select a status option from the status filter dropdown"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Next\" pagination button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the voucher type filter shows a selected value"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the status filter shows a selected value"
+      }
+    ]
+  },
+  {
+    "id": "TC059",
+    "title": "Search yields no results state",
+    "description": "Verifies that searching for a non-existent voucher number displays an empty state message and no rows.",
+    "category": "Voucher History",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Comprobantes\" navigation item"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/comprobantes\""
+      },
+      {
+        "type": "action",
+        "description": "Type \"ZZZ-NO-EXISTE-999999\" into the voucher number search input"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"No results\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Vouchers table\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC060",
+    "title": "Theme toggle works on a public route (Login page)",
+    "description": "Verifies theme toggle behavior does not break the UI on a non-authenticated route.",
+    "category": "Dark Light Theme Toggle",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/login\""
+      },
+      {
+        "type": "action",
+        "description": "Click theme toggle button in Header"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Dark\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click theme toggle button in Header"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Light\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC061",
+    "title": "Save business identity and fiscal data successfully",
+    "description": "Verifies that editing business fields and saving shows a success toast and the updated values persist on the settings page.",
+    "category": "Business Settings",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Iniciar sesión\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Settings\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/settings\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Guardar datos del negocio\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC062",
+    "title": "Persist updated business name, CUIT, and address after saving",
+    "description": "Verifies that changing business name, CUIT, and address and saving persists after leaving and returning to the settings page.",
+    "category": "Business Settings",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Iniciar sesión\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Settings\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Empresa QA Nombre\" into the \"Nombre\" (business name) field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"20304050607\" into the \"CUIT\" field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Calle Falsa 123, Ciudad QA\" into the \"Dirección\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Guardar datos del negocio\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Datos guardados\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC063",
+    "title": "Verify saved values remain after revisiting Settings within the session",
+    "description": "Verifies that the saved business fields remain visible after navigating away and returning to Settings.",
+    "category": "Business Settings",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Iniciar sesión\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Settings\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Empresa QA Persistencia\" into the \"Nombre\" (business name) field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Guardar datos del negocio\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Datos guardados\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Products\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Settings\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Empresa QA Persistencia\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC064",
+    "title": "Edit and save all available business fields in one submission",
+    "description": "Verifies that editing multiple business fields (tax condition, phone, email, sale point) can be saved successfully.",
+    "category": "Business Settings",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Iniciar sesión\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Settings\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Select \"Responsable Inscripto\" from the \"Condición frente al IVA\" dropdown"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"1144445555\" into the \"Teléfono\" field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"qa-settings@example.com\" into the \"Email\" field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"0003\" into the \"Punto de venta\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Guardar datos del negocio\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Datos guardados\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC065",
+    "title": "Validation: prevent saving with an invalid CUIT format",
+    "description": "Verifies the UI shows an error (or does not show success) when attempting to save an invalid CUIT value.",
+    "category": "Business Settings",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Iniciar sesión\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Settings\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"ABC123\" into the \"CUIT\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Guardar datos del negocio\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Datos guardados\" is not visible"
+      }
+    ]
+  },
+  {
+    "id": "TC066",
+    "title": "Server error handling: saving shows a visible error state",
+    "description": "Verifies that when saving fails, the user gets visible feedback (error toast/message) and does not see a success confirmation.",
+    "category": "Business Settings",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Iniciar sesión\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Settings\" in the main navigation"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Empresa QA Error\" into the \"Nombre\" (business name) field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Guardar datos del negocio\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Datos guardados\" is not visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Error\" is visible"
+      }
+    ]
+  }
+]

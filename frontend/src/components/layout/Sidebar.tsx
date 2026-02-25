@@ -14,8 +14,32 @@ import {
   BarChart3,
   Settings,
   TrendingUp,
+  Wallet,
+  ClipboardList,
 } from 'lucide-react'
 import { clsx } from 'clsx'
+import { useCurrentCash } from '../../hooks/useCash'
+
+function CajaBadge({ isCollapsed }: { isCollapsed: boolean }) {
+  const { data: cash } = useCurrentCash()
+
+  if (!cash) return null
+
+  const isExpired = cash.is_expired
+  const isOpen = cash.status === 'OPEN' && !isExpired
+
+  if (isOpen) {
+    return (
+      <span className="ml-auto h-2 w-2 rounded-full bg-green-400 flex-shrink-0" title="Caja abierta" />
+    )
+  }
+  if (isExpired) {
+    return (
+      <span className="ml-auto h-2 w-2 rounded-full bg-yellow-400 flex-shrink-0" title="Caja vencida" />
+    )
+  }
+  return null
+}
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -26,7 +50,9 @@ const navItems = [
   { path: '/clients', icon: Users, label: 'Clientes' },
   { path: '/suppliers', icon: Truck, label: 'Proveedores' },
   { path: '/categories', icon: FolderTree, label: 'Categorías' },
+  { path: '/caja', icon: Wallet, label: 'Caja', badge: true },
   { path: '/reports', icon: BarChart3, label: 'Reportes' },
+  { path: '/inventory', icon: ClipboardList, label: 'Inventario' },
   { path: '/settings', icon: Settings, label: 'Configuración' },
 ]
 
@@ -71,7 +97,10 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
             }
           >
             <item.icon size={20} className="flex-shrink-0" />
-            {!isCollapsed && <span className="ml-3 truncate">{item.label}</span>}
+            {!isCollapsed && <span className="ml-3 truncate flex-1">{item.label}</span>}
+            {(item as { badge?: boolean }).badge && (
+              <CajaBadge isCollapsed={isCollapsed} />
+            )}
           </NavLink>
         ))}
       </nav>
