@@ -298,6 +298,13 @@ Gráficos interactivos de ventas por período, comparativas con meses anteriores
 ### 🔔 Notificaciones y Alertas
 Alertas automáticas por stock crítico, vencimiento de CAE, facturas impagas y objetivos de venta.
 
+### 👥 Jerarquía de Usuarios y Permisos
+Sistema de roles y permisos dentro de cada negocio. Permitirá definir distintos niveles de acceso según el rol del operador:
+- **Administrador**: acceso total al sistema, configuración y reportes
+- **Vendedor**: solo puede emitir cotizaciones, remitos y facturas
+- **Cajero**: acceso a caja y ventas, sin gestión de productos ni configuración
+- **Repositor**: solo consulta y actualización de stock
+
 ### 🔗 Integraciones
 - **MercadoLibre**: sincronización de stock y precios con publicaciones
 - **WhatsApp**: envío de cotizaciones y facturas directamente al cliente
