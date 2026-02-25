@@ -109,6 +109,8 @@ class PurchaseOrderResponse(BaseResponse):
     category_id: Optional[UUID]
     created_by: UUID
     status: PurchaseOrderStatus
+    sale_point: str = "0001"
+    number: str = "00000001"
     subtotal: Decimal
     total_iva: Decimal
     total: Decimal
@@ -121,6 +123,11 @@ class PurchaseOrderResponse(BaseResponse):
     category_name: Optional[str] = None
     created_by_name: Optional[str] = None
 
+    @property
+    def full_number(self) -> str:
+        """Número completo: 0001-00000001."""
+        return f"{self.sale_point}-{self.number}"
+
 
 class PurchaseOrderListItem(BaseResponse):
     """Ítem resumido para la lista de órdenes de pedido."""
@@ -128,6 +135,8 @@ class PurchaseOrderListItem(BaseResponse):
     supplier_id: Optional[UUID]
     category_id: Optional[UUID]
     status: PurchaseOrderStatus
+    sale_point: str = "0001"
+    number: str = "00000001"
     subtotal: Decimal
     total_iva: Decimal
     total: Decimal

@@ -14,6 +14,7 @@ import {
   Clock,
   ShoppingCart,
   Package,
+  FileText,
 } from 'lucide-react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
@@ -125,6 +126,14 @@ export default function Inventory() {
       toast.error(err?.response?.data?.detail || 'No se pudo confirmar la orden'),
   })
 
+  const handlePreviewPdf = async (order: PurchaseOrderListItem) => {
+    try {
+      await purchaseOrdersService.previewPdf(order.id)
+    } catch {
+      toast.error('Error al abrir el PDF')
+    }
+  }
+
   const handleDownloadPdf = async (order: PurchaseOrderListItem) => {
     try {
       await purchaseOrdersService.downloadPdf(order.id, order.supplier_name)
@@ -230,11 +239,14 @@ export default function Inventory() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Fecha
-                  </th>
+                  <thead>
+                    <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        N°
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Fecha
+                      </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Proveedor
                   </th>
@@ -267,6 +279,9 @@ export default function Inventory() {
                     key={order.id}
                     className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
                   >
+                    <td className="px-4 py-3 font-mono text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                      {order.sale_point}-{order.number}
+                    </td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
                       {formatDate(order.created_at)}
                     </td>
@@ -307,6 +322,15 @@ export default function Inventory() {
                           className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors"
                         >
                           <Eye className="w-4 h-4" />
+                        </button>
+
+                        {/* Visualizar PDF en el navegador */}
+                        <button
+                          onClick={() => handlePreviewPdf(order)}
+                          title="Ver PDF"
+                          className="p-1.5 rounded-lg text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-900/30 transition-colors"
+                        >
+                          <FileText className="w-4 h-4" />
                         </button>
 
                         {/* Descargar PDF */}

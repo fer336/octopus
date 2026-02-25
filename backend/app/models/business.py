@@ -48,6 +48,7 @@ class Business(BaseModel):
     last_invoice_a_number = Column(String(8), default="00000000")
     last_invoice_b_number = Column(String(8), default="00000000")
     last_invoice_c_number = Column(String(8), default="00000000")
+    last_purchase_order_number = Column(String(8), default="00000000")
     
     # Configuración ARCA/AFIP
     arca_token = Column(Text, nullable=True)  # Token del WSAA

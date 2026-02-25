@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.business import Business
 from app.models.category import Category
 from app.models.product import Product
 from app.models.purchase_order import PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus
@@ -82,6 +83,12 @@ class PurchaseOrderService:
         Calcula automáticamente el costo unitario de cada ítem a partir del producto,
         pero lo deja editable (el operador puede sobrescribirlo).
         """
+        # Obtener el business para leer el punto de venta y asignar numeración correlativa
+        business = await self.db.get(Business, business_id)
+        last_num = int(business.last_purchase_order_number or "0")
+        next_num = last_num + 1
+        business.last_purchase_order_number = str(next_num).zfill(8)
+
         order = PurchaseOrder(
             business_id=business_id,
             supplier_id=data.supplier_id,
@@ -89,6 +96,8 @@ class PurchaseOrderService:
             created_by=user_id,
             notes=data.notes,
             status=PurchaseOrderStatus.DRAFT,
+            sale_point=business.sale_point or "0001",
+            number=str(next_num).zfill(8),
         )
         self.db.add(order)
         await self.db.flush()  # Para obtener el ID antes de agregar ítems

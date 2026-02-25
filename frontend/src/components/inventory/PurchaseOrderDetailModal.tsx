@@ -2,8 +2,9 @@
  * Modal de detalle de una Orden de Pedido.
  * Muestra todos los ítems, totales y permite confirmar o descargar el PDF.
  */
-import { X, FileDown, CheckCircle, Package, Calendar, Pencil } from 'lucide-react'
+import { X, FileDown, FileText, CheckCircle, Package, Calendar, Pencil } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
 import purchaseOrdersService, {
   PurchaseOrder,
   PurchaseOrderListItem,
@@ -54,12 +55,21 @@ export default function PurchaseOrderDetailModal({
     queryFn: () => purchaseOrdersService.getById(orderId),
   })
 
+  const handlePreviewPdf = async () => {
+    if (!order) return
+    try {
+      await purchaseOrdersService.previewPdf(order.id)
+    } catch {
+      toast.error('Error al abrir el PDF')
+    }
+  }
+
   const handleDownloadPdf = async () => {
     if (!order) return
     try {
       await purchaseOrdersService.downloadPdf(order.id, order.supplier_name)
     } catch {
-      // El error se maneja en el padre
+      toast.error('Error al descargar el PDF')
     }
   }
 
@@ -72,7 +82,12 @@ export default function PurchaseOrderDetailModal({
           <div className="flex items-center gap-3">
             <Package className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Detalle de Orden de Pedido
+              Orden de Pedido
+              {order && (
+                <span className="ml-2 font-mono text-blue-600 dark:text-blue-400">
+                  #{order.sale_point}-{order.number}
+                </span>
+              )}
             </h2>
           </div>
           <button
@@ -216,6 +231,13 @@ export default function PurchaseOrderDetailModal({
               Cerrar
             </button>
             <div className="flex items-center gap-3">
+              <button
+                onClick={handlePreviewPdf}
+                className="flex items-center gap-2 px-4 py-2 text-sm border border-purple-300 dark:border-purple-600 rounded-lg text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+              >
+                <FileText className="w-4 h-4" />
+                Ver PDF
+              </button>
               <button
                 onClick={handleDownloadPdf}
                 className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"

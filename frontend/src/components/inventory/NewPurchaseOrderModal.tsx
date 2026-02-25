@@ -69,10 +69,11 @@ export default function NewPurchaseOrderModal({
   onSuccess,
   draftOrder,
 }: Props) {
-  // Si viene un borrador, arrancamos en paso 3 directo con sus datos
   const isEditMode = !!draftOrder
 
-  const [step, setStep] = useState<1 | 2 | 3>(isEditMode ? 3 : 1)
+  // En modo edición arrancamos en paso 2 para cargar TODOS los productos
+  // y pre-marcar los que ya tenía el borrador
+  const [step, setStep] = useState<1 | 2 | 3>(isEditMode ? 2 : 1)
   const [selectedSupplier, setSelectedSupplier] = useState(draftOrder?.supplier_id ?? '')
   const [selectedCategory, setSelectedCategory] = useState(draftOrder?.category_id ?? '')
   const [notes, setNotes] = useState(draftOrder?.notes ?? '')
@@ -80,39 +81,9 @@ export default function NewPurchaseOrderModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSavingDraft, setIsSavingDraft] = useState(false)
 
-  // Filas de conteo (paso 2 y 3)
-  // En modo edición, pre-populamos desde los ítems del borrador
-  const [countRows, setCountRows] = useState<CountRow[]>(() => {
-    if (!draftOrder) return []
-    return draftOrder.items.map((item) => ({
-      product: {
-        id: item.product_id,
-        code: item.product_code ?? '',
-        description: item.product_description ?? '',
-        current_stock: item.system_stock,
-        list_price: 0,
-        discount_1: 0,
-        discount_2: 0,
-        discount_3: 0,
-        iva_rate: item.iva_rate,
-        // Campos requeridos por Product pero no críticos en edición
-        business_id: '',
-        cost_price: item.unit_cost,
-        net_price: item.unit_cost,
-        sale_price: item.unit_cost,
-        extra_cost: 0,
-        minimum_stock: 0,
-        unit: '',
-        is_active: true,
-        created_at: '',
-        updated_at: '',
-      } as any,
-      counted: item.counted_stock != null ? String(item.counted_stock) : '',
-      quantityToOrder: String(item.quantity_to_order),
-      unitCost: String(item.unit_cost),
-      selected: true,
-    }))
-  })
+  // Filas de conteo — siempre empezamos vacío; se poblará via useEffect cuando
+  // lleguen los productos del query (tanto en modo nuevo como en modo edición)
+  const [countRows, setCountRows] = useState<CountRow[]>([])
 
   // Cargar TODAS las páginas de productos según filtros
   // El backend limita per_page a 100, así que paginamos hasta traer todo
@@ -160,23 +131,43 @@ export default function NewPurchaseOrderModal({
   // Cuando lleguen los productos, crear las filas
   const products = productsData?.items ?? []
 
-  // Inicializar countRows SOLO la primera vez que llegan los productos
-  // Si ya hay filas (el usuario volvió atrás desde paso 3), NO sobreescribir
+  // Inicializar countRows cuando lleguen los productos.
+  // Si ya hay filas cargadas (el usuario volvió atrás desde paso 3), NO sobreescribir.
+  // En modo edición: pre-marcar los productos que ya tenía el borrador con sus valores.
   useEffect(() => {
     if (step === 2 && products.length > 0 && countRows.length === 0) {
+      // Construir mapa de ítems del borrador por product_id para lookup rápido
+      const draftItemsMap = new Map(
+        (draftOrder?.items ?? []).map((item) => [item.product_id, item])
+      )
+
       setCountRows(
-        products.map((p) => ({
-          product: p,
-          counted: '',
-          quantityToOrder: '',
-          unitCost: String(
-            calculateUnitCost(p.list_price, p.discount_1, p.discount_2, p.discount_3)
-          ),
-          selected: false,
-        }))
+        products.map((p) => {
+          const existing = draftItemsMap.get(p.id)
+          if (existing) {
+            // Producto que ya estaba en el borrador: restaurar sus valores previos
+            return {
+              product: p,
+              counted: existing.counted_stock != null ? String(existing.counted_stock) : '',
+              quantityToOrder: String(existing.quantity_to_order),
+              unitCost: String(existing.unit_cost),
+              selected: true,
+            }
+          }
+          // Producto nuevo: fila vacía
+          return {
+            product: p,
+            counted: '',
+            quantityToOrder: '',
+            unitCost: String(
+              calculateUnitCost(p.list_price, p.discount_1, p.discount_2, p.discount_3)
+            ),
+            selected: false,
+          }
+        })
       )
     }
-  }, [products, step, countRows.length])
+  }, [products, step, countRows.length, draftOrder])
 
   // Actualizar una fila de conteo
   const updateRow = (index: number, field: keyof CountRow, value: string | boolean) => {
@@ -460,6 +451,18 @@ export default function NewPurchaseOrderModal({
           {/* ── PASO 2: Carga de conteo ── */}
           {step === 2 && (
             <div className="space-y-4">
+              {/* Banner modo edición */}
+              {isEditMode && (
+                <div className="flex items-start gap-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg px-4 py-3">
+                  <Pencil className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0" />
+                  <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                    <span className="font-semibold">Editando borrador.</span>{' '}
+                    Se cargaron todos los productos del filtro original. Los que ya tenías en la orden
+                    están pre-marcados con sus valores anteriores — podés ajustarlos o agregar más.
+                  </p>
+                </div>
+              )}
+
               {/* Instrucción */}
               <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg px-4 py-3">
                 <span className="text-blue-500 text-base mt-0.5">📋</span>
@@ -800,9 +803,9 @@ export default function NewPurchaseOrderModal({
 
         {/* Footer con botones */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-          {/* Botón Atrás */}
+          {/* Botón Atrás — en modo edición no hay paso 1 para volver */}
           <div>
-            {step > 1 && (
+            {step > 1 && !(isEditMode && step === 2) && (
               <button
                 onClick={() => setStep((step - 1) as 1 | 2 | 3)}
                 className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"

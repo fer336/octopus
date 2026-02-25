@@ -38,6 +38,8 @@ export interface PurchaseOrder {
   category_id: string | null
   created_by: string
   status: PurchaseOrderStatus
+  sale_point: string
+  number: string
   subtotal: number
   total_iva: number
   total: number
@@ -57,6 +59,8 @@ export interface PurchaseOrderListItem {
   supplier_id: string | null
   category_id: string | null
   status: PurchaseOrderStatus
+  sale_point: string
+  number: string
   subtotal: number
   total_iva: number
   total: number
@@ -240,6 +244,18 @@ const purchaseOrdersService = {
     link.click()
     link.remove()
     window.URL.revokeObjectURL(url)
+  },
+
+  /**
+   * Abre el PDF de una orden de pedido en una nueva pestaña del navegador.
+   */
+  async previewPdf(id: string): Promise<void> {
+    const response = await httpClient.get(`/purchase-orders/${id}/pdf`, {
+      responseType: 'blob',
+    })
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
+    window.open(url, '_blank')
+    setTimeout(() => window.URL.revokeObjectURL(url), 10000)
   },
 }
 

@@ -58,6 +58,10 @@ class PurchaseOrder(BaseModel):
         index=True,
     )
 
+    # Numeración correlativa (ej: 0001-00000001)
+    sale_point = Column(String(4), nullable=False, default="0001")
+    number = Column(String(8), nullable=False, default="00000001")
+
     # Totales calculados
     subtotal = Column(Numeric(14, 2), default=0, nullable=False)   # Sin IVA
     total_iva = Column(Numeric(14, 2), default=0, nullable=False)  # IVA total
@@ -77,6 +81,11 @@ class PurchaseOrder(BaseModel):
         back_populates="purchase_order",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def full_number(self) -> str:
+        """Número completo formateado: 0001-00000001."""
+        return f"{self.sale_point}-{self.number}"
 
     def recalculate_totals(self) -> None:
         """Recalcula subtotal, total_iva y total a partir de los ítems."""
