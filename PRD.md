@@ -49,7 +49,7 @@ Dueños, administradores y vendedores de sanitarios, ferreterías y corralones q
 - Inicio de sesión mediante Google OAuth 2.0
 - Sesión activa con expiración a los 30 minutos de inactividad
 - Refresh token para renovar sesión sin re-login mientras el usuario esté activo
-- Roles básicos: Administrador, Vendedor (fase futura)
+- Roles básicos: Administrador, Vendedor (fase futura — ver sección 12)
 
 ### 3.2 Apertura y Cierre de Caja
 
@@ -1214,10 +1214,11 @@ GET    /purchase-orders/{id}/pdf       — Descargar PDF de la orden de pedido
 
 ### Fase 4 — Mobile y Avanzado
 - Versión mobile (React Native o PWA)
-- Roles y permisos de usuario
+- **Jerarquía de usuarios y permisos** (ver sección 12)
 - Backup automático de base de datos
-- Notificaciones
+- Notificaciones y alertas automáticas
 - **Agente de IA** integrado en la versión mobile (ver sección 11)
+- Integraciones externas: MercadoLibre, WhatsApp, conciliación bancaria
 
 ---
 
@@ -1297,3 +1298,66 @@ Los siguientes campos deberán agregarse a la tabla `products` cuando se impleme
 - [ ] Política de privacidad respecto al envío de imágenes a servicios externos
 - [ ] Idioma del agente (español neutro, rioplatense, configurable)
 - [ ] Manejo de errores cuando la IA no puede interpretar el presupuesto escaneado
+
+---
+
+## 12. Jerarquía de Usuarios y Permisos (Fase Futura)
+
+> ⚠️ **Estado:** No implementado. El sistema actualmente opera con un único rol (dueño/administrador por negocio). Esta sección define el diseño para la fase 4.
+
+### 12.1 Visión General
+
+El sistema de permisos permite que un negocio tenga múltiples operadores con distintos niveles de acceso. Cada usuario es invitado al negocio por el administrador y se le asigna un rol que determina qué puede ver y hacer.
+
+### 12.2 Roles Definidos
+
+| Rol | Descripción |
+|---|---|
+| **Administrador** | Acceso total: configuración, reportes, todos los módulos, gestión de usuarios |
+| **Vendedor** | Puede crear ventas, emitir cotizaciones, remitos y facturas. Sin acceso a configuración ni reportes financieros |
+| **Cajero** | Acceso a caja (apertura, movimientos, cierre) y ventas. Sin gestión de productos, proveedores ni configuración |
+| **Repositor** | Solo consulta y actualización de stock. Sin acceso a ventas ni información financiera |
+
+### 12.3 Matriz de Permisos
+
+| Módulo | Administrador | Vendedor | Cajero | Repositor |
+|---|---|---|---|---|
+| Dashboard | ✅ Completo | ✅ Ventas propias | ✅ Solo caja | ❌ |
+| Ventas | ✅ | ✅ | ✅ | ❌ |
+| Comprobantes | ✅ Todos | ✅ Propios | ✅ Solo ver | ❌ |
+| Productos | ✅ CRUD | ✅ Solo lectura | ❌ | ✅ Solo stock |
+| Actualización de precios | ✅ | ❌ | ❌ | ❌ |
+| Clientes | ✅ CRUD | ✅ CRUD | ✅ Solo ver | ❌ |
+| Proveedores | ✅ CRUD | ❌ | ❌ | ❌ |
+| Categorías | ✅ CRUD | ❌ | ❌ | ❌ |
+| Caja | ✅ | ❌ | ✅ | ❌ |
+| Reportes | ✅ Todos | ✅ Ventas | ❌ | ❌ |
+| Inventario / Órdenes de pedido | ✅ | ❌ | ❌ | ✅ Solo conteo |
+| Configuración del negocio | ✅ | ❌ | ❌ | ❌ |
+| Gestión de usuarios | ✅ | ❌ | ❌ | ❌ |
+
+### 12.4 Modelo de Datos Necesario
+
+**Tabla `business_users`** (relación negocio ↔ usuario con rol):
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `id` | UUID | Identificador único |
+| `business_id` | FK → businesses | Negocio al que pertenece |
+| `user_id` | FK → users | Usuario invitado |
+| `role` | Enum | `ADMIN` · `SELLER` · `CASHIER` · `STOREKEEPER` |
+| `invited_by` | FK → users | Usuario que realizó la invitación |
+| `is_active` | Boolean | Si el acceso está activo |
+| `created_at` | Timestamp | Fecha de alta |
+
+### 12.5 Flujo de Invitación
+1. El administrador ingresa el email del operador desde Configuración → Usuarios
+2. El sistema envía un email con link de invitación
+3. El operador acepta la invitación, inicia sesión con Google y queda vinculado al negocio con su rol
+4. El administrador puede cambiar el rol o desactivar el acceso en cualquier momento
+
+### 12.6 Consideraciones de Implementación
+- El JWT deberá incluir el `role` del usuario para el negocio activo
+- El backend debe validar permisos en cada endpoint mediante un decorator/dependency de FastAPI
+- El frontend debe ocultar/mostrar secciones del sidebar según el rol
+- Un usuario puede tener roles distintos en negocios distintos (multi-tenant)
