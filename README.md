@@ -26,11 +26,20 @@ Sistema ERP para gestión comercial de sanitarios, ferreterías y corralones.
 ### Factura Electrónica (PDF)
 ![Factura PDF](docs/screenshots/04-factura-pdf.png)
 
+### Cotización (PDF)
+![Cotización PDF](docs/screenshots/15-cotizacion-pdf.png)
+
+### Remito (PDF)
+![Remito PDF](docs/screenshots/16-remito-pdf.png)
+
 ### Productos
 ![Productos](docs/screenshots/02-productos.png)
 
 ### Actualización Masiva de Precios
 ![Actualización de Precios](docs/screenshots/07-actualizacion-precios.png)
+
+### Edición Masiva de Precios
+![Edición Masiva](docs/screenshots/17-edicion-masiva-precios.png)
 
 ### Clientes
 ![Clientes](docs/screenshots/08-clientes.png)
