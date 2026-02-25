@@ -160,6 +160,69 @@ octopustrack/
 - `PUT /api/v1/categories/{id}` - Actualizar categoría
 - `DELETE /api/v1/categories/{id}` - Eliminar categoría
 
+## Base de Datos
+
+### Opción A — Migraciones Alembic (recomendado)
+
+Si ya tenés PostgreSQL corriendo con la base de datos creada, aplicá todas las migraciones:
+
+```bash
+cd backend
+source venv/bin/activate
+alembic upgrade head
+```
+
+Esto crea las 20 tablas con todas las relaciones, índices y columnas en el orden correcto.
+
+### Opción B — Script SQL directo
+
+Si preferís crear el schema desde cero sin usar Alembic (por ejemplo para un entorno nuevo o para inspeccionar la estructura), usá el script incluido:
+
+```bash
+# Crear la base de datos (si no existe)
+psql -U postgres -c "CREATE DATABASE octopustrack;"
+
+# Aplicar el schema completo
+psql -U postgres -d octopustrack -f database/schema.sql
+```
+
+El archivo `database/schema.sql` contiene la creación de las 20 tablas con todas las claves foráneas, índices y restricciones para PostgreSQL 13+.
+
+### Tablas del sistema
+
+| Tabla | Descripción |
+|---|---|
+| `users` | Usuarios del sistema (login Google OAuth) |
+| `businesses` | Negocios (multi-tenant, uno por usuario) |
+| `categories` | Categorías de productos |
+| `suppliers` | Proveedores |
+| `supplier_categories` | Relación proveedor ↔ categoría |
+| `supplier_category_discounts` | Bonificaciones por proveedor/categoría |
+| `products` | Productos con precios y stock |
+| `price_history` | Historial de cambios de precio |
+| `price_update_drafts` | Borradores de actualización masiva de precios |
+| `clients` | Clientes |
+| `client_accounts` | Cuenta corriente por cliente |
+| `payment_methods` | Métodos de pago configurables |
+| `vouchers` | Comprobantes (cotizaciones, remitos, facturas) |
+| `voucher_items` | Líneas de cada comprobante |
+| `voucher_payments` | Pagos asociados a cada comprobante |
+| `payments` | Pagos de cuenta corriente |
+| `cash_registers` | Cajas diarias |
+| `cash_movements` | Movimientos de caja |
+| `purchase_orders` | Órdenes de compra a proveedores |
+| `purchase_order_items` | Líneas de cada orden de compra |
+
+### Regenerar el script SQL
+
+Si agregás nuevos modelos y necesitás actualizar el script:
+
+```bash
+cd backend
+source venv/bin/activate
+python scripts/generate_schema.py
+```
+
 ## Variables de Entorno
 
 Ver `.env.example` para la lista completa de variables.
