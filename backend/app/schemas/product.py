@@ -1,6 +1,7 @@
 """
 Schemas para Productos.
 """
+
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID
@@ -14,9 +15,17 @@ class ProductCreate(BaseSchema):
     """Schema para crear un producto."""
 
     code: str = Field(..., max_length=50, description="Código interno del negocio")
-    supplier_code: Optional[str] = Field(None, max_length=50, description="Código del proveedor")
-    description: str = Field(..., max_length=500, description="Descripción del producto")
+    supplier_code: Optional[str] = Field(
+        None, max_length=50, description="Código del proveedor"
+    )
+    description: str = Field(
+        ..., max_length=500, description="Descripción del producto"
+    )
     details: Optional[str] = Field(None, description="Descripción extendida")
+    customer_terms: Optional[str] = Field(
+        None,
+        description="Términos populares / jerga del cliente separados por comas. Usados por el agente IA.",
+    )
 
     category_id: Optional[UUID] = None
     supplier_id: Optional[UUID] = None
@@ -27,7 +36,12 @@ class ProductCreate(BaseSchema):
     discount_1: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     discount_2: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     discount_3: Decimal = Field(default=Decimal("0"), ge=0, le=100)
-    extra_cost: Decimal = Field(default=Decimal("0"), ge=0, description="Porcentaje de cargo extra")
+    extra_cost: Decimal = Field(
+        default=Decimal("0"), ge=0, description="Porcentaje de cargo extra"
+    )
+    profit_margin: Decimal = Field(
+        default=Decimal("0"), ge=0, description="Ganancia/utilidad en porcentaje"
+    )
 
     iva_rate: Decimal = Field(default=Decimal("21.00"), description="Alícuota IVA")
 
@@ -43,6 +57,10 @@ class ProductUpdate(BaseSchema):
     supplier_code: Optional[str] = Field(None, max_length=50)
     description: Optional[str] = Field(None, max_length=500)
     details: Optional[str] = None
+    customer_terms: Optional[str] = Field(
+        None,
+        description="Términos populares / jerga del cliente separados por comas.",
+    )
 
     category_id: Optional[UUID] = None
     supplier_id: Optional[UUID] = None
@@ -54,6 +72,7 @@ class ProductUpdate(BaseSchema):
     discount_2: Optional[Decimal] = Field(None, ge=0, le=100)
     discount_3: Optional[Decimal] = Field(None, ge=0, le=100)
     extra_cost: Optional[Decimal] = Field(None, ge=0)
+    profit_margin: Optional[Decimal] = Field(None, ge=0)
 
     iva_rate: Optional[Decimal] = None
 
@@ -71,6 +90,7 @@ class ProductResponse(BaseResponse):
     supplier_code: Optional[str]
     description: str
     details: Optional[str]
+    customer_terms: Optional[str]
 
     category_id: Optional[UUID]
     supplier_id: Optional[UUID]
@@ -83,6 +103,7 @@ class ProductResponse(BaseResponse):
     discount_3: Decimal
     discount_display: Optional[str]
     extra_cost: Decimal
+    profit_margin: Decimal
 
     net_price: Decimal
     sale_price: Decimal
@@ -103,6 +124,8 @@ class ProductListParams(BaseSchema):
     category_id: Optional[UUID] = None
     supplier_id: Optional[UUID] = None
     is_active: Optional[bool] = True
-    low_stock: Optional[bool] = Field(None, description="Filtrar productos con stock bajo")
+    low_stock: Optional[bool] = Field(
+        None, description="Filtrar productos con stock bajo"
+    )
     page: int = Field(default=1, ge=1)
     per_page: int = Field(default=20, ge=1, le=100)

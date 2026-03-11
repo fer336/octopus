@@ -2,6 +2,7 @@
 Configuración de la aplicación usando Pydantic Settings.
 Lee variables de entorno desde .env
 """
+
 from functools import lru_cache
 from typing import Union
 from pydantic import field_validator
@@ -23,7 +24,9 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
 
     # Base de datos
-    DATABASE_URL: str = "postgresql+asyncpg://octopustrack:password@localhost:5432/octopustrack"
+    DATABASE_URL: str = (
+        "postgresql+asyncpg://octopustrack:password@localhost:5432/octopustrack"
+    )
 
     # JWT
     JWT_SECRET: str = "your-super-secret-key-change-in-production"
@@ -37,10 +40,19 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/auth/google/callback"
 
     # CORS
-    CORS_ORIGINS: Union[list[str], str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8000"]
+    CORS_ORIGINS: Union[list[str], str] = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://localhost:8000",
+    ]
 
     # Frontend URLs
     FRONTEND_URL: str = "http://localhost:5173"
+
+    # OpenAI — Agente IA de Presupuestos
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o"  # Soporta visión (imágenes)
+    OPENAI_WHISPER_MODEL: str = "whisper-1"  # Transcripción de audio
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -51,19 +63,24 @@ class Settings(BaseSettings):
             v = v.strip()
             if v.startswith("[") and v.endswith("]"):
                 v = v[1:-1]  # Remover corchetes externos
-            
+
             # Intentar parsear como JSON si tiene formato JSON interno
             if '"' in v or "'" in v:
                 import json
+
                 try:
                     # Reemplazar comillas simples por dobles para JSON válido
                     v_json = v.replace("'", '"')
-                    return json.loads(f'[{v_json}]')
+                    return json.loads(f"[{v_json}]")
                 except json.JSONDecodeError:
                     pass
-            
+
             # Dividir por comas y limpiar
-            return [origin.strip().strip('"').strip("'") for origin in v.split(",") if origin.strip()]
+            return [
+                origin.strip().strip('"').strip("'")
+                for origin in v.split(",")
+                if origin.strip()
+            ]
         return v
 
 

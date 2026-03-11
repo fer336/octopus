@@ -2,6 +2,7 @@
 OctopusTrack API - Sistema ERP para Sanitarios, Ferreterías y Corralones.
 Punto de entrada de la aplicación FastAPI.
 """
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
@@ -9,7 +10,23 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import close_db
-from app.routers import auth, categories, clients, products, suppliers, dashboard, pdf_test, vouchers, arca, business, payment_methods, price_update_drafts, cash, purchase_orders
+from app.routers import (
+    auth,
+    categories,
+    clients,
+    products,
+    suppliers,
+    dashboard,
+    pdf_test,
+    vouchers,
+    arca,
+    business,
+    payment_methods,
+    price_update_drafts,
+    cash,
+    purchase_orders,
+    ai,
+)
 
 settings = get_settings()
 
@@ -38,6 +55,7 @@ app = FastAPI(
 async def log_cors_config():
     """Log CORS configuration on startup for debugging."""
     import logging
+
     logger = logging.getLogger("uvicorn")
     logger.info(f"CORS Origins configurados: {settings.CORS_ORIGINS}")
 
@@ -73,6 +91,7 @@ app.include_router(payment_methods.router, prefix=settings.API_V1_PREFIX)
 app.include_router(price_update_drafts.router, prefix=settings.API_V1_PREFIX)
 app.include_router(cash.router, prefix=settings.API_V1_PREFIX)
 app.include_router(purchase_orders.router, prefix=settings.API_V1_PREFIX)
+app.include_router(ai.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health", tags=["Health"])

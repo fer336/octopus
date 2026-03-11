@@ -31,6 +31,7 @@ export interface Product extends BaseEntity {
   supplier_code?: string
   description: string
   details?: string
+  customer_terms?: string   // Jerga del cliente para matching con el agente IA
   category_id?: string
   supplier_id?: string
   cost_price: number
@@ -47,6 +48,68 @@ export interface Product extends BaseEntity {
   unit: string
   is_active: boolean
 }
+
+// ── Tipos del Agente IA ───────────────────────────────────────
+
+/** Nivel de confianza del match de un producto */
+export type AIConfidence = 'HIGH' | 'MED' | 'LOW' | 'NONE'
+
+/** Ítem extraído del presupuesto original */
+export interface AIExtractedItem {
+  qty: number
+  unit: string
+  description: string
+  raw_original: string
+}
+
+/** Producto del catálogo matcheado por el agente */
+export interface AIMatchedProduct {
+  id: string
+  code: string
+  description: string
+  sale_price: number
+  net_price: number
+  unit: string
+  iva_rate: number
+  customer_terms?: string
+}
+
+/** Ítem del draft de presupuesto generado por el agente */
+export interface AIDraftItem {
+  item: AIExtractedItem
+  product: AIMatchedProduct | null
+  confidence: AIConfidence
+  confidence_score: number
+  alternatives: AIMatchedProduct[]
+  match_reason: string
+  qty: number
+  unit_price: number
+  total: number
+}
+
+/** Draft completo retornado por el agente */
+export interface AIDraft {
+  items: AIDraftItem[]
+  subtotal: number
+  summary: {
+    high: number
+    med: number
+    low: number
+    none: number
+  }
+  total_items: number
+}
+
+/** Respuesta completa del endpoint /ai/parse-quote */
+export interface AIParseQuoteResponse {
+  draft: AIDraft
+  needs_review: boolean
+  errors: string[]
+  raw_text: string
+}
+
+/** Tipo de entrada para el agente */
+export type AIInputType = 'image' | 'audio' | 'pdf' | 'docx' | 'text'
 
 // Cliente
 export interface Client extends BaseEntity {
