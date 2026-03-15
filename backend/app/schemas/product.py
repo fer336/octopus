@@ -3,7 +3,7 @@ Schemas para Productos.
 """
 
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -22,6 +22,15 @@ class ProductCreate(BaseSchema):
         ..., max_length=500, description="Descripción del producto"
     )
     details: Optional[str] = Field(None, description="Descripción extendida")
+    brand: Optional[str] = Field(None, max_length=100)
+    line: Optional[str] = Field(None, max_length=100)
+    application_area: Optional[str] = Field(None, max_length=100)
+    finish: Optional[str] = Field(None, max_length=80)
+    quality_tier: Optional[str] = Field(None, max_length=40)
+    attributes_json: Optional[str] = Field(
+        None,
+        description="Atributos por categoría en JSON serializado",
+    )
     customer_terms: Optional[str] = Field(
         None,
         description="Términos populares / jerga del cliente separados por comas. Usados por el agente IA.",
@@ -57,6 +66,15 @@ class ProductUpdate(BaseSchema):
     supplier_code: Optional[str] = Field(None, max_length=50)
     description: Optional[str] = Field(None, max_length=500)
     details: Optional[str] = None
+    brand: Optional[str] = Field(None, max_length=100)
+    line: Optional[str] = Field(None, max_length=100)
+    application_area: Optional[str] = Field(None, max_length=100)
+    finish: Optional[str] = Field(None, max_length=80)
+    quality_tier: Optional[str] = Field(None, max_length=40)
+    attributes_json: Optional[str] = Field(
+        None,
+        description="Atributos por categoría en JSON serializado",
+    )
     customer_terms: Optional[str] = Field(
         None,
         description="Términos populares / jerga del cliente separados por comas.",
@@ -90,6 +108,12 @@ class ProductResponse(BaseResponse):
     supplier_code: Optional[str]
     description: str
     details: Optional[str]
+    brand: Optional[str]
+    line: Optional[str]
+    application_area: Optional[str]
+    finish: Optional[str]
+    quality_tier: Optional[str]
+    attributes_json: Optional[str]
     customer_terms: Optional[str]
 
     category_id: Optional[UUID]
@@ -123,9 +147,16 @@ class ProductListParams(BaseSchema):
     search: Optional[str] = Field(None, description="Buscar por código o descripción")
     category_id: Optional[UUID] = None
     supplier_id: Optional[UUID] = None
+    brand: Optional[str] = None
+    line: Optional[str] = None
+    application_area: Optional[str] = None
+    finish: Optional[str] = None
+    quality_tier: Optional[str] = None
     is_active: Optional[bool] = True
     low_stock: Optional[bool] = Field(
         None, description="Filtrar productos con stock bajo"
     )
+    sort_by: Literal["description", "sale_price", "current_stock"] = "description"
+    sort_order: Literal["asc", "desc"] = "asc"
     page: int = Field(default=1, ge=1)
     per_page: int = Field(default=20, ge=1, le=100)

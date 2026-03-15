@@ -3,6 +3,7 @@
  * Soporta diferentes tamaños, cierre con ESC y click fuera.
  */
 import { ReactNode, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -50,7 +51,9 @@ export default function Modal({
     full: 'max-w-[90vw] w-full',
   }
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <div className="fixed inset-0 z-50 overflow-y-auto animate-fadeIn">
       {/* Backdrop */}
       <div
@@ -94,6 +97,7 @@ export default function Modal({
           <div className="px-6 py-4">{children}</div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

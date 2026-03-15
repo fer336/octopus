@@ -13,6 +13,13 @@ export interface Product {
   supplier_code?: string
   description: string
   details?: string
+  brand?: string
+  line?: string
+  application_area?: string
+  finish?: string
+  quality_tier?: string
+  attributes_json?: string
+  customer_terms?: string
   cost_price: number
   list_price: number
   discount_1: number
@@ -20,6 +27,7 @@ export interface Product {
   discount_3: number
   discount_display?: string
   extra_cost: number
+  profit_margin: number
   net_price: number
   sale_price: number
   iva_rate: number
@@ -35,6 +43,13 @@ export interface ProductCreate {
   code: string
   supplier_code?: string
   description: string
+  brand?: string
+  line?: string
+  application_area?: string
+  finish?: string
+  quality_tier?: string
+  attributes_json?: string
+  customer_terms?: string
   category_id?: string
   supplier_id?: string
   list_price: number
@@ -42,6 +57,7 @@ export interface ProductCreate {
   discount_2?: number
   discount_3?: number
   extra_cost?: number
+  profit_margin?: number
   iva_rate?: number
   current_stock?: number
   minimum_stock?: number
@@ -53,6 +69,13 @@ export interface ProductUpdate {
   code?: string
   supplier_code?: string
   description?: string
+  brand?: string
+  line?: string
+  application_area?: string
+  finish?: string
+  quality_tier?: string
+  attributes_json?: string
+  customer_terms?: string
   category_id?: string
   supplier_id?: string
   list_price?: number
@@ -60,6 +83,7 @@ export interface ProductUpdate {
   discount_2?: number
   discount_3?: number
   extra_cost?: number
+  profit_margin?: number
   iva_rate?: number
   current_stock?: number
   minimum_stock?: number
@@ -90,6 +114,7 @@ export interface ProductImportRow {
   discount_2: number
   discount_3: number
   extra_cost: number
+  profit_margin: number
   iva_rate: number
   current_stock: number
   minimum_stock: number
@@ -132,6 +157,13 @@ export const productsService = {
     search?: string
     category_id?: string
     supplier_id?: string
+    brand?: string
+    line?: string
+    application_area?: string
+    finish?: string
+    quality_tier?: string
+    sort_by?: 'description' | 'sale_price' | 'current_stock'
+    sort_order?: 'asc' | 'desc'
     is_active?: boolean
   }): Promise<PaginatedResponse<Product>> => {
     const response = await httpClient.get('/products', { params })

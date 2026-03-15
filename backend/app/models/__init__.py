@@ -2,6 +2,7 @@
 Modelos SQLAlchemy del sistema.
 Exporta todos los modelos para facilitar las importaciones.
 """
+
 from app.models.base import BaseModel
 from app.models.business import Business
 from app.models.category import Category
@@ -25,8 +26,13 @@ from app.models.cash_register import (
     CashMovementType,
     CashPaymentMethod,
 )
-from app.models.purchase_order import PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus
+from app.models.purchase_order import (
+    PurchaseOrder,
+    PurchaseOrderItem,
+    PurchaseOrderStatus,
+)
 from app.models.price_update_draft import PriceUpdateDraft
+from app.models.ai_provider_config import AIProviderConfig, AIProvider
 
 __all__ = [
     # Base
@@ -65,4 +71,7 @@ __all__ = [
     "PurchaseOrder",
     "PurchaseOrderItem",
     "PurchaseOrderStatus",
+    # IA
+    "AIProviderConfig",
+    "AIProvider",
 ]

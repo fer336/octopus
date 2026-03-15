@@ -26,6 +26,7 @@ from app.routers import (
     cash,
     purchase_orders,
     ai,
+    ai_config,
 )
 
 settings = get_settings()
@@ -47,6 +48,7 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
+    redirect_slashes=False,  # Evita 307 que consume el code de OAuth antes de procesarlo
 )
 
 
@@ -92,6 +94,7 @@ app.include_router(price_update_drafts.router, prefix=settings.API_V1_PREFIX)
 app.include_router(cash.router, prefix=settings.API_V1_PREFIX)
 app.include_router(purchase_orders.router, prefix=settings.API_V1_PREFIX)
 app.include_router(ai.router, prefix=settings.API_V1_PREFIX)
+app.include_router(ai_config.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health", tags=["Health"])

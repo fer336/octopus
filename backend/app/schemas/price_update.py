@@ -26,6 +26,7 @@ class FieldToUpdate(str, Enum):
     DISCOUNT_2 = "discount_2"
     DISCOUNT_3 = "discount_3"
     EXTRA_COST = "extra_cost"
+    PROFIT_MARGIN = "profit_margin"
     CURRENT_STOCK = "current_stock"
 
 

@@ -18,6 +18,7 @@ import json
 import logging
 import operator
 import re
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from typing import Annotated, Any, Literal
 
@@ -25,8 +26,8 @@ from openai import OpenAI
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings
 from app.models.product import Product
+from app.services.llm_factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +42,14 @@ except ImportError as e:
         "LangGraph no está instalado. Ejecutá: pip install langgraph langchain-openai"
     ) from e
 
-settings = get_settings()
-
 # Pool de hilos dedicado para el agente IA (no bloquea el event loop de FastAPI)
 _ai_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="ai-quote")
+
+# Cliente IA activo para el request en curso — se inyecta antes de correr el grafo
+# (threading.local para que cada hilo del executor tenga el suyo)
+import threading
+
+_thread_local = threading.local()
 
 # ─────────────────────────────────────────────────────────────
 # Tipos de confianza del matching
@@ -89,16 +94,30 @@ class QuoteAgentState(dict):
 
 
 # ─────────────────────────────────────────────────────────────
-# Cliente OpenAI (singleton)
+# Cliente IA — resuelto desde DB por LLMFactory
 # ─────────────────────────────────────────────────────────────
-def _get_openai_client() -> OpenAI:
-    """Retorna cliente OpenAI con la API key configurada."""
-    if not settings.OPENAI_API_KEY:
+def _get_ai_client() -> OpenAI:
+    """
+    Retorna el cliente IA del hilo actual (inyectado por run_quote_agent).
+    Todos los nodos del grafo usan este getter en vez de crear el cliente directamente.
+    """
+    client = getattr(_thread_local, "client", None)
+    if client is None:
         raise ValueError(
-            "OPENAI_API_KEY no está configurada. "
-            "Agregala en el archivo .env del backend."
+            "No hay proveedor de IA configurado para este negocio. "
+            "Configurá uno en Ajustes → Inteligencia Artificial."
         )
-    return OpenAI(api_key=settings.OPENAI_API_KEY)
+    return client
+
+
+def _get_ai_model() -> str:
+    """Retorna el modelo IA del hilo actual."""
+    return getattr(_thread_local, "model", "gpt-4o")
+
+
+def _get_ai_provider() -> str:
+    """Retorna el proveedor IA del hilo actual."""
+    return getattr(_thread_local, "provider", "openai")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -158,13 +177,13 @@ def _ingest_image(image_bytes: bytes) -> str:
     Usa GPT-4o Vision para extraer texto de una imagen (foto del presupuesto).
     Especialmente útil para fotos de papel manuscrito o impreso.
     """
-    client = _get_openai_client()
+    client = _get_ai_client()
 
     # Codificar imagen en base64 para la API de OpenAI
     b64_image = base64.b64encode(image_bytes).decode("utf-8")
 
     response = client.chat.completions.create(
-        model=settings.OPENAI_MODEL,
+        model=_get_ai_model(),
         messages=[
             {
                 "role": "user",
@@ -199,14 +218,18 @@ def _ingest_audio(audio_bytes: bytes) -> str:
     """
     import io
 
-    client = _get_openai_client()
+    client = _get_ai_client()
 
     # Whisper necesita un objeto tipo archivo con nombre
     audio_file = io.BytesIO(audio_bytes)
     audio_file.name = "audio.webm"  # Formato común de grabación del browser
 
+    from app.services.llm_factory import LLMFactory as _LF
+
+    whisper_model = _LF.get_whisper_model(_get_ai_provider())
+
     transcript = client.audio.transcriptions.create(
-        model=settings.OPENAI_WHISPER_MODEL,
+        model=whisper_model,
         file=audio_file,
         language="es",  # Español argentino
         prompt=(
@@ -295,7 +318,7 @@ def node_extractor(state: QuoteAgentState) -> dict:
 
     logger.info("[Extractor] Extrayendo ítems del texto...")
 
-    client = _get_openai_client()
+    client = _get_ai_client()
 
     system_prompt = """Sos un asistente especializado en interpretar pedidos de ferreterías y sanitarios argentinas.
 Tu tarea es extraer los ítems de un presupuesto o pedido y estructurarlos en JSON.
@@ -315,7 +338,7 @@ Respondé ÚNICAMENTE con un JSON array válido, sin markdown, sin explicaciones
 
     try:
         response = client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
+            model=_get_ai_model(),
             messages=[
                 {"role": "system", "content": system_prompt},
                 {
@@ -433,38 +456,141 @@ def _search_candidates_in_memory(
     if not description or not db_products:
         return []
 
-    # Tokenizar la descripción buscada (palabras de 3+ letras)
-    tokens = [t.lower() for t in re.split(r"[\s,/]+", description) if len(t) >= 3]
+    def _normalize(text: str) -> str:
+        normalized = unicodedata.normalize("NFKD", text or "")
+        ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
+        ascii_text = ascii_text.lower()
+        return re.sub(r"\s+", " ", ascii_text).strip()
 
-    scored = []
+    def _tokenize(text: str) -> list[str]:
+        return [
+            token
+            for token in re.findall(r"[a-z0-9/\-]+", _normalize(text))
+            if len(token) >= 2
+        ]
+
+    def _variants(token: str) -> set[str]:
+        variants = {token}
+        if token.endswith("es") and len(token) > 4:
+            variants.add(token[:-2])
+        if token.endswith("s") and len(token) > 3:
+            variants.add(token[:-1])
+        if token.endswith("itas") and len(token) > 5:
+            variants.add(token[:-4])
+            variants.add(token[:-1])
+        if token.endswith("itos") and len(token) > 5:
+            variants.add(token[:-4])
+            variants.add(token[:-1])
+        return {v for v in variants if len(v) >= 2}
+
+    raw_tokens = _tokenize(description)
+    if not raw_tokens:
+        return []
+
+    stop_tokens = {
+        "de",
+        "del",
+        "la",
+        "el",
+        "los",
+        "las",
+        "para",
+        "con",
+        "sin",
+        "por",
+        "una",
+        "uno",
+        "que",
+        "quiero",
+        "necesito",
+        "mostrar",
+        "mostrame",
+        "solo",
+        "precio",
+        "stock",
+    }
+    query_tokens = [t for t in raw_tokens if t not in stop_tokens]
+    if not query_tokens:
+        query_tokens = raw_tokens
+
+    normalized_query = _normalize(description)
+    all_query_variants = set()
+    for token in query_tokens:
+        all_query_variants.update(_variants(token))
+
+    min_token_hits = 1 if len(all_query_variants) <= 1 else 2
+
+    strict_scored: list[tuple[int, dict]] = []
+    loose_scored: list[tuple[int, dict]] = []
+
     for product in db_products:
         prod_description = (product.get("description") or "").lower()
+        prod_details = (product.get("details") or "").lower()
+        prod_brand = (product.get("brand") or "").lower()
+        prod_line = (product.get("line") or "").lower()
+        prod_application = (product.get("application_area") or "").lower()
+        prod_finish = (product.get("finish") or "").lower()
+        prod_quality = (product.get("quality_tier") or "").lower()
         prod_customer_terms = (product.get("customer_terms") or "").lower()
         prod_code = (product.get("code") or "").lower()
         prod_supplier_code = (product.get("supplier_code") or "").lower()
 
-        # Puntaje simple: coincidencias de tokens en descripción y customer_terms
-        score = 0
-        search_text = (
-            f"{prod_description} {prod_customer_terms} {prod_code} {prod_supplier_code}"
+        normalized_desc = _normalize(prod_description)
+        normalized_terms = _normalize(prod_customer_terms)
+        normalized_search_text = _normalize(
+            f"{prod_description} {prod_details} {prod_brand} {prod_line} "
+            f"{prod_application} {prod_finish} {prod_quality} "
+            f"{prod_customer_terms} {prod_code} {prod_supplier_code}"
         )
 
-        for token in tokens:
-            if token in search_text:
-                # customer_terms tiene más peso (son sinónimos exactos del cliente)
-                if token in prod_customer_terms:
-                    score += 3
-                elif token in prod_description:
-                    score += 2
-                else:
-                    score += 1
+        desc_tokens = set(_tokenize(prod_description))
+        terms_tokens = set(_tokenize(prod_customer_terms))
+        full_tokens = set(_tokenize(normalized_search_text))
 
-        if score > 0:
-            scored.append((score, product))
+        normalized_code = _normalize(prod_code)
+        normalized_supplier_code = _normalize(prod_supplier_code)
 
-    # Ordenar por puntaje descendente y retornar los mejores N
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [p for _, p in scored[:limit]]
+        score = 0
+        token_hits = 0
+
+        if normalized_query and (
+            normalized_query in normalized_desc or normalized_query in normalized_terms
+        ):
+            score += 15
+
+        if normalized_query and (
+            normalized_query == normalized_code
+            or normalized_query == normalized_supplier_code
+        ):
+            score += 25
+
+        for token in all_query_variants:
+            in_terms = token in terms_tokens
+            in_desc = token in desc_tokens
+            in_full = token in full_tokens
+
+            if in_terms:
+                score += 5
+                token_hits += 1
+            elif in_desc:
+                score += 4
+                token_hits += 1
+            elif in_full:
+                score += 2
+                token_hits += 1
+            elif token in normalized_search_text:
+                score += 1
+
+        if score <= 0:
+            continue
+
+        loose_scored.append((score, product))
+        if token_hits >= min_token_hits:
+            strict_scored.append((score, product))
+
+    ranked = strict_scored if strict_scored else loose_scored
+    ranked.sort(key=lambda x: x[0], reverse=True)
+    return [p for _, p in ranked[:limit]]
 
 
 def _llm_choose_best_match(item: dict, candidates: list) -> dict:
@@ -472,7 +598,7 @@ def _llm_choose_best_match(item: dict, candidates: list) -> dict:
     Usa GPT-4o para elegir el mejor match entre los candidatos.
     Retorna el ítem enriquecido con product, confidence y alternatives.
     """
-    client = _get_openai_client()
+    client = _get_ai_client()
 
     # Construir representación de candidatos para el prompt
     candidates_text = "\n".join(
@@ -508,7 +634,7 @@ Si ningún candidato es bueno, usá NONE y best_match_index: null."""
 
     try:
         response = client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
+            model=_get_ai_model(),
             messages=[
                 {"role": "system", "content": system_prompt},
                 {
@@ -730,6 +856,12 @@ async def _load_catalog_products(db: AsyncSession, business_id: str) -> list:
             Product.supplier_code,
             Product.description,
             Product.details,
+            Product.brand,
+            Product.line,
+            Product.application_area,
+            Product.finish,
+            Product.quality_tier,
+            Product.attributes_json,
             Product.customer_terms,
             Product.sale_price,
             Product.net_price,
@@ -751,6 +883,12 @@ async def _load_catalog_products(db: AsyncSession, business_id: str) -> list:
                 "supplier_code": row.supplier_code or "",
                 "description": row.description,
                 "details": row.details or "",
+                "brand": row.brand or "",
+                "line": row.line or "",
+                "application_area": row.application_area or "",
+                "finish": row.finish or "",
+                "quality_tier": row.quality_tier or "",
+                "attributes_json": row.attributes_json or "",
                 "customer_terms": row.customer_terms or "",
                 "sale_price": float(row.sale_price or 0),
                 "net_price": float(row.net_price or 0),
@@ -796,6 +934,10 @@ async def run_quote_agent(
     # Paso 1: Cargar catálogo en el event loop principal (acceso seguro a la BD)
     db_products = await _load_catalog_products(db, business_id)
 
+    # Paso 1b: Resolver el proveedor IA activo para este negocio
+    ai_provider, ai_api_key, ai_model = await LLMFactory.resolve(business_id, db)
+    ai_client = LLMFactory.build_openai_compatible(ai_api_key, ai_provider)
+
     # Estado inicial del grafo
     initial_state = {
         "input_type": input_type,
@@ -811,10 +953,18 @@ async def run_quote_agent(
     }
 
     # Paso 2: Correr el grafo en el executor dedicado (hilo separado)
+    # Se capturan las referencias al cliente/modelo para inyectarlas en el hilo
+    def _run_graph_with_client():
+        """Inyecta el cliente IA en el thread local y corre el grafo."""
+        _thread_local.client = ai_client
+        _thread_local.model = ai_model
+        _thread_local.provider = ai_provider
+        return _quote_graph.invoke(initial_state)
+
     loop = asyncio.get_event_loop()
     final_state = await loop.run_in_executor(
         _ai_executor,
-        lambda: _quote_graph.invoke(initial_state),
+        _run_graph_with_client,
     )
 
     # Paso 3: Armar respuesta final

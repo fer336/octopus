@@ -7,6 +7,7 @@ import { Building2, FileText, Bell, Shield } from 'lucide-react'
 import { Button, Input, Select } from '../components/ui'
 import { TAX_CONDITIONS } from '../types'
 import ARCAConfiguration from '../components/settings/ARCAConfiguration'
+import AIConfiguration from '../components/settings/AIConfiguration'
 import businessService, { Business, BusinessUpdate } from '../api/businessService'
 import toast from 'react-hot-toast'
 
@@ -277,6 +278,9 @@ export default function Settings() {
 
       {/* Facturación Electrónica ARCA/AFIP */}
       {businessId && <ARCAConfiguration businessId={businessId} />}
+
+      {/* Inteligencia Artificial */}
+      {businessId && <AIConfiguration businessId={businessId} />}
 
       {/* Seguridad */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">

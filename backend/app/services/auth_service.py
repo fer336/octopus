@@ -2,6 +2,7 @@
 Servicio de Autenticación.
 Maneja el login con Google OAuth y la gestión de tokens JWT.
 """
+
 from typing import Optional
 import httpx
 
@@ -114,6 +115,11 @@ class AuthService:
                 )
 
                 if token_response.status_code != 200:
+                    import logging
+
+                    logging.getLogger("uvicorn").error(
+                        f"[Auth] Google token exchange falló: {token_response.status_code} — {token_response.text}"
+                    )
                     return None
 
                 token_data = token_response.json()

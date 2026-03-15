@@ -32,6 +32,7 @@ interface EditableProduct {
   discount_3: number
   discount_display?: string
   extra_cost: number
+  profit_margin: number
   sale_price: number
   current_stock: number
 }
@@ -81,6 +82,7 @@ export default function BulkEditProductsModal({
         discount_2: Number(p.discount_2),
         discount_3: Number(p.discount_3),
         extra_cost: Number(p.extra_cost),
+        profit_margin: Number(p.profit_margin ?? 0),
         sale_price: Number(p.sale_price),
         current_stock: Number(p.current_stock),
       })))
@@ -93,6 +95,7 @@ export default function BulkEditProductsModal({
   const [quickSupplier, setQuickSupplier] = useState('')
   const [quickDiscount, setQuickDiscount] = useState('')
   const [quickCargo, setQuickCargo] = useState('')
+  const [quickProfit, setQuickProfit] = useState('')
   const [quickStock, setQuickStock] = useState('')
 
   // Acciones rápidas de precios
@@ -130,13 +133,16 @@ export default function BulkEditProductsModal({
     if (product.discount_1 > 0) price = price * (1 - product.discount_1 / 100)
     if (product.discount_2 > 0) price = price * (1 - product.discount_2 / 100)
     if (product.discount_3 > 0) price = price * (1 - product.discount_3 / 100)
-    
+
     // Aplicar cargo extra
     const netWithExtra = price * (1 + product.extra_cost / 100)
-    
+
+    // Aplicar ganancia/utilidad
+    const netWithProfit = netWithExtra * (1 + (product.profit_margin || 0) / 100)
+
     // Aplicar IVA 21%
-    const finalPrice = netWithExtra * 1.21
-    
+    const finalPrice = netWithProfit * 1.21
+
     return Math.round(finalPrice * 100) / 100
   }
 
@@ -196,6 +202,19 @@ export default function BulkEditProductsModal({
     })))
     
     toast.success(`Cargo ${cargo}% aplicado a ${products.length} productos`, { icon: '📊' })
+  }
+
+  // Aplicar ganancia a todos
+  const applyBulkProfit = () => {
+    const profit = parseFloat(quickProfit)
+    if (!profit && profit !== 0) return
+
+    setProducts(prev => prev.map(p => ({
+      ...p,
+      profit_margin: profit,
+    })))
+
+    toast.success(`Ganancia ${profit}% aplicada a ${products.length} productos`, { icon: '💹' })
   }
 
   // Aplicar stock a todos
@@ -380,6 +399,15 @@ export default function BulkEditProductsModal({
                 </div>
               </div>
 
+              {/* Ganancia */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">Ganancia %</label>
+                <div className="flex gap-2">
+                  <input type="number" value={quickProfit} onChange={(e) => setQuickProfit(e.target.value)} placeholder="30" className="flex-1 px-2 py-1.5 text-xs text-center border rounded dark:bg-gray-700 dark:border-gray-600" step="0.1" />
+                  <button onClick={applyBulkProfit} disabled={!quickProfit && quickProfit !== '0'} className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-400 text-white rounded text-xs font-medium">Aplicar</button>
+                </div>
+              </div>
+
               {/* Stock */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">Stock</label>
@@ -403,6 +431,7 @@ export default function BulkEditProductsModal({
                   <th className="px-3 py-3 text-center w-28">P. Lista</th>
                   <th className="px-3 py-3 text-center w-24">Bonif.</th>
                   <th className="px-3 py-3 text-center w-24">Cargo %</th>
+                  <th className="px-3 py-3 text-center w-24">Ganancia %</th>
                   <th className="px-3 py-3 text-center w-20">Stock</th>
                   <th className="px-3 py-3 text-center bg-blue-100 dark:bg-blue-900/30 w-28">P. Final</th>
                 </tr>
@@ -436,6 +465,9 @@ export default function BulkEditProductsModal({
                     </td>
                     <td className="px-3 py-2.5 text-center">
                       <input type="number" value={product.extra_cost} onChange={(e) => updateProduct(index, 'extra_cost', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1.5 text-xs border rounded dark:bg-gray-700 dark:border-gray-600 text-center" step="0.1" />
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <input type="number" value={product.profit_margin} onChange={(e) => updateProduct(index, 'profit_margin', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1.5 text-xs border rounded dark:bg-gray-700 dark:border-gray-600 text-center" step="0.1" />
                     </td>
                     <td className="px-3 py-2.5 text-center">
                       <input type="number" value={product.current_stock} onChange={(e) => updateProduct(index, 'current_stock', parseInt(e.target.value) || 0)} className="w-full px-2 py-1.5 text-xs border rounded dark:bg-gray-700 dark:border-gray-600 text-center" />

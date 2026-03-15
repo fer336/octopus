@@ -1,14 +1,13 @@
 /**
  * Header de la aplicación.
  * Contiene toggle de tema, información del usuario, logout
- * y el botón del Agente IA de Presupuestos.
+ * y el botón para abrir/cerrar el Asistente IA.
  */
-import { useState } from 'react'
 import { Sun, Moon, LogOut, Menu, ChevronLeft, Sparkles } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useAuthStore } from '../../stores/authStore'
+import { useAIStore } from '../../stores/aiStore'
 import Button from '../ui/Button'
-import AIQuotePanel from '../ai/AIQuotePanel'
 
 interface HeaderProps {
   onMenuClick?: () => void
@@ -21,7 +20,7 @@ export default function Header({
 }: HeaderProps) {
   const { theme, toggleTheme } = useTheme()
   const { user, logout } = useAuthStore()
-  const [isAIPanelOpen, setIsAIPanelOpen] = useState(false)
+  const toggleAI = useAIStore((s) => s.toggle)
 
   const handleLogout = () => {
     logout()
@@ -29,8 +28,7 @@ export default function Header({
   }
 
   return (
-    <>
-      <header className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 flex-shrink-0">
+    <header className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 flex-shrink-0">
         {/* Left side */}
         <div className="flex items-center gap-4">
           <button
@@ -52,7 +50,7 @@ export default function Header({
 
           {/* ── Botón Agente IA ─────────────────────────────────── */}
           <button
-            onClick={() => setIsAIPanelOpen(true)}
+            onClick={toggleAI}
             className="
               relative flex items-center gap-2 px-3 py-2 rounded-xl
               bg-gradient-to-r from-cyan-500 to-blue-500
@@ -106,12 +104,5 @@ export default function Header({
           </Button>
         </div>
       </header>
-
-      {/* Panel IA — se renderiza fuera del header para no interferir con el layout */}
-      <AIQuotePanel
-        isOpen={isAIPanelOpen}
-        onClose={() => setIsAIPanelOpen(false)}
-      />
-    </>
   )
 }

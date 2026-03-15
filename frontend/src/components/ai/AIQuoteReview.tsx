@@ -5,7 +5,7 @@
  * 🟡 MED/LOW — requiere revisión
  * 🔴 NONE — no encontrado, buscar manualmente
  */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, type ReactNode } from 'react'
 import { ArrowLeft, CheckCircle, AlertTriangle, XCircle, Plus, Minus, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { AIConfidence, AIDraftItem, AIMatchedProduct, AIParseQuoteResponse } from '../../types'
@@ -23,7 +23,7 @@ const CONFIDENCE_CONFIG: Record<AIConfidence, {
   bg: string
   badge: string
   badgeText: string
-  icon: React.ReactNode
+  icon: ReactNode
   label: string
 }> = {
   HIGH: {
@@ -62,7 +62,7 @@ const CONFIDENCE_CONFIG: Record<AIConfidence, {
 
 export default function AIQuoteReview({ result, onBack, onClose }: AIQuoteReviewProps) {
   // Estado local de los ítems (el usuario puede editar cantidades y productos)
-  const [items, setItems] = useState<AIDraftItem[]>(result.draft.items)
+  const [items, setItems] = useState<AIDraftItem[]>(result.draft?.items ?? [])
   
   // Estado para el toast de aprendizaje
   const [learnToast, setLearnToast] = useState<{
@@ -188,12 +188,12 @@ export default function AIQuoteReview({ result, onBack, onClose }: AIQuoteReview
         ))}
 
         {/* Errores del agente (no fatales) */}
-        {result.errors.length > 0 && (
+        {(result.errors ?? []).length > 0 && (
           <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
             <p className="text-xs font-medium text-yellow-700 dark:text-yellow-400 mb-1">
               Advertencias del agente:
             </p>
-            {result.errors.map((err, i) => (
+            {(result.errors ?? []).map((err, i) => (
               <p key={i} className="text-xs text-yellow-600 dark:text-yellow-500">• {err}</p>
             ))}
           </div>

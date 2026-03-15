@@ -2,14 +2,43 @@
  * Página de Login.
  * Permite iniciar sesión con Google OAuth.
  */
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { Octagon } from 'lucide-react'
 import Button from '../components/ui/Button'
 import authService from '../api/authService'
+import { useAuthStore } from '../stores/authStore'
 
 export default function Login() {
+  const navigate = useNavigate()
+  const setAuth = useAuthStore((s) => s.setAuth)
+
+  const devBypassEmail =
+    import.meta.env.VITE_DEV_BYPASS_EMAIL || 'casserafernando@gmail.com'
+  const autoDevLogin = import.meta.env.VITE_DEV_AUTO_LOGIN === 'true'
+
   const handleGoogleLogin = () => {
     authService.loginWithGoogle()
   }
+
+  const handleDevLogin = async () => {
+    try {
+      const response = await authService.devLogin(devBypassEmail)
+      setAuth(response)
+      toast.success(`Ingreso de testing: ${response.user?.email ?? devBypassEmail}`)
+      navigate('/', { replace: true })
+    } catch (error) {
+      console.error('Dev login error:', error)
+      toast.error('No se pudo iniciar sesión de testing')
+    }
+  }
+
+  useEffect(() => {
+    if (import.meta.env.DEV && autoDevLogin) {
+      void handleDevLogin()
+    }
+  }, [])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
@@ -61,6 +90,17 @@ export default function Login() {
             </svg>
             Continuar con Google
           </Button>
+
+          {import.meta.env.DEV && (
+            <Button
+              onClick={handleDevLogin}
+              variant="primary"
+              size="lg"
+              className="w-full mt-3"
+            >
+              Ingresar testing ({devBypassEmail})
+            </Button>
+          )}
 
           <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
             Al iniciar sesión, aceptas nuestros términos de servicio y política

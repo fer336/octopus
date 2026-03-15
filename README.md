@@ -12,6 +12,32 @@ Sistema ERP para gestión comercial de sanitarios, ferreterías y corralones.
 - **Reportes** de ventas, stock y cuentas corrientes
 - **Tema claro/oscuro**
 
+## Arquitectura del Agente IA
+
+<picture>
+  <source type="image/svg+xml" srcset="docs/diagrams/ai-agent-architecture-min.svg">
+  <img src="docs/diagrams/ai-agent-architecture-min.png" alt="Arquitectura Agente IA" />
+</picture>
+
+### Subgrafos detallados
+
+![Subgrafos del Agente IA](docs/diagrams/ai-agent-subgraphs.svg)
+
+El asistente IA usa una arquitectura LangGraph con un grafo principal y subgrafos especializados:
+
+- **Main Agent Graph**: orquesta el enrutamiento según intención.
+- **Catalog Discovery Graph**: búsqueda guiada con preguntas aclaratorias (marca, aplicación, precio, etc.).
+- **Guided Quote Graph**: intake multimodal (texto/voz/imagen/pdf), detección de faltantes y preview editable.
+- **System Help & Onboarding Graph**: ayuda operativa del sistema y entrega de guías visuales.
+
+Fuente editable del diagrama (draw.io): `docs/diagrams/ai-agent-architecture.drawio`
+
+## Testing E2E (TestSprite)
+
+Guía de ejecución local y bypass de login para pruebas automatizadas:
+
+- `testsprite_tests/README.md`
+
 ## Capturas del Sistema
 
 ### Dashboard

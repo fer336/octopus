@@ -49,6 +49,17 @@ class Product(BaseModel):
     description = Column(String(500), nullable=False, index=True)
     details = Column(Text, nullable=True)  # Descripción extendida
 
+    # Facetas comerciales para búsqueda guiada del agente IA
+    brand = Column(String(100), nullable=True, index=True)
+    line = Column(String(100), nullable=True, index=True)
+    application_area = Column(String(100), nullable=True, index=True)
+    finish = Column(String(80), nullable=True, index=True)
+    quality_tier = Column(String(40), nullable=True, index=True)
+
+    # Atributos específicos por categoría (JSON serializado)
+    # Ej: {"installation":"mesada","command":"monocomando"}
+    attributes_json = Column(Text, nullable=True)
+
     # Términos populares / jerga del cliente (para matching con el agente IA)
     # Ej: "rosca tuerca pp, bushing, niple macho, racor plástico 3/4"
     customer_terms = Column(Text, nullable=True)

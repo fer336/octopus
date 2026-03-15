@@ -2,6 +2,7 @@
 Modelo del Negocio/Empresa.
 Contiene los datos del comercio para el membrete y facturación.
 """
+
 from sqlalchemy import Column, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -49,18 +50,18 @@ class Business(BaseModel):
     last_invoice_b_number = Column(String(8), default="00000000")
     last_invoice_c_number = Column(String(8), default="00000000")
     last_purchase_order_number = Column(String(8), default="00000000")
-    
+
     # Configuración ARCA/AFIP
     arca_token = Column(Text, nullable=True)  # Token del WSAA
     arca_sign = Column(Text, nullable=True)  # Sign del WSAA
     arca_token_expiration = Column(String(30), nullable=True)  # Fecha de expiración
     arca_cuit_representante = Column(String(13), nullable=True)  # CUIT representante
     arca_environment = Column(String(20), default="testing")  # testing o production
-    
+
     # Configuración Afip SDK (https://afipsdk.com)
     afipsdk_access_token = Column(String(500), nullable=True)
     afip_cert = Column(Text, nullable=True)  # Contenido del certificado PEM
-    afip_key = Column(Text, nullable=True)   # Contenido de la clave privada PEM
+    afip_key = Column(Text, nullable=True)  # Contenido de la clave privada PEM
 
     # Relaciones
     owner = relationship("User", back_populates="businesses")
@@ -68,7 +69,12 @@ class Business(BaseModel):
     clients = relationship("Client", back_populates="business", lazy="dynamic")
     suppliers = relationship("Supplier", back_populates="business", lazy="dynamic")
     categories = relationship("Category", back_populates="business", lazy="dynamic")
-    payment_methods_catalog = relationship("PaymentMethodCatalog", back_populates="business", lazy="dynamic")
+    payment_methods_catalog = relationship(
+        "PaymentMethodCatalog", back_populates="business", lazy="dynamic"
+    )
+    ai_provider_configs = relationship(
+        "AIProviderConfig", back_populates="business", lazy="dynamic"
+    )
 
     def __repr__(self) -> str:
         return f"<Business {self.name}>"

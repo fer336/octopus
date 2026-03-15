@@ -28,6 +28,7 @@ class ProductImportRow(BaseSchema):
     discount_2: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     discount_3: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     extra_cost: Decimal = Field(default=Decimal("0"), ge=0)
+    profit_margin: Decimal = Field(default=Decimal("0"), ge=0)
     iva_rate: Decimal = Field(default=Decimal("21.00"))
     
     current_stock: int = Field(default=0, ge=0)
@@ -46,7 +47,7 @@ class ProductImportRow(BaseSchema):
     existing_id: Optional[UUID] = Field(None, description="ID del producto existente si aplica")
 
     # Serializar Decimals como float para JSON
-    @field_serializer('list_price', 'discount_1', 'discount_2', 'discount_3', 'extra_cost', 'iva_rate', 'net_price', 'sale_price')
+    @field_serializer('list_price', 'discount_1', 'discount_2', 'discount_3', 'extra_cost', 'profit_margin', 'iva_rate', 'net_price', 'sale_price')
     def serialize_decimal(self, value: Optional[Decimal]) -> Optional[float]:
         """Convierte Decimal a float para JSON."""
         return float(value) if value is not None else None

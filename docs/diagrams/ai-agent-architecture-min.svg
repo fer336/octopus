@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="title desc">
+  <title id="title">OctopusTrack AI Agent Architecture Minimal</title>
+  <desc id="desc">Minimal overview of the AI agent orchestration and subgraphs.</desc>
+  <defs>
+    <style>
+      .t { font: 700 24px Arial, sans-serif; fill: #0f172a; }
+      .l { font: 600 13px Arial, sans-serif; fill: #0f172a; }
+      .s { font: 500 11px Arial, sans-serif; fill: #334155; }
+      .b { rx: 10; ry: 10; stroke-width: 2; }
+      .a { stroke: #334155; stroke-width: 2; fill: none; marker-end: url(#m); }
+    </style>
+    <marker id="m" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,4 L0,8 z" fill="#334155" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1200" height="560" fill="#fff"/>
+  <text class="t" x="24" y="42">AI Agent Architecture (Minimal)</text>
+
+  <rect class="b" x="26" y="100" width="120" height="50" fill="#dbeafe" stroke="#2563eb"/>
+  <text class="l" x="62" y="130">Usuario</text>
+
+  <rect class="b" x="190" y="90" width="220" height="70" fill="#e0f2fe" stroke="#0891b2"/>
+  <text class="l" x="214" y="122">AI Assistant Panel</text>
+  <text class="s" x="214" y="141">texto/voz/imagen/pdf</text>
+
+  <rect class="b" x="452" y="100" width="170" height="50" fill="#f1f5f9" stroke="#475569"/>
+  <text class="l" x="475" y="130">POST /ai/chat</text>
+
+  <rect class="b" x="668" y="94" width="180" height="62" fill="#dbeafe" stroke="#1d4ed8"/>
+  <text class="l" x="697" y="130">Main Agent Graph</text>
+
+  <rect class="b" x="610" y="228" width="160" height="56" fill="#ede9fe" stroke="#6d28d9"/>
+  <text class="l" x="638" y="261">System Help</text>
+
+  <rect class="b" x="794" y="228" width="180" height="56" fill="#dcfce7" stroke="#15803d"/>
+  <text class="l" x="814" y="261">Catalog Discovery</text>
+
+  <rect class="b" x="998" y="228" width="160" height="56" fill="#ffedd5" stroke="#ea580c"/>
+  <text class="l" x="1029" y="261">Guided Quote</text>
+
+  <rect class="b" x="792" y="344" width="180" height="56" fill="#cffafe" stroke="#0891b2"/>
+  <text class="l" x="819" y="377">Preview / Handoff</text>
+
+  <rect class="b" x="696" y="454" width="170" height="50" fill="#fef9c3" stroke="#ca8a04"/>
+  <text class="l" x="715" y="483">Ventas / Quote UI</text>
+
+  <rect class="b" x="892" y="454" width="160" height="50" fill="#f3e8ff" stroke="#7e22ce"/>
+  <text class="l" x="923" y="483">Guides / Assets</text>
+
+  <rect class="b" x="962" y="90" width="220" height="112" fill="#f8fafc" stroke="#64748b" stroke-dasharray="6 5"/>
+  <text class="l" x="980" y="116">State / Persistence</text>
+  <text class="s" x="980" y="138">thread_id + checkpointer</text>
+  <text class="s" x="980" y="156">quote_cart + missing_fields</text>
+  <text class="s" x="980" y="174">preview_state</text>
+
+  <path class="a" d="M146 125 L190 125"/>
+  <path class="a" d="M410 125 L452 125"/>
+  <path class="a" d="M622 125 L668 125"/>
+  <path class="a" d="M730 156 L680 228"/>
+  <path class="a" d="M760 156 L870 228"/>
+  <path class="a" d="M790 156 L1078 228"/>
+  <path class="a" d="M690 284 L820 344"/>
+  <path class="a" d="M884 284 L884 344"/>
+  <path class="a" d="M1078 284 L950 344"/>
+  <path class="a" d="M860 400 L782 454"/>
+  <path class="a" d="M902 400 L972 454"/>
+</svg>

@@ -5,11 +5,14 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import { useAIStore } from '../../stores/aiStore'
 import Sidebar from './Sidebar'
 import Header from './Header'
+import AIAssistantPanel from '../ai/AIAssistantPanel'
 
 export default function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const isAIOpen = useAIStore((s) => s.isOpen)
 
   // Hook para cargar usuario en refresh
   useAuth()
@@ -24,7 +27,12 @@ export default function MainLayout() {
       <Sidebar isCollapsed={sidebarCollapsed} onToggle={toggleSidebar} />
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div
+        className={`
+          flex-1 flex flex-col overflow-hidden transition-all duration-300
+          ${isAIOpen ? 'sm:mr-96' : 'mr-0'}
+        `}
+      >
         <Header
           onMenuClick={toggleSidebar}
           isSidebarCollapsed={sidebarCollapsed}
@@ -34,6 +42,8 @@ export default function MainLayout() {
           <Outlet />
         </main>
       </div>
+
+      <AIAssistantPanel />
     </div>
   )
 }

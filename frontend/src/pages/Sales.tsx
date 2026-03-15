@@ -13,6 +13,7 @@ import arcaService from '../api/arcaService'
 import paymentMethodsService from '../api/paymentMethodsService'
 import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
+import { useSalesStore } from '../stores/salesStore'
 
 type VoucherType = 'quotation' | 'receipt' | 'invoice'
 
@@ -85,6 +86,10 @@ const taxConditions = [
 ]
 
 export default function Sales() {
+  const aiPreloadedItems = useSalesStore((s) => s.items)
+  const aiPreloadedFromAI = useSalesStore((s) => s.preloadedFromAI)
+  const clearAIPreload = useSalesStore((s) => s.clear)
+
   // React Query para productos
   const { data: productsData } = useQuery({
     queryKey: ['products-for-sales'],
@@ -357,6 +362,55 @@ export default function Sales() {
   )
 
   const paymentMethods = paymentMethodsData || []
+
+  // Hidratar ítems enviados desde el asistente IA (una sola vez por handoff)
+  useEffect(() => {
+    // Fallback robusto para handoff desde IA (sobrevive a refresh/navegación)
+    try {
+      const raw = sessionStorage.getItem('ai-sales-preload')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const mappedFromSession: CartItem[] = parsed
+            .filter((d: any) => d?.product)
+            .map((d: any) => ({
+              id: d.product.id,
+              code: d.product.code,
+              description: d.product.description,
+              sale_price: d.product.sale_price,
+              quantity: Number(d.qty ?? d.item?.qty ?? 1),
+              discount: 0,
+            }))
+
+          if (mappedFromSession.length > 0) {
+            setItems(mappedFromSession)
+            toast.success('Items del asistente cargados en la venta', { icon: '🛒' })
+          }
+        }
+        sessionStorage.removeItem('ai-sales-preload')
+      }
+    } catch {
+      // no-op
+    }
+
+    if (!aiPreloadedFromAI) return
+
+    const mappedFromAI: CartItem[] = aiPreloadedItems.map((item) => ({
+      id: item.productId,
+      code: item.code,
+      description: item.description,
+      sale_price: item.unitPrice,
+      quantity: item.qty,
+      discount: 0,
+    }))
+
+    if (mappedFromAI.length > 0) {
+      setItems(mappedFromAI)
+      toast.success('Items del asistente cargados en la venta', { icon: '🛒' })
+    }
+
+    clearAIPreload()
+  }, [aiPreloadedFromAI, aiPreloadedItems, clearAIPreload])
 
   useEffect(() => {
     if (!paymentMethodsData || paymentMethodsData.length === 0) return

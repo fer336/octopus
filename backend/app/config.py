@@ -3,7 +3,6 @@ Configuración de la aplicación usando Pydantic Settings.
 Lee variables de entorno desde .env
 """
 
-from functools import lru_cache
 from typing import Union
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,7 +12,7 @@ class Settings(BaseSettings):
     """Configuración principal de la aplicación."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "backend/.env"),  # busca en raíz del repo Y en backend/
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
@@ -39,9 +38,11 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/auth/google/callback"
 
-    # CORS
+    # CORS — incluye los puertos de Vite más comunes para desarrollo local
     CORS_ORIGINS: Union[list[str], str] = [
         "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
         "http://localhost:3000",
         "http://localhost:8000",
     ]
@@ -49,10 +50,14 @@ class Settings(BaseSettings):
     # Frontend URLs
     FRONTEND_URL: str = "http://localhost:5173"
 
-    # OpenAI — Agente IA de Presupuestos
+    # OpenAI — Fallback de desarrollo (las keys reales se guardan por negocio en DB)
     OPENAI_API_KEY: str = ""
-    OPENAI_MODEL: str = "gpt-4o"  # Soporta visión (imágenes)
-    OPENAI_WHISPER_MODEL: str = "whisper-1"  # Transcripción de audio
+    OPENAI_MODEL: str = "gpt-4o"
+    OPENAI_WHISPER_MODEL: str = "whisper-1"
+
+    # Cifrado simétrico de API keys en base de datos
+    # Generá la tuya con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    APP_ENCRYPTION_KEY: str = ""
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -84,7 +89,6 @@ class Settings(BaseSettings):
         return v
 
 
-@lru_cache()
 def get_settings() -> Settings:
-    """Obtiene la instancia de configuración (cacheada)."""
+    """Obtiene la instancia de configuración leyendo el .env."""
     return Settings()

@@ -1,12 +1,14 @@
 """
-Router del Agente IA de Presupuestos — OctopusTrack
-====================================================
+Router del Agente IA — OctopusTrack
+=====================================
 Expone los endpoints para:
 - POST /ai/parse-quote  → Analiza un archivo/texto y retorna draft del presupuesto
+- POST /ai/chat         → Chat conversacional con el asistente IA (nuevo)
 - POST /ai/create-quote → Crea el voucher (cotización) a partir del draft confirmado
 - PATCH /ai/learn-term  → Guarda un término aprendido en customer_terms del producto
 """
 
+import json
 import logging
 from uuid import UUID
 
@@ -17,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.services.ai_quote_service import add_customer_term, run_quote_agent
+from app.services.ai_chat_service import run_chat_agent
 from app.utils.security import get_current_business, get_current_user
 
 logger = logging.getLogger(__name__)
@@ -39,6 +42,25 @@ ALLOWED_DOC_TYPES = {
 
 MAX_FILE_SIZE_MB = 20
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+
+GREETING_TERMS = {
+    "hola",
+    "buenas",
+    "buen dia",
+    "buen día",
+    "que tal",
+    "qué tal",
+    "como va",
+    "cómo va",
+    "hey",
+}
+
+HELP_TERMS = {
+    "ayuda",
+    "help",
+    "que podes hacer",
+    "qué podés hacer",
+}
 
 
 # ─────────────────────────────────────────────────────────────
@@ -96,7 +118,7 @@ async def parse_quote(
     - **needs_review**: True si hay ítems que requieren revisión manual
     - **errors**: lista de errores no fatales
     """
-    business_id = str(current_business.id)
+    business_id = str(current_business)
 
     # ── Determinar tipo de entrada ───────────────────────────────
     if file and file.filename:
@@ -205,3 +227,139 @@ async def learn_term(
         )
 
     return {"message": f"Término '{body.term}' guardado correctamente."}
+
+
+# ─────────────────────────────────────────────────────────────
+# POST /ai/chat
+# ─────────────────────────────────────────────────────────────
+@router.post("/chat", summary="Chat con el Asistente IA del negocio")
+async def chat(
+    message: str = Form(..., description="Mensaje del usuario"),
+    history: str = Form(
+        default="[]",
+        description="Historial JSON serializado: [{role, content}, ...]",
+    ),
+    file: UploadFile | None = File(
+        default=None,
+        description="Archivo adjunto opcional (imagen, audio, PDF, DOCX)",
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_business=Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """
+    Chat conversacional con el asistente IA del negocio.
+
+    El agente clasifica la intención del mensaje y responde de forma apropiada:
+    - **Consulta de precio/stock**: busca en el catálogo y muestra los resultados
+    - **Solicitud de presupuesto**: corre el grafo de cotización y devuelve el draft
+    - **Consulta general**: responde como asistente de negocio en español
+
+    El historial (últimos 10 mensajes) se envía como JSON serializado en el campo `history`.
+
+    Acepta archivo adjunto con los mismos tipos que `/parse-quote`.
+    """
+    business_id = str(current_business)
+    normalized = (message or "").strip().lower()
+
+    # Fast-path para saludos/ayuda: evita depender del proveedor IA
+    # y mejora robustez cuando hay fallas transitorias del LLM.
+    if not file and normalized in GREETING_TERMS:
+        return JSONResponse(
+            content={
+                "response_type": "text",
+                "text": (
+                    "¡Hola! Soy Octo 👋 Te ayudo con precios, stock y presupuestos. "
+                    "Probá con: 'precio de aireador de grifería' o 'cotizar 2 aireadores'."
+                ),
+                "products": None,
+                "quote": None,
+            }
+        )
+
+    if not file and normalized in HELP_TERMS:
+        return JSONResponse(
+            content={
+                "response_type": "text",
+                "text": (
+                    "Puedo ayudarte con 3 cosas: consultar precios, consultar stock y "
+                    "armar cotizaciones. Decime producto + cantidad y lo hacemos juntos."
+                ),
+                "products": None,
+                "quote": None,
+            }
+        )
+
+    # Parsear historial
+    try:
+        parsed_history = json.loads(history)
+        if not isinstance(parsed_history, list):
+            parsed_history = []
+        # Tomar solo los últimos 10 mensajes
+        parsed_history = parsed_history[-10:]
+    except (json.JSONDecodeError, ValueError):
+        parsed_history = []
+
+    # Procesar archivo adjunto si existe
+    input_file: bytes | None = None
+    input_file_type: str | None = None
+
+    if file and file.filename:
+        content_type = file.content_type or ""
+        file_bytes = await file.read()
+
+        if len(file_bytes) > MAX_FILE_SIZE_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo supera el límite de {MAX_FILE_SIZE_MB}MB.",
+            )
+
+        if content_type in ALLOWED_IMAGE_TYPES:
+            input_file = file_bytes
+            input_file_type = "image"
+        elif content_type in ALLOWED_AUDIO_TYPES:
+            input_file = file_bytes
+            input_file_type = "audio"
+        elif content_type == "application/pdf":
+            input_file = file_bytes
+            input_file_type = "pdf"
+        elif "wordprocessingml" in content_type or (file.filename or "").endswith(
+            ".docx"
+        ):
+            input_file = file_bytes
+            input_file_type = "docx"
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail=f"Tipo de archivo '{content_type}' no soportado.",
+            )
+
+    logger.info(
+        f"[AI Chat] message='{message[:60]}...', "
+        f"history_len={len(parsed_history)}, "
+        f"file={input_file_type or 'none'}, "
+        f"business={business_id}"
+    )
+
+    try:
+        result = await run_chat_agent(
+            message=message,
+            history=parsed_history,
+            business_id=business_id,
+            db=db,
+            input_file=input_file,
+            input_file_type=input_file_type,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"[AI Chat] Error en el agente: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del agente de IA. Revisá los logs del servidor.",
+        )
+
+    return JSONResponse(content=result)

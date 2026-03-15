@@ -2,11 +2,12 @@
 Servicio de Productos.
 Contiene toda la lógica de negocio para productos.
 """
+
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.product import Product
@@ -82,6 +83,11 @@ class ProductService:
                 Product.code.ilike(f"%{params.search}%"),
                 Product.supplier_code.ilike(f"%{params.search}%"),
                 Product.description.ilike(f"%{params.search}%"),
+                Product.brand.ilike(f"%{params.search}%"),
+                Product.line.ilike(f"%{params.search}%"),
+                Product.application_area.ilike(f"%{params.search}%"),
+                Product.finish.ilike(f"%{params.search}%"),
+                Product.customer_terms.ilike(f"%{params.search}%"),
             )
             base_conditions.append(search_filter)
 
@@ -90,6 +96,25 @@ class ProductService:
 
         if params.supplier_id:
             base_conditions.append(Product.supplier_id == params.supplier_id)
+
+        if params.brand:
+            base_conditions.append(Product.brand.ilike(f"%{params.brand}%"))
+
+        if params.line:
+            base_conditions.append(Product.line.ilike(f"%{params.line}%"))
+
+        if params.application_area:
+            base_conditions.append(
+                Product.application_area.ilike(f"%{params.application_area}%")
+            )
+
+        if params.finish:
+            base_conditions.append(Product.finish.ilike(f"%{params.finish}%"))
+
+        if params.quality_tier:
+            base_conditions.append(
+                Product.quality_tier.ilike(f"%{params.quality_tier}%")
+            )
 
         if params.is_active is not None:
             base_conditions.append(Product.is_active == params.is_active)
@@ -102,12 +127,20 @@ class ProductService:
         count_result = await self.db.execute(count_query)
         total = count_result.scalar() or 0
 
+        sort_map = {
+            "description": Product.description,
+            "sale_price": Product.sale_price,
+            "current_stock": Product.current_stock,
+        }
+        sort_column = sort_map.get(params.sort_by, Product.description)
+        sort_direction = desc if params.sort_order == "desc" else asc
+
         # Query paginada
         offset = (params.page - 1) * params.per_page
         query = (
             select(Product)
             .where(*base_conditions)
-            .order_by(Product.description)
+            .order_by(sort_direction(sort_column), Product.description.asc())
             .offset(offset)
             .limit(params.per_page)
         )
@@ -140,7 +173,15 @@ class ProductService:
             setattr(product, field, value)
 
         # Recalcular precios si cambió algo relacionado
-        price_fields = {"list_price", "discount_1", "discount_2", "discount_3", "iva_rate", "extra_cost"}
+        price_fields = {
+            "list_price",
+            "discount_1",
+            "discount_2",
+            "discount_3",
+            "iva_rate",
+            "extra_cost",
+            "profit_margin",
+        }
         if price_fields & set(update_data.keys()):
             product.calculate_prices()
 

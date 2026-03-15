@@ -38,6 +38,16 @@ export const authService = {
   },
 
   /**
+   * Login de desarrollo para testing E2E.
+   * Solo funciona si backend está en DEBUG.
+   */
+  devLogin: async (email?: string): Promise<AuthResponse> => {
+    const params = email ? { email } : undefined
+    const response = await authClient.post('/auth/dev-login', null, { params })
+    return response.data
+  },
+
+  /**
    * Refresca el access token usando el refresh token.
    */
   refreshToken: async (refreshToken: string): Promise<{ access_token: string }> => {

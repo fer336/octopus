@@ -2,7 +2,8 @@
 Router de Autenticación.
 Endpoints para login con Google OAuth y gestión de sesiones JWT.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -70,7 +71,7 @@ async def google_login():
 
 @router.get("/google/callback")
 async def google_callback(
-    code: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -78,28 +79,44 @@ async def google_callback(
     Recibe el código de autorización, lo intercambia por tokens
     y crea/actualiza el usuario en la base de datos.
     """
+    import logging
+
+    logger = logging.getLogger("uvicorn")
+
+    # Leer el code directamente de los query params para evitar
+    # que FastAPI haga un 307 si el param "code" no está declarado como requerido
+    code = request.query_params.get("code")
+
+    logger.info(f"[OAuth] Callback recibido — URL: {request.url}")
+    logger.info(f"[OAuth] Code presente: {bool(code)}")
+
     if not code:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Código de autorización no proporcionado",
+        frontend_url = settings.FRONTEND_URL
+        return RedirectResponse(
+            url=f"{frontend_url}/login?error=no_code",
+            status_code=303,
         )
 
     service = AuthService(db)
     result = await service.login_with_google_code(code)
 
     if not result:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Error al autenticar con Google",
+        logger.error("[OAuth] login_with_google_code retornó None")
+        frontend_url = settings.FRONTEND_URL
+        return RedirectResponse(
+            url=f"{frontend_url}/login?error=auth_failed",
+            status_code=303,
         )
 
-    # Redirigir al frontend con los tokens en la URL
+    # Usar 303 See Other en vez de 307 para evitar que el browser
+    # re-envíe el mismo request (con el mismo code) al seguir el redirect
     frontend_url = settings.FRONTEND_URL
     access_token = result["access_token"]
     refresh_token = result["refresh_token"]
 
     redirect_url = f"{frontend_url}/auth/callback?access_token={access_token}&refresh_token={refresh_token}"
-    return RedirectResponse(url=redirect_url)
+    logger.info(f"[OAuth] Redirigiendo a frontend: {frontend_url}/auth/callback")
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @router.post("/google", response_model=TokenResponse)
@@ -173,6 +190,10 @@ async def logout():
 
 @router.post("/dev-login", response_model=TokenResponse)
 async def dev_login(
+    email: str | None = Query(
+        None,
+        description="Email para login de desarrollo. Si no se envía, usa el primer usuario activo.",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -189,10 +210,42 @@ async def dev_login(
     from sqlalchemy import select
     from app.models.user import User
 
-    # Obtener el primer usuario activo
-    query = select(User).where(User.is_active.is_(True)).limit(1)
-    result = await db.execute(query)
-    user = result.scalar_one_or_none()
+    user = None
+
+    if email:
+        query = (
+            select(User).where(User.email == email, User.is_active.is_(True)).limit(1)
+        )
+        result = await db.execute(query)
+        user = result.scalar_one_or_none()
+
+        # Si no existe, crear usuario dev automáticamente
+        if not user:
+            user = User(
+                email=email,
+                name=email.split("@")[0],
+                picture="",
+                google_id=f"dev-{email}",
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+
+            from app.models.business import Business
+
+            business = Business(
+                owner_id=user.id,
+                name="Mi Negocio",
+                cuit="00-00000000-0",
+                tax_condition="Monotributista",
+            )
+            db.add(business)
+            await db.commit()
+    else:
+        # Obtener el primer usuario activo
+        query = select(User).where(User.is_active.is_(True)).limit(1)
+        result = await db.execute(query)
+        user = result.scalar_one_or_none()
 
     if not user:
         raise HTTPException(

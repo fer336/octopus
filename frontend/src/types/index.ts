@@ -31,6 +31,12 @@ export interface Product extends BaseEntity {
   supplier_code?: string
   description: string
   details?: string
+  brand?: string
+  line?: string
+  application_area?: string
+  finish?: string
+  quality_tier?: string
+  attributes_json?: string
   customer_terms?: string   // Jerga del cliente para matching con el agente IA
   category_id?: string
   supplier_id?: string
@@ -110,6 +116,40 @@ export interface AIParseQuoteResponse {
 
 /** Tipo de entrada para el agente */
 export type AIInputType = 'image' | 'audio' | 'pdf' | 'docx' | 'text'
+
+// ── Tipos del Chat IA ─────────────────────────────────────────
+
+/** Mensaje individual del historial del chat */
+export interface ChatMessage {
+  id: string                        // nanoid() local para key de React
+  role: 'user' | 'assistant'
+  content: string                   // Texto principal del mensaje
+  response_type: 'text' | 'products' | 'quote'
+  products?: AIMatchedProduct[]     // Solo cuando response_type='products'
+  quote?: AIParseQuoteResponse      // Solo cuando response_type='quote'
+  timestamp: number                 // Date.now()
+  isThinking?: boolean              // Placeholder mientras el backend procesa
+}
+
+/** Request al endpoint /ai/chat */
+export interface AIChatRequest {
+  message: string
+  history: { role: string; content: string }[]
+}
+
+/** Response del endpoint /ai/chat */
+export interface AIChatResponse {
+  response_type: 'text' | 'products' | 'quote'
+  text: string
+  products?: AIMatchedProduct[]
+  quote?: AIParseQuoteResponse
+}
+
+/** Ítem del carrito virtual del asistente */
+export interface AIQuoteCartItem {
+  product: AIMatchedProduct
+  qty: number
+}
 
 // Cliente
 export interface Client extends BaseEntity {

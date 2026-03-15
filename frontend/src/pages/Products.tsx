@@ -299,6 +299,7 @@ export default function Products() {
   const [formData, setFormData] = useState<Partial<Product>>({
     code: '',
     description: '',
+    customer_terms: '',
     supplier_code: '',
     category_id: '',
     supplier_id: '',
@@ -307,6 +308,7 @@ export default function Products() {
     discount_2: 0,
     discount_3: 0,
     extra_cost: 0,
+    profit_margin: 0,
     iva_rate: 21,
     current_stock: 0,
     minimum_stock: 0,
@@ -323,6 +325,7 @@ export default function Products() {
   const listPriceRef = useRef<HTMLInputElement>(null)
   const discountsRef = useRef<HTMLInputElement>(null)
   const extraCostRef = useRef<HTMLInputElement>(null)
+  const profitRef = useRef<HTMLInputElement>(null)
   const taxRef = useRef<HTMLInputElement>(null)
   const categoryRef = useRef<HTMLSelectElement>(null)
   const supplierRef = useRef<HTMLSelectElement>(null)
@@ -335,6 +338,7 @@ export default function Products() {
     setFormData({
       code: '',
       description: '',
+      customer_terms: '',
       supplier_code: '',
       category_id: '',
       supplier_id: '',
@@ -343,6 +347,7 @@ export default function Products() {
       discount_2: 0,
       discount_3: 0,
       extra_cost: 0,
+      profit_margin: 0,
       iva_rate: 21,
       current_stock: 0,
       minimum_stock: 0,
@@ -415,17 +420,14 @@ export default function Products() {
     const d2 = formData.discount_2 || 0
     const d3 = formData.discount_3 || 0
     const extra = formData.extra_cost || 0
+    const profit = formData.profit_margin || 0
     const iva = formData.iva_rate || 21
 
-    // Neto base
     const netBase = listPrice * (1 - d1 / 100) * (1 - d2 / 100) * (1 - d3 / 100)
-    
-    // Con extra
     const netWithExtra = netBase * (1 + extra / 100)
-    
-    // Con IVA
-    const finalPrice = netWithExtra * (1 + iva / 100)
-    
+    const netWithProfit = netWithExtra * (1 + profit / 100)
+    const finalPrice = netWithProfit * (1 + iva / 100)
+
     return finalPrice
   }
 
@@ -521,6 +523,7 @@ export default function Products() {
       code: formData.code!.trim(),
       supplier_code: formData.supplier_code?.trim() || undefined,
       description: formData.description!.trim(),
+      customer_terms: formData.customer_terms?.trim() || undefined,
       category_id: formData.category_id || undefined,
       supplier_id: formData.supplier_id || undefined,
       list_price: formData.list_price!,
@@ -528,6 +531,7 @@ export default function Products() {
       discount_2: formData.discount_2 || 0,
       discount_3: formData.discount_3 || 0,
       extra_cost: formData.extra_cost || 0,
+      profit_margin: formData.profit_margin || 0,
       iva_rate: formData.iva_rate || 21,
       current_stock: formData.current_stock || 0,
       minimum_stock: formData.minimum_stock || 0,
@@ -837,6 +841,18 @@ export default function Products() {
                 required
               />
             </div>
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Términos del cliente (IA)
+              </label>
+              <textarea
+                value={formData.customer_terms || ''}
+                onChange={(e) => setFormData({ ...formData, customer_terms: e.target.value })}
+                placeholder="Ej: rosca tuerca pp, entrerosca plastica, niple pp"
+                rows={2}
+                className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
 
           {/* Sección 2: Precios - Layout compacto */}
@@ -847,7 +863,7 @@ export default function Products() {
                 Configuración de Precios
               </h3>
             </div>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-5 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   P. Lista *
@@ -865,7 +881,7 @@ export default function Products() {
                   required
                 />
               </div>
-              <div className="col-span-1">
+              <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Bonif. (10+5)
                 </label>
@@ -889,7 +905,23 @@ export default function Products() {
                   value={formData.extra_cost}
                   onChange={(e) => setFormData({ ...formData, extra_cost: parseFloat(e.target.value) || 0 })}
                   onFocus={handleNumericFocus}
-                  onKeyDown={(e) => handleNumericKeyDown(e, 'extra_cost', taxRef)}
+                  onKeyDown={(e) => handleNumericKeyDown(e, 'extra_cost', profitRef)}
+                  placeholder="0"
+                  step="0.1"
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Ganancia %
+                </label>
+                <input
+                  ref={profitRef}
+                  type="number"
+                  value={formData.profit_margin}
+                  onChange={(e) => setFormData({ ...formData, profit_margin: parseFloat(e.target.value) || 0 })}
+                  onFocus={handleNumericFocus}
+                  onKeyDown={(e) => handleNumericKeyDown(e, 'profit_margin', taxRef)}
                   placeholder="0"
                   step="0.1"
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-green-500"
@@ -920,13 +952,15 @@ export default function Products() {
               const d2 = formData.discount_2 || 0
               const d3 = formData.discount_3 || 0
               const extra = formData.extra_cost || 0
+              const profit = formData.profit_margin || 0
               const iva = formData.iva_rate || 21
 
               // Cálculo paso a paso
               const netBase = listPrice * (1 - d1 / 100) * (1 - d2 / 100) * (1 - d3 / 100)
               const netWithExtra = netBase * (1 + extra / 100)
-              const ivaAmount = netWithExtra * (iva / 100)
-              const finalPrice = netWithExtra + ivaAmount
+              const netWithProfit = netWithExtra * (1 + profit / 100)
+              const ivaAmount = netWithProfit * (iva / 100)
+              const finalPrice = netWithProfit + ivaAmount
 
               return (
                 <div className="mt-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
@@ -940,7 +974,7 @@ export default function Products() {
                         </div>
                         {(d1 > 0 || d2 > 0 || d3 > 0) && (
                           <div className="flex justify-between text-green-600 dark:text-green-400">
-                            <span>- Bonificaciones ({[d1, d2, d3].filter(d => d > 0).join('+')  }%):</span>
+                            <span>- Bonificaciones ({[d1, d2, d3].filter(d => d > 0).join('+')}%):</span>
                             <span className="font-mono">-${(listPrice - netBase).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                           </div>
                         )}
@@ -950,9 +984,15 @@ export default function Products() {
                             <span className="font-mono">+${(netWithExtra - netBase).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                           </div>
                         )}
+                        {profit > 0 && (
+                          <div className="flex justify-between text-yellow-600 dark:text-yellow-400">
+                            <span>+ Ganancia ({profit}%):</span>
+                            <span className="font-mono">+${(netWithProfit - netWithExtra).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between border-t border-gray-300 dark:border-gray-600 pt-0.5">
                           <span>Neto sin IVA:</span>
-                          <span className="font-mono font-medium">${netWithExtra.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                          <span className="font-mono font-medium">${netWithProfit.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                         </div>
                         <div className="flex justify-between text-purple-600 dark:text-purple-400">
                           <span>+ IVA ({iva}%):</span>

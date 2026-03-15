@@ -47,25 +47,28 @@ class ExcelService:
         except (ValueError, IndexError):
             return Decimal(0), Decimal(0), Decimal(0)
     
-    def _calculate_prices(self, list_price: Decimal, d1: Decimal, d2: Decimal, d3: Decimal, 
-                         extra_cost: Decimal, iva_rate: Decimal) -> Tuple[Decimal, Decimal, str]:
+    def _calculate_prices(self, list_price: Decimal, d1: Decimal, d2: Decimal, d3: Decimal,
+                         extra_cost: Decimal, profit_margin: Decimal, iva_rate: Decimal) -> Tuple[Decimal, Decimal, str]:
         """Calcula precio neto y final, igual que el modelo Product."""
         # Precio con bonificaciones (neto base)
         net_base = list_price * (1 - d1 / 100) * (1 - d2 / 100) * (1 - d3 / 100)
-        
-        # Aplicar cargo extra sobre el neto
+
+        # Aplicar cargo extra
         net_with_extra = net_base * (1 + extra_cost / 100)
-        
+
+        # Aplicar ganancia/utilidad
+        net_with_profit = net_with_extra * (1 + profit_margin / 100)
+
         # Precio final con IVA
-        sale = net_with_extra * (1 + iva_rate / 100)
-        
-        net_price = round(net_with_extra, 2)
+        sale = net_with_profit * (1 + iva_rate / 100)
+
+        net_price = round(net_with_profit, 2)
         sale_price = round(sale, 2)
-        
+
         # Formato de descuento para mostrar
         discounts = [d for d in [d1, d2, d3] if d > 0]
         discount_display = "+".join([str(int(d)) for d in discounts]) if discounts else None
-        
+
         return net_price, sale_price, discount_display
 
     async def preview_import(self, business_id: UUID, file_content: bytes) -> ImportPreviewResponse:
@@ -136,12 +139,13 @@ class ExcelService:
                 
                 d1, d2, d3 = self._parse_discounts(row.get('bonificaciones', ''))
                 extra_cost = Decimal(str(row.get('cargo_extra', 0))) if pd.notna(row.get('cargo_extra')) else Decimal(0)
+                profit_margin = Decimal(str(row.get('ganancia', 0))) if pd.notna(row.get('ganancia')) else Decimal(0)
                 iva_rate = Decimal(str(row.get('iva', 21))) if pd.notna(row.get('iva')) else Decimal(21)
                 current_stock = int(row.get('stock', 0)) if pd.notna(row.get('stock')) else 0
-                
+
                 # Calcular precios
                 net_price, sale_price, discount_display = self._calculate_prices(
-                    list_price, d1, d2, d3, extra_cost, iva_rate
+                    list_price, d1, d2, d3, extra_cost, profit_margin, iva_rate
                 )
                 
                 # Buscar categoría si se especifica
@@ -195,6 +199,7 @@ class ExcelService:
                     discount_2=d2,
                     discount_3=d3,
                     extra_cost=extra_cost,
+                    profit_margin=profit_margin,
                     iva_rate=iva_rate,
                     current_stock=current_stock,
                     net_price=net_price,
@@ -255,6 +260,7 @@ class ExcelService:
                         discount_2=row.discount_2,
                         discount_3=row.discount_3,
                         extra_cost=row.extra_cost,
+                        profit_margin=row.profit_margin,
                         iva_rate=row.iva_rate,
                         current_stock=row.current_stock,
                         cost_price=Decimal(0),  # Se puede calcular después
@@ -268,7 +274,7 @@ class ExcelService:
                         query = select(Product).where(Product.id == row.existing_id)
                         result = await self.db.execute(query)
                         existing_product = result.scalar_one_or_none()
-                        
+
                         if existing_product:
                             existing_product.code = row.code
                             existing_product.supplier_code = row.supplier_code
@@ -280,6 +286,7 @@ class ExcelService:
                             existing_product.discount_2 = row.discount_2
                             existing_product.discount_3 = row.discount_3
                             existing_product.extra_cost = row.extra_cost
+                            existing_product.profit_margin = row.profit_margin
                             existing_product.iva_rate = row.iva_rate
                             existing_product.current_stock = row.current_stock
                             existing_product.calculate_prices()
@@ -366,6 +373,7 @@ class ExcelService:
                     "discount_2": d2,
                     "discount_3": d3,
                     "extra_cost": Decimal(str(row.get('cargo_extra', 0))) if pd.notna(row.get('cargo_extra')) else Decimal(0),
+                    "profit_margin": Decimal(str(row.get('ganancia', 0))) if pd.notna(row.get('ganancia')) else Decimal(0),
                     "iva_rate": Decimal("21.00"), # Default
                     "business_id": business_id
                 }
@@ -434,9 +442,9 @@ class ExcelService:
         
         # Definir columnas (orden para importación)
         headers = [
-            'codigo', 'codigo_proveedor', 'nombre_proveedor', 'categoria', 
+            'codigo', 'codigo_proveedor', 'nombre_proveedor', 'categoria',
             'nombre', 'stock', 'precio_lista', 'bonificaciones', 'cargo_extra',
-            'precio_venta'
+            'ganancia', 'precio_venta'
         ]
         
         # Escribir headers con estilo
@@ -472,6 +480,7 @@ class ExcelService:
                 float(p.list_price) if p.list_price else 0.0,
                 bonificaciones_str,
                 float(p.extra_cost) if p.extra_cost else 0.0,
+                float(p.profit_margin) if p.profit_margin else 0.0,
                 float(p.sale_price) if p.sale_price else 0.0,
             ]
             
@@ -485,9 +494,9 @@ class ExcelService:
                     cell.alignment = Alignment(horizontal="center", vertical="center")
                 else:  # números
                     cell.alignment = Alignment(horizontal="right", vertical="center")
-                
+
                 # Formato de números
-                if col_idx in [7, 9, 10]:  # precio_lista, cargo_extra, precio_venta
+                if col_idx in [7, 9, 10, 11]:  # precio_lista, cargo_extra, ganancia, precio_venta
                     cell.number_format = '#,##0.00'
                 elif col_idx == 6:  # stock
                     cell.number_format = '0'
@@ -515,7 +524,8 @@ class ExcelService:
             'G': 15,  # precio_lista
             'H': 16,  # bonificaciones
             'I': 14,  # cargo_extra
-            'J': 15,  # precio_venta
+            'J': 14,  # ganancia
+            'K': 15,  # precio_venta
         }
         
         for col, width in column_widths.items():
@@ -622,6 +632,7 @@ class ExcelService:
                 'descuento_3': float(p.discount_3),
                 'bonificaciones': p.discount_display or "0",
                 'cargo_extra': float(p.extra_cost),
+                'ganancia': float(p.profit_margin),
                 'precio_neto': float(p.net_price),
                 'precio_venta': float(p.sale_price),
                 'iva': float(p.iva_rate),

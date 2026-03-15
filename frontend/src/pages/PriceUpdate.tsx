@@ -139,6 +139,7 @@ export default function PriceUpdate() {
           discount_2: product.discount_2,
           discount_3: product.discount_3,
           extra_cost: product.extra_cost,
+          profit_margin: product.profit_margin,
           current_stock: product.current_stock,
         })
       }

@@ -51,6 +51,41 @@ const aiService = {
       term,
     })
   },
+
+  /**
+   * Envía un mensaje al asistente IA de chat.
+   * El backend clasifica la intención y responde con el tipo apropiado:
+   * - "text"     → respuesta conversacional general
+   * - "products" → lista de productos del catálogo encontrados
+   * - "quote"    → draft de cotización con semáforo de confianza
+   *
+   * @param message  Mensaje actual del usuario
+   * @param history  Últimos N mensajes del historial [{role, content}]
+   * @param file     Archivo adjunto opcional (imagen, audio, PDF, DOCX)
+   */
+  chat: async (
+    message: string,
+    history: { role: string; content: string }[],
+    file?: File | null,
+  ): Promise<import('../types').AIChatResponse> => {
+    const formData = new FormData()
+    formData.append('message', message)
+    formData.append('history', JSON.stringify(history.slice(-10)))
+
+    if (file) {
+      formData.append('file', file)
+    }
+
+    const response = await httpClient.post<import('../types').AIChatResponse>(
+      `${AI_BASE}/chat`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 90_000,
+      },
+    )
+    return response.data
+  },
 }
 
 export default aiService
