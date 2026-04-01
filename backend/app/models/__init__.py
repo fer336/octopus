@@ -34,7 +34,11 @@ from app.models.purchase_order import (
 from app.models.price_update_draft import PriceUpdateDraft
 from app.models.ai_provider_config import AIProviderConfig, AIProvider
 from app.models.tenant_secret import TenantSecret
-from app.models.tenant_membership import TenantMembership, MembershipRole
+from app.models.tenant_membership import (
+    TenantMembership,
+    MembershipRole,
+    MembershipAccessStatus,
+)
 from app.models.audit_log import AuditLog
 
 __all__ = [
@@ -46,6 +50,7 @@ __all__ = [
     "TenantSecret",
     "TenantMembership",
     "MembershipRole",
+    "MembershipAccessStatus",
     "AuditLog",
     # Entidades principales
     "Category",

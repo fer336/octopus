@@ -133,6 +133,18 @@ const aiConfigService = {
   },
 
   /**
+   * Consulta los modelos REALES usando la API key YA GUARDADA en DB.
+   * Útil cuando el proveedor ya está configurado y el usuario quiere
+   * ver los modelos actualizados sin re-ingresar la key.
+   */
+  fetchModelsSaved: async (
+    provider: AIProvider,
+  ): Promise<FetchModelsResponse> => {
+    const { data } = await httpClient.post(`/ai/config/${provider}/fetch-models-saved`, {})
+    return data
+  },
+
+  /**
    * Devuelve el catálogo estático de modelos por proveedor.
    */
   getModelsCatalog: async (): Promise<ProviderModelCatalog> => {

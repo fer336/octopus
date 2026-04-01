@@ -129,6 +129,7 @@ export interface ChatMessage {
   quote?: AIParseQuoteResponse      // Solo cuando response_type='quote'
   timestamp: number                 // Date.now()
   isThinking?: boolean              // Placeholder mientras el backend procesa
+  thinkingText?: string             // Paso actual del agente (streaming SSE)
 }
 
 /** Request al endpoint /ai/chat */
@@ -139,10 +140,12 @@ export interface AIChatRequest {
 
 /** Response del endpoint /ai/chat */
 export interface AIChatResponse {
-  response_type: 'text' | 'products' | 'quote'
+  response_type: 'text' | 'products' | 'quote' | 'cart_action'
   text: string
   products?: AIMatchedProduct[]
   quote?: AIParseQuoteResponse
+  /** Solo cuando response_type === 'cart_action' — ítems confirmados para agregar al carrito */
+  cart_items?: { product: AIMatchedProduct; qty: number }[]
 }
 
 /** Ítem del carrito virtual del asistente */

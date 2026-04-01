@@ -12,7 +12,6 @@ import {
   FolderTree,
   FileText,
   BarChart3,
-  Settings,
   TrendingUp,
   Wallet,
   ClipboardList,
@@ -53,7 +52,6 @@ const navItems = [
   { path: '/caja', icon: Wallet, label: 'Caja', badge: true },
   { path: '/reports', icon: BarChart3, label: 'Reportes' },
   { path: '/inventory', icon: ClipboardList, label: 'Inventario' },
-  { path: '/settings', icon: Settings, label: 'Configuración' },
 ]
 
 interface SidebarProps {

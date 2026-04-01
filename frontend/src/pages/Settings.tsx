@@ -6,7 +6,6 @@ import { useState, useEffect } from 'react'
 import { Building2, FileText, Bell, Shield } from 'lucide-react'
 import { Button, Input, Select } from '../components/ui'
 import { TAX_CONDITIONS } from '../types'
-import ARCAConfiguration from '../components/settings/ARCAConfiguration'
 import AIConfiguration from '../components/settings/AIConfiguration'
 import businessService, { Business, BusinessUpdate } from '../api/businessService'
 import toast from 'react-hot-toast'
@@ -277,7 +276,19 @@ export default function Settings() {
       </div>
 
       {/* Facturación Electrónica ARCA/AFIP */}
-      {businessId && <ARCAConfiguration businessId={businessId} />}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+            <Shield className="text-blue-600" size={20} />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Facturación electrónica ARCA/AFIP
+          </h2>
+        </div>
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          La configuración sensible (tokens, certificados y claves) se gestiona exclusivamente desde el CMS admin.
+        </p>
+      </div>
 
       {/* Inteligencia Artificial */}
       {businessId && <AIConfiguration businessId={businessId} />}

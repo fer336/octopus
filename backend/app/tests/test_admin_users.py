@@ -1,0 +1,185 @@
+"""
+Tests mínimos del módulo de usuarios en CMS admin.
+"""
+
+import pytest
+from datetime import timedelta
+from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.business import Business
+from app.models.tenant_membership import TenantMembership
+from app.models.user import User
+from app.tests.conftest import make_auth_header
+
+
+@pytest.mark.asyncio
+async def test_superadmin_can_list_users(
+    client: AsyncClient,
+    superadmin_user: User,
+    user_a: User,
+    membership_a: TenantMembership,
+    business_a: Business,
+):
+    headers = make_auth_header(superadmin_user)
+    response = await client.get("/api/admin/users", headers=headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "users" in payload
+    assert payload["total"] >= 2
+    emails = [item["email"] for item in payload["users"]]
+    assert user_a.email in emails
+    listed_user_a = next(
+        item for item in payload["users"] if item["email"] == user_a.email
+    )
+    assert listed_user_a["businesses"] == [
+        {
+            "id": str(business_a.id),
+            "name": business_a.name,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_superadmin_can_create_user_and_handle_duplicate_email(
+    client: AsyncClient,
+    superadmin_user: User,
+):
+    headers = make_auth_header(superadmin_user)
+
+    create_response = await client.post(
+        "/api/admin/users",
+        headers=headers,
+        json={"email": "nuevo_usuario@test.com", "name": "Nuevo Usuario"},
+    )
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created["email"] == "nuevo_usuario@test.com"
+    assert created["platform_role"] == "tenant_user"
+    assert created["is_active"] is True
+
+    duplicate_response = await client.post(
+        "/api/admin/users",
+        headers=headers,
+        json={"email": "nuevo_usuario@test.com"},
+    )
+    assert duplicate_response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_superadmin_can_assign_user_to_tenant_by_email(
+    client: AsyncClient,
+    superadmin_user: User,
+    user_b: User,
+    business_a: Business,
+):
+    headers = make_auth_header(superadmin_user)
+
+    response = await client.post(
+        f"/api/admin/tenants/{business_a.id}/users",
+        headers=headers,
+        json={"email": user_b.email},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["created"] is True
+    assert payload["user"]["email"] == user_b.email
+    assert payload["user"]["membership_role"] == "manager"
+
+
+@pytest.mark.asyncio
+async def test_assign_user_to_tenant_is_idempotent(
+    client: AsyncClient,
+    superadmin_user: User,
+    user_b: User,
+    business_a: Business,
+    db: AsyncSession,
+):
+    headers = make_auth_header(superadmin_user)
+    url = f"/api/admin/tenants/{business_a.id}/users"
+
+    first = await client.post(url, headers=headers, json={"email": user_b.email})
+    assert first.status_code == 201
+    assert first.json()["created"] is True
+
+    second = await client.post(url, headers=headers, json={"email": user_b.email})
+    assert second.status_code == 200
+    assert second.json()["created"] is False
+
+    result = await db.execute(
+        select(TenantMembership).where(
+            TenantMembership.user_id == user_b.id,
+            TenantMembership.business_id == business_a.id,
+        )
+    )
+    memberships = result.scalars().all()
+    assert len(memberships) == 1
+
+
+@pytest.mark.asyncio
+async def test_superadmin_can_update_user_status(
+    client: AsyncClient,
+    superadmin_user: User,
+    user_a: User,
+    db: AsyncSession,
+):
+    headers = make_auth_header(superadmin_user)
+
+    response = await client.patch(
+        f"/api/admin/users/{user_a.id}/status",
+        headers=headers,
+        json={"is_active": False},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["id"] == str(user_a.id)
+    assert payload["is_active"] is False
+
+    await db.refresh(user_a)
+    assert user_a.is_active is False
+
+
+@pytest.mark.asyncio
+async def test_superadmin_can_activate_trial_for_tenant_user(
+    client: AsyncClient,
+    superadmin_user: User,
+    user_a: User,
+    business_a: Business,
+    membership_a: TenantMembership,
+    db: AsyncSession,
+):
+    headers = make_auth_header(superadmin_user)
+
+    response = await client.post(
+        f"/api/admin/tenants/{business_a.id}/users/{user_a.id}/trial",
+        headers=headers,
+        json={"days": 30},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["access_status"] == "trial"
+    assert payload["blocked_reason"] is None
+    assert payload["access_starts_at"] is not None
+    assert payload["access_ends_at"] is not None
+    assert payload["days_remaining"] == 30
+
+    result = await db.execute(
+        select(TenantMembership).where(
+            TenantMembership.user_id == user_a.id,
+            TenantMembership.business_id == business_a.id,
+        )
+    )
+    membership = result.scalar_one()
+    await db.refresh(membership)
+
+    assert membership.access_status == "trial"
+    assert membership.access_starts_at is not None
+    assert membership.access_ends_at is not None
+
+    delta = membership.access_ends_at - membership.access_starts_at
+    assert timedelta(days=29, hours=23) <= delta <= timedelta(days=30, minutes=1)

@@ -4,18 +4,25 @@ Todos los endpoints están protegidos con require_superadmin().
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+from uuid import uuid4
 from uuid import UUID
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from pydantic import BaseModel, Field, model_validator
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.business import Business
-from app.models.user import User
+from app.models.user import User, PlatformRole
+from app.models.tenant_membership import (
+    MembershipAccessStatus,
+    TenantMembership,
+    MembershipRole,
+)
 from app.models.tenant_secret import TenantSecret
 from app.models.audit_log import AuditLog
 from app.middleware.tenant_resolver import require_superadmin, AdminContext
@@ -148,6 +155,119 @@ class TenantListResponse(BaseModel):
     total_pages: int
 
 
+class UserResponse(BaseModel):
+    """Resumen de usuario para CMS admin."""
+
+    class UserBusinessResponse(BaseModel):
+        """Comercio asignado al usuario mediante membresía."""
+
+        id: str
+        name: str
+
+    id: str
+    email: str
+    name: str
+    platform_role: str
+    is_active: bool
+    created_at: datetime
+    businesses: list[UserBusinessResponse] = Field(default_factory=list)
+
+
+class UserListResponse(BaseModel):
+    """Respuesta paginada de usuarios."""
+
+    users: list[UserResponse]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int
+
+
+class UserCreateRequest(BaseModel):
+    """Payload mínimo para crear usuarios desde CMS admin."""
+
+    email: str = Field(..., min_length=3, max_length=255)
+    name: Optional[str] = Field(default=None, max_length=255)
+    platform_role: str = Field(default=PlatformRole.TENANT_USER)
+    is_active: bool = Field(default=True)
+
+
+class UserStatusUpdateRequest(BaseModel):
+    """Actualiza estado activo/inactivo del usuario."""
+
+    is_active: bool
+
+
+class TenantUserResponse(UserResponse):
+    """Usuario asignado a tenant con rol de membresía."""
+
+    membership_role: str
+    access_starts_at: Optional[datetime] = None
+    access_ends_at: Optional[datetime] = None
+    access_status: str
+    blocked_reason: Optional[str] = None
+    days_remaining: Optional[int] = None
+
+
+class TenantUserListResponse(BaseModel):
+    """Listado de miembros de un tenant."""
+
+    users: list[TenantUserResponse]
+    total: int
+
+
+class TenantUserAssignRequest(BaseModel):
+    """Asigna un usuario existente a un tenant por id o email."""
+
+    user_id: Optional[UUID] = None
+    email: Optional[str] = Field(default=None, max_length=255)
+    role: str = Field(default=MembershipRole.MANAGER)
+
+    @model_validator(mode="after")
+    def validate_identifier(self):
+        if not self.user_id and not self.email:
+            raise ValueError("Debe enviar user_id o email")
+        if self.role not in MembershipRole.ALL:
+            raise ValueError(
+                f"Rol inválido. Valores permitidos: {', '.join(MembershipRole.ALL)}"
+            )
+        return self
+
+
+class TenantUserAssignResponse(BaseModel):
+    """Resultado de asignación de usuario a tenant."""
+
+    user: TenantUserResponse
+    created: bool
+
+
+class TrialActivateRequest(BaseModel):
+    """Activa acceso trial para una membresía existente."""
+
+    days: int = Field(default=30, ge=1, le=365)
+
+
+class MembershipAccessUpdateRequest(BaseModel):
+    """Actualiza estado de acceso de una membresía."""
+
+    access_status: str
+    blocked_reason: Optional[str] = Field(default=None, max_length=255)
+    access_ends_at: Optional[datetime] = None
+
+    @model_validator(mode="after")
+    def validate_access_status(self):
+        allowed_statuses = {
+            MembershipAccessStatus.ACTIVE,
+            MembershipAccessStatus.SUSPENDED,
+            MembershipAccessStatus.TRIAL,
+        }
+        if self.access_status not in allowed_statuses:
+            raise ValueError(
+                "access_status inválido. Valores permitidos: active, suspended, trial"
+            )
+        return self
+
+
 # ============================================================================
 # Helpers
 # ============================================================================
@@ -243,6 +363,82 @@ async def _upsert_secret(
     return existing
 
 
+def _serialize_user(user: User) -> UserResponse:
+    """Convierte un User SQLAlchemy al esquema de respuesta admin."""
+    memberships = user.memberships or []
+    businesses = [
+        UserResponse.UserBusinessResponse(
+            id=str(membership.business.id),
+            name=membership.business.name,
+        )
+        for membership in memberships
+        if membership.business is not None
+    ]
+    businesses.sort(key=lambda item: item.name.lower())
+
+    return UserResponse(
+        id=str(user.id),
+        email=user.email,
+        name=user.name,
+        platform_role=user.platform_role,
+        is_active=user.is_active,
+        created_at=user.created_at,
+        businesses=businesses,
+    )
+
+
+def _calculate_days_remaining(access_ends_at: Optional[datetime]) -> Optional[int]:
+    """Calcula días restantes de acceso redondeando hacia arriba."""
+    if access_ends_at is None:
+        return None
+    remaining_seconds = (access_ends_at - datetime.utcnow()).total_seconds()
+    if remaining_seconds <= 0:
+        return 0
+    return int((remaining_seconds + 86399) // 86400)
+
+
+def _serialize_tenant_user(
+    user: User, membership: TenantMembership
+) -> TenantUserResponse:
+    """Serializa un usuario de tenant incluyendo estado de acceso."""
+    access_status = membership.access_status or MembershipAccessStatus.ACTIVE
+    return TenantUserResponse(
+        id=str(user.id),
+        email=user.email,
+        name=user.name,
+        platform_role=user.platform_role,
+        is_active=user.is_active,
+        created_at=user.created_at,
+        membership_role=membership.role,
+        access_starts_at=membership.access_starts_at,
+        access_ends_at=membership.access_ends_at,
+        access_status=access_status,
+        blocked_reason=membership.blocked_reason,
+        days_remaining=_calculate_days_remaining(membership.access_ends_at),
+    )
+
+
+async def _get_membership_or_404(
+    db: AsyncSession,
+    tenant_id: UUID,
+    user_id: UUID,
+) -> TenantMembership:
+    """Obtiene una membresía por tenant y usuario o retorna 404."""
+    membership_result = await db.execute(
+        select(TenantMembership).where(
+            TenantMembership.user_id == user_id,
+            TenantMembership.business_id == tenant_id,
+        )
+    )
+    membership = membership_result.scalar_one_or_none()
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Membresía no encontrada para este usuario en el tenant",
+        )
+    return membership
+
+
 # ============================================================================
 # Endpoints
 # ============================================================================
@@ -259,7 +455,11 @@ async def list_tenants(
     """
     Lista todos los tenants (negocios) con paginación y búsqueda.
     """
-    base_query = select(Business).join(User, Business.owner_id == User.id)
+    base_query = (
+        select(Business)
+        .join(User, Business.owner_id == User.id)
+        .options(selectinload(Business.owner))
+    )
 
     if search:
         base_query = base_query.where(Business.name.ilike(f"%{search}%"))
@@ -296,6 +496,260 @@ async def list_tenants(
         per_page=per_page,
         total_pages=total_pages,
     )
+
+
+@router.get("/users", response_model=UserListResponse)
+async def list_users(
+    page: int = Query(1, ge=1, description="Número de página"),
+    per_page: int = Query(20, ge=1, le=100, description="Resultados por página"),
+    search: Optional[str] = Query(None, description="Buscar por email o nombre"),
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista usuarios de plataforma con paginación y búsqueda básica."""
+    base_query = select(User).options(
+        selectinload(User.memberships).selectinload(TenantMembership.business)
+    )
+
+    if search:
+        search_term = f"%{search.strip()}%"
+        base_query = base_query.where(
+            or_(
+                User.email.ilike(search_term),
+                User.name.ilike(search_term),
+            )
+        )
+
+    count_query = select(func.count()).select_from(base_query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    total_pages = max(1, (total + per_page - 1) // per_page)
+
+    offset = (page - 1) * per_page
+    query = base_query.order_by(User.created_at.desc()).offset(offset).limit(per_page)
+    result = await db.execute(query)
+    users = result.scalars().all()
+
+    return UserListResponse(
+        users=[_serialize_user(user) for user in users],
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages,
+    )
+
+
+@router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_user(
+    data: UserCreateRequest,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Crea un usuario mínimo para habilitar asignación a tenants."""
+    normalized_email = data.email.strip().lower()
+
+    existing_result = await db.execute(
+        select(User).where(User.email == normalized_email)
+    )
+    if existing_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya existe un usuario con ese email",
+        )
+
+    name = (data.name or "").strip() or normalized_email.split("@")[0]
+    user = User(
+        email=normalized_email,
+        name=name,
+        google_id=f"admin_created_{uuid4().hex}",
+        platform_role=data.platform_role,
+        is_active=data.is_active,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+
+    await db.refresh(user, attribute_names=["memberships"])
+
+    return _serialize_user(user)
+
+
+@router.patch("/users/{user_id}/status", response_model=UserResponse)
+async def update_user_status(
+    user_id: UUID,
+    data: UserStatusUpdateRequest,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualiza estado activo/inactivo de un usuario del CMS admin."""
+    result = await db.execute(
+        select(User)
+        .where(User.id == user_id)
+        .options(selectinload(User.memberships).selectinload(TenantMembership.business))
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado",
+        )
+
+    user.is_active = data.is_active
+    await db.commit()
+
+    await db.refresh(user)
+
+    return _serialize_user(user)
+
+
+@router.get("/tenants/{tenant_id}/users", response_model=TenantUserListResponse)
+async def list_tenant_users(
+    tenant_id: UUID,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista usuarios asignados al tenant y su rol de membresía."""
+    await get_business_or_404(tenant_id, db)
+
+    result = await db.execute(
+        select(TenantMembership, User)
+        .join(User, User.id == TenantMembership.user_id)
+        .where(TenantMembership.business_id == tenant_id)
+        .order_by(User.email.asc())
+    )
+    rows = result.all()
+
+    users = [_serialize_tenant_user(user, membership) for membership, user in rows]
+
+    return TenantUserListResponse(users=users, total=len(users))
+
+
+@router.post(
+    "/tenants/{tenant_id}/users",
+    response_model=TenantUserAssignResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def assign_user_to_tenant(
+    tenant_id: UUID,
+    data: TenantUserAssignRequest,
+    response: Response,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Asigna usuario existente a tenant. Es idempotente para evitar duplicados."""
+    await get_business_or_404(tenant_id, db)
+
+    user: Optional[User] = None
+    if data.user_id:
+        result = await db.execute(select(User).where(User.id == data.user_id))
+        user = result.scalar_one_or_none()
+    elif data.email:
+        normalized_email = data.email.strip().lower()
+        result = await db.execute(select(User).where(User.email == normalized_email))
+        user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado",
+        )
+
+    membership_result = await db.execute(
+        select(TenantMembership).where(
+            TenantMembership.user_id == user.id,
+            TenantMembership.business_id == tenant_id,
+        )
+    )
+    existing_membership = membership_result.scalar_one_or_none()
+    if existing_membership:
+        response.status_code = status.HTTP_200_OK
+        return TenantUserAssignResponse(
+            user=_serialize_tenant_user(user, existing_membership),
+            created=False,
+        )
+
+    membership = TenantMembership(
+        user_id=user.id,
+        business_id=tenant_id,
+        role=data.role,
+    )
+    db.add(membership)
+    await db.commit()
+
+    return TenantUserAssignResponse(
+        user=_serialize_tenant_user(user, membership),
+        created=True,
+    )
+
+
+@router.post(
+    "/tenants/{tenant_id}/users/{user_id}/trial",
+    response_model=TenantUserResponse,
+)
+async def activate_trial_for_tenant_user(
+    tenant_id: UUID,
+    user_id: UUID,
+    data: TrialActivateRequest,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Activa un período trial para un usuario dentro de un tenant."""
+    await get_business_or_404(tenant_id, db)
+    membership = await _get_membership_or_404(db, tenant_id, user_id)
+
+    now = datetime.utcnow()
+    membership.access_starts_at = now
+    membership.access_ends_at = now + timedelta(days=data.days)
+    membership.access_status = MembershipAccessStatus.TRIAL
+    membership.blocked_reason = None
+    await db.commit()
+
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado",
+        )
+
+    return _serialize_tenant_user(user, membership)
+
+
+@router.patch(
+    "/tenants/{tenant_id}/users/{user_id}/access",
+    response_model=TenantUserResponse,
+)
+async def update_tenant_user_access(
+    tenant_id: UUID,
+    user_id: UUID,
+    data: MembershipAccessUpdateRequest,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualiza estado de acceso de una membresía de tenant."""
+    await get_business_or_404(tenant_id, db)
+    membership = await _get_membership_or_404(db, tenant_id, user_id)
+
+    membership.access_status = data.access_status
+    membership.blocked_reason = data.blocked_reason
+
+    if data.access_status == MembershipAccessStatus.ACTIVE:
+        membership.blocked_reason = None
+    if data.access_ends_at is not None:
+        membership.access_ends_at = data.access_ends_at
+
+    await db.commit()
+
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado",
+        )
+
+    return _serialize_tenant_user(user, membership)
 
 
 @router.get("/tenants/{tenant_id}/arca-secrets", response_model=ArcaSecretsResponse)
@@ -365,6 +819,54 @@ async def update_arca_secrets(
     return ArcaSecretsResponse(
         business_id=str(tenant_id),
         secrets=_mask_secrets(secrets),
+    )
+
+
+@router.delete(
+    "/tenants/{tenant_id}/arca-secrets", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_arca_secrets(
+    tenant_id: UUID,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Invalida todos los secretos ARCA de un tenant en almacenamiento seguro.
+    Limpia valor cifrado y metadata de masking sin exponer datos sensibles.
+    """
+    await get_business_or_404(tenant_id, db)
+
+    result = await db.execute(
+        select(TenantSecret).where(TenantSecret.business_id == tenant_id)
+    )
+    secrets = result.scalars().all()
+
+    invalidated_types = []
+    for secret in secrets:
+        secret.encrypted_value = None
+        secret.last4 = None
+        secret.is_configured = False
+        invalidated_types.append(secret.secret_type)
+
+    await db.commit()
+
+    await log_audit(
+        db=db,
+        user_id=admin.user_id,
+        business_id=tenant_id,
+        action="delete",
+        resource_type="arca_secret",
+        resource_id=tenant_id,
+        details={
+            "invalidated_types": sorted(invalidated_types),
+            "invalidated_count": len(invalidated_types),
+        },
+    )
+
+    logger.info(
+        "Secretos ARCA invalidados para tenant %s: %s",
+        tenant_id,
+        invalidated_types,
     )
 
 
@@ -525,7 +1027,7 @@ async def update_branding(
 
     await log_audit(
         db=db,
-        user_id=admin.platform_role,
+        user_id=admin.user_id,
         business_id=tenant_id,
         action="update",
         resource_type="branding",

@@ -24,11 +24,22 @@ from app.utils.crypto import decrypt_api_key
 logger = logging.getLogger(__name__)
 
 # Modelos por defecto si el negocio no configuró uno
+# Actualizados a marzo 2026 — fuente: docs oficiales de cada proveedor
 DEFAULT_MODELS: dict[str, str] = {
-    AIProvider.OPENAI: "gpt-4o",
+    AIProvider.OPENAI: "gpt-5.4",
     AIProvider.GEMINI: "gemini-2.5-flash",
-    AIProvider.ANTHROPIC: "claude-sonnet-4-5",
+    AIProvider.ANTHROPIC: "claude-sonnet-4-6",
     AIProvider.OPENROUTER: "openai/gpt-4o",
+}
+
+# Modelos rápidos/baratos para clasificación de intents (temperatura 0, ~200 tokens)
+# Son independientes del modelo principal que eligió el usuario.
+# Priorizamos velocidad y costo mínimo — no necesitamos razonamiento complejo.
+FAST_CLASSIFIER_MODELS: dict[str, str] = {
+    AIProvider.OPENAI: "gpt-4o-mini",
+    AIProvider.GEMINI: "gemini-2.0-flash-lite",
+    AIProvider.ANTHROPIC: "claude-haiku-4-5",
+    AIProvider.OPENROUTER: "openai/gpt-4o-mini",
 }
 
 # Base URLs por proveedor
@@ -135,6 +146,23 @@ class LLMFactory:
         )
 
     @staticmethod
+    def build_classifier_client(
+        api_key: str,
+        provider: str,
+        base_url: Optional[str] = None,
+    ) -> tuple[Any, str]:
+        """
+        Construye un cliente OpenAI-compatible usando el modelo rápido/barato
+        del proveedor, ideal para clasificación de intents (temperatura 0, pocos tokens).
+        Retorna (client, fast_model_name).
+        """
+        fast_model = FAST_CLASSIFIER_MODELS.get(
+            provider, DEFAULT_MODELS.get(provider, "gpt-4o-mini")
+        )
+        client = LLMFactory.build_openai_compatible(api_key, provider, base_url)
+        return client, fast_model
+
+    @staticmethod
     def supports_audio(provider: str) -> bool:
         """Indica si el proveedor soporta transcripción de audio (Whisper o equivalente)."""
         return provider in SUPPORTS_AUDIO
@@ -236,16 +264,36 @@ class LLMFactory:
             data = resp.json()
             raw_models = data.get("data", [])
 
-            # Filtrar solo modelos de chat/texto (excluir embeddings, tts, whisper, etc.)
+            # Filtrar modelos de chat/texto.
+            # OpenAI: blacklist de categorías no-chat en lugar de whitelist de prefijos.
+            # Así cualquier modelo nuevo (gpt-5.4, gpt-5-mini, etc.) aparece
+            # automáticamente sin tener que actualizar el código.
+            NON_CHAT_KEYWORDS = (
+                "embedding",
+                "whisper",
+                "tts",
+                "dall-e",
+                "moderation",
+                "realtime",
+                "instruct",
+                "search",
+                "similarity",
+                "edit",
+                "babbage",
+                "davinci",
+                "ada",
+                "curie",
+                "transcribe",
+                "translate",
+                "image",
+                "vision-preview",
+            )
             if provider == AIProvider.OPENAI:
                 models = [
                     m
                     for m in raw_models
                     if isinstance(m.get("id"), str)
-                    and any(kw in m["id"] for kw in ("gpt-", "o1", "o3", "o4"))
-                    and not any(
-                        excl in m["id"] for excl in ("instruct", "realtime", "preview")
-                    )
+                    and not any(excl in m["id"].lower() for excl in NON_CHAT_KEYWORDS)
                 ]
             elif provider == AIProvider.OPENROUTER:
                 models = [m for m in raw_models if isinstance(m.get("id"), str)]
@@ -347,10 +395,13 @@ class LLMFactory:
             pass
 
         # Fallback: catálogo curado si el endpoint falla
+        # Actualizado a marzo 2026 — fuente: docs.anthropic.com/en/docs/about-claude/models
         return [
+            {"id": "claude-opus-4-6", "label": "Claude Opus 4.6 (más inteligente)"},
+            {"id": "claude-sonnet-4-6", "label": "Claude Sonnet 4.6 (recomendado)"},
+            {"id": "claude-haiku-4-5", "label": "Claude Haiku 4.5 (más rápido)"},
             {"id": "claude-opus-4-5", "label": "Claude Opus 4.5"},
-            {"id": "claude-sonnet-4-5", "label": "Claude Sonnet 4.5 (recomendado)"},
-            {"id": "claude-3-5-haiku-20241022", "label": "Claude 3.5 Haiku (rápido)"},
+            {"id": "claude-sonnet-4-5", "label": "Claude Sonnet 4.5"},
         ]
 
     @staticmethod

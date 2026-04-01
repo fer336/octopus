@@ -79,9 +79,11 @@ export default function TenantList() {
     queryFn: () => adminAPI.listTenants(page, perPage, debouncedSearch || undefined),
   })
 
-  if (error) {
-    toast.error('Error al cargar los tenants')
-  }
+  useEffect(() => {
+    if (error) {
+      toast.error('Error al cargar los tenants', { id: 'admin-tenants-load-error' })
+    }
+  }, [error])
 
   const tenants = data?.tenants ?? []
   const totalPages = data?.total_pages ?? 1

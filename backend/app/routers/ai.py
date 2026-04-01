@@ -13,13 +13,19 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.services.ai_quote_service import add_customer_term, run_quote_agent
-from app.services.ai_chat_service import run_chat_agent
+from app.services.ai_chat_service import run_chat_agent, run_chat_agent_streaming
+from app.services.chat_history_service import (
+    get_or_create_conversation,
+    get_history,
+    save_turn,
+    clear_history,
+)
 from app.utils.security import get_current_business, get_current_user
 
 logger = logging.getLogger(__name__)
@@ -260,35 +266,10 @@ async def chat(
     Acepta archivo adjunto con los mismos tipos que `/parse-quote`.
     """
     business_id = str(current_business)
-    normalized = (message or "").strip().lower()
 
-    # Fast-path para saludos/ayuda: evita depender del proveedor IA
-    # y mejora robustez cuando hay fallas transitorias del LLM.
-    if not file and normalized in GREETING_TERMS:
-        return JSONResponse(
-            content={
-                "response_type": "text",
-                "text": (
-                    "¡Hola! Soy Octo 👋 Te ayudo con precios, stock y presupuestos. "
-                    "Probá con: 'precio de aireador de grifería' o 'cotizar 2 aireadores'."
-                ),
-                "products": None,
-                "quote": None,
-            }
-        )
-
-    if not file and normalized in HELP_TERMS:
-        return JSONResponse(
-            content={
-                "response_type": "text",
-                "text": (
-                    "Puedo ayudarte con 3 cosas: consultar precios, consultar stock y "
-                    "armar cotizaciones. Decime producto + cantidad y lo hacemos juntos."
-                ),
-                "products": None,
-                "quote": None,
-            }
-        )
+    # Solo el primer nombre — Google devuelve nombre completo ("Fernando Cassera")
+    full_name = getattr(current_user, "name", "") or ""
+    user_name = full_name.strip().split()[0].capitalize() if full_name.strip() else ""
 
     # Parsear historial
     try:
@@ -341,6 +322,10 @@ async def chat(
         f"business={business_id}"
     )
 
+    # Cargar historial desde PostgreSQL si el frontend no mandó nada
+    if not parsed_history:
+        parsed_history = await get_history(db, current_user.id, business_id)
+
     try:
         result = await run_chat_agent(
             message=message,
@@ -349,6 +334,7 @@ async def chat(
             db=db,
             input_file=input_file,
             input_file_type=input_file_type,
+            user_name=user_name,
         )
     except ValueError as e:
         raise HTTPException(
@@ -362,4 +348,182 @@ async def chat(
             detail="Error interno del agente de IA. Revisá los logs del servidor.",
         )
 
+    # Guardar el turno en PostgreSQL (fire-and-forget, no bloquea la respuesta)
+    try:
+        conv = await get_or_create_conversation(db, current_user.id, business_id)
+        await save_turn(db, conv.id, message, result)
+        await db.commit()
+    except Exception as e:
+        logger.warning(f"[AI Chat] No se pudo guardar en historial: {e}")
+
     return JSONResponse(content=result)
+
+
+# ─────────────────────────────────────────────────────────────
+# POST /ai/chat/stream
+# Igual que /ai/chat pero devuelve Server-Sent Events (SSE).
+# Cada evento tiene formato:  data: {"type": "thinking"|"result"|"error", ...}\n\n
+# ─────────────────────────────────────────────────────────────
+@router.post("/chat/stream", summary="Chat con el Asistente IA — streaming SSE")
+async def chat_stream(
+    message: str = Form(..., description="Mensaje del usuario"),
+    history: str = Form(
+        default="[]",
+        description="Historial JSON serializado: [{role, content}, ...]",
+    ),
+    file: UploadFile | None = File(
+        default=None,
+        description="Archivo adjunto opcional (imagen, audio, PDF, DOCX)",
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_business=Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """
+    Versión streaming de /ai/chat.
+
+    Emite eventos SSE con el progreso del agente a medida que ejecuta cada nodo:
+
+    - ``{"type": "thinking", "text": "Analizando tu consulta..."}``
+    - ``{"type": "thinking", "text": "Buscando productos en el catálogo..."}``
+    - ``{"type": "result",   "response_type": "...", "text": "...", ...}``
+
+    El frontend muestra los mensajes ``thinking`` en tiempo real y reemplaza
+    el placeholder con el contenido de ``result`` al terminar.
+    """
+    business_id = str(current_business)
+
+    # Solo el primer nombre
+    full_name = getattr(current_user, "name", "") or ""
+    user_name = full_name.strip().split()[0].capitalize() if full_name.strip() else ""
+
+    # Parsear historial del frontend
+    try:
+        parsed_history = json.loads(history)
+        if not isinstance(parsed_history, list):
+            parsed_history = []
+        parsed_history = parsed_history[-10:]
+    except (json.JSONDecodeError, ValueError):
+        parsed_history = []
+
+    # Si el frontend no mandó historial, cargar desde PostgreSQL
+    if not parsed_history:
+        parsed_history = await get_history(db, current_user.id, business_id)
+
+    # Procesar archivo adjunto
+    input_file: bytes | None = None
+    input_file_type: str | None = None
+
+    if file and file.filename:
+        content_type = file.content_type or ""
+        file_bytes = await file.read()
+
+        if len(file_bytes) > MAX_FILE_SIZE_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo supera el límite de {MAX_FILE_SIZE_MB}MB.",
+            )
+
+        if content_type in ALLOWED_IMAGE_TYPES:
+            input_file = file_bytes
+            input_file_type = "image"
+        elif content_type in ALLOWED_AUDIO_TYPES:
+            input_file = file_bytes
+            input_file_type = "audio"
+        elif content_type == "application/pdf":
+            input_file = file_bytes
+            input_file_type = "pdf"
+        elif "wordprocessingml" in content_type or (file.filename or "").endswith(
+            ".docx"
+        ):
+            input_file = file_bytes
+            input_file_type = "docx"
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail=f"Tipo de archivo '{content_type}' no soportado.",
+            )
+
+    logger.info(
+        f"[AI ChatStream] message='{message[:60]}...', "
+        f"history_len={len(parsed_history)}, "
+        f"file={input_file_type or 'none'}, "
+        f"business={business_id}"
+    )
+
+    async def _stream_and_save():
+        """Wrapper que persiste el turno en PostgreSQL al recibir el evento 'result'."""
+        async for chunk in run_chat_agent_streaming(
+            message=message,
+            history=parsed_history,
+            business_id=business_id,
+            db=db,
+            input_file=input_file,
+            input_file_type=input_file_type,
+            user_name=user_name,
+        ):
+            yield chunk
+            # Detectar el evento result para guardarlo
+            if chunk.startswith("data:") and '"type": "result"' in chunk:
+                try:
+                    payload = json.loads(chunk[5:].strip())
+                    result_data = {
+                        "response_type": payload.get("response_type", "text"),
+                        "text": payload.get("text", ""),
+                        "products": payload.get("products"),
+                        "quote": payload.get("quote"),
+                        "cart_items": payload.get("cart_items"),
+                    }
+                    conv = await get_or_create_conversation(
+                        db, current_user.id, business_id
+                    )
+                    await save_turn(db, conv.id, message, result_data)
+                    await db.commit()
+                except Exception as e:
+                    logger.warning(f"[AI ChatStream] No se pudo guardar historial: {e}")
+
+    return StreamingResponse(
+        _stream_and_save(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # Deshabilita buffering en Nginx
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# GET  /ai/history  → carga el historial guardado en PostgreSQL
+# DELETE /ai/history → limpia el historial (botón "Limpiar" del chat)
+# ─────────────────────────────────────────────────────────────
+
+
+@router.get("/history", summary="Obtener historial de chat del usuario")
+async def get_chat_history(
+    db: AsyncSession = Depends(get_db),
+    current_business=Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """
+    Retorna el historial de conversación del usuario actual en el negocio.
+    El frontend lo carga al abrir el panel del asistente para restaurar el contexto.
+    """
+    business_id = str(current_business)
+    history = await get_history(db, current_user.id, business_id, limit=30)
+    return JSONResponse(content={"history": history})
+
+
+@router.delete("/history", summary="Limpiar historial de chat")
+async def delete_chat_history(
+    db: AsyncSession = Depends(get_db),
+    current_business=Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """
+    Elimina todos los mensajes del historial del usuario en el negocio.
+    Se llama cuando el usuario toca "Limpiar" en el panel del asistente.
+    """
+    business_id = str(current_business)
+    await clear_history(db, current_user.id, business_id)
+    await db.commit()
+    return JSONResponse(content={"ok": True})

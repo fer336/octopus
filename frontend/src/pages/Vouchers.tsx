@@ -3,9 +3,10 @@
  * Visualiza cotizaciones, remitos y facturas generadas.
  */
 import { useState } from 'react'
-import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle, RotateCcw, FileMinus, ExternalLink } from 'lucide-react'
+import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle, RotateCcw, FileMinus, ExternalLink, Pencil } from 'lucide-react'
 import { Button, Table, Pagination, Select, Modal, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import vouchersService from '../api/vouchersService'
 import CreditNoteModal from '../components/vouchers/CreditNoteModal'
 import toast from 'react-hot-toast'
@@ -32,6 +33,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 }
 
 export default function Vouchers() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -122,6 +124,40 @@ export default function Vouchers() {
       console.error('Error al descargar PDF:', error)
       alert('Error al descargar el PDF. Por favor intenta nuevamente.')
     }
+  }
+
+  const handleEditQuotation = (voucher: any) => {
+    const isQuotation = voucher.voucher_type === 'quotation'
+    const isInvoiced = !!voucher.invoiced_voucher_id
+    if (!isQuotation || isInvoiced) {
+      toast.error('Solo podés editar cotizaciones pendientes de facturar')
+      return
+    }
+
+    if (!voucher.client) {
+      toast.error('No se pudo cargar el cliente de la cotización')
+      return
+    }
+
+    const payload = {
+      id: voucher.id,
+      voucher_type: 'quotation' as const,
+      client: voucher.client,
+      date: voucher.date,
+      notes: voucher.notes,
+      items: (voucher.items || []).map((item: any) => ({
+        id: item.product_id,
+        code: item.code,
+        description: item.description,
+        sale_price: Number(item.unit_price) || 0,
+        quantity: Number(item.quantity) || 1,
+        discount: Number(item.discount_percent) || 0,
+      })),
+      general_discount: Number(voucher.general_discount) || 0,
+    }
+
+    sessionStorage.setItem('sales-edit-voucher', JSON.stringify(payload))
+    navigate('/sales')
   }
 
   const columns = [
@@ -266,6 +302,15 @@ export default function Vouchers() {
           <div className="flex gap-2 justify-center">
             {!isDeleted && (
               <>
+                {item.voucher_type === 'quotation' && !item.invoiced_voucher_id && (
+                  <button
+                    onClick={() => handleEditQuotation(item)}
+                    className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition-colors"
+                    title="Editar cotización"
+                  >
+                    <Pencil size={18} />
+                  </button>
+                )}
                 <button
                   onClick={() => handleViewPdf(item.id)}
                   className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"

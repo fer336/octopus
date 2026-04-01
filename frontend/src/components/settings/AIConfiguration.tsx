@@ -37,32 +37,38 @@ interface ProviderMeta {
   baseUrlPlaceholder?: string
 }
 
+// Modelos estáticos actualizados a marzo 2026.
+// Se muestran como fallback mientras no hay key válida o si el fetch falla.
+// Una vez que el usuario pega/tiene guardada la key, se reemplazan con los modelos reales.
 const PROVIDER_META: Record<AIProvider, ProviderMeta> = {
   openai: {
     label: 'OpenAI',
-    description: 'GPT-4o, GPT-4o Mini. Compatible con vision y audio (Whisper).',
+    description: 'GPT-5.4, GPT-4o y más. Compatible con visión y audio (Whisper).',
     docsUrl: 'https://platform.openai.com/api-keys',
     color: 'bg-green-100 dark:bg-green-900/30 text-green-600',
     models: [
-      { value: 'gpt-4o', label: 'GPT-4o (recomendado)' },
-      { value: 'gpt-4o-mini', label: 'GPT-4o Mini (más rápido)' },
-      { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-      { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+      { value: 'gpt-5.4',     label: 'GPT-5.4 (recomendado)' },
+      { value: 'gpt-5-mini',  label: 'GPT-5 Mini (rápido y económico)' },
+      { value: 'gpt-4.1',     label: 'GPT-4.1' },
+      { value: 'gpt-4o',      label: 'GPT-4o' },
+      { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
     ],
-    defaultModel: 'gpt-4o',
+    defaultModel: 'gpt-5.4',
     requiresBaseUrl: false,
   },
   gemini: {
     label: 'Google Gemini',
-    description: 'Gemini 1.5 Pro y Flash. Excelente relación calidad/precio.',
+    description: 'Gemini 3.1 Pro, 2.5 Pro y Flash. Excelente relación calidad/precio.',
     docsUrl: 'https://aistudio.google.com/app/apikey',
     color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600',
     models: [
-      { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (recomendado)' },
-      { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (más rápido)' },
-      { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (nuevo)' },
+      { value: 'gemini-3.1-pro',   label: 'Gemini 3.1 Pro (preview, más nuevo)' },
+      { value: 'gemini-3-flash',   label: 'Gemini 3 Flash (preview)' },
+      { value: 'gemini-2.5-pro',   label: 'Gemini 2.5 Pro (recomendado)' },
+      { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (rápido)' },
+      { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
     ],
-    defaultModel: 'gemini-1.5-pro',
+    defaultModel: 'gemini-2.5-pro',
     requiresBaseUrl: false,
   },
   openrouter: {
@@ -71,26 +77,29 @@ const PROVIDER_META: Record<AIProvider, ProviderMeta> = {
     docsUrl: 'https://openrouter.ai/keys',
     color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600',
     models: [
-      { value: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
-      { value: 'anthropic/claude-3-haiku', label: 'Claude 3 Haiku (económico)' },
-      { value: 'meta-llama/llama-3.1-70b-instruct', label: 'Llama 3.1 70B' },
-      { value: 'mistralai/mistral-large', label: 'Mistral Large' },
+      { value: 'anthropic/claude-sonnet-4-6',         label: 'Claude Sonnet 4.6 (recomendado)' },
+      { value: 'anthropic/claude-opus-4-6',           label: 'Claude Opus 4.6 (más inteligente)' },
+      { value: 'openai/gpt-5.4',                      label: 'GPT-5.4' },
+      { value: 'meta-llama/llama-3.1-70b-instruct',   label: 'Llama 3.1 70B' },
+      { value: 'mistralai/mistral-large',             label: 'Mistral Large' },
     ],
-    defaultModel: 'anthropic/claude-3.5-sonnet',
+    defaultModel: 'anthropic/claude-sonnet-4-6',
     requiresBaseUrl: true,
     baseUrlPlaceholder: 'https://openrouter.ai/api/v1',
   },
   anthropic: {
     label: 'Anthropic',
-    description: 'Claude 3.5 Sonnet y Haiku. Excelente para seguir instrucciones complejas.',
+    description: 'Claude Opus 4.6 y Sonnet 4.6. Los modelos más recientes de Anthropic.',
     docsUrl: 'https://console.anthropic.com/settings/keys',
     color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600',
     models: [
-      { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (recomendado)' },
-      { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku (económico)' },
-      { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus (máxima capacidad)' },
+      { value: 'claude-opus-4-6',   label: 'Claude Opus 4.6 (más inteligente)' },
+      { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (recomendado)' },
+      { value: 'claude-haiku-4-5',  label: 'Claude Haiku 4.5 (más rápido)' },
+      { value: 'claude-opus-4-5',   label: 'Claude Opus 4.5' },
+      { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
     ],
-    defaultModel: 'claude-3-5-sonnet-20241022',
+    defaultModel: 'claude-sonnet-4-6',
     requiresBaseUrl: false,
   },
 }
@@ -143,7 +152,32 @@ function ProviderCard({
     }
   }, [config])
 
-  // Cuando el usuario pega/escribe la API key, esperar 800ms y consultar modelos reales
+  // Cuando el proveedor ya está configurado y se abre el panel,
+  // cargar los modelos reales usando la key guardada en DB (sin re-ingresarla)
+  useEffect(() => {
+    if (!expanded || !isConfigured || apiKey.length > 0) return
+    let cancelled = false
+
+    const load = async () => {
+      setFetchingModels(true)
+      try {
+        const result = await aiConfigService.fetchModelsSaved(provider)
+        if (cancelled) return
+        setFetchedModels(result.models)
+        // Si el modelo guardado no está en la lista actualizada, mantenerlo igual
+        // (puede ser un modelo válido que la API no listó por algún motivo)
+      } catch {
+        // Error silencioso — se muestran los modelos estáticos como fallback
+      } finally {
+        if (!cancelled) setFetchingModels(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [expanded, isConfigured])
+
+  // Cuando el usuario pega/escribe una API key nueva, esperar 800ms y consultar modelos reales
   useEffect(() => {
     // Key muy corta → no consultar todavía
     if (apiKey.length < 20) {

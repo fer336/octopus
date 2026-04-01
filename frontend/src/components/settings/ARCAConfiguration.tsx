@@ -30,6 +30,7 @@ interface ARCAConfigurationProps {
 }
 
 export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps) {
+  const cmsManagedMessage = 'Gestionado desde CMS superadmin.'
   const [loading, setLoading] = useState(false)
   const [config, setConfig] = useState<AfipSdkConfig | null>(null)
 
@@ -62,32 +63,7 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
 
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    // Al menos un campo debe tener valor
-    if (!accessToken && !afipCert && !afipKey) {
-      toast.error('Ingresá al menos el Access Token, Certificado o Clave Privada')
-      return
-    }
-
-    setLoading(true)
-    try {
-      const updateData: any = {}
-      if (accessToken) updateData.afipsdk_access_token = accessToken
-      if (afipCert) updateData.afip_cert = afipCert
-      if (afipKey) updateData.afip_key = afipKey
-      updateData.arca_environment = environment
-
-      await arcaService.updateConfig(businessId, updateData)
-      toast.success('Configuración guardada correctamente')
-      setAccessToken('')
-      setAfipCert('')
-      setAfipKey('')
-      loadConfig()
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Error al guardar configuración')
-    } finally {
-      setLoading(false)
-    }
+    toast(cmsManagedMessage)
   }
 
   const handleFileUpload = (
@@ -107,45 +83,11 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
   }
 
   const handleDiagnose = async () => {
-    setDiagnosing(true)
-    setDiagnoseResult(null)
-    try {
-      const result = await arcaService.diagnose(businessId)
-      setDiagnoseResult(result)
-
-      if (result.overall_status === 'ok') {
-        toast.success('Diagnóstico completado: Todo está configurado correctamente')
-      } else if (result.overall_status === 'error') {
-        toast.error('Diagnóstico completado: Se encontraron errores')
-      } else {
-        toast('Diagnóstico completado: Hay advertencias')
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Error al ejecutar diagnóstico')
-      console.error('Error diagnóstico ARCA:', error)
-    } finally {
-      setDiagnosing(false)
-    }
+    toast(cmsManagedMessage)
   }
 
   const handleTestInvoice = async () => {
-    setTestingInvoice(true)
-    setTestResult(null)
-    try {
-      const result = await arcaService.testInvoice(businessId)
-      setTestResult(result)
-
-      if (result.success) {
-        toast.success(`¡Factura emitida! CAE: ${result.cae}`)
-      } else {
-        toast.error(`Error: ${result.message}`)
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Error al enviar factura de prueba')
-      console.error('Error test invoice:', error)
-    } finally {
-      setTestingInvoice(false)
-    }
+    toast(cmsManagedMessage)
   }
 
   const getCheckStatusIcon = (status: string) => {
@@ -229,6 +171,9 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
               <strong>Punto de Venta:</strong> {config.sale_point || '0001'} · <strong>Entorno:</strong>{' '}
               {config.arca_environment === 'production' ? 'Producción' : 'Homologación (Testing)'}
             </p>
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              {cmsManagedMessage}
+            </p>
           </div>
         )}
 
@@ -244,6 +189,7 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
               onChange={(e) => setAccessToken(e.target.value)}
               placeholder={config?.afipsdk_access_token_configured ? '••••••••••••••••' : 'Pegar access token...'}
               required
+              disabled
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Registrate gratis en{' '}
@@ -268,6 +214,7 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
                 value={afipCert}
                 onChange={(e) => setAfipCert(e.target.value)}
                 placeholder={config?.afip_cert_configured ? 'Certificado ya configurado. Pegar nuevo para reemplazar...' : 'Pegar contenido del certificado PEM...'}
+                disabled
               />
               <label className="inline-flex items-center gap-1 px-3 py-2 text-xs font-medium rounded-lg bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 cursor-pointer self-start transition-colors">
                 <Upload size={14} />
@@ -277,6 +224,7 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
                   accept=".crt,.pem,.cer"
                   className="hidden"
                   onChange={(e) => handleFileUpload(setAfipCert, e)}
+                  disabled
                 />
               </label>
             </div>
@@ -296,6 +244,7 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
                 value={afipKey}
                 onChange={(e) => setAfipKey(e.target.value)}
                 placeholder={config?.afip_key_configured ? 'Clave ya configurada. Pegar nueva para reemplazar...' : 'Pegar contenido de la clave privada PEM...'}
+                disabled
               />
               <label className="inline-flex items-center gap-1 px-3 py-2 text-xs font-medium rounded-lg bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 cursor-pointer self-start transition-colors">
                 <Upload size={14} />
@@ -305,6 +254,7 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
                   accept=".key,.pem"
                   className="hidden"
                   onChange={(e) => handleFileUpload(setAfipKey, e)}
+                  disabled
                 />
               </label>
             </div>
@@ -317,6 +267,7 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
             label="Entorno"
             value={environment}
             onChange={(e) => setEnvironment(e.target.value)}
+            disabled
             options={[
               { value: 'testing', label: 'Homologación (Testing)' },
               { value: 'production', label: 'Producción' },
@@ -324,7 +275,7 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
           />
 
           <Button type="submit" disabled={loading}>
-            {loading ? 'Guardando...' : 'Guardar Configuración'}
+            {loading ? 'Guardando...' : cmsManagedMessage}
           </Button>
         </form>
       </div>
@@ -348,19 +299,19 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
         <div className="flex flex-wrap gap-3 mb-4">
           <button
             onClick={handleDiagnose}
-            disabled={diagnosing}
+            disabled
             className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 transition-colors"
           >
             <Stethoscope size={16} />
-            {diagnosing ? 'Diagnosticando...' : 'Ejecutar Diagnóstico'}
+            {diagnosing ? 'Diagnosticando...' : 'Diagnóstico gestionado por CMS'}
           </button>
           <button
             onClick={handleTestInvoice}
-            disabled={testingInvoice}
+            disabled
             className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 transition-colors"
           >
             <TestTube2 size={16} />
-            {testingInvoice ? 'Emitiendo...' : 'Emitir Factura de Prueba'}
+            {testingInvoice ? 'Emitiendo...' : 'Test gestionado por CMS'}
           </button>
         </div>
 

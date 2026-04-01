@@ -1,11 +1,126 @@
 [
   {
     "id": "TC001",
-    "title": "Products page loads and supports searching products by code/description",
-    "description": "Verifies the Products catalog can be opened and the search input filters results visibly.",
-    "category": "Product CRUD",
+    "title": "Smoke: login/bypass de testing navega al dashboard",
+    "description": "Verifica el ingreso desde la UI real de login en desarrollo y que el dashboard principal cargue sin depender de navegación mensual.",
+    "category": "Dashboard mensual con KPIs y accesos rápidos",
     "priority": "High",
     "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Click Ingresar testing button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Dashboard\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Ventas del Mes\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Productos\""
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Dashboard: navegar entre meses actualiza el resumen visible",
+    "description": "Verifica la navegación entre meses (anterior/siguiente) manteniendo el dashboard visible con KPIs/alertas.",
+    "category": "Dashboard mensual con KPIs y accesos rápidos",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Login button"
+      },
+      {
+        "type": "action",
+        "description": "Click Mes anterior button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Ventas\""
+      },
+      {
+        "type": "action",
+        "description": "Click Mes siguiente button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Alertas\""
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Dashboard: acceso rápido a Ventas navega a /sales",
+    "description": "Verifica que el acceso rápido a ventas desde el dashboard lleve a la pantalla de ventas.",
+    "category": "Dashboard mensual con KPIs y accesos rápidos",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Login button"
+      },
+      {
+        "type": "action",
+        "description": "Click acceso rápido a ventas"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains /sales"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Ventas\""
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Smoke: /products carga y permite búsqueda básica",
+    "description": "Verifica que la pantalla de productos cargue y que el buscador principal sea interactuable con una búsqueda básica.",
+    "category": "Dashboard mensual con KPIs y accesos rápidos",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Click Ingresar testing button"
+      },
       {
         "type": "action",
         "description": "Navigate to /products"
@@ -16,333 +131,40 @@
       },
       {
         "type": "action",
-        "description": "Type \"ABC\" into the search input"
+        "description": "Type/Fill \"pl\" into \"Buscar por código o descripción...\" field"
       },
       {
         "type": "assertion",
-        "description": "Verify element visible for the products results table"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"ABC\""
-      }
-    ]
-  },
-  {
-    "id": "TC002",
-    "title": "Create product via \"Nuevo Producto\" modal and verify it appears in table",
-    "description": "Verifies creating a new product from the modal adds a visible row in the products table.",
-    "category": "Product CRUD",
-    "priority": "High",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /products"
-      },
-      {
-        "type": "action",
-        "description": "Click \"Nuevo Producto\" and fill form, then save"
-      },
-      {
-        "type": "action",
-        "description": "Type \"TEST-001\" into the \"codigo\" field"
-      },
-      {
-        "type": "action",
-        "description": "Type \"Producto de prueba\" into the \"descripcion\" field"
-      },
-      {
-        "type": "action",
-        "description": "Type \"1000\" into the \"precio_lista\" field"
-      },
-      {
-        "type": "action",
-        "description": "Click Save"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"TEST-001\""
-      }
-    ]
-  },
-  {
-    "id": "TC003",
-    "title": "Filter products by category and verify filtered list updates",
-    "description": "Verifies category filtering changes the visible products list.",
-    "category": "Product CRUD",
-    "priority": "Medium",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /products"
-      },
-      {
-        "type": "action",
-        "description": "Filter by category or supplier"
-      },
-      {
-        "type": "action",
-        "description": "Select \"Categoría\" filter option \"Todas\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible for the products results table"
-      },
-      {
-        "type": "action",
-        "description": "Select \"Categoría\" filter option \"Ferretería\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible for the products results table"
-      }
-    ]
-  },
-  {
-    "id": "TC004",
-    "title": "Filter products by supplier and verify filtered list updates",
-    "description": "Verifies supplier filtering changes the visible products list.",
-    "category": "Product CRUD",
-    "priority": "Medium",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /products"
-      },
-      {
-        "type": "action",
-        "description": "Filter by category or supplier"
-      },
-      {
-        "type": "action",
-        "description": "Select \"Proveedor\" filter option \"Todos\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible for the products results table"
-      },
-      {
-        "type": "action",
-        "description": "Select \"Proveedor\" filter option \"Proveedor Demo\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible for the products results table"
+        "description": "Verify text visible \"Productos\""
       }
     ]
   },
   {
     "id": "TC005",
-    "title": "Edit product: modify price/bonificaciones, save and handle validation error",
-    "description": "Verifies edit modal shows validation errors on failed save and does not close/save.",
-    "category": "Product CRUD",
-    "priority": "High",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /products"
-      },
-      {
-        "type": "action",
-        "description": "Click edit icon on a product, modify fields, then save"
-      },
-      {
-        "type": "action",
-        "description": "Type \"-1\" into the \"precio_lista\" field"
-      },
-      {
-        "type": "action",
-        "description": "Type \"200\" into the \"bonificacion_1\" field"
-      },
-      {
-        "type": "action",
-        "description": "Click Save"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Error\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"validación\""
-      }
-    ]
-  },
-  {
-    "id": "TC006",
-    "title": "Paginate product results and verify page changes",
-    "description": "Verifies pagination controls change the visible page of product results.",
-    "category": "Product CRUD",
-    "priority": "Low",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /products"
-      },
-      {
-        "type": "action",
-        "description": "Paginate results"
-      },
-      {
-        "type": "action",
-        "description": "Click \"Siguiente\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Página\""
-      },
-      {
-        "type": "action",
-        "description": "Click \"Anterior\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Página\""
-      }
-    ]
-  },
-  {
-    "id": "TC007",
-    "title": "Cash required: open cash from 'No hay caja abierta' modal and resume generation",
-    "description": "Verifies the flow when generating a voucher requires an open cash register, allowing the user to open cash and continue.",
-    "category": "Sales Voucher Creation",
-    "priority": "High",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /sales"
-      },
-      {
-        "type": "action",
-        "description": "Search and select a client"
-      },
-      {
-        "type": "action",
-        "description": "Search and add products to cart"
-      },
-      {
-        "type": "action",
-        "description": "Set payment method and amount"
-      },
-      {
-        "type": "action",
-        "description": "Click \"Generar\" and confirm"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible"
-      },
-      {
-        "type": "action",
-        "description": "Click"
-      },
-      {
-        "type": "action",
-        "description": "Type/Fill [text] into [field]"
-      }
-    ]
-  },
-  {
-    "id": "TC008",
-    "title": "Prevent generation without selecting a client",
-    "description": "Verifies the UI blocks voucher generation when no client is selected.",
-    "category": "Sales Voucher Creation",
+    "title": "Dashboard: acceso rápido a Clientes navega a /clients",
+    "description": "Verifica que el acceso rápido a clientes desde el dashboard lleve a la pantalla de clientes.",
+    "category": "Dashboard mensual con KPIs y accesos rápidos",
     "priority": "Medium",
     "steps": [
       {
         "type": "action",
-        "description": "Navigate to /sales"
+        "description": "Navigate to /login"
       },
       {
         "type": "action",
-        "description": "Select voucher type (Cotización / Remito / Factura)"
+        "description": "Fill {{LOGIN_USER}} into Email field"
       },
       {
         "type": "action",
-        "description": "Search and add products to cart"
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
       },
       {
         "type": "action",
-        "description": "Set payment method and amount"
+        "description": "Click Login button"
       },
       {
         "type": "action",
-        "description": "Click \"Generar\" and confirm"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible"
-      }
-    ]
-  },
-  {
-    "id": "TC009",
-    "title": "Prevent generation with empty cart (no products added)",
-    "description": "Verifies the UI blocks voucher generation if no products are in the cart.",
-    "category": "Sales Voucher Creation",
-    "priority": "Medium",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /sales"
-      },
-      {
-        "type": "action",
-        "description": "Search and select a client"
-      },
-      {
-        "type": "action",
-        "description": "Set payment method and amount"
-      },
-      {
-        "type": "action",
-        "description": "Click \"Generar\" and confirm"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible"
-      }
-    ]
-  },
-  {
-    "id": "TC010",
-    "title": "Cart row edits persist in UI before generation (quantity and discount)",
-    "description": "Verifies editing quantity and per-item discount updates visible cart row state prior to generating the voucher.",
-    "category": "Sales Voucher Creation",
-    "priority": "Low",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /sales"
-      },
-      {
-        "type": "action",
-        "description": "Search and select a client"
-      },
-      {
-        "type": "action",
-        "description": "Search and add products to cart"
-      },
-      {
-        "type": "action",
-        "description": "Edit cart rows (quantity and per-item discount)"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible"
-      }
-    ]
-  },
-  {
-    "id": "TC011",
-    "title": "Client list shows account balance column",
-    "description": "Verifies the clients list renders and includes the account balance information in the table.",
-    "category": "Client CRUD",
-    "priority": "High",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /clients"
+        "description": "Click acceso rápido a clientes"
       },
       {
         "type": "assertion",
@@ -351,576 +173,871 @@
       {
         "type": "assertion",
         "description": "Verify text visible \"Clientes\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Saldo\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible \"Nuevo cliente\""
       }
     ]
   },
   {
-    "id": "TC012",
-    "title": "Search clients by name or document number filters results",
-    "description": "Verifies searching by name/document number updates the visible list of clients.",
-    "category": "Client CRUD",
+    "id": "TC006",
+    "title": "Dashboard: acceso rápido a Reportes navega a /reports",
+    "description": "Verifica que el acceso rápido a reportes desde el dashboard lleve al índice de reportes.",
+    "category": "Dashboard mensual con KPIs y accesos rápidos",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Login button"
+      },
+      {
+        "type": "action",
+        "description": "Click acceso rápido a reportes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains /reports"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Reportes\""
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Smoke: abrir Luci desde /products e interactuar con el input",
+    "description": "Verifica que el panel lateral de Luci abra desde el header y que el input y el botón de envío estén presentes e interactuables, sin depender de una respuesta IA específica.",
+    "category": "Luci: asistente IA lateral con historial persistente",
     "priority": "High",
     "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Click Ingresar testing button"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /products"
+      },
+      {
+        "type": "action",
+        "description": "Click Abrir agente de presupuestos IA"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element visible Panel de Luci"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element visible Mensaje para Luci"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element visible Enviar mensaje a Luci"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Mostrar estado 'thinking' en tiempo real al enviar un mensaje",
+    "description": "Verifica que al enviar una consulta, Luci muestra pasos intermedios 'thinking' visibles en la conversación.",
+    "category": "Luci: asistente IA lateral con historial persistente",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Login button"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /products"
+      },
+      {
+        "type": "action",
+        "description": "Click Abrir el botón IA en el header"
+      },
+      {
+        "type": "action",
+        "description": "Click Enviar mensaje libre o consulta de producto"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"thinking\""
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Persistencia: restaurar historial al reabrir el panel",
+    "description": "Verifica que el historial queda visible al cerrar y volver a abrir el panel de Luci dentro de la misma sesión.",
+    "category": "Luci: asistente IA lateral con historial persistente",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Login button"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /products"
+      },
+      {
+        "type": "action",
+        "description": "Click Abrir el botón IA en el header"
+      },
+      {
+        "type": "action",
+        "description": "Click Enviar mensaje libre o consulta de producto"
+      },
+      {
+        "type": "action",
+        "description": "Click Abrir el botón IA en el header"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element visible Chat history"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Limpiar historial desde /clients y ver confirmación",
+    "description": "Verifica que al limpiar historial, el panel queda vacío y se muestra confirmación visible.",
+    "category": "Luci: asistente IA lateral con historial persistente",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Login button"
+      },
       {
         "type": "action",
         "description": "Navigate to /clients"
       },
       {
-        "type": "assertion",
-        "description": "Verify element visible \"Buscar\""
+        "type": "action",
+        "description": "Click Abrir el botón IA en el header"
       },
       {
         "type": "action",
-        "description": "Type/Fill \"Juan\" into \"Buscar\""
+        "description": "Click Limpiar o restaurar historial"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element visible Empty chat state"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Handoff: agregar productos al carrito virtual y verlos cargados en /sales",
+    "description": "Verifica que desde el chat de IA se puedan agregar productos al carrito virtual y que /sales muestre el carrito cargado desde IA.",
+    "category": "IA de presupuestos y handoff a Ventas",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Login button"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /products"
+      },
+      {
+        "type": "action",
+        "description": "Click Agregar productos al carrito virtual button"
+      },
+      {
+        "type": "action",
+        "description": "Click Ventas link"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains /sales"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Parseo de presupuesto: visualizar borrador con matches y nivel de confianza",
+    "description": "Verifica que el chat muestre un borrador de cotización con coincidencias (matches) y un indicador de confianza luego de pedir un presupuesto desde el chat.",
+    "category": "IA de presupuestos y handoff a Ventas",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Login button"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /products"
+      },
+      {
+        "type": "action",
+        "description": "Click Pedir un presupuesto desde el chat button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"borrador\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"confianza\""
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Corrección en chat: corregir matches ambiguos o sin cantidad y reintentar parseo",
+    "description": "Verifica que ante cantidades ambiguas la UI muestre el aviso y permita corregir en el chat y reintentar el parseo.",
+    "category": "IA de presupuestos y handoff a Ventas",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Login button"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /products"
+      },
+      {
+        "type": "action",
+        "description": "Click Corregir matches ambiguos o sin cantidad button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Faltan cantidades\""
+      },
+      {
+        "type": "action",
+        "description": "Click Reintentar parseo button"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Aprendizaje: guardar términos aprendidos desde el chat",
+    "description": "Verifica que el usuario pueda guardar términos aprendidos (sinónimos) desde la UI del chat.",
+    "category": "IA de presupuestos y handoff a Ventas",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Login button"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /products"
+      },
+      {
+        "type": "action",
+        "description": "Click Guardar términos aprendidos button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Guardado\""
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Validar conexión de proveedor IA con API key y modelo (flujo OK)",
+    "description": "Verifica que al validar un proveedor IA con API key y modelo se muestre el estado de conexión válida.",
+    "category": "Configuración multi-proveedor de IA",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Login button"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /settings"
+      },
+      {
+        "type": "action",
+        "description": "Click Abrir una card de proveedor"
+      },
+      {
+        "type": "action",
+        "description": "Click Validar conexión"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Conexión válida\""
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Guardar configuración de proveedor IA y activarlo (badge Activo visible)",
+    "description": "Verifica que luego de guardar la configuración se pueda activar el proveedor y ver el badge 'Activo' en la card.",
+    "category": "Configuración multi-proveedor de IA",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Login button"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /settings"
+      },
+      {
+        "type": "action",
+        "description": "Click Abrir una card de proveedor"
+      },
+      {
+        "type": "action",
+        "description": "Click Guardar API key y modelo"
+      },
+      {
+        "type": "action",
+        "description": "Click Activar un proveedor"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Activo\""
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "Validación con API key incorrecta muestra error y no activa el proveedor",
+    "description": "Verifica que una API key inválida muestre el mensaje de error y que no se vea el estado activo.",
+    "category": "Configuración multi-proveedor de IA",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Login button"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /settings"
+      },
+      {
+        "type": "action",
+        "description": "Click Abrir una card de proveedor"
+      },
+      {
+        "type": "action",
+        "description": "Click Validar conexión"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"API key inválida\""
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "Consultar modelos reales con API key pegada muestra lista/modelos visibles",
+    "description": "Verifica que la acción de consultar modelos reales muestre opciones/modelos visibles para seleccionar.",
+    "category": "Configuración multi-proveedor de IA",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Login button"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /settings"
+      },
+      {
+        "type": "action",
+        "description": "Click Abrir una card de proveedor"
+      },
+      {
+        "type": "action",
+        "description": "Click Consultar modelos reales guardados o con key pegada"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element visible Model selector"
+      }
+    ]
+  },
+  {
+    "id": "TC019",
+    "title": "Mostrar advertencia por discrepancia de IVA calculado localmente",
+    "description": "Verifica que al agregar un producto con IVA 10.5% aparezca la advertencia de posible cálculo incorrecto del IVA.",
+    "category": "Ventas unificadas con pagos, PDFs y conversión a factura",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
       },
       {
         "type": "action",
         "description": "Press key Enter"
       },
       {
-        "type": "assertion",
-        "description": "Verify text visible \"Juan\""
-      }
-    ]
-  },
-  {
-    "id": "TC013",
-    "title": "Quick-create a new client and see it in the list with balance column",
-    "description": "Verifies creating a client via the Nuevo cliente modal saves and the new row appears in the list.",
-    "category": "Client CRUD",
-    "priority": "High",
-    "steps": [
-      {
         "type": "action",
-        "description": "Navigate to /clients"
+        "description": "Navigate to /sales"
       },
       {
         "type": "action",
-        "description": "Click \"Nuevo cliente\""
+        "description": "Click Agregar productos por teclado o desde IA"
       },
       {
         "type": "assertion",
-        "description": "Verify text visible \"Nuevo cliente\""
-      },
-      {
-        "type": "action",
-        "description": "Type/Fill \"Cliente UI Test\" into \"Razón social\""
-      },
-      {
-        "type": "action",
-        "description": "Type/Fill \"20123456789\" into \"CUIT/DNI\""
-      },
-      {
-        "type": "action",
-        "description": "Select \"Responsable Inscripto\" from \"Condición IVA\""
-      },
-      {
-        "type": "action",
-        "description": "Click \"Guardar\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Cliente UI Test\""
-      }
-    ]
-  },
-  {
-    "id": "TC014",
-    "title": "Create a new supplier via 3-tab modal and verify it appears in the list",
-    "description": "Verifies a user can create a supplier by completing the General, Commercial conditions, and Categories tabs and sees it in the suppliers table.",
-    "category": "Supplier CRUD",
-    "priority": "High",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /suppliers"
-      },
-      {
-        "type": "action",
-        "description": "Click \"Nuevo Proveedor\" and fill 3-tab form, then save"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Proveedor\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"CUIT\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Categorías\""
-      }
-    ]
-  },
-  {
-    "id": "TC015",
-    "title": "Search suppliers filters the list",
-    "description": "Verifies supplier search interaction updates the visible supplier list.",
-    "category": "Supplier CRUD",
-    "priority": "Medium",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /suppliers"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible \"table\""
-      },
-      {
-        "type": "action",
-        "description": "Search suppliers"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible \"table\""
-      }
-    ]
-  },
-  {
-    "id": "TC016",
-    "title": "Create a new category from the modal and verify it appears in the list",
-    "description": "Verifies a user can create a category via the 'Nueva Categoría' modal and see it in the categories list.",
-    "category": "Category CRUD",
-    "priority": "High",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /categories"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible \"Nueva Categoría\""
-      },
-      {
-        "type": "action",
-        "description": "Click \"Nueva Categoría\" and fill name and description, then save"
-      },
-      {
-        "type": "action",
-        "description": "Search categories by name"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Categoría QA\""
-      }
-    ]
-  },
-  {
-    "id": "TC017",
-    "title": "Cash Register: Open cash with opening amount and verify header details",
-    "description": "Verifies that a cash register can be opened from the no-cash state and the UI reflects opening time/amount.",
-    "category": "Cash Register",
-    "priority": "High",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /caja"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Sin caja abierta\""
-      },
-      {
-        "type": "action",
-        "description": "Type/Fill \"1000\" into \"Monto de apertura\" field"
-      },
-      {
-        "type": "action",
-        "description": "Click \"Abrir Caja\" and enter opening amount, then confirm"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible \"Cerrar Caja\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Monto apertura\""
-      }
-    ]
-  },
-  {
-    "id": "TC018",
-    "title": "Create and confirm a new purchase order and verify it appears in the list",
-    "description": "Verifies the user can create a new purchase order from Inventory and confirm it so it is listed.",
-    "category": "Inventory Purchase Orders",
-    "priority": "High",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /inventory"
-      },
-      {
-        "type": "action",
-        "description": "Click \"Nueva Orden de Pedido\" and fill modal, then confirm"
-      },
-      {
-        "type": "action",
-        "description": "Fill counted stock per product"
-      },
-      {
-        "type": "action",
-        "description": "Click \"Confirmar Orden\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Orden\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible for the new order in the orders list"
-      }
-    ]
-  },
-  {
-    "id": "TC019",
-    "title": "Filter purchase orders by supplier/category/status and verify results update",
-    "description": "Verifies filtering the purchase orders list updates the visible results.",
-    "category": "Inventory Purchase Orders",
-    "priority": "Medium",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /inventory"
-      },
-      {
-        "type": "action",
-        "description": "Filter orders by supplier, category, or status"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible for the filtered orders list"
-      },
-      {
-        "type": "action",
-        "description": "Filter orders by supplier, category, or status"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible for the filtered orders list"
+        "description": "Verify text visible \"IVA calculado localmente puede ser incorrecto\""
       }
     ]
   },
   {
     "id": "TC020",
-    "title": "Open an order detail view from the list",
-    "description": "Verifies the user can open an order detail view using the eye icon.",
-    "category": "Inventory Purchase Orders",
+    "title": "Smoke: /sales carga y muestra la UI base de ventas",
+    "description": "Verifica que la pantalla de ventas cargue desde la navegación real de testing y muestre controles base sin white screen ni depender de emisión ARCA.",
+    "category": "Ventas unificadas con pagos, PDFs y conversión a factura",
     "priority": "High",
     "steps": [
       {
         "type": "action",
-        "description": "Navigate to /inventory"
+        "description": "Navigate to /login"
       },
       {
         "type": "action",
-        "description": "Click eye icon to view order detail"
+        "description": "Click Ingresar testing button"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /sales"
       },
       {
         "type": "assertion",
-        "description": "Verify text visible \"Detalle\""
+        "description": "Verify text visible \"Cotización\""
       },
       {
         "type": "assertion",
-        "description": "Verify element visible for the order detail section"
+        "description": "Verify text visible \"Busque productos para agregar\""
       }
     ]
   },
   {
     "id": "TC021",
-    "title": "Confirm a DRAFT order successfully via checkmark",
-    "description": "Verifies a DRAFT purchase order can be confirmed from the list/detail using the checkmark action.",
-    "category": "Inventory Purchase Orders",
+    "title": "Abrir caja con monto inicial (sin caja abierta)",
+    "description": "Verifica que se pueda abrir la caja desde /caja ingresando un monto inicial y que se muestre la vista de caja abierta con movimientos.",
+    "category": "Caja diaria con reconciliación y PDF",
     "priority": "High",
     "steps": [
       {
         "type": "action",
-        "description": "Navigate to /inventory"
+        "description": "Navigate to /login"
       },
       {
         "type": "action",
-        "description": "Filter orders by supplier, category, or status"
+        "description": "Fill {{LOGIN_USER}} into Email field"
       },
       {
         "type": "action",
-        "description": "Click checkmark to confirm a draft order"
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Login\" button"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Caja\" navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Type/Fill 10000 into \"Monto inicial\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Abrir Caja\" button"
       },
       {
         "type": "assertion",
-        "description": "Verify text visible \"CONFIRMADA\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible for the updated order status"
+        "description": "Verify text visible \"Movimientos\""
       }
     ]
   },
   {
     "id": "TC022",
-    "title": "Handle confirm conflict for a DRAFT order and keep it in DRAFT view",
-    "description": "Verifies that when confirming a DRAFT order fails due to invalid state, an error toast is shown and the order remains in DRAFT view.",
-    "category": "Inventory Purchase Orders",
+    "title": "Registrar ingreso manual y ver movimiento en tabla",
+    "description": "Verifica que al registrar un ingreso manual se agregue a la tabla de movimientos y sea visible.",
+    "category": "Caja diaria con reconciliación y PDF",
     "priority": "High",
     "steps": [
       {
         "type": "action",
-        "description": "Navigate to /inventory"
+        "description": "Navigate to /login"
       },
       {
         "type": "action",
-        "description": "Click eye icon to view order detail"
+        "description": "Fill {{LOGIN_USER}} into Email field"
       },
       {
         "type": "action",
-        "description": "Click checkmark to confirm a draft order"
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Login\" button"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Caja\" navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Click \"+ Ingreso\" button"
+      },
+      {
+        "type": "action",
+        "description": "Type/Fill \"Ingreso test\" into \"Descripción\" field"
+      },
+      {
+        "type": "action",
+        "description": "Type/Fill 1500 into \"Monto\" field"
       },
       {
         "type": "assertion",
-        "description": "Verify text visible \"No se pudo confirmar: estado inválido\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"DRAFT\""
+        "description": "Verify text visible \"Ingreso test\""
       }
     ]
   },
   {
     "id": "TC023",
-    "title": "Theme toggle switches UI mode from Dashboard header",
-    "description": "Verifies the header theme toggle visibly switches between light and dark mode on an authenticated page.",
-    "category": "Dark Light Theme Toggle",
+    "title": "Cerrar caja con efectivo contado igual al esperado y volver a estado sin caja",
+    "description": "Verifica el cierre de caja con reconciliación sin diferencia (efectivo contado igual al esperado) y que luego se muestre la pantalla sin caja abierta.",
+    "category": "Caja diaria con reconciliación y PDF",
     "priority": "High",
     "steps": [
       {
         "type": "action",
-        "description": "Navigate to /"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible: theme toggle button in Header"
+        "description": "Navigate to /login"
       },
       {
         "type": "action",
-        "description": "Click theme toggle button in Header"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible: Dark"
+        "description": "Fill {{LOGIN_USER}} into Email field"
       },
       {
         "type": "action",
-        "description": "Click theme toggle button in Header"
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
       },
       {
-        "type": "assertion",
-        "description": "Verify text visible: Light"
+        "type": "action",
+        "description": "Click \"Login\" button"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Caja\" navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Cerrar Caja\" button"
+      },
+      {
+        "type": "action",
+        "description": "Type/Fill the expected amount into \"Efectivo físico contado\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Confirmar Cierre\" button"
       }
     ]
   },
   {
     "id": "TC024",
-    "title": "Theme preference persists after reload on an authenticated page",
-    "description": "Verifies the selected theme remains applied after a page reload (localStorage persistence).",
-    "category": "Dark Light Theme Toggle",
-    "priority": "High",
+    "title": "Cierre de caja: mostrar diferencia cuando el efectivo contado no coincide",
+    "description": "Verifica que al ingresar un efectivo físico distinto al esperado se muestre visualmente una diferencia en el modal de cierre.",
+    "category": "Caja diaria con reconciliación y PDF",
+    "priority": "Medium",
     "steps": [
       {
         "type": "action",
-        "description": "Navigate to /"
+        "description": "Navigate to /login"
       },
       {
         "type": "action",
-        "description": "Click theme toggle button in Header"
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Login\" button"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Caja\" navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Cerrar Caja\" button"
+      },
+      {
+        "type": "action",
+        "description": "Type/Fill 1 into \"Efectivo físico contado\" field"
       },
       {
         "type": "assertion",
-        "description": "Verify text visible: Dark"
-      },
-      {
-        "type": "action",
-        "description": "Press key: Enter"
-      },
-      {
-        "type": "action",
-        "description": "Wait for element visible: theme toggle button in Header"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible: Dark"
+        "description": "Verify text visible \"Diferencia\""
       }
     ]
   },
   {
     "id": "TC025",
-    "title": "Theme selection stays consistent when navigating to another authenticated route",
-    "description": "Verifies the theme remains applied when moving from one authenticated page to another via UI navigation.",
-    "category": "Dark Light Theme Toggle",
-    "priority": "Medium",
+    "title": "Validación: no permitir generar planilla sin seleccionar Proveedor o Categoría",
+    "description": "Verifica manejo de error cuando se intenta generar la planilla sin filtros requeridos.",
+    "category": "Órdenes de pedido e inventario físico",
+    "priority": "High",
     "steps": [
       {
         "type": "action",
-        "description": "Navigate to /"
+        "description": "Navigate to /login"
       },
       {
         "type": "action",
-        "description": "Click theme toggle button in Header"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible: Dark"
+        "description": "Fill {{LOGIN_USER}} into Email field"
       },
       {
         "type": "action",
-        "description": "Click Sales in the main navigation"
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Ingresar' button"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Inventario' link"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Nueva Orden de Pedido' button"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Generar Planilla de Conteo' button"
       },
       {
         "type": "assertion",
-        "description": "Verify URL contains: /sales"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible: Dark"
+        "description": "Verify text visible 'Seleccioná un proveedor o una categoría'"
       }
     ]
   },
   {
     "id": "TC026",
-    "title": "Theme toggle is available on other authenticated pages (Products)",
-    "description": "Verifies the header theme toggle is visible and functional on another authenticated route.",
-    "category": "Dark Light Theme Toggle",
-    "priority": "Medium",
+    "title": "Carga de conteo: calcular diferencia y confirmar orden para que aparezca listada",
+    "description": "Verifica que el conteo físico calcule diferencias y que al confirmar se liste la orden.",
+    "category": "Órdenes de pedido e inventario físico",
+    "priority": "High",
     "steps": [
       {
         "type": "action",
-        "description": "Navigate to /products"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible: theme toggle button in Header"
+        "description": "Navigate to /login"
       },
       {
         "type": "action",
-        "description": "Click theme toggle button in Header"
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Ingresar' button"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Inventario' link"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Carga de conteo' button"
+      },
+      {
+        "type": "action",
+        "description": "Fill '1' into a 'Conteo físico' cell for a product"
       },
       {
         "type": "assertion",
-        "description": "Verify text visible: Dark"
+        "description": "Verify element visible 'Diferencia' value for that product"
+      },
+      {
+        "type": "action",
+        "description": "Fill '1' into 'Cantidad a pedir' for that product"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Confirmar Orden' button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible 'Orden' in the orders list"
       }
     ]
   },
   {
     "id": "TC027",
-    "title": "Theme toggle visual change works even when persistence fails (private mode scenario)",
-    "description": "Verifies the toggle still visually changes theme even if persistence to localStorage is not available.",
-    "category": "Dark Light Theme Toggle",
-    "priority": "Low",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible: theme toggle button in Header"
-      },
-      {
-        "type": "action",
-        "description": "Click theme toggle button in Header"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible: Dark"
-      }
-    ]
-  },
-  {
-    "id": "TC028",
-    "title": "Load Business Settings page shows business data form",
-    "description": "Verifies the Settings page loads and the business data form is visible for editing.",
-    "category": "Business Settings",
-    "priority": "High",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /login"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Google\""
-      },
-      {
-        "type": "action",
-        "description": "Navigate to /settings"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Guardar datos del negocio\""
-      },
-      {
-        "type": "assertion",
-        "description": "Verify element visible \"Nombre\""
-      }
-    ]
-  },
-  {
-    "id": "TC029",
-    "title": "Save business identity fields successfully",
-    "description": "Edits business fields and saves, expecting a success toast and persisted values after reload.",
-    "category": "Business Settings",
-    "priority": "High",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /login"
-      },
-      {
-        "type": "action",
-        "description": "Navigate to /settings"
-      },
-      {
-        "type": "action",
-        "description": "Fill \"Nombre\" with text \"Empresa QA SRL\""
-      },
-      {
-        "type": "action",
-        "description": "Fill \"CUIT\" with text \"20304050607\""
-      },
-      {
-        "type": "action",
-        "description": "Fill \"Dirección\" with text \"Av. Siempre Viva 123\""
-      },
-      {
-        "type": "action",
-        "description": "Click \"Guardar datos del negocio\" to save"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Datos guardados\""
-      },
-      {
-        "type": "action",
-        "description": "Navigate to /settings"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify text visible \"Empresa QA SRL\""
-      }
-    ]
-  },
-  {
-    "id": "TC030",
-    "title": "Save additional fiscal/contact fields successfully",
-    "description": "Edits phone, email and sale point number and saves, expecting a success toast.",
-    "category": "Business Settings",
+    "title": "Borrador: ver detalle y confirmar borrador desde el detalle",
+    "description": "Verifica que una orden en borrador pueda abrirse en detalle y confirmarse.",
+    "category": "Órdenes de pedido e inventario físico",
     "priority": "Medium",
     "steps": [
       {
@@ -929,35 +1046,47 @@
       },
       {
         "type": "action",
-        "description": "Navigate to /settings"
+        "description": "Fill {{LOGIN_USER}} into Email field"
       },
       {
         "type": "action",
-        "description": "Fill \"Teléfono\" with text \"1155555555\""
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
       },
       {
         "type": "action",
-        "description": "Fill \"Email\" with text \"qa-settings@example.com\""
+        "description": "Click 'Ingresar' button"
       },
       {
         "type": "action",
-        "description": "Fill \"Punto de venta\" with text \"0002\""
+        "description": "Click 'Inventario' link"
       },
       {
         "type": "action",
-        "description": "Click \"Guardar datos del negocio\" to save"
+        "description": "Select 'BORRADOR' in 'Estado' filter"
+      },
+      {
+        "type": "action",
+        "description": "Click the first order row in the list"
       },
       {
         "type": "assertion",
-        "description": "Verify text visible \"Datos guardados\""
+        "description": "Verify element visible 'Detalle de Orden'"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Confirmar' button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible 'Confirmada'"
       }
     ]
   },
   {
-    "id": "TC031",
-    "title": "Validation/error handling when saving with invalid CUIT",
-    "description": "Attempts to save an invalid CUIT and verifies an error message/toast is shown (no success toast).",
-    "category": "Business Settings",
+    "id": "TC028",
+    "title": "Restringir edición: mostrar error al intentar editar una orden no borrador",
+    "description": "Verifica que al intentar editar una orden confirmada se muestre el error de solo borradores.",
+    "category": "Órdenes de pedido e inventario físico",
     "priority": "High",
     "steps": [
       {
@@ -966,15 +1095,408 @@
       },
       {
         "type": "action",
-        "description": "Navigate to /settings"
+        "description": "Fill {{LOGIN_USER}} into Email field"
       },
       {
         "type": "action",
-        "description": "Fill \"CUIT\" with text \"ABC\""
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
       },
       {
         "type": "action",
-        "description": "Click \"Guardar datos del negocio\" to save"
+        "description": "Click 'Ingresar' button"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Inventario' link"
+      },
+      {
+        "type": "action",
+        "description": "Select 'CONFIRMADA' in 'Estado' filter"
+      },
+      {
+        "type": "action",
+        "description": "Click the first order row in the list"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Editar' button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible 'Solo se pueden editar órdenes en borrador'"
+      }
+    ]
+  },
+  {
+    "id": "TC029",
+    "title": "Crear nota de crédito desde una factura emitida con CAE",
+    "description": "Verifica el flujo de 'Crear nota de crédito desde factura' completando el modal y observando que la nota de crédito aparezca en el listado.",
+    "category": "Historial de comprobantes y notas de crédito",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Ingresar' button"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Comprobantes' link/menu"
+      },
+      {
+        "type": "action",
+        "description": "Click a voucher row that is a factura emitida con CAE"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Crear nota de crédito desde factura' button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element visible 'CreditNoteModal'"
+      }
+    ]
+  },
+  {
+    "id": "TC030",
+    "title": "Completar modal de nota de crédito con motivo y monto y ver resultado",
+    "description": "Verifica que al completar motivo y monto en el modal, se confirme visualmente la creación y se vea la nota de crédito en el listado.",
+    "category": "Historial de comprobantes y notas de crédito",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Ingresar' button"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Comprobantes' link/menu"
+      },
+      {
+        "type": "action",
+        "description": "Click a voucher row that is a factura emitida con CAE"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Crear nota de crédito desde factura' button"
+      },
+      {
+        "type": "action",
+        "description": "Type/Fill text into 'motivo' field"
+      },
+      {
+        "type": "action",
+        "description": "Type/Fill a numeric value into 'monto' field"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Confirmar' button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible 'Nota de crédito'"
+      }
+    ]
+  },
+  {
+    "id": "TC031",
+    "title": "Eliminar comprobante (eliminación lógica) y ver confirmación",
+    "description": "Verifica que al 'Eliminar comprobante con motivo' se muestre confirmación visible (toast) y el comprobante se refleje como eliminado en el listado.",
+    "category": "Historial de comprobantes y notas de crédito",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Ingresar' button"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Comprobantes' link/menu"
+      },
+      {
+        "type": "action",
+        "description": "Click a voucher row"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Eliminar comprobante con motivo' button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible 'Eliminado' or 'Comprobante eliminado'"
+      }
+    ]
+  },
+  {
+    "id": "TC032",
+    "title": "Buscar por número inexistente muestra 'No se encontraron comprobantes'",
+    "description": "Verifica el manejo de lista vacía cuando se filtra por un ID/número inexistente.",
+    "category": "Historial de comprobantes y notas de crédito",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Ingresar' button"
+      },
+      {
+        "type": "action",
+        "description": "Click 'Comprobantes' link/menu"
+      },
+      {
+        "type": "action",
+        "description": "Type/Fill '999999999' into 'Buscar por número' field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible 'No se encontraron comprobantes'"
+      }
+    ]
+  },
+  {
+    "id": "TC033",
+    "title": "Guardar datos fiscales del negocio desde Ajustes",
+    "description": "Verifica que se puedan editar y guardar razón social, CUIT y punto de venta mostrando confirmación visible.",
+    "category": "Ajustes del negocio y configuración ARCA/AFIP",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Ingresar button"
+      },
+      {
+        "type": "action",
+        "description": "Click Ajustes link/menu item"
+      },
+      {
+        "type": "action",
+        "description": "Fill updated values into Razón social, CUIT y punto de venta fields"
+      },
+      {
+        "type": "action",
+        "description": "Click Guardar button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Guardado\""
+      }
+    ]
+  },
+  {
+    "id": "TC034",
+    "title": "Validación visible al intentar guardar datos fiscales incompletos",
+    "description": "Verifica que la UI muestre un error visible si se intenta guardar con campos obligatorios vacíos.",
+    "category": "Ajustes del negocio y configuración ARCA/AFIP",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Ingresar button"
+      },
+      {
+        "type": "action",
+        "description": "Click Ajustes link/menu item"
+      },
+      {
+        "type": "action",
+        "description": "Fill empty/invalid values into Razón social, CUIT y punto de venta fields"
+      },
+      {
+        "type": "action",
+        "description": "Click Guardar button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Error\""
+      }
+    ]
+  },
+  {
+    "id": "TC035",
+    "title": "Guardar configuración ARCA (token/certificado/clave) desde la tarjeta ARCA",
+    "description": "Verifica que se pueda guardar la configuración de ARCA y que se muestre confirmación visible.",
+    "category": "Ajustes del negocio y configuración ARCA/AFIP",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Ingresar button"
+      },
+      {
+        "type": "action",
+        "description": "Click Ajustes link/menu item"
+      },
+      {
+        "type": "action",
+        "description": "Click Abrir ARCA configuration card"
+      },
+      {
+        "type": "action",
+        "description": "Fill values to Guardar token/certificado/clave de ARCA"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Guardado\""
+      }
+    ]
+  },
+  {
+    "id": "TC036",
+    "title": "Correr diagnóstico ARCA y visualizar el resultado",
+    "description": "Verifica que al correr diagnóstico se muestre un resultado visible en pantalla.",
+    "category": "Ajustes del negocio y configuración ARCA/AFIP",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Ingresar button"
+      },
+      {
+        "type": "action",
+        "description": "Click Ajustes link/menu item"
+      },
+      {
+        "type": "action",
+        "description": "Click Abrir ARCA configuration card"
+      },
+      {
+        "type": "action",
+        "description": "Click Correr diagnóstico button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"Diagnóstico\""
+      }
+    ]
+  },
+  {
+    "id": "TC037",
+    "title": "Emitir factura de prueba y mostrar éxito o error con detalle",
+    "description": "Verifica que al emitir factura de prueba se muestre un resultado visible (éxito con CAE o error con detalle).",
+    "category": "Ajustes del negocio y configuración ARCA/AFIP",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into Email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into Password field"
+      },
+      {
+        "type": "action",
+        "description": "Click Ingresar button"
+      },
+      {
+        "type": "action",
+        "description": "Click Ajustes link/menu item"
+      },
+      {
+        "type": "action",
+        "description": "Click Emitir factura de prueba button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text visible \"CAE\""
       },
       {
         "type": "assertion",

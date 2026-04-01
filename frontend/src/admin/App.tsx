@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 
 import { ThemeProvider, useTheme } from '../context/ThemeContext'
+import { useAuth } from '../hooks/useAuth'
 import { useAuthStore } from '../stores/authStore'
 
 // Páginas admin con lazy load
@@ -15,6 +16,9 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const TenantList = lazy(() => import('./pages/TenantList'))
 const TenantDetail = lazy(() => import('./pages/TenantDetail'))
 const ArcaManagement = lazy(() => import('./pages/ArcaManagement'))
+const UsersPage = lazy(() => import('./pages/UsersPage'))
+const AdminLogin = lazy(() => import('./pages/AdminLogin'))
+const AdminAuthCallback = lazy(() => import('./pages/AdminAuthCallback'))
 
 // Cliente de React Query
 const queryClient = new QueryClient({
@@ -31,6 +35,7 @@ const queryClient = new QueryClient({
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const isLoading = useAuthStore((state) => state.isLoading)
+  const user = useAuthStore((state) => state.user)
 
   if (isLoading) {
     return (
@@ -41,7 +46,25 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="../tenant.html#/login" replace />;
+    return <Navigate to="/login" replace />
+  }
+
+  if (user?.platform_role !== 'superadmin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
+        <div className="max-w-md w-full rounded-xl border border-red-200 bg-white p-8 text-center shadow-lg dark:border-red-900/40 dark:bg-gray-800">
+          <h2 className="text-xl font-semibold text-red-700 dark:text-red-400">
+            Acceso denegado
+          </h2>
+          <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
+            Tu cuenta no tiene permisos de superadministrador para ingresar al panel admin.
+          </p>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+            Iniciá sesión con una cuenta habilitada o contactá al equipo técnico.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return <>{children}</>
@@ -94,6 +117,7 @@ function AdminSidebar() {
   const navItems = [
     { path: '/', label: 'Dashboard', icon: '📊' },
     { path: '/tenants', label: 'Tenants', icon: '🏢' },
+    { path: '/users', label: 'Usuarios', icon: '👤' },
   ]
 
   const isActive = (path: string) => {
@@ -123,15 +147,6 @@ function AdminSidebar() {
           </Link>
         ))}
       </nav>
-      <div className="p-4 border-t border-gray-700">
-        <Link
-          to="/tenant.html"
-          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-        >
-          <span>🔄</span>
-          <span>Ir a Tenant</span>
-        </Link>
-      </div>
     </aside>
   )
 }
@@ -149,11 +164,30 @@ function AdminLayout({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
+  useAuth()
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <HashRouter>
           <Routes>
+            <Route
+              path="/login"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <AdminLogin />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/auth/callback"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <AdminAuthCallback />
+                </Suspense>
+              }
+            />
+
             <Route
               path="/"
               element={
@@ -202,9 +236,21 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/users"
+              element={
+                <ProtectedRoute>
+                  <AdminLayout>
+                    <Suspense fallback={<PageLoader />}>
+                      <UsersPage />
+                    </Suspense>
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
 
-            {/* Ruta por defecto — redirige al dashboard admin */}
-            <Route path="*" element={<Navigate to="/" replace />} />
+            {/* Ruta por defecto — redirige al login admin */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
 
           <ThemedToaster />

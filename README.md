@@ -169,8 +169,11 @@ cd frontend
 # Instalar dependencias
 npm install
 
-# Iniciar servidor de desarrollo
-npm run dev
+# Iniciar app tenant (puerto 5173)
+npm run dev:tenant
+
+# Iniciar CMS admin (puerto 5174)
+npm run dev:admin
 ```
 
 ## Estructura del Proyecto

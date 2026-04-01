@@ -19,6 +19,7 @@ from app.models.audit_log import AuditLog
 from app.schemas.base import PaginatedResponse
 from app.schemas.voucher import (
     VoucherCreate,
+    VoucherUpdate,
     VoucherResponse,
     ConvertQuotationToInvoice,
 )
@@ -129,6 +130,41 @@ async def create_voucher(
             resource_id=voucher.id,
             details={
                 "description": f"Comprobante creado: {voucher.voucher_type.value}",
+                "client_id": str(voucher.client_id) if voucher.client_id else None,
+            },
+        )
+
+        return VoucherResponse.model_validate(voucher)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.put("/{voucher_id}", response_model=VoucherResponse)
+async def update_voucher(
+    voucher_id: UUID,
+    data: VoucherUpdate,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """Actualiza una cotización existente."""
+    service = VoucherService(db)
+    try:
+        voucher = await service.update_quotation(
+            voucher_id=voucher_id,
+            business_id=business_id,
+            data=data,
+        )
+
+        await _log_audit(
+            db=db,
+            user_id=current_user.id,
+            business_id=business_id,
+            action="update",
+            resource_type="voucher",
+            resource_id=voucher.id,
+            details={
+                "description": "Cotización actualizada",
                 "client_id": str(voucher.client_id) if voucher.client_id else None,
             },
         )

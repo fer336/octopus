@@ -18,7 +18,7 @@ export function useAuth() {
     const loadUser = async () => {
       const { accessToken, user, setUser, setLoading, logout } = useAuthStore.getState()
 
-      if (accessToken && !user) {
+      if (accessToken && (!user || !user.platform_role)) {
         try {
           const currentUser = await authService.getCurrentUser(accessToken)
           setUser(currentUser)

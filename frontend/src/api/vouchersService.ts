@@ -1,7 +1,7 @@
 /**
  * Servicio de Ventas (Comprobantes).
  */
-import httpClient from './httpClient'
+import httpClient, { getTenantApiUrl } from './httpClient'
 
 export interface VoucherItemCreate {
   product_id: string
@@ -25,6 +25,15 @@ export interface VoucherCreate {
   general_discount: number
   items: VoucherItemCreate[]
   payments?: VoucherPayment[]
+}
+
+export interface VoucherUpdate {
+  client_id: string
+  date: string
+  notes?: string
+  show_prices: boolean
+  general_discount: number
+  items: VoucherItemCreate[]
 }
 
 export interface VoucherItem {
@@ -58,6 +67,8 @@ export interface Voucher {
   sale_point: string
   number: string
   date: string
+  notes?: string
+  general_discount?: number
   subtotal: number
   iva_amount: number
   total: number
@@ -94,9 +105,13 @@ const vouchersService = {
     return response.data
   },
 
+  update: async (id: string, data: VoucherUpdate): Promise<Voucher> => {
+    const response = await httpClient.put(`/vouchers/${id}`, data)
+    return response.data
+  },
+
   getPdfUrl: (id: string): string => {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/tenant'
-    return `${apiUrl}/vouchers/${id}/pdf`
+    return `${getTenantApiUrl()}/vouchers/${id}/pdf`
   },
 
   /**

@@ -3,7 +3,7 @@ Modelo de membresías de tenant.
 Conecta usuarios con negocios y define su rol dentro de cada tenant.
 """
 
-from sqlalchemy import Column, Enum as SAEnum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Column, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -18,6 +18,17 @@ class MembershipRole:
     SELLER = "seller"
 
     ALL = [OWNER, MANAGER, SELLER]
+
+
+class MembershipAccessStatus:
+    """Estados de acceso de una membresía de tenant."""
+
+    ACTIVE = "active"
+    TRIAL = "trial"
+    SUSPENDED = "suspended"
+    EXPIRED = "expired"
+
+    ALL = [ACTIVE, TRIAL, SUSPENDED, EXPIRED]
 
 
 class TenantMembership(BaseModel):
@@ -49,6 +60,15 @@ class TenantMembership(BaseModel):
     )
     # Valores: "owner", "manager", "seller"
 
+    access_starts_at = Column(DateTime, nullable=True)
+    access_ends_at = Column(DateTime, nullable=True)
+    access_status = Column(
+        String(20),
+        nullable=False,
+        default=MembershipAccessStatus.ACTIVE,
+    )
+    blocked_reason = Column(String(255), nullable=True)
+
     # Relaciones
     user = relationship("User", back_populates="memberships")
     business = relationship("Business", back_populates="memberships")
@@ -59,4 +79,7 @@ class TenantMembership(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<TenantMembership user={self.user_id} business={self.business_id} role={self.role}>"
+        return (
+            f"<TenantMembership user={self.user_id} business={self.business_id} "
+            f"role={self.role} access_status={self.access_status}>"
+        )

@@ -6,24 +6,26 @@ Este documento define cómo correr pruebas E2E con TestSprite para OctopusTrack.
 
 - Backend levantado en `http://127.0.0.1:8000`
 - Frontend levantado en `http://127.0.0.1:5173`
-- Usuario de testing: `casserafernando@gmail.com`
+- Usuario demo: `user@demo`
+- Contraseña demo: `demo123`
 
 ## Bypass de login para testing
 
 Para evitar bloqueo por OAuth en pruebas automatizadas:
 
-- Backend expone `POST /auth/dev-login?email=<email>`
+- Backend expone `POST /auth/dev-login?email=<email>&password=<password>`
 - Solo funciona cuando `DEBUG=True`
-- Si el usuario no existe, se crea automáticamente con negocio por defecto
+- Si no hay usuarios activos, crea un usuario demo con negocio por defecto
 
 En frontend (modo desarrollo):
 
-- Botón en login: `Ingresar testing (casserafernando@gmail.com)`
+- Formulario visible en login con las credenciales demo
 - Opcional auto-login por variable de entorno:
 
 ```bash
 VITE_DEV_AUTO_LOGIN=true
-VITE_DEV_BYPASS_EMAIL=casserafernando@gmail.com
+VITE_DEMO_LOGIN_EMAIL=user@demo
+VITE_DEMO_LOGIN_PASSWORD=demo123
 ```
 
 ## Flujo sugerido para pruebas del agente IA

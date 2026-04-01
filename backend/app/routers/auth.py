@@ -4,8 +4,10 @@ Endpoints para login con Google OAuth y gestión de sesiones JWT.
 """
 
 import logging
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import RedirectResponse
+from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,6 +46,7 @@ async def _log_audit(
         await db.commit()
     except Exception as e:
         logger.error(f"Failed to write audit log: {e}")
+        await db.rollback()
 
 
 class GoogleLoginRequest(BaseModel):
@@ -74,15 +77,60 @@ class UserResponse(BaseModel):
     email: str
     name: str
     picture: str | None
+    platform_role: str
+
+
+def _build_oauth_state(next_target: str) -> str:
+    """Construye un state firmado para OAuth y evita tampering."""
+    payload = {
+        "next": next_target,
+        "type": "oauth_state",
+        "iat": datetime.utcnow(),
+        "exp": datetime.utcnow() + timedelta(minutes=10),
+    }
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+
+
+def _resolve_next_target(state_value: str | None) -> str:
+    """Resuelve next target desde state firmado. Fallback seguro a tenant."""
+    if not state_value:
+        return "tenant"
+
+    try:
+        payload = jwt.decode(
+            state_value,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALGORITHM],
+        )
+    except JWTError:
+        return "tenant"
+
+    if payload.get("type") != "oauth_state":
+        return "tenant"
+
+    next_target = payload.get("next")
+    if next_target not in {"tenant", "admin"}:
+        return "tenant"
+
+    return next_target
 
 
 @router.get("/google/login")
-async def google_login():
+async def google_login(
+    request: Request,
+    next_target: str = Query("tenant", pattern="^(tenant|admin)$", alias="next"),
+):
     """
     Inicia el flujo de autenticación con Google OAuth 2.0.
     Redirige al usuario a la página de autorización de Google.
     """
     from urllib.parse import urlencode
+
+    # Compatibilidad backward: si no llega "next", aceptar "next_target" legacy.
+    if "next" not in request.query_params:
+        legacy_next_target = request.query_params.get("next_target")
+        if legacy_next_target in {"tenant", "admin"}:
+            next_target = legacy_next_target
 
     # Parámetros para el authorization endpoint de Google
     params = {
@@ -92,6 +140,7 @@ async def google_login():
         "scope": "openid email profile",
         "access_type": "offline",
         "prompt": "select_account",
+        "state": _build_oauth_state(next_target),
     }
 
     auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
@@ -111,14 +160,22 @@ async def google_callback(
     # Leer el code directamente de los query params para evitar
     # que FastAPI haga un 307 si el param "code" no está declarado como requerido
     code = request.query_params.get("code")
+    next_target = _resolve_next_target(request.query_params.get("state"))
 
     logger.info(f"[OAuth] Callback recibido — URL: {request.url}")
     logger.info(f"[OAuth] Code presente: {bool(code)}")
 
     if not code:
-        frontend_url = settings.FRONTEND_URL
+        frontend_url = (
+            settings.FRONTEND_ADMIN_URL
+            if next_target == "admin"
+            else settings.FRONTEND_URL
+        )
+        login_path = (
+            "/admin.html#/login" if next_target == "admin" else "/tenant.html#/login"
+        )
         return RedirectResponse(
-            url=f"{frontend_url}/login?error=no_code",
+            url=f"{frontend_url}{login_path}?error=no_code",
             status_code=303,
         )
 
@@ -127,15 +184,29 @@ async def google_callback(
 
     if not result:
         logger.error("[OAuth] login_with_google_code retornó None")
-        frontend_url = settings.FRONTEND_URL
+        frontend_url = (
+            settings.FRONTEND_ADMIN_URL
+            if next_target == "admin"
+            else settings.FRONTEND_URL
+        )
+        login_path = (
+            "/admin.html#/login" if next_target == "admin" else "/tenant.html#/login"
+        )
         return RedirectResponse(
-            url=f"{frontend_url}/login?error=auth_failed",
+            url=f"{frontend_url}{login_path}?error=auth_failed",
             status_code=303,
         )
 
     # Usar 303 See Other en vez de 307 para evitar que el browser
     # re-envíe el mismo request (con el mismo code) al seguir el redirect
-    frontend_url = settings.FRONTEND_URL
+    frontend_url = (
+        settings.FRONTEND_ADMIN_URL if next_target == "admin" else settings.FRONTEND_URL
+    )
+    callback_path = (
+        "/admin.html#/auth/callback"
+        if next_target == "admin"
+        else "/tenant.html#/auth/callback"
+    )
     access_token = result["access_token"]
     refresh_token = result["refresh_token"]
 
@@ -154,8 +225,8 @@ async def google_callback(
             },
         )
 
-    redirect_url = f"{frontend_url}/auth/callback?access_token={access_token}&refresh_token={refresh_token}"
-    logger.info(f"[OAuth] Redirigiendo a frontend: {frontend_url}/auth/callback")
+    redirect_url = f"{frontend_url}{callback_path}?access_token={access_token}&refresh_token={refresh_token}"
+    logger.info(f"[OAuth] Redirigiendo a frontend: {frontend_url}{callback_path}")
     return RedirectResponse(url=redirect_url, status_code=303)
 
 
@@ -230,6 +301,7 @@ async def get_current_user_info(
         email=current_user.email,
         name=current_user.name,
         picture=current_user.picture,
+        platform_role=current_user.platform_role,
     )
 
 
@@ -358,8 +430,11 @@ async def dev_login(
 
     user_id = PyUUID(str(user.id))
     user_email = str(user.email)
+    user_name = str(user.name)
+    user_picture = str(user.picture or "")
+    user_platform_role = str(user.platform_role)
 
-    access_token = create_access_token(user_id, user_email, user.platform_role)
+    access_token = create_access_token(user_id, user_email, user_platform_role)
     refresh_token = create_refresh_token(user_id)
 
     # Log audit for dev login
@@ -380,9 +455,9 @@ async def dev_login(
         "refresh_token": refresh_token,
         "token_type": "bearer",
         "user": {
-            "id": str(user.id),
-            "email": user.email,
-            "name": user.name,
-            "picture": user.picture,
+            "id": str(user_id),
+            "email": user_email,
+            "name": user_name,
+            "picture": user_picture,
         },
     }

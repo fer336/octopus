@@ -3,7 +3,7 @@
  * Conecta con los endpoints /api/tenant/ai/* del backend.
  */
 import { AIParseQuoteResponse, AIChatResponse } from '../types'
-import httpClient from './httpClient'
+import httpClient, { getTenantApiUrl } from './httpClient'
 
 // ── Tipos de eventos SSE del stream ────────────────────────────
 export type AIStreamEvent =
@@ -16,8 +16,7 @@ const AI_BASE = '/ai'
 // Obtiene la URL base de la API — exactamente igual que httpClient.ts
 // para garantizar que fetch y axios apunten al mismo host.
 function getApiBase(): string {
-  const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:8000'
-  return (import.meta.env.VITE_API_URL as string | undefined) ?? `${backendUrl}/api/tenant`
+  return getTenantApiUrl()
 }
 
 const aiService = {

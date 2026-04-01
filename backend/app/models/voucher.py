@@ -2,6 +2,7 @@
 Modelo de Comprobante.
 Representa cotizaciones, remitos y facturas.
 """
+
 import enum
 
 from sqlalchemy import Column, Date, Enum, ForeignKey, Numeric, String, Text
@@ -94,9 +95,11 @@ class Voucher(BaseModel):
 
     # Para remitos
     show_prices = Column(String(1), default="S")  # S/N - Mostrar precios en remito
-    
+
     # Auditoría de eliminación
-    deleted_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    deleted_by = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     deletion_reason = Column(Text, nullable=True)
 
     # Relaciones
@@ -108,16 +111,26 @@ class Voucher(BaseModel):
         back_populates="voucher",
         cascade="all, delete-orphan",
         lazy="selectin",
+        order_by="VoucherItem.line_number",
     )
     payments = relationship("Payment", back_populates="voucher", lazy="dynamic")
-    voucher_payments = relationship("VoucherPayment", back_populates="voucher", cascade="all, delete-orphan", lazy="selectin")
-    
+    voucher_payments = relationship(
+        "VoucherPayment",
+        back_populates="voucher",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
     # Relación jerárquica (para Notas de Crédito que apuntan a una Factura)
-    related_voucher_id = Column(UUID(as_uuid=True), ForeignKey("vouchers.id"), nullable=True, index=True)
+    related_voucher_id = Column(
+        UUID(as_uuid=True), ForeignKey("vouchers.id"), nullable=True, index=True
+    )
 
     # Campo para trackear si una cotización ya fue facturada
     # Cuando una cotización se convierte en factura, se guarda el ID de la factura generada
-    invoiced_voucher_id = Column(UUID(as_uuid=True), ForeignKey("vouchers.id"), nullable=True, index=True)
+    invoiced_voucher_id = Column(
+        UUID(as_uuid=True), ForeignKey("vouchers.id"), nullable=True, index=True
+    )
 
     # Relación con comprobante padre (ej: NC -> Factura original)
     related_voucher = relationship(
@@ -147,7 +160,9 @@ class Voucher(BaseModel):
             return False
         # Verificar si alguno de los hijos es una nota de crédito
         # Convertimos enum a string por seguridad
-        return any("credit_note" in str(child.voucher_type) for child in self.credit_notes)
+        return any(
+            "credit_note" in str(child.voucher_type) for child in self.credit_notes
+        )
 
     def __repr__(self) -> str:
         return f"<Voucher {self.voucher_type.value} {self.full_number}>"

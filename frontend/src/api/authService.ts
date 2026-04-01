@@ -19,6 +19,7 @@ export interface User {
   email: string
   name: string
   picture?: string
+  platform_role?: string
 }
 
 export interface AuthResponse {
@@ -33,8 +34,8 @@ export const authService = {
    * Inicia el flujo de autenticación con Google.
    * Redirige al usuario a la página de autorización de Google.
    */
-  loginWithGoogle: () => {
-    window.location.href = `${BACKEND_URL}/auth/google/login`
+  loginWithGoogle: (next: 'tenant' | 'admin' = 'tenant') => {
+    window.location.href = `${BACKEND_URL}/auth/google/login?next=${next}`
   },
 
   /**

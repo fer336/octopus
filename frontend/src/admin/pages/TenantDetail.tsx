@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 import adminAPI, { type BrandingUpdate } from '../../api/adminService'
 
-type Tab = 'general' | 'branding'
+type Tab = 'general' | 'branding' | 'users'
 
 function InfoField({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -158,6 +158,221 @@ function BrandingTab({ tenantId }: { tenantId: string }) {
   )
 }
 
+function UsersTab({ tenantId }: { tenantId: string }) {
+  const queryClient = useQueryClient()
+  const [email, setEmail] = useState('')
+
+  const formatDate = (value?: string | null) => {
+    if (!value) return '-'
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('es-AR')
+  }
+
+  const accessStatusLabel: Record<string, string> = {
+    active: 'Activo',
+    trial: 'Trial',
+    suspended: 'Suspendido',
+    expired: 'Vencido',
+  }
+
+  const usersQuery = useQuery({
+    queryKey: ['admin-tenant-users', tenantId],
+    queryFn: () => adminAPI.listTenantUsers(tenantId),
+  })
+
+  const assignMutation = useMutation({
+    mutationFn: () => adminAPI.assignUserToTenant(tenantId, { email: email.trim() }),
+    onSuccess: (data) => {
+      toast.success(data.created ? 'Usuario asignado al tenant' : 'El usuario ya estaba asignado')
+      setEmail('')
+      queryClient.invalidateQueries({ queryKey: ['admin-tenant-users', tenantId] })
+    },
+    onError: (error: any) => {
+      const detail = error?.response?.data?.detail
+      toast.error(typeof detail === 'string' ? detail : 'Error al asignar usuario')
+    },
+  })
+
+  const trialMutation = useMutation({
+    mutationFn: (userId: string) => adminAPI.activateTenantUserTrial(tenantId, userId, { days: 30 }),
+    onSuccess: () => {
+      toast.success('Trial de 30 días activado')
+      queryClient.invalidateQueries({ queryKey: ['admin-tenant-users', tenantId] })
+    },
+    onError: (error: any) => {
+      const detail = error?.response?.data?.detail
+      toast.error(typeof detail === 'string' ? detail : 'No se pudo activar el trial')
+    },
+  })
+
+  const accessMutation = useMutation({
+    mutationFn: ({ userId, accessStatus }: { userId: string; accessStatus: 'active' | 'suspended' }) =>
+      adminAPI.updateTenantUserAccess(tenantId, userId, {
+        access_status: accessStatus,
+        blocked_reason: accessStatus === 'suspended' ? 'Suspendido desde CMS admin' : undefined,
+      }),
+    onSuccess: (_, variables) => {
+      toast.success(variables.accessStatus === 'suspended' ? 'Membresía suspendida' : 'Membresía reactivada')
+      queryClient.invalidateQueries({ queryKey: ['admin-tenant-users', tenantId] })
+    },
+    onError: (error: any) => {
+      const detail = error?.response?.data?.detail
+      toast.error(typeof detail === 'string' ? detail : 'No se pudo actualizar el acceso')
+    },
+  })
+
+  const handleAssign = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim()) {
+      toast.error('Ingresá un email para asignar')
+      return
+    }
+    assignMutation.mutate()
+  }
+
+  const users = usersQuery.data?.users ?? []
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">
+          Asignar usuario existente
+        </h3>
+        <form onSubmit={handleAssign} className="flex flex-col sm:flex-row gap-3">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email del usuario"
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          />
+          <button
+            type="submit"
+            disabled={assignMutation.isPending}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+          >
+            {assignMutation.isPending ? 'Asignando...' : 'Asignar'}
+          </button>
+        </form>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">Usuarios del tenant</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Email
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Nombre
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Rol membresía
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Estado
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Estado acceso
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Inicio acceso
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Vencimiento
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Días restantes
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            {usersQuery.isLoading ? (
+              <tbody>
+                <tr>
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                    Cargando usuarios...
+                  </td>
+                </tr>
+              </tbody>
+            ) : users.length === 0 ? (
+              <tbody>
+                <tr>
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                    No hay usuarios asignados a este tenant
+                  </td>
+                </tr>
+              </tbody>
+            ) : (
+              <tbody>
+                {users.map((user) => (
+                  <tr key={user.id} className="border-t border-gray-100 dark:border-gray-700">
+                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{user.email}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{user.name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{user.membership_role}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                      {user.is_active ? 'Activo' : 'Inactivo'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                      {accessStatusLabel[user.access_status] ?? user.access_status}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                      {formatDate(user.access_starts_at)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                      {formatDate(user.access_ends_at)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                      {user.days_remaining ?? '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => trialMutation.mutate(user.id)}
+                          disabled={trialMutation.isPending || accessMutation.isPending}
+                          className="px-2 py-1 text-xs rounded border border-primary-500 text-primary-600 hover:bg-primary-50 disabled:opacity-50"
+                        >
+                          Dar trial 30 días
+                        </button>
+                        {user.access_status === 'suspended' ? (
+                          <button
+                            type="button"
+                            onClick={() => accessMutation.mutate({ userId: user.id, accessStatus: 'active' })}
+                            disabled={trialMutation.isPending || accessMutation.isPending}
+                            className="px-2 py-1 text-xs rounded border border-emerald-500 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                          >
+                            Reactivar
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => accessMutation.mutate({ userId: user.id, accessStatus: 'suspended' })}
+                            disabled={trialMutation.isPending || accessMutation.isPending}
+                            className="px-2 py-1 text-xs rounded border border-amber-500 text-amber-600 hover:bg-amber-50 disabled:opacity-50"
+                          >
+                            Suspender
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            )}
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function TenantDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -174,6 +389,7 @@ export default function TenantDetail() {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'general', label: 'Información General' },
     { key: 'branding', label: 'Branding Fiscal' },
+    { key: 'users', label: 'Usuarios' },
   ]
 
   return (
@@ -221,6 +437,7 @@ export default function TenantDetail() {
       {/* Tab content */}
       {activeTab === 'general' && <GeneralTab tenantId={id} />}
       {activeTab === 'branding' && <BrandingTab tenantId={id} />}
+      {activeTab === 'users' && <UsersTab tenantId={id} />}
     </div>
   )
 }

@@ -3,12 +3,12 @@
  * Permite crear cotizaciones, remitos y facturas.
  */
 import { useState, useEffect, useRef } from 'react'
-import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, ZoomIn, ZoomOut, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle } from 'lucide-react'
+import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, ZoomIn, ZoomOut, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, ChevronUp, ChevronDown } from 'lucide-react'
 import { Button, Modal, Select, Input } from '../components/ui'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import productsService from '../api/productsService'
 import clientsService from '../api/clientsService'
-import vouchersService, { VoucherCreate, VoucherPayment, Voucher as VoucherType2 } from '../api/vouchersService'
+import vouchersService, { VoucherCreate, VoucherUpdate, VoucherPayment, Voucher as VoucherType2 } from '../api/vouchersService'
 import arcaService from '../api/arcaService'
 import paymentMethodsService from '../api/paymentMethodsService'
 import toast from 'react-hot-toast'
@@ -72,6 +72,64 @@ interface PaymentSelectionState {
   extra_date?: string
 }
 
+interface VoucherEditPayload {
+  id: string
+  voucher_type: 'quotation'
+  client: Client
+  date: string
+  notes?: string
+  items: CartItem[]
+  general_discount?: number
+}
+
+const normalizeCartItems = (rawItems: unknown[]): CartItem[] => {
+  if (!Array.isArray(rawItems)) {
+    return []
+  }
+
+  return rawItems
+    .map((raw) => {
+      const item = raw as Partial<CartItem> & { amount?: unknown; monto?: unknown }
+      const quantity = Math.max(1, Math.trunc(safeNumber(item.quantity || 1)))
+
+      return {
+        id: safeText(item.id),
+        code: safeText(item.code),
+        description: safeText(item.description),
+        sale_price: safeNumber(item.sale_price),
+        quantity,
+        discount: safeNumber(item.discount),
+      }
+    })
+    .filter((item) => item.id && item.description)
+}
+
+const safeText = (value: unknown): string => (typeof value === 'string' ? value : '')
+
+const safeNumber = (value: unknown): number => {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : 0
+}
+
+const formatNumber = (
+  value: unknown,
+  locale?: string,
+  options?: Intl.NumberFormatOptions,
+): string => safeNumber(value).toLocaleString(locale, options)
+
+const parseStoredDrafts = (value: string | null): Draft[] => {
+  if (!value) {
+    return []
+  }
+
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 const documentTypes = [
   { value: 'CUIT', label: 'CUIT' },
   { value: 'CUIL', label: 'CUIL' },
@@ -86,6 +144,7 @@ const taxConditions = [
 ]
 
 export default function Sales() {
+  const queryClient = useQueryClient()
   const aiPreloadedItems = useSalesStore((s) => s.items)
   const aiPreloadedFromAI = useSalesStore((s) => s.preloadedFromAI)
   const clearAIPreload = useSalesStore((s) => s.clear)
@@ -111,9 +170,12 @@ export default function Sales() {
     retry: false,
   })
 
-  const allProducts = productsData?.items || []
-  const allClients = clientsData?.items || []
+  const allProducts = Array.isArray(productsData?.items) ? productsData.items : []
+  const allClients = Array.isArray(clientsData?.items) ? clientsData.items : []
   const [voucherType, setVoucherType] = useState<VoucherType>('quotation')
+  const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null)
+  const [editingVoucherDate, setEditingVoucherDate] = useState<string | null>(null)
+  const [editingVoucherNotes, setEditingVoucherNotes] = useState<string | undefined>(undefined)
   const [clientSearch, setClientSearch] = useState('')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [productSearch, setProductSearch] = useState('')
@@ -274,6 +336,35 @@ export default function Sales() {
     }
   })
 
+  const updateQuotationMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: VoucherUpdate }) => vouchersService.update(id, data),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['vouchers'] })
+      void queryClient.invalidateQueries({ queryKey: ['pending-quotations'] })
+
+      toast.success('Cotización actualizada correctamente', { icon: '✅' })
+      setEditingVoucherId(null)
+      setEditingVoucherDate(null)
+      setEditingVoucherNotes(undefined)
+      sessionStorage.removeItem('sales-edit-voucher')
+
+      setItems([])
+      setSelectedClient(null)
+      setClientSearch('')
+      setGeneralDiscount(0)
+      setProductSearch('')
+      resetPaymentSelections()
+
+      setPdfVoucherInfo({ type: data.voucher_type, number: data.number })
+    },
+    onError: (error: any) => {
+      toast.error(formatErrorMessage(error))
+    },
+    onSettled: () => {
+      setIsGenerating(false)
+    },
+  })
+
   // Modales
   const [showQuantityModal, setShowQuantityModal] = useState(false)
   const [showClientModal, setShowClientModal] = useState(false)
@@ -336,6 +427,9 @@ export default function Sales() {
     tax_condition: 'CF',
   })
 
+  const normalizedProductSearch = safeText(productSearch).toLowerCase()
+  const normalizedClientSearch = safeText(clientSearch).toLowerCase()
+
   const searchInputRef = useRef<HTMLInputElement>(null)
   const clientNameInputRef = useRef<HTMLInputElement>(null)
   
@@ -346,22 +440,49 @@ export default function Sales() {
   const filteredProducts = allProducts
     .map(p => ({
       id: p.id,
-      code: p.code,
-      description: p.description,
-      sale_price: p.sale_price,
+      code: safeText(p.code),
+      description: safeText(p.description),
+      sale_price: safeNumber(p.sale_price),
     }))
     .filter(p =>
-      p.code.toLowerCase().includes(productSearch.toLowerCase()) ||
-      p.description.toLowerCase().includes(productSearch.toLowerCase())
+      p.code.toLowerCase().includes(normalizedProductSearch) ||
+      p.description.toLowerCase().includes(normalizedProductSearch)
     )
 
   // Filtrar clientes según búsqueda
   const filteredClients = allClients.filter(c =>
-    c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-    c.document_number.includes(clientSearch)
+    safeText(c.name).toLowerCase().includes(normalizedClientSearch) ||
+    safeText(c.document_number).includes(safeText(clientSearch))
   )
 
   const paymentMethods = paymentMethodsData || []
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem('sales-edit-voucher')
+    if (!raw) return
+
+    try {
+      const parsed = JSON.parse(raw) as VoucherEditPayload
+      if (parsed?.id && parsed.voucher_type === 'quotation' && parsed.client && Array.isArray(parsed.items)) {
+        const normalizedItems = normalizeCartItems(parsed.items)
+        if (normalizedItems.length === 0) {
+          throw new Error('Cotización sin renglones válidos para editar')
+        }
+
+        setVoucherType('quotation')
+        setEditingVoucherId(parsed.id)
+        setEditingVoucherDate(parsed.date)
+        setEditingVoucherNotes(parsed.notes)
+        setSelectedClient(parsed.client)
+        setClientSearch(parsed.client.name)
+        setItems(normalizedItems)
+        setGeneralDiscount(parsed.general_discount || 0)
+        toast.success('Cotización cargada en modo edición', { icon: '✏️' })
+      }
+    } catch {
+      sessionStorage.removeItem('sales-edit-voucher')
+    }
+  }, [])
 
   // Hidratar ítems enviados desde el asistente IA (una sola vez por handoff)
   useEffect(() => {
@@ -375,10 +496,10 @@ export default function Sales() {
             .filter((d: any) => d?.product)
             .map((d: any) => ({
               id: d.product.id,
-              code: d.product.code,
-              description: d.product.description,
-              sale_price: d.product.sale_price,
-              quantity: Number(d.qty ?? d.item?.qty ?? 1),
+              code: safeText(d.product.code),
+              description: safeText(d.product.description),
+              sale_price: safeNumber(d.product.sale_price),
+              quantity: Math.max(1, safeNumber(d.qty ?? d.item?.qty ?? 1)),
               discount: 0,
             }))
 
@@ -540,9 +661,9 @@ export default function Sales() {
 
   // Cargar borradores al iniciar
   useEffect(() => {
-    const savedDrafts = localStorage.getItem('sales-drafts')
-    if (savedDrafts) {
-      setDrafts(JSON.parse(savedDrafts))
+    const parsedDrafts = parseStoredDrafts(localStorage.getItem('sales-drafts'))
+    if (parsedDrafts.length > 0) {
+      setDrafts(parsedDrafts)
     }
   }, [])
 
@@ -626,13 +747,28 @@ export default function Sales() {
   }
 
   const removeItem = (id: string) => {
-    setItems(items.filter(i => i.id !== id))
+    setItems((prevItems) => prevItems.filter(i => i.id !== id))
   }
 
   const updateItem = (id: string, field: 'quantity' | 'discount', value: number) => {
-    setItems(items.map(i =>
+    setItems((prevItems) => prevItems.map(i =>
       i.id === id ? { ...i, [field]: value } : i
     ))
+  }
+
+  const moveItem = (index: number, direction: 'up' | 'down') => {
+    setItems((prevItems) => {
+      const targetIndex = direction === 'up' ? index - 1 : index + 1
+
+      if (targetIndex < 0 || targetIndex >= prevItems.length) {
+        return prevItems
+      }
+
+      const reordered = [...prevItems]
+      const [movedItem] = reordered.splice(index, 1)
+      reordered.splice(targetIndex, 0, movedItem)
+      return reordered
+    })
   }
 
   const calculateItemTotal = (item: CartItem) => {
@@ -649,7 +785,11 @@ export default function Sales() {
         setClientSearch('')
         setProductSearch('')
         setVoucherType('quotation')
+        setEditingVoucherId(null)
+        setEditingVoucherDate(null)
+        setEditingVoucherNotes(undefined)
         setGeneralDiscount(0)
+        sessionStorage.removeItem('sales-edit-voucher')
         resetPaymentSelections()
       }
     }
@@ -698,19 +838,46 @@ export default function Sales() {
     const today = new Date()
     const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
+    const normalizedItems = normalizeCartItems(items)
+    if (normalizedItems.length === 0) {
+      toast.error('No hay renglones válidos para guardar')
+      setIsGenerating(false)
+      return
+    }
+
     const voucherData: VoucherCreate = {
       client_id: selectedClient.id,
       voucher_type: backendType as any,
       date: localDate,
       show_prices: voucherType !== 'receipt', // Remito sin precios por defecto (configurable)
       general_discount: generalDiscount,
-      items: items.map(item => ({
+      items: normalizedItems.map(item => ({
         product_id: item.id,
         quantity: item.quantity,
         unit_price: item.sale_price, // Enviamos el precio base, el backend recalcula o valida
         discount_percent: item.discount
       })),
       payments: buildPaymentsPayload(),
+    }
+
+    if (editingVoucherId) {
+      if (backendType !== 'quotation') {
+        toast.error('Solo se puede actualizar una cotización. Cambiá a Cotización o limpiá la edición.')
+        setIsGenerating(false)
+        return
+      }
+
+      const updatePayload: VoucherUpdate = {
+        client_id: voucherData.client_id,
+        date: editingVoucherDate || voucherData.date,
+        notes: editingVoucherNotes,
+        show_prices: voucherData.show_prices,
+        general_discount: voucherData.general_discount,
+        items: voucherData.items,
+      }
+
+      updateQuotationMutation.mutate({ id: editingVoucherId, data: updatePayload })
+      return
     }
 
     createVoucherMutation.mutate(voucherData)
@@ -754,6 +921,10 @@ export default function Sales() {
   }
 
   const loadDraft = (draft: Draft) => {
+    setEditingVoucherId(null)
+    setEditingVoucherDate(null)
+    setEditingVoucherNotes(undefined)
+    sessionStorage.removeItem('sales-edit-voucher')
     setVoucherType(draft.voucherType)
     setSelectedClient(draft.client)
     setClientSearch(draft.client.name)
@@ -1358,6 +1529,7 @@ export default function Sales() {
                     <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: `${5 * zoomLevel}rem` }}>Cant.</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Precio</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: `${5 * zoomLevel}rem` }}>Desc%</th>
+                    <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-400">Orden</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Total</th>
                     <th className="px-3 py-2 w-10"></th>
                   </tr>
@@ -1365,13 +1537,13 @@ export default function Sales() {
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {items.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-3 py-6 text-center text-gray-400">
+                      <td colSpan={8} className="px-3 py-6 text-center text-gray-400">
                         <ShoppingCart className="mx-auto mb-1 opacity-50" size={28 * zoomLevel} />
                         <p className="text-sm">Sin productos</p>
                       </td>
                     </tr>
                   ) : (
-                    items.map(item => (
+                    items.map((item, index) => (
                       <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-3 py-2 font-medium">{item.code}</td>
                         <td className="px-3 py-2">{item.description}</td>
@@ -1388,7 +1560,7 @@ export default function Sales() {
                             min={1}
                           />
                         </td>
-                        <td className="px-3 py-2 text-right">${item.sale_price.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right">${formatNumber(item.sale_price)}</td>
                         <td className="px-3 py-2 text-right">
                           <input
                             type="number"
@@ -1404,8 +1576,34 @@ export default function Sales() {
                             step={0.1}
                           />
                         </td>
+                        <td className="px-3 py-2">
+                          <div className="flex justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => moveItem(index, 'up')}
+                              disabled={index === 0}
+                              className="p-1 rounded border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/60 text-gray-700 dark:text-gray-100 disabled:opacity-70 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600"
+                              title="Mover arriba"
+                              aria-label="Mover item arriba"
+                            >
+                              <span aria-hidden="true" className="text-[11px] font-bold leading-none">↑</span>
+                              <ChevronUp size={14 * zoomLevel} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveItem(index, 'down')}
+                              disabled={index === items.length - 1}
+                              className="p-1 rounded border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/60 text-gray-700 dark:text-gray-100 disabled:opacity-70 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600"
+                              title="Mover abajo"
+                              aria-label="Mover item abajo"
+                            >
+                              <span aria-hidden="true" className="text-[11px] font-bold leading-none">↓</span>
+                              <ChevronDown size={14 * zoomLevel} />
+                            </button>
+                          </div>
+                        </td>
                         <td className="px-3 py-2 text-right font-medium">
-                          ${calculateItemTotal(item).toLocaleString()}
+                          ${formatNumber(calculateItemTotal(item))}
                         </td>
                         <td className="px-3 py-2">
                           <button onClick={() => removeItem(item.id)} className="text-red-500 hover:text-red-700">
@@ -1508,7 +1706,7 @@ export default function Sales() {
                             {product.code}
                           </td>
                           <td className="px-3 py-2">{product.description}</td>
-                          <td className="px-3 py-2 text-right">${product.sale_price.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-right">${formatNumber(product.sale_price)}</td>
                         </tr>
                       )
                     })
@@ -1561,29 +1759,29 @@ export default function Sales() {
             <div className="space-y-2 mb-4 text-xs">
               <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
                 <span>Subtotal items</span>
-                <span className="font-medium">${subtotalItems.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span className="font-medium">${formatNumber(subtotalItems, undefined, { minimumFractionDigits: 2 })}</span>
               </div>
               
               {generalDiscount > 0 && (
                 <div className="flex justify-between text-sm text-red-600 dark:text-red-400">
                   <span>Descuento ({generalDiscount}%)</span>
-                  <span className="font-medium">-${discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium">-${formatNumber(discountAmount, undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
               )}
               
               <div className="flex justify-between text-sm text-gray-700 dark:text-gray-300 pt-1 border-t border-gray-200 dark:border-gray-700">
                 <span className="font-medium">Subtotal</span>
-                <span className="font-semibold">${subtotalAfterDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span className="font-semibold">${formatNumber(subtotalAfterDiscount, undefined, { minimumFractionDigits: 2 })}</span>
               </div>
               
               <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
                 <span>IVA (21%)</span>
-                <span className="font-medium">${iva.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span className="font-medium">${formatNumber(iva, undefined, { minimumFractionDigits: 2 })}</span>
               </div>
               
               <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white pt-2 border-t-2 border-gray-300 dark:border-gray-600">
                 <span>TOTAL</span>
-                <span>${total.toLocaleString()}</span>
+                <span>${formatNumber(total)}</span>
               </div>
             </div>
 
@@ -1597,6 +1795,8 @@ export default function Sales() {
               >
                 {isGenerating 
                   ? 'Procesando...' 
+                  : editingVoucherId
+                    ? 'Actualizar Cotización'
                   : voucherType === 'invoice' 
                     ? 'Emitir Factura Electrónica' 
                     : `Generar ${voucherTypes.find(v => v.value === voucherType)?.label}`
@@ -1670,7 +1870,7 @@ export default function Sales() {
                         <tr key={product.id}>
                           <td className="px-3 py-2 font-medium">{product.code}</td>
                           <td className="px-3 py-2">{product.description}</td>
-                          <td className="px-3 py-2 text-right">${product.sale_price.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-right">${formatNumber(product.sale_price)}</td>
                           <td className="px-3 py-2 text-right">
                             <input
                               ref={(el) => modalInputsRef.current[quantityInputIndex] = el}
@@ -1696,7 +1896,7 @@ export default function Sales() {
                             />
                           </td>
                           <td className="px-3 py-2 text-right font-medium">
-                            ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            ${formatNumber(total, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                           <td className="px-3 py-2">
                             <button
@@ -1717,11 +1917,11 @@ export default function Sales() {
                         Total:
                       </td>
                       <td className="px-3 py-2 text-right font-bold text-lg text-gray-900 dark:text-white">
-                        ${tempSelectedProducts.reduce((acc, p) => {
+                        ${formatNumber(tempSelectedProducts.reduce((acc, p) => {
                           const subtotal = p.sale_price * p.tempQuantity
                           const discountAmount = subtotal * (p.tempDiscount / 100)
                           return acc + (subtotal - discountAmount)
-                        }, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        }, 0), undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td></td>
                     </tr>
@@ -1950,7 +2150,7 @@ export default function Sales() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-gray-900 dark:text-gray-100">
-                        ${draft.total.toLocaleString()}
+                        ${formatNumber(draft.total)}
                       </p>
                       <p className="text-xs text-gray-500">
                         {draft.items.length} productos
@@ -2104,31 +2304,31 @@ export default function Sales() {
                 <div className="space-y-2 pt-2 border-t border-blue-200 dark:border-blue-700">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">Subtotal items:</span>
-                    <span className="font-medium">${subtotalItems.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="font-medium">${formatNumber(subtotalItems, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
 
                   {generalDiscount > 0 && (
                     <div className="flex justify-between text-sm text-red-600 dark:text-red-400">
                       <span>Descuento ({generalDiscount}%):</span>
-                      <span className="font-medium">-${discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="font-medium">-${formatNumber(discountAmount, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                   )}
 
                   <div className="flex justify-between text-sm font-medium pt-2 border-t border-gray-200 dark:border-gray-700">
                     <span className="text-gray-700 dark:text-gray-300">Subtotal:</span>
-                    <span>${subtotalAfterDiscount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span>${formatNumber(subtotalAfterDiscount, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
 
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">IVA (21%):</span>
-                    <span className="font-medium">${iva.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="font-medium">${formatNumber(iva, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
 
                   {/* Total final */}
                   <div className="flex justify-between pt-2 border-t-2 border-blue-300 dark:border-blue-600">
                     <span className="font-bold text-gray-900 dark:text-white text-base">TOTAL:</span>
                     <span className="font-bold text-xl text-blue-600 dark:text-blue-400">
-                      ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ${formatNumber(total, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
@@ -2146,7 +2346,7 @@ export default function Sales() {
               <div className="text-right">
                 <p className="text-xs text-gray-500 dark:text-gray-400">Total asignado</p>
                 <p className={`text-sm font-semibold ${isPaymentBalanced ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                  ${assignedPaymentsTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ${formatNumber(assignedPaymentsTotal, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
             </div>
@@ -2251,7 +2451,7 @@ export default function Sales() {
             <div className="mt-3 flex items-center justify-between text-sm">
               <span className="text-gray-600 dark:text-gray-400">Diferencia:</span>
               <span className={`font-semibold ${isPaymentBalanced ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                ${paymentDifference.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ${formatNumber(paymentDifference, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
           </div>
@@ -2280,7 +2480,7 @@ export default function Sales() {
               onClick={handleConfirmGenerate}
               className="flex-1"
             >
-              {voucherType === 'invoice' ? 'Emitir Factura Electrónica' : 'Confirmar'}
+              {voucherType === 'invoice' ? 'Emitir Factura Electrónica' : editingVoucherId ? 'Actualizar' : 'Confirmar'}
             </Button>
           </div>
         </div>
@@ -2516,7 +2716,7 @@ export default function Sales() {
                         {/* Total + acción */}
                         <div className="text-right shrink-0">
                           <p className="text-sm font-bold text-gray-900 dark:text-white tabular-nums">
-                            ${Number(voucher.total).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                            ${formatNumber(voucher.total, 'es-AR', { minimumFractionDigits: 2 })}
                           </p>
                           <span className="text-[10px] text-amber-500 dark:text-amber-400 group-hover:underline font-medium">
                             Facturar →
@@ -2605,10 +2805,10 @@ export default function Sales() {
                         </td>
                         <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300">{item.quantity}</td>
                         <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300">
-                          ${Number(item.unit_price).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                          ${formatNumber(item.unit_price, 'es-AR', { minimumFractionDigits: 2 })}
                         </td>
                         <td className="px-2 py-1.5 text-right font-medium text-gray-900 dark:text-white">
-                          ${Number(item.subtotal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                          ${formatNumber(item.subtotal, 'es-AR', { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
                     ))}
@@ -2617,7 +2817,7 @@ export default function Sales() {
                     <tr>
                       <td colSpan={3} className="px-2 py-2 text-right font-bold text-gray-900 dark:text-white">TOTAL:</td>
                       <td className="px-2 py-2 text-right font-bold text-blue-600 dark:text-blue-400 text-sm">
-                        ${Number(selectedQuotation.total).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                        ${formatNumber(selectedQuotation.total, 'es-AR', { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
                   </tfoot>

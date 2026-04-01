@@ -33,6 +33,12 @@ interface AIState {
   /** Agrega el placeholder "pensando..." del asistente */
   addThinkingMessage: () => string   // retorna el id para reemplazarlo después
 
+  /**
+   * Actualiza el texto del placeholder "pensando..." con el paso actual del agente.
+   * Permite mostrar progreso en tiempo real (streaming SSE).
+   */
+  updateThinkingText: (id: string, text: string) => void
+
   /** Reemplaza el placeholder con la respuesta real del asistente */
   resolveAssistantMessage: (id: string, response: AIChatResponse) => void
 
@@ -42,11 +48,20 @@ interface AIState {
   /** Marca el mensaje de error si el request falló */
   resolveErrorMessage: (id: string, errorText: string) => void
 
-  /** Limpia el historial completo */
+  /** Limpia el historial completo (solo en memoria) */
   clear: () => void
+
+  /** Carga el historial desde PostgreSQL y lo restaura en el store */
+  loadFromDB: () => Promise<void>
+
+  /** Limpia el historial en PostgreSQL + en memoria */
+  clearFromDB: () => Promise<void>
 
   /** Suma un producto al carrito virtual del agente */
   addProductToQuoteCart: (product: AIMatchedProduct, qty?: number) => void
+
+  /** Agrega múltiples productos al carrito de una vez (usado por cart_action de Luci) */
+  addMultipleToQuoteCart: (items: { product: AIMatchedProduct; qty: number }[]) => void
 
   /** Limpia carrito virtual del agente */
   clearQuoteCart: () => void
@@ -97,19 +112,29 @@ export const useAIStore = create<AIState>((set, get) => ({
     return id
   },
 
+  updateThinkingText: (id, text) => {
+    set((s) => ({
+      messages: s.messages.map((m) =>
+        m.id === id && m.isThinking
+          ? { ...m, thinkingText: text }
+          : m,
+      ),
+    }))
+  },
+
   resolveAssistantMessage: (id, response) => {
     set((s) => ({
       isThinking: false,
       messages: s.messages.map((m) =>
         m.id === id
-          ? {
+          ? ({
               ...m,
               content: response.text,
               response_type: response.response_type,
               products: response.products,
               quote: response.quote,
               isThinking: false,
-            }
+            } as ChatMessage)
           : m,
       ),
     }))
@@ -140,6 +165,40 @@ export const useAIStore = create<AIState>((set, get) => ({
 
   clear: () => set({ messages: [], isThinking: false, quoteCart: [] }),
 
+  loadFromDB: async () => {
+    try {
+      const { default: aiService } = await import('../api/aiService')
+      const history = await aiService.loadHistory()
+      if (!history.length) return
+
+      const { nanoid } = await import('nanoid')
+      const messages: ChatMessage[] = history.map((h: any) => ({
+        id:            nanoid(),
+        role:          h.role as 'user' | 'assistant',
+        content:       h.content,
+        response_type: h.response_type ?? (h.products ? 'products' : 'text'),
+        products:      h.products ?? undefined,
+        quote:         h.quote ?? undefined,
+        timestamp:     Date.now(),
+        isThinking:    false,
+      }))
+
+      set({ messages })
+    } catch (e) {
+      console.warn('[aiStore] No se pudo cargar historial:', e)
+    }
+  },
+
+  clearFromDB: async () => {
+    try {
+      const { default: aiService } = await import('../api/aiService')
+      await aiService.clearHistory()
+    } catch (e) {
+      console.warn('[aiStore] No se pudo limpiar historial remoto:', e)
+    }
+    set({ messages: [], quoteCart: [], isThinking: false })
+  },
+
   addProductToQuoteCart: (product, qty = 1) =>
     set((s) => {
       const existing = s.quoteCart.find((item) => item.product.id === product.id)
@@ -158,23 +217,51 @@ export const useAIStore = create<AIState>((set, get) => ({
       }
     }),
 
+  addMultipleToQuoteCart: (items) =>
+    set((s) => {
+      let cart = [...s.quoteCart]
+      for (const { product, qty } of items) {
+        const existing = cart.find((c) => c.product.id === product.id)
+        if (existing) {
+          cart = cart.map((c) =>
+            c.product.id === product.id ? { ...c, qty: c.qty + qty } : c,
+          )
+        } else {
+          cart.push({ product, qty })
+        }
+      }
+      return { quoteCart: cart }
+    }),
+
   clearQuoteCart: () => set({ quoteCart: [] }),
 
   getHistoryForAPI: (limit = 10) => {
     const { messages } = get()
     // Excluir mensajes isThinking y tomar los últimos N mensajes reales
     const real = messages.filter((m) => !m.isThinking)
-    return real.slice(-limit).map((m) => ({
-      role: m.role,
-      content:
+    return real.slice(-limit).map((m) => {
+      const base: Record<string, unknown> = { role: m.role }
+
+      if (
         m.role === 'assistant' &&
         m.response_type === 'products' &&
         Array.isArray(m.products) &&
         m.products.length > 0
-          ? `${m.content}\n[PRODUCT_CONTEXT] ${m.products
-              .map((p) => `${p.code}:${p.description}:${p.sale_price ?? ''}`)
-              .join(' || ')}`
-          : m.content,
-    }))
+      ) {
+        // Incluir products como campo separado (para add_to_cart y refinement)
+        // Y también en el content como [PRODUCT_CONTEXT] (compatibilidad)
+        base.content = `${m.content}\n[PRODUCT_CONTEXT] ${m.products
+          .map((p) => `${p.code}:${p.description}:${p.sale_price ?? ''}`)
+          .join(' || ')}`
+        base.products = m.products.map((p) => ({
+          id: p.id, code: p.code, description: p.description,
+          sale_price: p.sale_price, unit: p.unit,
+        }))
+      } else {
+        base.content = m.content
+      }
+
+      return base as { role: string; content: string; products?: unknown[] }
+    })
   },
 }))

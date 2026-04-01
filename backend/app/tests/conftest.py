@@ -9,7 +9,11 @@ from uuid import UUID
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import Text, TypeDecorator
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
@@ -18,11 +22,23 @@ from app.models.tenant_membership import TenantMembership
 from app.models.user import User
 from app.utils.security import create_access_token
 
-# Test database URL (SQLite in-memory para tests rápidos)
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+# Override PostgreSQL-specific types for SQLite compatibility
+# JSONB → TEXT (SQLite stores JSON as text)
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(element, compiler, **kw):
+    return "TEXT"
+
+
+# Test database URL (SQLite file-based para compartir conexión entre sesiones)
+TEST_DATABASE_URL = "sqlite+aiosqlite:////tmp/octopustrack_test.db"
 
 # Engine de test
-test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+test_engine = create_async_engine(
+    TEST_DATABASE_URL,
+    echo=False,
+    poolclass=StaticPool,
+)
 test_session_maker = async_sessionmaker(
     bind=test_engine,
     class_=AsyncSession,
@@ -72,9 +88,10 @@ async def db() -> AsyncSession:
 
 
 @pytest_asyncio.fixture
-async def business_a(db: AsyncSession) -> Business:
+async def business_a(db: AsyncSession, user_a: User) -> Business:
     """Crear primer negocio/tenant."""
     b = Business(
+        owner_id=user_a.id,
         name="Tenant A",
         cuit="30-11111111-1",
         tax_condition="Responsable Inscripto",
@@ -86,9 +103,10 @@ async def business_a(db: AsyncSession) -> Business:
 
 
 @pytest_asyncio.fixture
-async def business_b(db: AsyncSession) -> Business:
+async def business_b(db: AsyncSession, user_b: User) -> Business:
     """Crear segundo negocio/tenant."""
     b = Business(
+        owner_id=user_b.id,
         name="Tenant B",
         cuit="30-22222222-2",
         tax_condition="Monotributista",
@@ -100,7 +118,7 @@ async def business_b(db: AsyncSession) -> Business:
 
 
 @pytest_asyncio.fixture
-async def user_a(db: AsyncSession, business_a: Business) -> User:
+async def user_a(db: AsyncSession) -> User:
     """Usuario perteneciente al tenant A."""
     u = User(
         email="user_a@test.com",
@@ -111,15 +129,11 @@ async def user_a(db: AsyncSession, business_a: Business) -> User:
     db.add(u)
     await db.commit()
     await db.refresh(u)
-
-    m = TenantMembership(user_id=u.id, business_id=business_a.id, role="owner")
-    db.add(m)
-    await db.commit()
     return u
 
 
 @pytest_asyncio.fixture
-async def user_b(db: AsyncSession, business_b: Business) -> User:
+async def user_b(db: AsyncSession) -> User:
     """Usuario perteneciente al tenant B."""
     u = User(
         email="user_b@test.com",
@@ -130,11 +144,29 @@ async def user_b(db: AsyncSession, business_b: Business) -> User:
     db.add(u)
     await db.commit()
     await db.refresh(u)
+    return u
 
-    m = TenantMembership(user_id=u.id, business_id=business_b.id, role="owner")
+
+@pytest_asyncio.fixture
+async def membership_a(
+    db: AsyncSession, user_a: User, business_a: Business
+) -> TenantMembership:
+    """Crear membresía de user_a en business_a."""
+    m = TenantMembership(user_id=user_a.id, business_id=business_a.id, role="owner")
     db.add(m)
     await db.commit()
-    return u
+    return m
+
+
+@pytest_asyncio.fixture
+async def membership_b(
+    db: AsyncSession, user_b: User, business_b: Business
+) -> TenantMembership:
+    """Crear membresía de user_b en business_b."""
+    m = TenantMembership(user_id=user_b.id, business_id=business_b.id, role="owner")
+    db.add(m)
+    await db.commit()
+    return m
 
 
 @pytest_asyncio.fixture

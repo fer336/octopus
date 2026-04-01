@@ -95,6 +95,8 @@ export default function AIChatInput({ isThinking, onSend }: AIChatInputProps) {
           }}
           rows={1}
           placeholder="Escribí tu mensaje..."
+          aria-label="Mensaje para Luci"
+          data-testid="luci-chat-input"
           className="flex-1 resize-none rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
         />
 
@@ -134,8 +136,9 @@ export default function AIChatInput({ isThinking, onSend }: AIChatInputProps) {
             type="button"
             onClick={() => void handleSend()}
             disabled={!hasPayload || isThinking}
+            data-testid="luci-send-button"
             className="p-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:from-cyan-600 hover:to-blue-600 transition-all"
-            aria-label="Enviar mensaje"
+            aria-label="Enviar mensaje a Luci"
           >
             <Send size={16} />
           </button>

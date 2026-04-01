@@ -1,6 +1,7 @@
 """
 Schemas para Comprobantes (Ventas).
 """
+
 from datetime import date
 from decimal import Decimal
 from typing import List, Optional
@@ -14,13 +15,14 @@ from app.schemas.base import BaseResponse, BaseSchema
 from app.schemas.client import ClientResponse
 from app.schemas.payment_method import VoucherPaymentCreate
 
+
 class VoucherItemCreate(BaseSchema):
     """Schema para crear un ítem de comprobante."""
 
     product_id: UUID
     quantity: Decimal = Field(..., gt=0)
     discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
-    
+
     # Precios que vienen del frontend (o se recalculan en backend)
     # Es mejor que el backend recalcule, pero recibimos algunos datos base
     unit_price: Decimal = Field(..., ge=0)
@@ -34,15 +36,40 @@ class VoucherCreate(BaseSchema):
     date: date
     notes: Optional[str] = None
     show_prices: bool = True  # Para remitos
-    general_discount: Decimal = Field(default=Decimal("0"), ge=0, le=100, description="Descuento general (%) aplicado sobre el subtotal de todos los ítems")
-    
+    general_discount: Decimal = Field(
+        default=Decimal("0"),
+        ge=0,
+        le=100,
+        description="Descuento general (%) aplicado sobre el subtotal de todos los ítems",
+    )
+
     items: List[VoucherItemCreate]
-    payments: Optional[List[VoucherPaymentCreate]] = Field(default=None, description="Métodos de pago (opcional para cotizaciones/remitos, obligatorio para facturas)")
+    payments: Optional[List[VoucherPaymentCreate]] = Field(
+        default=None,
+        description="Métodos de pago (opcional para cotizaciones/remitos, obligatorio para facturas)",
+    )
+
+
+class VoucherUpdate(BaseSchema):
+    """Schema para actualizar un comprobante editable."""
+
+    client_id: UUID
+    date: date
+    notes: Optional[str] = None
+    show_prices: bool = True
+    general_discount: Decimal = Field(
+        default=Decimal("0"),
+        ge=0,
+        le=100,
+        description="Descuento general (%) aplicado sobre el subtotal de todos los ítems",
+    )
+
+    items: List[VoucherItemCreate]
 
 
 class VoucherItemResponse(BaseResponse):
     """Schema de respuesta para ítem."""
-    
+
     product_id: UUID
     code: str
     description: str
@@ -57,9 +84,10 @@ class VoucherItemResponse(BaseResponse):
 
 class ConvertQuotationToInvoice(BaseSchema):
     """Schema para convertir una cotización en factura."""
+
     payments: Optional[List[VoucherPaymentCreate]] = Field(
         default=None,
-        description="Métodos de pago (requerido para que quede registrado el cobro)"
+        description="Métodos de pago (requerido para que quede registrado el cobro)",
     )
 
 
@@ -74,15 +102,17 @@ class VoucherResponse(BaseResponse):
     number: str
     date: date
     due_date: Optional[date]
-    
+    notes: Optional[str] = None
+    general_discount: Decimal
+
     subtotal: Decimal
     iva_amount: Decimal
     total: Decimal
-    
+
     cae: Optional[str]
     cae_expiration: Optional[date]
     barcode: Optional[str]
-    
+
     # Indica si tiene notas de crédito asociadas (para UI)
     has_credit_note: bool = False
 

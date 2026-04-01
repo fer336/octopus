@@ -26,7 +26,6 @@ const Suppliers  = lazy(() => import('../pages/Suppliers'))
 const Categories = lazy(() => import('../pages/Categories'))
 const Vouchers   = lazy(() => import('../pages/Vouchers'))
 const Reports    = lazy(() => import('../pages/Reports'))
-const Settings   = lazy(() => import('../pages/Settings'))
 const Cash       = lazy(() => import('../pages/Cash'))
 const Inventory  = lazy(() => import('../pages/Inventory'))
 
@@ -153,9 +152,7 @@ export default function App() {
               <Route path="reports" element={
                 <Suspense fallback={<PageLoader />}><Reports /></Suspense>
               } />
-              <Route path="settings" element={
-                <Suspense fallback={<PageLoader />}><Settings /></Suspense>
-              } />
+              <Route path="settings" element={<Navigate to="/" replace />} />
             </Route>
 
             {/* Ruta por defecto */}
@@ -163,7 +160,7 @@ export default function App() {
           </Routes>
 
           <ThemedToaster />
-        </BrowserRouter>
+        </HashRouter>
       </ThemeProvider>
     </QueryClientProvider>
   )

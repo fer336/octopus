@@ -1,12 +1,12 @@
 /**
  * Panel lateral del Asistente IA.
- * Vive en el layout principal, se desplaza desde la derecha y mantiene
- * el historial de chat en sesión usando Zustand en memoria.
+ * Historial persistente en PostgreSQL — se restaura al abrir el panel.
  */
+import { useEffect, useRef } from 'react'
 import { Sparkles, X, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
-import aiService from '../../api/aiService'
+import aiService, { AIStreamEvent } from '../../api/aiService'
 import { AIMatchedProduct, AIDraftItem, AIChatResponse, ChatMessage } from '../../types'
 import { useAIStore } from '../../stores/aiStore'
 import { useSalesStore } from '../../stores/salesStore'
@@ -20,6 +20,7 @@ const safePrice = (value: unknown): number => {
 
 export default function AIAssistantPanel() {
   const navigate = useNavigate()
+  const panelRef = useRef<HTMLElement | null>(null)
   const preloadItems = useSalesStore((s) => s.preloadItems)
   const {
     isOpen,
@@ -27,16 +28,46 @@ export default function AIAssistantPanel() {
     messages,
     quoteCart,
     close,
-    clear,
+    clearFromDB,
+    loadFromDB,
     clearQuoteCart,
     addUserMessage,
     addAssistantMessage,
     addProductToQuoteCart,
+    addMultipleToQuoteCart,
     addThinkingMessage,
+    updateThinkingText,
     resolveAssistantMessage,
     resolveErrorMessage,
     getHistoryForAPI,
   } = useAIStore()
+
+  // Cargar historial desde PostgreSQL la primera vez que se abre el panel
+  const historyLoaded = useRef(false)
+  useEffect(() => {
+    if (isOpen && !historyLoaded.current && messages.length === 0) {
+      historyLoaded.current = true
+      loadFromDB()
+    }
+  }, [isOpen, loadFromDB, messages.length])
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const focusPanel = window.requestAnimationFrame(() => {
+      panelRef.current?.focus()
+    })
+
+    return () => {
+      window.cancelAnimationFrame(focusPanel)
+    }
+  }, [isOpen])
+
+  if (!isOpen) {
+    return null
+  }
 
   const handleSend = async (message: string, file?: File | null) => {
     const normalizedMessage = message.trim()
@@ -60,11 +91,59 @@ export default function AIAssistantPanel() {
 
     try {
       const history = getHistoryForAPI(10)
-      const response = await aiService.chat(normalizedMessage, history, file)
-      resolveAssistantMessage(thinkingId, response)
+
+      // Texto inicial de fallback — visible desde el primer momento
+      updateThinkingText(thinkingId, 'Procesando...')
+
+      // Guardamos el timestamp del último evento thinking para garantizar
+      // que el usuario lo vea al menos 500ms antes de mostrar la respuesta
+      let lastThinkingAt = Date.now()
+
+      await aiService.chatStream(
+        normalizedMessage,
+        history,
+        async (event: AIStreamEvent) => {
+          if (event.type === 'thinking') {
+            lastThinkingAt = Date.now()
+            updateThinkingText(thinkingId, event.text)
+          } else if (event.type === 'result') {
+            const elapsed = Date.now() - lastThinkingAt
+            if (elapsed < 500) {
+              await new Promise((resolve) => setTimeout(resolve, 500 - elapsed))
+            }
+
+            const ev = event as typeof event & { cart_items?: AIChatResponse['cart_items'] }
+            const response: AIChatResponse = {
+              response_type: ev.response_type as AIChatResponse['response_type'],
+              text: ev.text,
+              products: ev.products as AIChatResponse['products'],
+              quote: ev.quote as AIChatResponse['quote'],
+              cart_items: ev.cart_items,
+            }
+
+            // Si Luci confirmó ítems → agregarlos al carrito automáticamente
+            if (response.response_type === 'cart_action' && response.cart_items?.length) {
+              addMultipleToQuoteCart(
+                response.cart_items.map((ci) => ({
+                  product: ci.product,
+                  qty: ci.qty,
+                }))
+              )
+              toast.success(`${response.cart_items.length} ítem${response.cart_items.length !== 1 ? 's' : ''} agregado${response.cart_items.length !== 1 ? 's' : ''} al carrito`, { icon: '🛒' })
+            }
+
+            resolveAssistantMessage(thinkingId, response)
+          } else if (event.type === 'error') {
+            resolveErrorMessage(thinkingId, event.text)
+            toast.error(event.text)
+          }
+        },
+        file,
+      )
+
     } catch (err: unknown) {
       const detail =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        (err as { message?: string })?.message ||
         'No pude procesar el mensaje. Probá de nuevo en unos segundos.'
 
       resolveErrorMessage(thinkingId, detail)
@@ -181,6 +260,9 @@ export default function AIAssistantPanel() {
 
   return (
     <aside
+      id="luci-assistant-panel"
+      ref={panelRef}
+      tabIndex={-1}
       className={`
         fixed right-0 top-16 bottom-0 z-30
         w-full sm:w-96
@@ -188,10 +270,11 @@ export default function AIAssistantPanel() {
         bg-white dark:bg-gray-900
         overflow-hidden
         shadow-2xl shadow-black/10
-        transition-transform duration-300 ease-out
-        ${isOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'}
+        transition-transform duration-300 ease-out translate-x-0
       `}
-      aria-hidden={!isOpen}
+      aria-hidden={false}
+      aria-label="Panel de Luci"
+      data-testid="luci-assistant-panel"
     >
       <div className="h-full flex flex-col">
         {/* Header */}
@@ -212,7 +295,10 @@ export default function AIAssistantPanel() {
 
           <div className="flex items-center gap-1">
             <button
-              onClick={clear}
+              onClick={() => {
+                historyLoaded.current = false
+                clearFromDB()
+              }}
               className="p-1.5 rounded-md text-gray-500 hover:text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors"
               aria-label="Limpiar historial"
               title="Limpiar historial"

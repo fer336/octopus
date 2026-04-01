@@ -9,6 +9,7 @@ from uuid import UUID
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -126,21 +127,104 @@ async def get_current_business(
 
     try:
         from app.models.business import Business
+        from app.models.tenant_membership import (
+            MembershipAccessStatus,
+            TenantMembership,
+        )
 
-        logger.info(f"Getting business for user {current_user.id}")
+        current_user_id = UUID(str(current_user.id))
+        logger.info(f"Getting business for user {current_user_id}")
 
+        # Prioridad: membresía explícita de tenant (multitenancy)
+        memberships = []
+        memberships_query = select(TenantMembership).where(
+            TenantMembership.user_id == current_user_id,
+        )
+
+        try:
+            memberships_result = await db.execute(memberships_query)
+            memberships = memberships_result.scalars().all()
+        except ProgrammingError as e:
+            error_text = str(getattr(e, "orig", e)).lower()
+            if "tenant_memberships" in error_text and (
+                "does not exist" in error_text or "no such table" in error_text
+            ):
+                logger.warning(
+                    "tenant_memberships no existe en DB; usando fallback legacy owner_id"
+                )
+                await db.rollback()
+                memberships = []
+            else:
+                raise
+
+        if memberships:
+            now = datetime.utcnow()
+            role_priority = {"owner": 3, "manager": 2, "seller": 1}
+            ordered_memberships = sorted(
+                memberships,
+                key=lambda membership: role_priority.get(membership.role, 0),
+                reverse=True,
+            )
+
+            first_blocked_detail = None
+            updated_expired = False
+
+            for membership in ordered_memberships:
+                status_value = (
+                    membership.access_status or MembershipAccessStatus.ACTIVE
+                ).lower()
+
+                if status_value == MembershipAccessStatus.ACTIVE:
+                    return UUID(str(membership.business_id))
+
+                if status_value == MembershipAccessStatus.SUSPENDED:
+                    first_blocked_detail = (
+                        membership.blocked_reason or "Acceso suspendido"
+                    )
+                    continue
+
+                if status_value == MembershipAccessStatus.EXPIRED:
+                    if not first_blocked_detail:
+                        first_blocked_detail = "Tu acceso venció"
+                    continue
+
+                if status_value == MembershipAccessStatus.TRIAL:
+                    if membership.access_ends_at and now > membership.access_ends_at:
+                        membership.access_status = MembershipAccessStatus.EXPIRED
+                        if not membership.blocked_reason:
+                            membership.blocked_reason = "Trial vencido"
+                        updated_expired = True
+                        first_blocked_detail = "Tu acceso de prueba venció"
+                        continue
+                    return UUID(str(membership.business_id))
+
+                first_blocked_detail = "Tu membresía no está activa"
+
+            if updated_expired:
+                try:
+                    await db.commit()
+                except Exception:
+                    await db.rollback()
+
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=first_blocked_detail
+                or "No tenés acceso activo a ningún negocio. Contactá al administrador.",
+            )
+
+        # Fallback legacy: owner_id en Business (compatibilidad)
         query = select(Business).where(
-            Business.owner_id == current_user.id,
+            Business.owner_id == current_user_id,
             Business.deleted_at.is_(None),
         )
         result = await db.execute(query)
         business = result.scalar_one_or_none()
 
         if not business:
-            logger.error(f"No business found for user {current_user.id}")
+            logger.error(f"No business access for user {current_user_id}")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Usuario sin negocio configurado",
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tenés acceso a ningún negocio. Contactá al administrador.",
             )
 
         business_id = business.id

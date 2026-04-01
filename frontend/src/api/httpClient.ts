@@ -6,7 +6,50 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '../stores/authStore'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
-const API_URL = import.meta.env.VITE_API_URL || `${BACKEND_URL}/api/tenant`
+
+export function getBackendUrl(): string {
+  return BACKEND_URL
+}
+
+export function getTenantApiUrl(): string {
+  const configuredApiUrl = import.meta.env.VITE_API_URL
+
+  if (!configuredApiUrl) {
+    return `${BACKEND_URL}/api/tenant`
+  }
+
+  // Compatibilidad retroactiva: despliegues viejos pueden seguir con /api/v1
+  // en VITE_API_URL y eso rompe los endpoints tenant luego de la migracion.
+  return configuredApiUrl.replace(/\/api\/v1\/?$/, '/api/tenant')
+}
+
+export function getAdminApiUrl(): string {
+  const configuredApiUrl = import.meta.env.VITE_API_URL
+
+  if (!configuredApiUrl) {
+    return `${BACKEND_URL}/api/admin`
+  }
+
+  return configuredApiUrl
+    .replace(/\/api\/v1\/?$/, '/api/admin')
+    .replace(/\/api\/tenant\/?$/, '/api/admin')
+}
+
+const API_URL = getTenantApiUrl()
+
+function getLoginRedirectUrl(): string {
+  const currentPath = window.location.pathname
+
+  if (currentPath.includes('/admin.html')) {
+    return '/admin.html#/login'
+  }
+
+  if (currentPath.includes('/tenant.html')) {
+    return '/tenant.html#/login'
+  }
+
+  return '/login'
+}
 
 export const httpClient = axios.create({
   baseURL: API_URL,
@@ -97,7 +140,7 @@ httpClient.interceptors.response.use(
           // Refresh falló, cerrar sesión
           processQueue(refreshError as Error, null)
           logout()
-          window.location.href = '/login'
+          window.location.href = getLoginRedirectUrl()
           return Promise.reject(refreshError)
         } finally {
           isRefreshing = false
@@ -105,7 +148,7 @@ httpClient.interceptors.response.use(
       } else {
         isRefreshing = false
         logout()
-        window.location.href = '/login'
+        window.location.href = getLoginRedirectUrl()
         return Promise.reject(error)
       }
     }

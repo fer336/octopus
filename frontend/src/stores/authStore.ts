@@ -11,6 +11,7 @@ export interface User {
   email: string
   name: string
   picture?: string
+  platform_role?: string
 }
 
 export interface AuthTokens {

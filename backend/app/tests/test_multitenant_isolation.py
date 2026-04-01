@@ -11,11 +11,15 @@ Verifica que:
 
 import pytest
 import pytest_asyncio
+from datetime import datetime, timedelta
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.audit_log import AuditLog
 from app.models.business import Business
 from app.models.product import Product
+from app.models.tenant_secret import TenantSecret
 from app.models.tenant_membership import TenantMembership
 from app.models.user import User
 from app.tests.conftest import make_auth_header
@@ -258,3 +262,198 @@ async def test_tenant_user_cannot_create_tenants(
     # que no pueda acceder a ningún endpoint de admin
     response = await client.get("/api/admin/tenants", headers=headers)
     assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "path", "payload"),
+    [
+        (
+            "PUT",
+            "/api/tenant/arca/config/{business_id}",
+            {"afipsdk_access_token": "test-token-123"},
+        ),
+        ("GET", "/api/tenant/arca/diagnose/{business_id}", None),
+        ("GET", "/api/tenant/arca/server-status/{business_id}", None),
+        ("POST", "/api/tenant/arca/test-invoice/{business_id}", None),
+    ],
+)
+async def test_tenant_user_cannot_access_arca_sensitive_endpoints_from_tenant_surface(
+    client: AsyncClient,
+    user_a: User,
+    business_a: Business,
+    membership_a: TenantMembership,
+    method: str,
+    path: str,
+    payload: dict | None,
+):
+    """Operaciones sensibles ARCA en tenant quedan bloqueadas y se derivan a CMS superadmin."""
+    headers = make_auth_header(user_a)
+    url = path.format(business_id=business_a.id)
+    response = await client.request(method, url, headers=headers, json=payload)
+
+    assert response.status_code == 403
+    data = response.json()
+    assert data["detail"] == "Gestionado desde CMS superadmin."
+
+
+@pytest.mark.asyncio
+async def test_superadmin_can_delete_arca_secrets_from_admin_endpoint(
+    client: AsyncClient,
+    superadmin_user: User,
+    business_a: Business,
+    db: AsyncSession,
+):
+    """Superadmin puede invalidar secretos ARCA desde /api/admin."""
+    headers = make_auth_header(superadmin_user)
+
+    seed_secret = TenantSecret(
+        business_id=business_a.id,
+        secret_type="afipsdk_access_token",
+        encrypted_value="encrypted-value",
+        last4="1234",
+        is_configured=True,
+    )
+    db.add(seed_secret)
+    await db.commit()
+
+    response = await client.delete(
+        f"/api/admin/tenants/{business_a.id}/arca-secrets",
+        headers=headers,
+    )
+    assert response.status_code == 204
+
+    status_response = await client.get(
+        f"/api/admin/tenants/{business_a.id}/arca-secrets",
+        headers=headers,
+    )
+    assert status_response.status_code == 200
+    status_payload = status_response.json()
+    assert status_payload["secrets"]["afipsdk_access_token"]["configured"] is False
+    assert status_payload["secrets"]["afipsdk_access_token"]["last4"] is None
+
+    audit_result = await db.execute(
+        select(AuditLog)
+        .where(
+            AuditLog.business_id == business_a.id,
+            AuditLog.action == "delete",
+            AuditLog.resource_type == "arca_secret",
+        )
+        .order_by(AuditLog.created_at.desc())
+    )
+    audit = audit_result.scalar_one()
+    assert audit.user_id == superadmin_user.id
+    assert audit.details["invalidated_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_delete_arca_secrets_preserves_tenant_isolation(
+    client: AsyncClient,
+    superadmin_user: User,
+    business_a: Business,
+    business_b: Business,
+    db: AsyncSession,
+):
+    """Borrar secretos de un tenant no afecta secretos de otro tenant."""
+    headers = make_auth_header(superadmin_user)
+
+    secret_a = TenantSecret(
+        business_id=business_a.id,
+        secret_type="afipsdk_access_token",
+        encrypted_value="enc-a",
+        last4="1111",
+        is_configured=True,
+    )
+    secret_b = TenantSecret(
+        business_id=business_b.id,
+        secret_type="afipsdk_access_token",
+        encrypted_value="enc-b",
+        last4="2222",
+        is_configured=True,
+    )
+    db.add_all([secret_a, secret_b])
+    await db.commit()
+
+    response = await client.delete(
+        f"/api/admin/tenants/{business_a.id}/arca-secrets",
+        headers=headers,
+    )
+    assert response.status_code == 204
+
+    status_a = await client.get(
+        f"/api/admin/tenants/{business_a.id}/arca-secrets",
+        headers=headers,
+    )
+    assert status_a.status_code == 200
+    payload_a = status_a.json()
+    assert payload_a["secrets"]["afipsdk_access_token"]["configured"] is False
+
+    status_b = await client.get(
+        f"/api/admin/tenants/{business_b.id}/arca-secrets",
+        headers=headers,
+    )
+    assert status_b.status_code == 200
+    payload_b = status_b.json()
+    assert payload_b["secrets"]["afipsdk_access_token"]["configured"] is True
+    assert payload_b["secrets"]["afipsdk_access_token"]["last4"] == "2222"
+
+
+@pytest.mark.asyncio
+async def test_expired_trial_membership_gets_403_on_tenant_endpoint(
+    client: AsyncClient,
+    user_a: User,
+    business_a: Business,
+    membership_a: TenantMembership,
+    db: AsyncSession,
+):
+    membership_a.access_status = "trial"
+    membership_a.access_starts_at = datetime.utcnow() - timedelta(days=40)
+    membership_a.access_ends_at = datetime.utcnow() - timedelta(days=10)
+    await db.commit()
+
+    headers = make_auth_header(user_a)
+    response = await client.get("/api/tenant/products", headers=headers)
+
+    assert response.status_code == 403
+    data = response.json()
+    assert "prueba" in data["detail"].lower() or "venció" in data["detail"].lower()
+
+    await db.refresh(membership_a)
+    assert membership_a.access_status == "expired"
+
+
+@pytest.mark.asyncio
+async def test_suspended_membership_gets_403_on_tenant_endpoint(
+    client: AsyncClient,
+    user_a: User,
+    membership_a: TenantMembership,
+    db: AsyncSession,
+):
+    membership_a.access_status = "suspended"
+    membership_a.blocked_reason = "Suspendido por admin"
+    await db.commit()
+
+    headers = make_auth_header(user_a)
+    response = await client.get("/api/tenant/products", headers=headers)
+
+    assert response.status_code == 403
+    data = response.json()
+    assert "suspend" in data["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_active_membership_can_access_tenant_endpoint(
+    client: AsyncClient,
+    user_a: User,
+    membership_a: TenantMembership,
+    db: AsyncSession,
+):
+    membership_a.access_status = "active"
+    membership_a.blocked_reason = None
+    membership_a.access_ends_at = None
+    await db.commit()
+
+    headers = make_auth_header(user_a)
+    response = await client.get("/api/tenant/products", headers=headers)
+
+    assert response.status_code == 200

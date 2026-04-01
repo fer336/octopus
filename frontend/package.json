@@ -4,21 +4,26 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run dev:tenant",
+    "dev:tenant": "vite --config vite.config.ts --host --port 5173 --strictPort --open /tenant.html",
+    "dev:admin": "vite --config vite.config.ts --host --port 5174 --strictPort --open /admin.html",
     "build": "tsc && vite build",
+    "build:tenant": "tsc && vite build",
+    "build:admin": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.28.4",
+    "axios": "^1.6.8",
+    "clsx": "^2.1.0",
+    "lucide-react": "^0.359.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.22.3",
-    "axios": "^1.6.8",
-    "@tanstack/react-query": "^5.28.4",
-    "zustand": "^4.5.2",
     "react-hot-toast": "^2.4.1",
-    "lucide-react": "^0.359.0",
-    "clsx": "^2.1.0"
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^6.22.3",
+    "zustand": "^4.5.2"
   },
   "devDependencies": {
     "@types/react": "^18.3.1",

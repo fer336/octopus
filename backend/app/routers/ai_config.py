@@ -14,7 +14,8 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -99,18 +100,17 @@ async def upsert_ai_provider(
     """
     business_id = str(current_business)
 
-    # Buscar config existente para este proveedor
+    # Buscar config existente — incluye registros con soft delete para poder restaurarlos
     result = await db.execute(
         select(AIProviderConfig).where(
             AIProviderConfig.business_id == business_id,
             AIProviderConfig.provider == provider.value,
-            AIProviderConfig.deleted_at == None,
         )
     )
     config = result.scalar_one_or_none()
 
     if config is None:
-        # Crear nueva
+        # Primera vez — crear
         config = AIProviderConfig(
             business_id=business_id,
             provider=provider.value,
@@ -119,18 +119,25 @@ async def upsert_ai_provider(
         )
         db.add(config)
         logger.info(
-            f"[AI Config] Creando config para proveedor '{provider}' en negocio {business_id}"
+            f"[AI Config] Creando config para '{provider}' en negocio {business_id}"
         )
     else:
-        logger.info(
-            f"[AI Config] Actualizando config para proveedor '{provider}' en negocio {business_id}"
-        )
+        # Ya existe (con o sin soft delete) — restaurar si estaba borrado
+        if config.deleted_at is not None:
+            config.deleted_at = None
+            logger.info(
+                f"[AI Config] Restaurando config de '{provider}' en negocio {business_id}"
+            )
+        else:
+            logger.info(
+                f"[AI Config] Actualizando config de '{provider}' en negocio {business_id}"
+            )
 
     # Actualizar campos opcionales
     if body.api_key is not None:
         config.api_key_encrypted = encrypt_api_key(body.api_key)
         config.api_key_last4 = get_last4(body.api_key)
-        # Resetear validación si cambia la key
+        # Resetear validación al cambiar la key
         config.is_valid = False
         config.validated_at = None
         config.validation_error = None
@@ -144,8 +151,38 @@ async def upsert_ai_provider(
     if body.display_name is not None:
         config.display_name = body.display_name
 
-    await db.commit()
-    await db.refresh(config)
+    try:
+        await db.commit()
+        await db.refresh(config)
+    except IntegrityError:
+        # Fallback defensivo: si por alguna race condition hay conflicto,
+        # hacer rollback y re-buscar el registro para actualizarlo
+        await db.rollback()
+        result = await db.execute(
+            select(AIProviderConfig).where(
+                AIProviderConfig.business_id == business_id,
+                AIProviderConfig.provider == provider.value,
+            )
+        )
+        config = result.scalar_one()
+
+        if body.api_key is not None:
+            config.api_key_encrypted = encrypt_api_key(body.api_key)
+            config.api_key_last4 = get_last4(body.api_key)
+            config.is_valid = False
+            config.validated_at = None
+            config.validation_error = None
+        if body.default_model is not None:
+            config.default_model = body.default_model
+        if body.base_url is not None:
+            config.base_url = body.base_url
+        if body.display_name is not None:
+            config.display_name = body.display_name
+        if config.deleted_at is not None:
+            config.deleted_at = None
+
+        await db.commit()
+        await db.refresh(config)
 
     return _to_response(config)
 
@@ -331,6 +368,68 @@ async def fetch_provider_models(
             provider=provider.value,
             api_key=body.api_key,
             base_url=body.base_url,
+        )
+        return {"provider": provider.value, "models": models}
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+# ─────────────────────────────────────────────────────────────
+# POST /ai/config/{provider}/fetch-models-saved
+# Consulta modelos reales usando la API key YA GUARDADA en DB.
+# Permite refrescar la lista de modelos sin tener que re-ingresar la key.
+# ─────────────────────────────────────────────────────────────
+@router.post("/{provider}/fetch-models-saved")
+async def fetch_provider_models_saved(
+    provider: AIProvider,
+    db: AsyncSession = Depends(get_db),
+    current_business=Depends(get_current_business),
+    _=Depends(get_current_user),
+):
+    """
+    Consulta la API real del proveedor usando la key guardada en DB para ese negocio.
+    Útil para refrescar la lista de modelos disponibles cuando el proveedor
+    ya está configurado (sin tener que re-ingresar la API key).
+    """
+    business_id = str(current_business)
+
+    result = await db.execute(
+        select(AIProviderConfig).where(
+            AIProviderConfig.business_id == business_id,
+            AIProviderConfig.provider == provider.value,
+            AIProviderConfig.deleted_at == None,
+        )
+    )
+    config = result.scalar_one_or_none()
+
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No hay configuración guardada para el proveedor '{provider.value}'.",
+        )
+
+    if not config.api_key_encrypted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El proveedor no tiene API key guardada.",
+        )
+
+    try:
+        api_key = decrypt_api_key(config.api_key_encrypted)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo recuperar la API key guardada.",
+        )
+
+    try:
+        models = await LLMFactory.fetch_models(
+            provider=provider.value,
+            api_key=api_key,
+            base_url=config.base_url,
         )
         return {"provider": provider.value, "models": models}
     except ValueError as e:

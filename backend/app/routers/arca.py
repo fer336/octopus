@@ -7,6 +7,7 @@ Documentación Afip SDK: https://docs.afipsdk.com/integracion/python
 
 import logging
 from datetime import datetime
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -23,19 +24,37 @@ from app.schemas.arca_schemas import (
     EmitInvoiceResponse,
 )
 from app.services.afip_sdk_service import AfipSdkService
-from app.utils.security import get_current_user
+from app.utils.security import get_current_business, get_current_user
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/arca", tags=["arca"])
+CMS_SUPERADMIN_MESSAGE = "Gestionado desde CMS superadmin."
 
 
 async def get_business(
     business_id: str,
+    current_business_id: UUID = Depends(get_current_business),
     db: AsyncSession = Depends(get_db),
 ) -> Business:
-    """Obtiene el negocio por ID."""
-    result = await db.execute(select(Business).where(Business.id == business_id))
+    """Obtiene el negocio por ID validando acceso del tenant actual."""
+    try:
+        requested_business_id = UUID(str(business_id))
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="business_id inválido",
+        )
+
+    if requested_business_id != current_business_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tenés acceso al negocio solicitado.",
+        )
+
+    result = await db.execute(
+        select(Business).where(Business.id == requested_business_id)
+    )
     business = result.scalar_one_or_none()
 
     if not business:
@@ -98,57 +117,17 @@ async def get_arca_config(
 
 @router.put("/config/{business_id}", response_model=AfipSdkConfigResponse)
 async def update_arca_config(
-    config: AfipSdkConfigUpdate,
-    business: Business = Depends(get_business),
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    _config: AfipSdkConfigUpdate,
+    _business: Business = Depends(get_business),
+    _=Depends(get_current_user),
 ):
     """
-    Actualiza la configuración de Afip SDK.
-    Acepta access_token, certificado, clave privada y entorno.
-    Solo actualiza los campos que se envían (no nulos).
+    Superficie tenant bloqueada para cambios sensibles de ARCA.
+    La gestión se realiza exclusivamente desde /api/admin.
     """
-    updated_fields = []
-    if config.afipsdk_access_token is not None:
-        business.afipsdk_access_token = config.afipsdk_access_token
-        updated_fields.append("afipsdk_access_token")
-    if config.afip_cert is not None:
-        business.afip_cert = config.afip_cert
-        updated_fields.append("afip_cert")
-    if config.afip_key is not None:
-        business.afip_key = config.afip_key
-        updated_fields.append("afip_key")
-    if config.arca_environment is not None:
-        business.arca_environment = config.arca_environment
-        updated_fields.append("arca_environment")
-
-    await db.commit()
-    await db.refresh(business)
-
-    logger.info(f"Configuración Afip SDK actualizada para negocio {business.id}")
-
-    await _log_audit(
-        db=db,
-        user_id=current_user.id,
-        business_id=business.id,
-        action="update",
-        resource_type="arca_secret",
-        resource_id=business.id,
-        details={
-            "description": "Configuración ARCA actualizada",
-            "updated_fields": updated_fields,
-        },
-    )
-
-    return AfipSdkConfigResponse(
-        afipsdk_access_token_configured=bool(business.afipsdk_access_token),
-        afip_cert_configured=bool(business.afip_cert),
-        afip_key_configured=bool(business.afip_key),
-        arca_environment=business.arca_environment or "testing",
-        cuit=business.cuit,
-        sale_point=business.sale_point,
-        business_name=business.name,
-        tax_condition=business.tax_condition,
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=CMS_SUPERADMIN_MESSAGE,
     )
 
 
@@ -159,45 +138,29 @@ async def update_arca_config(
 
 @router.get("/diagnose/{business_id}")
 async def diagnose_arca(
-    business: Business = Depends(get_business),
+    _business: Business = Depends(get_business),
 ):
     """
     Ejecuta un diagnóstico completo de la integración con ARCA/AFIP.
     Verifica: access token, CUIT, servidor ARCA, autenticación.
     """
-    service = AfipSdkService(business)
-    try:
-        result = await service.diagnose()
-        return result
-    except Exception as e:
-        logger.error(f"Error en diagnóstico ARCA: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error en diagnóstico: {str(e)}",
-        )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=CMS_SUPERADMIN_MESSAGE,
+    )
 
 
 @router.get("/server-status/{business_id}")
 async def get_server_status(
-    business: Business = Depends(get_business),
+    _business: Business = Depends(get_business),
 ):
     """
     Verifica el estado del servidor ARCA/AFIP.
     """
-    service = AfipSdkService(business)
-    try:
-        return await service.get_server_status()
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
-    except Exception as e:
-        logger.error(f"Error al verificar estado del servidor: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error: {str(e)}",
-        )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=CMS_SUPERADMIN_MESSAGE,
+    )
 
 
 # ============================================================================
@@ -207,116 +170,18 @@ async def get_server_status(
 
 @router.post("/test-invoice/{business_id}")
 async def test_invoice(
-    business: Business = Depends(get_business),
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    _business: Business = Depends(get_business),
+    _db: AsyncSession = Depends(get_db),
+    _current_user=Depends(get_current_user),
 ):
     """
     Envía una factura de prueba para verificar que la integración funciona.
     Usa datos mínimos: Factura B, Consumidor Final, 1 producto de $121 ($100 + IVA 21%).
     """
-    service = AfipSdkService(business)
-
-    try:
-        # Validar configuración
-        if not business.afipsdk_access_token:
-            return {
-                "success": False,
-                "step": "config",
-                "message": "No hay access_token de Afip SDK configurado.",
-            }
-
-        if not business.cuit:
-            return {
-                "success": False,
-                "step": "config",
-                "message": "El CUIT del negocio no está configurado.",
-            }
-
-        sale_point = int(business.sale_point or "1")
-        cbte_fch = datetime.now().strftime("%Y%m%d")
-
-        # Datos de factura de prueba (Factura B, Consumidor Final)
-        test_data = {
-            "CantReg": 1,
-            "PtoVta": sale_point,
-            "CbteTipo": 6,  # Factura B
-            "Concepto": 1,  # Productos
-            "DocTipo": 99,  # Sin identificar (Consumidor Final)
-            "DocNro": 0,
-            "CbteFch": cbte_fch,
-            "ImpTotal": 121.00,
-            "ImpTotConc": 0,
-            "ImpNeto": 100.00,
-            "ImpOpEx": 0,
-            "ImpTrib": 0,
-            "ImpIVA": 21.00,
-            "MonId": "PES",
-            "MonCotiz": 1,
-            "CondicionIVAReceptorId": 5,  # Consumidor Final (RG 5616)
-            "Iva": [
-                {
-                    "Id": 5,  # IVA 21%
-                    "BaseImp": 100,
-                    "Importe": 21,
-                }
-            ],
-        }
-
-        logger.info(f"Enviando factura de prueba con Afip SDK")
-        result = await service.create_next_voucher(test_data)
-
-        if result["success"]:
-            await _log_audit(
-                db=db,
-                user_id=current_user.id,
-                business_id=business.id,
-                action="test_invoice",
-                resource_type="arca_secret",
-                resource_id=business.id,
-                details={
-                    "description": "Factura de prueba emitida exitosamente",
-                    "cae": result.get("CAE"),
-                    "voucher_number": result.get("voucherNumber"),
-                },
-            )
-            return {
-                "success": True,
-                "step": "factura",
-                "message": "¡Factura de prueba emitida exitosamente!",
-                "cae": result["CAE"],
-                "cae_expiration": result["CAEFchVto"],
-                "voucher_number": result["voucherNumber"],
-                "request_data": test_data,
-            }
-        else:
-            await _log_audit(
-                db=db,
-                user_id=current_user.id,
-                business_id=business.id,
-                action="test_invoice",
-                resource_type="arca_secret",
-                resource_id=business.id,
-                details={
-                    "description": "Factura de prueba falló",
-                    "error": result.get("error"),
-                },
-            )
-            return {
-                "success": False,
-                "step": "factura",
-                "message": f"Error al emitir factura de prueba",
-                "error": result.get("error"),
-                "request_data": test_data,
-            }
-
-    except Exception as e:
-        logger.error(f"Error en factura de prueba: {e}")
-        return {
-            "success": False,
-            "step": "error",
-            "message": f"Error inesperado: {str(e)}",
-        }
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=CMS_SUPERADMIN_MESSAGE,
+    )
 
 
 # ============================================================================

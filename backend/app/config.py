@@ -49,6 +49,7 @@ class Settings(BaseSettings):
 
     # Frontend URLs
     FRONTEND_URL: str = "http://localhost:5173"
+    FRONTEND_ADMIN_URL: str = "http://localhost:5174"
 
     # Login demo de desarrollo
     DEV_LOGIN_EMAIL: str = "user@demo"

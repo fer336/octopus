@@ -20,6 +20,7 @@ export default function Header({
 }: HeaderProps) {
   const { theme, toggleTheme } = useTheme()
   const { user, logout } = useAuthStore()
+  const isAIOpen = useAIStore((s) => s.isOpen)
   const toggleAI = useAIStore((s) => s.toggle)
 
   const handleLogout = () => {
@@ -50,6 +51,7 @@ export default function Header({
 
           {/* ── Botón Agente IA ─────────────────────────────────── */}
           <button
+            type="button"
             onClick={toggleAI}
             className="
               relative flex items-center gap-2 px-3 py-2 rounded-xl
@@ -62,6 +64,10 @@ export default function Header({
               group
             "
             aria-label="Abrir agente de presupuestos IA"
+            aria-expanded={isAIOpen}
+            aria-controls="luci-assistant-panel"
+            data-state={isAIOpen ? 'open' : 'closed'}
+            data-testid="luci-toggle-button"
           >
             {/* Glow pulsante sutil */}
             <span className="absolute inset-0 rounded-xl bg-cyan-400 opacity-0 group-hover:opacity-10 transition-opacity" />

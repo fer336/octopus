@@ -2,11 +2,12 @@
  * Página de Login.
  * Permite iniciar sesión con Google OAuth.
  */
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Octagon } from 'lucide-react'
 import Button from '../components/ui/Button'
+import Input from '../components/ui/Input'
 import authService from '../api/authService'
 import { useAuthStore } from '../stores/authStore'
 
@@ -14,23 +15,30 @@ export default function Login() {
   const navigate = useNavigate()
   const setAuth = useAuthStore((s) => s.setAuth)
 
-  const devBypassEmail =
-    import.meta.env.VITE_DEV_BYPASS_EMAIL || 'casserafernando@gmail.com'
+  const demoEmail = import.meta.env.VITE_DEMO_LOGIN_EMAIL || 'user@demo'
+  const demoPassword = import.meta.env.VITE_DEMO_LOGIN_PASSWORD || 'demo123'
   const autoDevLogin = import.meta.env.VITE_DEV_AUTO_LOGIN === 'true'
+  const [demoUser, setDemoUser] = useState(demoEmail)
+  const [demoSecret, setDemoSecret] = useState(demoPassword)
+  const [isDemoLoading, setIsDemoLoading] = useState(false)
 
   const handleGoogleLogin = () => {
     authService.loginWithGoogle()
   }
 
   const handleDevLogin = async () => {
+    setIsDemoLoading(true)
+
     try {
-      const response = await authService.devLogin(devBypassEmail)
+      const response = await authService.devLogin(demoUser, demoSecret)
       setAuth(response)
-      toast.success(`Ingreso de testing: ${response.user?.email ?? devBypassEmail}`)
+      toast.success('Ingreso demo habilitado')
       navigate('/', { replace: true })
     } catch (error) {
       console.error('Dev login error:', error)
-      toast.error('No se pudo iniciar sesión de testing')
+      toast.error('No se pudo iniciar sesión con las credenciales demo')
+    } finally {
+      setIsDemoLoading(false)
     }
   }
 
@@ -92,14 +100,46 @@ export default function Login() {
           </Button>
 
           {import.meta.env.DEV && (
-            <Button
-              onClick={handleDevLogin}
-              variant="primary"
-              size="lg"
-              className="w-full mt-3"
-            >
-              Ingresar testing ({devBypassEmail})
-            </Button>
+            <div className="mt-4 rounded-xl border border-primary-200 bg-primary-50 p-4 dark:border-primary-900/50 dark:bg-primary-900/10">
+              <div className="mb-3">
+                <p className="text-sm font-semibold text-primary-900 dark:text-primary-200">
+                  Acceso demo
+                </p>
+                <p className="mt-1 text-sm text-primary-800 dark:text-primary-300">
+                  Usuario: <span className="font-medium">{demoEmail}</span>
+                </p>
+                <p className="text-sm text-primary-800 dark:text-primary-300">
+                  Contraseña: <span className="font-medium">{demoPassword}</span>
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <Input
+                  label="Usuario demo"
+                  name="demoUser"
+                  value={demoUser}
+                  onChange={(event) => setDemoUser(event.target.value)}
+                  autoComplete="username"
+                />
+                <Input
+                  label="Contraseña demo"
+                  name="demoPassword"
+                  type="password"
+                  value={demoSecret}
+                  onChange={(event) => setDemoSecret(event.target.value)}
+                  autoComplete="current-password"
+                />
+                <Button
+                  onClick={handleDevLogin}
+                  variant="primary"
+                  size="lg"
+                  className="w-full"
+                  isLoading={isDemoLoading}
+                >
+                  Ingresar con demo
+                </Button>
+              </div>
+            </div>
           )}
 
           <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
