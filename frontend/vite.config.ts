@@ -19,4 +19,11 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      input: {
+        tenant: path.resolve(__dirname, 'tenant.html'),
+      },
+    },
+  },
 })
