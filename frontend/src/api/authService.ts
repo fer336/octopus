@@ -6,7 +6,7 @@ import axios from 'axios'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 
-// Cliente HTTP específico para endpoints de auth (sin prefijo /api/v1)
+// Cliente HTTP específico para endpoints de auth (sin prefijo /api/tenant)
 const authClient = axios.create({
   baseURL: BACKEND_URL,
   headers: {
@@ -41,8 +41,14 @@ export const authService = {
    * Login de desarrollo para testing E2E.
    * Solo funciona si backend está en DEBUG.
    */
-  devLogin: async (email?: string): Promise<AuthResponse> => {
-    const params = email ? { email } : undefined
+  devLogin: async (email?: string, password?: string): Promise<AuthResponse> => {
+    const params =
+      email || password
+        ? {
+            ...(email ? { email } : {}),
+            ...(password ? { password } : {}),
+          }
+        : undefined
     const response = await authClient.post('/auth/dev-login', null, { params })
     return response.data
   },

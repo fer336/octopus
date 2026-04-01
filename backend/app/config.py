@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     # Aplicación
     APP_NAME: str = "OctopusTrack"
     DEBUG: bool = False
-    API_V1_PREFIX: str = "/api/v1"
+    API_TENANT_PREFIX: str = "/api/tenant"
 
     # Base de datos
     DATABASE_URL: str = (
@@ -49,6 +49,11 @@ class Settings(BaseSettings):
 
     # Frontend URLs
     FRONTEND_URL: str = "http://localhost:5173"
+
+    # Login demo de desarrollo
+    DEV_LOGIN_EMAIL: str = "user@demo"
+    DEV_LOGIN_PASSWORD: str = "demo123"
+    DEV_LOGIN_TARGET_EMAIL: str = ""
 
     # OpenAI — Fallback de desarrollo (las keys reales se guardan por negocio en DB)
     OPENAI_API_KEY: str = ""

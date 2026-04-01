@@ -1,6 +1,6 @@
 """
 Schemas Pydantic para el endpoint de chat del Agente IA.
-POST /api/v1/ai/chat
+POST /api/tenant/ai/chat
 """
 
 from typing import Literal

@@ -52,7 +52,7 @@ async def test_user_a_cannot_access_tenant_b_data(
 
     # User A intenta acceder a los productos
     headers = make_auth_header(user_a)
-    response = await client.get("/api/v1/products", headers=headers)
+    response = await client.get("/api/tenant/products", headers=headers)
 
     # Debe ser exitoso pero solo incluir productos del tenant A
     assert response.status_code == 200
@@ -134,15 +134,15 @@ async def test_user_without_membership_gets_403(
     headers = make_auth_header(user_no_membership)
 
     # Intentar acceder a productos
-    response = await client.get("/api/v1/products", headers=headers)
+    response = await client.get("/api/tenant/products", headers=headers)
     assert response.status_code == 403
 
     # Intentar acceder a clientes
-    response = await client.get("/api/v1/clients", headers=headers)
+    response = await client.get("/api/tenant/clients", headers=headers)
     assert response.status_code == 403
 
     # Intentar acceder a proveedores
-    response = await client.get("/api/v1/suppliers", headers=headers)
+    response = await client.get("/api/tenant/suppliers", headers=headers)
     assert response.status_code == 403
 
 
@@ -207,7 +207,7 @@ async def test_user_b_cannot_access_tenant_a_data(
 
     # User B intenta acceder a los productos
     headers = make_auth_header(user_b)
-    response = await client.get("/api/v1/products", headers=headers)
+    response = await client.get("/api/tenant/products", headers=headers)
 
     # Debe ser exitoso pero solo incluir productos del tenant B
     assert response.status_code == 200

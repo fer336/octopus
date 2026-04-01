@@ -79,23 +79,23 @@ app.add_middleware(
 
 
 # Routers
-# Auth router se monta sin prefijo /api/v1 para coincidir con Google OAuth callback
+# Auth router se monta sin prefijo para coincidir con Google OAuth callback
 app.include_router(auth.router)
-app.include_router(products.router, prefix=settings.API_V1_PREFIX)
-app.include_router(clients.router, prefix=settings.API_V1_PREFIX)
-app.include_router(suppliers.router, prefix=settings.API_V1_PREFIX)
-app.include_router(categories.router, prefix=settings.API_V1_PREFIX)
-app.include_router(dashboard.router, prefix=settings.API_V1_PREFIX)
-app.include_router(pdf_test.router, prefix=settings.API_V1_PREFIX)
-app.include_router(vouchers.router, prefix=settings.API_V1_PREFIX)
-app.include_router(arca.router, prefix=settings.API_V1_PREFIX)
-app.include_router(business.router, prefix=settings.API_V1_PREFIX)
-app.include_router(payment_methods.router, prefix=settings.API_V1_PREFIX)
-app.include_router(price_update_drafts.router, prefix=settings.API_V1_PREFIX)
-app.include_router(cash.router, prefix=settings.API_V1_PREFIX)
-app.include_router(purchase_orders.router, prefix=settings.API_V1_PREFIX)
-app.include_router(ai.router, prefix=settings.API_V1_PREFIX)
-app.include_router(ai_config.router, prefix=settings.API_V1_PREFIX)
+app.include_router(products.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(clients.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(suppliers.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(categories.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(dashboard.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(pdf_test.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(vouchers.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(arca.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(business.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(payment_methods.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(price_update_drafts.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(cash.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(purchase_orders.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(ai.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(ai_config.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(admin.router)  # /api/admin/* (prefijo interno)
 
 

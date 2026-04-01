@@ -1,11 +1,24 @@
 /**
  * Cliente HTTP para el Agente IA de Presupuestos.
- * Conecta con los endpoints /api/v1/ai/* del backend.
+ * Conecta con los endpoints /api/tenant/ai/* del backend.
  */
-import { AIParseQuoteResponse } from '../types'
+import { AIParseQuoteResponse, AIChatResponse } from '../types'
 import httpClient from './httpClient'
 
+// ── Tipos de eventos SSE del stream ────────────────────────────
+export type AIStreamEvent =
+  | { type: 'thinking'; text: string }
+  | { type: 'result'; response_type: string; text: string; products?: unknown; quote?: unknown }
+  | { type: 'error'; text: string }
+
 const AI_BASE = '/ai'
+
+// Obtiene la URL base de la API — exactamente igual que httpClient.ts
+// para garantizar que fetch y axios apunten al mismo host.
+function getApiBase(): string {
+  const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? 'http://localhost:8000'
+  return (import.meta.env.VITE_API_URL as string | undefined) ?? `${backendUrl}/api/tenant`
+}
 
 const aiService = {
   /**
@@ -67,7 +80,7 @@ const aiService = {
     message: string,
     history: { role: string; content: string }[],
     file?: File | null,
-  ): Promise<import('../types').AIChatResponse> => {
+  ): Promise<AIChatResponse> => {
     const formData = new FormData()
     formData.append('message', message)
     formData.append('history', JSON.stringify(history.slice(-10)))
@@ -76,7 +89,7 @@ const aiService = {
       formData.append('file', file)
     }
 
-    const response = await httpClient.post<import('../types').AIChatResponse>(
+    const response = await httpClient.post<AIChatResponse>(
       `${AI_BASE}/chat`,
       formData,
       {
@@ -85,6 +98,109 @@ const aiService = {
       },
     )
     return response.data
+  },
+
+  /**
+   * Carga el historial de conversación guardado en PostgreSQL.
+   * Se llama al abrir el panel para restaurar el contexto de sesiones anteriores.
+   */
+  loadHistory: async (): Promise<{ role: string; content: string; products?: unknown[] }[]> => {
+    const { data } = await httpClient.get<{ history: { role: string; content: string; products?: unknown[] }[] }>(
+      `${AI_BASE}/history`
+    )
+    return data.history ?? []
+  },
+
+  /**
+   * Limpia el historial de conversación en PostgreSQL.
+   * Se llama cuando el usuario toca "Limpiar" en el panel.
+   */
+  clearHistory: async (): Promise<void> => {
+    await httpClient.delete(`${AI_BASE}/history`)
+  },
+
+  /**
+   * Versión streaming de chat(). Usa fetch nativo + ReadableStream para leer
+   * eventos SSE del endpoint /ai/chat/stream.
+   *
+   * Llama a `onEvent` por cada evento SSE recibido:
+   * - {type: "thinking", text: "..."} → paso actual del agente
+   * - {type: "result", ...}           → respuesta final completa
+   * - {type: "error", text: "..."}    → error del agente
+   *
+   * @param message  Mensaje actual del usuario
+   * @param history  Historial de la conversación
+   * @param onEvent  Callback que recibe cada evento SSE
+   * @param file     Archivo adjunto opcional
+   */
+  chatStream: async (
+    message: string,
+    history: { role: string; content: string }[],
+    onEvent: (event: AIStreamEvent) => void | Promise<void>,
+    file?: File | null,
+  ): Promise<void> => {
+    const formData = new FormData()
+    formData.append('message', message)
+    formData.append('history', JSON.stringify(history.slice(-10)))
+
+    if (file) {
+      formData.append('file', file)
+    }
+
+    // Obtener el JWT del store de auth (Zustand)
+    // Usamos el mismo mecanismo que httpClient pero con fetch nativo para SSE
+    const { useAuthStore } = await import('../stores/authStore')
+    const token = useAuthStore.getState().accessToken
+
+    const url = `${getApiBase()}${AI_BASE}/chat/stream`
+
+    const res = await fetch(url, {
+      method: 'POST',
+      body: formData,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: AbortSignal.timeout(90_000),
+    })
+
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => ({}))
+      throw new Error(errorBody?.detail ?? `Error ${res.status} del servidor`)
+    }
+
+    if (!res.body) {
+      throw new Error('El servidor no devolvió un stream.')
+    }
+
+    // Leer el stream línea a línea
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+
+      // Procesar líneas completas del buffer
+      const lines = buffer.split('\n')
+      // La última línea puede estar incompleta → la devolvemos al buffer
+      buffer = lines.pop() ?? ''
+
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed.startsWith('data:')) continue
+
+        const jsonStr = trimmed.slice(5).trim()
+        if (!jsonStr) continue
+
+        try {
+          const event = JSON.parse(jsonStr) as AIStreamEvent
+          await onEvent(event)
+        } catch {
+          // Ignorar líneas SSE malformadas
+        }
+      }
+    }
   },
 }
 

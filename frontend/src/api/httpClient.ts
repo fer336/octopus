@@ -6,7 +6,7 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '../stores/authStore'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
-const API_URL = import.meta.env.VITE_API_URL || `${BACKEND_URL}/api/v1`
+const API_URL = import.meta.env.VITE_API_URL || `${BACKEND_URL}/api/tenant`
 
 export const httpClient = axios.create({
   baseURL: API_URL,
