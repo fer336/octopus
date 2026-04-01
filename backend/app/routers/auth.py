@@ -3,18 +3,47 @@ Router de Autenticación.
 Endpoints para login con Google OAuth y gestión de sesiones JWT.
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.audit_log import AuditLog
 from app.services.auth_service import AuthService
 from app.utils.security import get_current_user
 from app.config import get_settings
 
 settings = get_settings()
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
+
+logger = logging.getLogger("uvicorn")
+
+
+async def _log_audit(
+    db: AsyncSession,
+    user_id,
+    business_id=None,
+    action: str = "login",
+    resource_type: str = "user",
+    resource_id=None,
+    details: dict | None = None,
+):
+    """Log audit entry — separate commit so it never breaks the main operation."""
+    try:
+        audit_log = AuditLog(
+            user_id=user_id,
+            business_id=business_id,
+            action=action,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            details=details or {},
+        )
+        db.add(audit_log)
+        await db.commit()
+    except Exception as e:
+        logger.error(f"Failed to write audit log: {e}")
 
 
 class GoogleLoginRequest(BaseModel):
@@ -79,10 +108,6 @@ async def google_callback(
     Recibe el código de autorización, lo intercambia por tokens
     y crea/actualiza el usuario en la base de datos.
     """
-    import logging
-
-    logger = logging.getLogger("uvicorn")
-
     # Leer el code directamente de los query params para evitar
     # que FastAPI haga un 307 si el param "code" no está declarado como requerido
     code = request.query_params.get("code")
@@ -114,6 +139,21 @@ async def google_callback(
     access_token = result["access_token"]
     refresh_token = result["refresh_token"]
 
+    # Log audit for successful login
+    user_id = result.get("user", {}).get("id") if result.get("user") else None
+    if user_id:
+        await _log_audit(
+            db=db,
+            user_id=user_id,
+            action="login",
+            resource_type="user",
+            resource_id=user_id,
+            details={
+                "description": "Login exitoso con Google OAuth",
+                "method": "google_oauth",
+            },
+        )
+
     redirect_url = f"{frontend_url}/auth/callback?access_token={access_token}&refresh_token={refresh_token}"
     logger.info(f"[OAuth] Redirigiendo a frontend: {frontend_url}/auth/callback")
     return RedirectResponse(url=redirect_url, status_code=303)
@@ -136,6 +176,21 @@ async def login_with_google(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token de Google inválido",
+        )
+
+    # Log audit for successful login
+    user_id = result.get("user", {}).get("id") if result.get("user") else None
+    if user_id:
+        await _log_audit(
+            db=db,
+            user_id=user_id,
+            action="login",
+            resource_type="user",
+            resource_id=user_id,
+            details={
+                "description": "Login exitoso con Google OAuth (POST)",
+                "method": "google_oauth_post",
+            },
         )
 
     return result
@@ -306,6 +361,19 @@ async def dev_login(
 
     access_token = create_access_token(user_id, user_email, user.platform_role)
     refresh_token = create_refresh_token(user_id)
+
+    # Log audit for dev login
+    await _log_audit(
+        db=db,
+        user_id=user.id,
+        action="login",
+        resource_type="user",
+        resource_id=user.id,
+        details={
+            "description": "Login de desarrollo (dev-login)",
+            "method": "dev_login",
+        },
+    )
 
     return {
         "access_token": access_token,

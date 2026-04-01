@@ -4,6 +4,7 @@ Permite gestionar el access token, emitir facturas electrónicas y diagnosticar.
 
 Documentación Afip SDK: https://docs.afipsdk.com/integracion/python
 """
+
 import logging
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,6 +15,7 @@ from app.database import get_db
 from app.models.business import Business
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.client import Client
+from app.models.audit_log import AuditLog
 from app.schemas.arca_schemas import (
     AfipSdkConfigUpdate,
     AfipSdkConfigResponse,
@@ -21,6 +23,7 @@ from app.schemas.arca_schemas import (
     EmitInvoiceResponse,
 )
 from app.services.afip_sdk_service import AfipSdkService
+from app.utils.security import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +35,7 @@ async def get_business(
     db: AsyncSession = Depends(get_db),
 ) -> Business:
     """Obtiene el negocio por ID."""
-    result = await db.execute(
-        select(Business).where(Business.id == business_id)
-    )
+    result = await db.execute(select(Business).where(Business.id == business_id))
     business = result.scalar_one_or_none()
 
     if not business:
@@ -49,6 +50,32 @@ async def get_business(
 # ============================================================================
 # Configuración Afip SDK
 # ============================================================================
+
+
+async def _log_audit(
+    db: AsyncSession,
+    user_id,
+    business_id,
+    action: str,
+    resource_type: str,
+    resource_id=None,
+    details: dict | None = None,
+):
+    """Log audit entry — separate commit so it never breaks the main operation."""
+    try:
+        audit_log = AuditLog(
+            user_id=user_id,
+            business_id=business_id,
+            action=action,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            details=details or {},
+        )
+        db.add(audit_log)
+        await db.commit()
+    except Exception as e:
+        logger.error(f"Failed to write audit log: {e}")
+
 
 @router.get("/config/{business_id}", response_model=AfipSdkConfigResponse)
 async def get_arca_config(
@@ -74,25 +101,44 @@ async def update_arca_config(
     config: AfipSdkConfigUpdate,
     business: Business = Depends(get_business),
     db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
     """
     Actualiza la configuración de Afip SDK.
     Acepta access_token, certificado, clave privada y entorno.
     Solo actualiza los campos que se envían (no nulos).
     """
+    updated_fields = []
     if config.afipsdk_access_token is not None:
         business.afipsdk_access_token = config.afipsdk_access_token
+        updated_fields.append("afipsdk_access_token")
     if config.afip_cert is not None:
         business.afip_cert = config.afip_cert
+        updated_fields.append("afip_cert")
     if config.afip_key is not None:
         business.afip_key = config.afip_key
+        updated_fields.append("afip_key")
     if config.arca_environment is not None:
         business.arca_environment = config.arca_environment
+        updated_fields.append("arca_environment")
 
     await db.commit()
     await db.refresh(business)
 
     logger.info(f"Configuración Afip SDK actualizada para negocio {business.id}")
+
+    await _log_audit(
+        db=db,
+        user_id=current_user.id,
+        business_id=business.id,
+        action="update",
+        resource_type="arca_secret",
+        resource_id=business.id,
+        details={
+            "description": "Configuración ARCA actualizada",
+            "updated_fields": updated_fields,
+        },
+    )
 
     return AfipSdkConfigResponse(
         afipsdk_access_token_configured=bool(business.afipsdk_access_token),
@@ -109,6 +155,7 @@ async def update_arca_config(
 # ============================================================================
 # Diagnóstico
 # ============================================================================
+
 
 @router.get("/diagnose/{business_id}")
 async def diagnose_arca(
@@ -157,9 +204,12 @@ async def get_server_status(
 # Factura de Prueba
 # ============================================================================
 
+
 @router.post("/test-invoice/{business_id}")
 async def test_invoice(
     business: Business = Depends(get_business),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
     """
     Envía una factura de prueba para verificar que la integración funciona.
@@ -190,9 +240,9 @@ async def test_invoice(
         test_data = {
             "CantReg": 1,
             "PtoVta": sale_point,
-            "CbteTipo": 6,       # Factura B
-            "Concepto": 1,       # Productos
-            "DocTipo": 99,       # Sin identificar (Consumidor Final)
+            "CbteTipo": 6,  # Factura B
+            "Concepto": 1,  # Productos
+            "DocTipo": 99,  # Sin identificar (Consumidor Final)
             "DocNro": 0,
             "CbteFch": cbte_fch,
             "ImpTotal": 121.00,
@@ -206,7 +256,7 @@ async def test_invoice(
             "CondicionIVAReceptorId": 5,  # Consumidor Final (RG 5616)
             "Iva": [
                 {
-                    "Id": 5,         # IVA 21%
+                    "Id": 5,  # IVA 21%
                     "BaseImp": 100,
                     "Importe": 21,
                 }
@@ -217,6 +267,19 @@ async def test_invoice(
         result = await service.create_next_voucher(test_data)
 
         if result["success"]:
+            await _log_audit(
+                db=db,
+                user_id=current_user.id,
+                business_id=business.id,
+                action="test_invoice",
+                resource_type="arca_secret",
+                resource_id=business.id,
+                details={
+                    "description": "Factura de prueba emitida exitosamente",
+                    "cae": result.get("CAE"),
+                    "voucher_number": result.get("voucherNumber"),
+                },
+            )
             return {
                 "success": True,
                 "step": "factura",
@@ -227,6 +290,18 @@ async def test_invoice(
                 "request_data": test_data,
             }
         else:
+            await _log_audit(
+                db=db,
+                user_id=current_user.id,
+                business_id=business.id,
+                action="test_invoice",
+                resource_type="arca_secret",
+                resource_id=business.id,
+                details={
+                    "description": "Factura de prueba falló",
+                    "error": result.get("error"),
+                },
+            )
             return {
                 "success": False,
                 "step": "factura",
@@ -247,6 +322,7 @@ async def test_invoice(
 # ============================================================================
 # Consultas ARCA
 # ============================================================================
+
 
 @router.get("/last-voucher/{business_id}")
 async def get_last_voucher(
@@ -330,10 +406,12 @@ async def get_sales_points(
 # Emisión de Factura Electrónica Real
 # ============================================================================
 
+
 @router.post("/emit-invoice", response_model=EmitInvoiceResponse)
 async def emit_electronic_invoice(
     request: EmitInvoiceRequest,
     db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
     """
     Emite una factura electrónica en ARCA/AFIP.
@@ -342,9 +420,7 @@ async def emit_electronic_invoice(
     Solo se pueden emitir facturas (A, B, C) y notas de crédito/débito.
     """
     # Obtener voucher
-    result = await db.execute(
-        select(Voucher).where(Voucher.id == request.voucher_id)
-    )
+    result = await db.execute(select(Voucher).where(Voucher.id == request.voucher_id))
     voucher = result.scalar_one_or_none()
 
     if not voucher:
@@ -385,9 +461,7 @@ async def emit_electronic_invoice(
     )
     business = result.scalar_one_or_none()
 
-    result = await db.execute(
-        select(Client).where(Client.id == voucher.client_id)
-    )
+    result = await db.execute(select(Client).where(Client.id == voucher.client_id))
     client = result.scalar_one_or_none()
 
     if not business or not client:
@@ -418,15 +492,43 @@ async def emit_electronic_invoice(
 
             logger.info(f"Factura emitida exitosamente. CAE: {voucher.cae}")
 
+            await _log_audit(
+                db=db,
+                user_id=current_user.id,
+                business_id=business.id,
+                action="create",
+                resource_type="arca_secret",
+                resource_id=voucher.id,
+                details={
+                    "description": f"Factura electrónica emitida: {voucher.full_number}",
+                    "cae": voucher.cae,
+                    "voucher_type": voucher.voucher_type.value,
+                },
+            )
+
             return EmitInvoiceResponse(
                 success=True,
                 message="Factura emitida correctamente",
                 cae=voucher.cae,
-                cae_expiration=str(voucher.cae_expiration) if voucher.cae_expiration else None,
+                cae_expiration=str(voucher.cae_expiration)
+                if voucher.cae_expiration
+                else None,
                 voucher_number=voucher.full_number,
                 pdf_url=f"/api/vouchers/{voucher.id}/pdf",
             )
         else:
+            await _log_audit(
+                db=db,
+                user_id=current_user.id,
+                business_id=business.id,
+                action="create",
+                resource_type="arca_secret",
+                resource_id=voucher.id,
+                details={
+                    "description": f"Emisión de factura falló: {voucher.full_number}",
+                    "error": arca_response.get("error"),
+                },
+            )
             return EmitInvoiceResponse(
                 success=False,
                 message="Error al emitir factura",
