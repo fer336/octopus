@@ -33,6 +33,9 @@ from app.models.purchase_order import (
 )
 from app.models.price_update_draft import PriceUpdateDraft
 from app.models.ai_provider_config import AIProviderConfig, AIProvider
+from app.models.tenant_secret import TenantSecret
+from app.models.tenant_membership import TenantMembership, MembershipRole
+from app.models.audit_log import AuditLog
 
 __all__ = [
     # Base
@@ -40,6 +43,10 @@ __all__ = [
     # Usuarios y negocios
     "User",
     "Business",
+    "TenantSecret",
+    "TenantMembership",
+    "MembershipRole",
+    "AuditLog",
     # Entidades principales
     "Category",
     "Supplier",

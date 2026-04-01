@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models.business import Business
-from app.models.user import User
+from app.models.user import User, PlatformRole
 from app.utils.security import create_access_token, create_refresh_token, verify_token
 
 settings = get_settings()
@@ -158,7 +158,7 @@ class AuthService:
         user = await self.get_or_create_user(google_data)
 
         # Generar tokens
-        access_token = create_access_token(user.id, user.email)
+        access_token = create_access_token(user.id, user.email, user.platform_role)
         refresh_token = create_refresh_token(user.id)
 
         return {
@@ -186,7 +186,7 @@ class AuthService:
         user = await self.get_or_create_user(google_data)
 
         # Generar tokens
-        access_token = create_access_token(user.id, user.email)
+        access_token = create_access_token(user.id, user.email, user.platform_role)
         refresh_token = create_refresh_token(user.id)
 
         return {
@@ -225,7 +225,9 @@ class AuthService:
                 return None
 
             # Generar nuevo access token
-            new_access_token = create_access_token(user.id, user.email)
+            new_access_token = create_access_token(
+                user.id, user.email, user.platform_role
+            )
 
             return {
                 "access_token": new_access_token,

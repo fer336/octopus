@@ -1,6 +1,7 @@
 """
 Utilidades de seguridad: JWT, autenticación y dependencies.
 """
+
 from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
@@ -18,12 +19,15 @@ settings = get_settings()
 security = HTTPBearer(auto_error=False)
 
 
-def create_access_token(user_id: UUID, email: str) -> str:
+def create_access_token(
+    user_id: UUID, email: str, platform_role: str = "tenant_user"
+) -> str:
     """Crea un JWT de acceso con expiración de 30 minutos."""
     expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
         "sub": str(user_id),
         "email": email,
+        "platform_role": platform_role,
         "type": "access",
         "exp": expire,
         "iat": datetime.utcnow(),
@@ -103,6 +107,8 @@ async def get_current_user(
             detail="Usuario no encontrado o inactivo",
         )
 
+    # Actualizar platform_role desde la DB (siempre usar el actual, no el del token)
+    # Esto permite cambios de rol sin necesidad de re-login
     return user
 
 
@@ -115,8 +121,9 @@ async def get_current_business(
     Por ahora retorna el primer negocio del usuario.
     """
     import logging
+
     logger = logging.getLogger("uvicorn")
-    
+
     try:
         from app.models.business import Business
 
@@ -138,11 +145,12 @@ async def get_current_business(
 
         business_id = business.id
         logger.info(f"Business found: {business_id}, type: {type(business_id)}")
-        
+
         # SIEMPRE convertir a Python UUID para evitar problemas con asyncpg
         from uuid import UUID as PyUUID
+
         business_id = PyUUID(str(business_id))
-        
+
         logger.info(f"Converted business_id: {business_id}, type: {type(business_id)}")
         return business_id
     except HTTPException:
@@ -151,7 +159,7 @@ async def get_current_business(
         logger.error(f"Error in get_current_business: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error obteniendo negocio: {str(e)}"
+            detail=f"Error obteniendo negocio: {str(e)}",
         )
 
 

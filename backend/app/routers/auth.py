@@ -192,7 +192,11 @@ async def logout():
 async def dev_login(
     email: str | None = Query(
         None,
-        description="Email para login de desarrollo. Si no se envía, usa el primer usuario activo.",
+        description="Usuario demo para login de desarrollo o email legacy para bypass manual.",
+    ),
+    password: str | None = Query(
+        None,
+        description="Contraseña del acceso demo de desarrollo.",
     ),
     db: AsyncSession = Depends(get_db),
 ):
@@ -211,13 +215,57 @@ async def dev_login(
     from app.models.user import User
 
     user = None
+    use_demo_credentials = email is not None or password is not None
 
-    if email:
+    async def get_first_active_user():
+        query = select(User).where(User.is_active.is_(True)).limit(1)
+        result = await db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_active_user_by_email(user_email: str):
         query = (
-            select(User).where(User.email == email, User.is_active.is_(True)).limit(1)
+            select(User)
+            .where(User.email == user_email, User.is_active.is_(True))
+            .limit(1)
         )
         result = await db.execute(query)
-        user = result.scalar_one_or_none()
+        return result.scalar_one_or_none()
+
+    if use_demo_credentials:
+        if email != settings.DEV_LOGIN_EMAIL or password != settings.DEV_LOGIN_PASSWORD:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Credenciales demo inválidas",
+            )
+
+        if settings.DEV_LOGIN_TARGET_EMAIL:
+            user = await get_active_user_by_email(settings.DEV_LOGIN_TARGET_EMAIL)
+        else:
+            user = await get_first_active_user()
+
+        if not user:
+            user = User(
+                email=settings.DEV_LOGIN_EMAIL,
+                name="Demo",
+                picture="",
+                google_id=f"dev-{settings.DEV_LOGIN_EMAIL}",
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+
+            from app.models.business import Business
+
+            business = Business(
+                owner_id=user.id,
+                name="Mi Negocio",
+                cuit="00-00000000-0",
+                tax_condition="Monotributista",
+            )
+            db.add(business)
+            await db.commit()
+    elif email:
+        user = await get_active_user_by_email(email)
 
         # Si no existe, crear usuario dev automáticamente
         if not user:
@@ -242,10 +290,7 @@ async def dev_login(
             db.add(business)
             await db.commit()
     else:
-        # Obtener el primer usuario activo
-        query = select(User).where(User.is_active.is_(True)).limit(1)
-        result = await db.execute(query)
-        user = result.scalar_one_or_none()
+        user = await get_first_active_user()
 
     if not user:
         raise HTTPException(
@@ -254,9 +299,13 @@ async def dev_login(
         )
 
     from app.utils.security import create_access_token, create_refresh_token
+    from uuid import UUID as PyUUID
 
-    access_token = create_access_token(user.id, user.email)
-    refresh_token = create_refresh_token(user.id)
+    user_id = PyUUID(str(user.id))
+    user_email = str(user.email)
+
+    access_token = create_access_token(user_id, user_email, user.platform_role)
+    refresh_token = create_refresh_token(user_id)
 
     return {
         "access_token": access_token,

@@ -75,6 +75,12 @@ class Business(BaseModel):
     ai_provider_configs = relationship(
         "AIProviderConfig", back_populates="business", lazy="dynamic"
     )
+    secrets = relationship(
+        "TenantSecret", back_populates="business", cascade="all, delete-orphan"
+    )
+    memberships = relationship(
+        "TenantMembership", back_populates="business", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Business {self.name}>"
