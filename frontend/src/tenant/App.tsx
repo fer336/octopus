@@ -3,7 +3,7 @@
  * Configura providers, rutas y layout.
  */
 import { lazy, Suspense, type ReactNode } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 
@@ -105,7 +105,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <BrowserRouter>
+        <HashRouter>
           <Routes>
             {/* Rutas públicas */}
             <Route path="/login" element={<Login />} />

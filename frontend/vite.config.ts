@@ -23,6 +23,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         tenant: path.resolve(__dirname, 'tenant.html'),
+        admin: path.resolve(__dirname, 'admin.html'),
       },
     },
   },
