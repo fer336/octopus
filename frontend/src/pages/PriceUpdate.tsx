@@ -265,118 +265,34 @@ export default function PriceUpdate() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-
-      {/* Header con gradiente */}
-      <div className="bg-gradient-to-r from-orange-500 to-amber-600 rounded-2xl p-6 text-white shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3 mb-2">
-              <TrendingUp className="h-8 w-8" />
-              Actualización Masiva de Precios
-            </h1>
-            <p className="text-orange-100 text-lg">
-              Actualiza precios, descuentos y stock de múltiples productos a la vez
-            </p>
-          </div>
-          <div className="flex items-end gap-6">
-          {/* Borradores - acceso desde el header */}
-          <button
-            onClick={() => setShowDrafts(v => !v)}
-            className="flex flex-col items-center gap-1 text-white/80 hover:text-white transition-colors relative"
-          >
-            <FolderOpen size={28} />
-            <span className="text-xs font-medium">Borradores</span>
-            {draftsData && draftsData.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-white text-orange-600 text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                {draftsData.length}
-              </span>
-            )}
-          </button>
-            <div className="text-right">
-              <div className="text-sm text-orange-100">Seleccionados</div>
-              <div className="text-4xl font-bold">{selectedProducts.size}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Panel de borradores (desplegable) */}
-      {showDrafts && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border-2 border-orange-200 dark:border-orange-800 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-gray-700">
-            <div className="flex items-center gap-2">
-              <FolderOpen size={18} className="text-orange-500" />
-              <h3 className="font-semibold text-gray-900 dark:text-white">Borradores guardados</h3>
-              <span className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded-full font-medium">
-                {draftsData?.length ?? 0}
-              </span>
-            </div>
-            <button onClick={() => setShowDrafts(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-              <ChevronUp size={18} />
-            </button>
-          </div>
-
-          {!draftsData || draftsData.length === 0 ? (
-            <div className="text-center py-10 text-gray-400">
-              <Package size={36} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No hay borradores guardados</p>
-              <p className="text-xs mt-1 opacity-60">Usá "Guardar borrador" en el modal de edición para guardar</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-72 overflow-y-auto">
-              {draftsData.map((draft) => {
-                const date = new Date(draft.updated_at)
-                const dateStr = date.toLocaleDateString('es-AR') + ' ' + date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-                return (
-                  <button
-                    key={draft.id}
-                    onClick={() => handleLoadDraft(draft)}
-                    className="w-full flex items-center justify-between px-5 py-3 hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors group text-left"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-gray-900 dark:text-white truncate">{draft.name}</p>
-                      <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                        <span className="flex items-center gap-1 text-xs text-gray-400">
-                          <Package size={11} />{draft.product_count} productos
-                        </span>
-                        <span className="flex items-center gap-1 text-xs text-gray-400">
-                          <Clock size={11} />{dateStr}
-                        </span>
-                        {draft.filter_category_name && (
-                          <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded">{draft.filter_category_name}</span>
-                        )}
-                        {draft.filter_supplier_name && (
-                          <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300 px-1.5 py-0.5 rounded">{draft.filter_supplier_name}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 ml-3 shrink-0">
-                      <span className="text-xs text-orange-500 dark:text-orange-400 group-hover:underline font-medium">Retomar →</span>
-                      <button
-                        onClick={(e) => handleDeleteDraft(draft.id, e)}
-                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                        title="Eliminar borrador"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
+    <div className="space-y-5 max-w-7xl mx-auto">
 
       {/* PASO 1: Filtros */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '100ms' }}>
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5 animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '100ms' }}>
+        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <Filter className="h-5 w-5 text-orange-600" />
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+            <Filter className="h-[18px] w-[18px] text-orange-600" />
+            <h2 className="text-base font-bold text-gray-900 dark:text-white">
               Paso 1: Filtrar Productos
             </h2>
+          </div>
+          <div className="flex items-center gap-4 ml-auto">
+            <button
+              onClick={() => setShowDrafts(v => !v)}
+              className="flex items-center gap-1.5 text-gray-500 hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-400 transition-colors relative"
+            >
+              <FolderOpen size={18} />
+              <span className="text-xs font-medium">Borradores</span>
+              {draftsData && draftsData.length > 0 && (
+                <span className="absolute -top-1 -right-2 bg-orange-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  {draftsData.length}
+                </span>
+              )}
+            </button>
+            <div className="text-right">
+              <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Seleccionados</div>
+              <div className="text-xl font-bold text-gray-900 dark:text-white">{selectedProducts.size}</div>
+            </div>
           </div>
           {/* Botón actualizar: visible con filtro activo o selección */}
           {(hasActiveFilter || selectedProducts.size > 0) && (
@@ -389,9 +305,10 @@ export default function PriceUpdate() {
                 setShowBulkEditModal(true)
               }}
               disabled={products.length === 0}
+              size="sm"
               className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white disabled:opacity-50"
             >
-              <TrendingUp size={16} className="mr-2" />
+              <TrendingUp size={14} className="mr-1.5" />
               Actualizar Precios
               <span className="ml-2 bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                 {selectedProducts.size > 0 ? selectedProducts.size : products.length}
@@ -400,16 +317,84 @@ export default function PriceUpdate() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Panel de borradores (desplegable) */}
+        {showDrafts && (
+          <div className="mb-4 bg-white dark:bg-gray-800 rounded-lg shadow border border-orange-200 dark:border-orange-800 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <FolderOpen size={16} className="text-orange-500" />
+                <h3 className="font-semibold text-sm text-gray-900 dark:text-white">Borradores guardados</h3>
+                <span className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded-full font-medium">
+                  {draftsData?.length ?? 0}
+                </span>
+              </div>
+              <button onClick={() => setShowDrafts(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <ChevronUp size={16} />
+              </button>
+            </div>
+
+            {!draftsData || draftsData.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <Package size={30} className="mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No hay borradores guardados</p>
+                <p className="text-xs mt-1 opacity-60">Usa "Guardar borrador" en el modal de edición para guardar</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-64 overflow-y-auto">
+                {draftsData.map((draft) => {
+                  const date = new Date(draft.updated_at)
+                  const dateStr = date.toLocaleDateString('es-AR') + ' ' + date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+                  return (
+                    <button
+                      key={draft.id}
+                      onClick={() => handleLoadDraft(draft)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors group text-left"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-gray-900 dark:text-white truncate">{draft.name}</p>
+                        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                          <span className="flex items-center gap-1 text-xs text-gray-400">
+                            <Package size={11} />{draft.product_count} productos
+                          </span>
+                          <span className="flex items-center gap-1 text-xs text-gray-400">
+                            <Clock size={11} />{dateStr}
+                          </span>
+                          {draft.filter_category_name && (
+                            <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded">{draft.filter_category_name}</span>
+                          )}
+                          {draft.filter_supplier_name && (
+                            <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300 px-1.5 py-0.5 rounded">{draft.filter_supplier_name}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-3 shrink-0">
+                        <span className="text-xs text-orange-500 dark:text-orange-400 group-hover:underline font-medium">Retomar →</span>
+                        <button
+                          onClick={(e) => handleDeleteDraft(draft.id, e)}
+                          className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+                          title="Eliminar borrador"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5">
           {/* Categoría */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Categoría
             </label>
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 dark:text-white"
+              className="w-full px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm text-gray-900 dark:text-white"
             >
               <option value="">Todas las categorías</option>
               {categories.map(cat => (
@@ -420,13 +405,13 @@ export default function PriceUpdate() {
 
           {/* Proveedor */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Proveedor
             </label>
             <select
               value={selectedSupplier}
               onChange={(e) => setSelectedSupplier(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 dark:text-white"
+              className="w-full px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm text-gray-900 dark:text-white"
             >
               <option value="">Todos los proveedores</option>
               {suppliers.map(sup => (
@@ -437,24 +422,24 @@ export default function PriceUpdate() {
 
           {/* Búsqueda */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Buscar
             </label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-3.5 w-3.5" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Código o nombre..."
-                className="w-full pl-10 pr-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 dark:text-white"
+                className="w-full pl-9 pr-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm text-gray-900 dark:text-white"
               />
             </div>
           </div>
 
           {/* Limpiar filtros */}
           <div className="flex items-end">
-            <Button variant="outline" onClick={clearFilters} className="w-full">
+            <Button variant="outline" size="sm" onClick={clearFilters} className="w-full">
               Limpiar Filtros
             </Button>
           </div>
@@ -463,7 +448,7 @@ export default function PriceUpdate() {
         {/* Tags de filtros activos */}
         {hasActiveFilter && (
           <div className="mt-4 flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Filtrando:</span>
+            <span className="text-xs text-gray-600 dark:text-gray-400">Filtrando:</span>
             {selectedCategory && (
               <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full">
                 {categories.find(c => c.id === selectedCategory)?.name}
@@ -484,48 +469,38 @@ export default function PriceUpdate() {
       </div>
 
       {/* PASO 2: Tabla */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '200ms' }}>
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5 animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '200ms' }}>
+        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-orange-600" />
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+            <DollarSign className="h-[18px] w-[18px] text-orange-600" />
+            <h2 className="text-base font-bold text-gray-900 dark:text-white">
               Paso 2: Seleccionar Productos
             </h2>
           </div>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          <span className="text-xs text-gray-500 dark:text-gray-400">
             {products.length} productos encontrados
           </span>
         </div>
-        <Table columns={columns} data={products} emptyMessage="No se encontraron productos con los filtros seleccionados" />
+        <Table columns={columns} data={products} density="compact" emptyMessage="No se encontraron productos con los filtros seleccionados" />
       </div>
 
       {/* Botón flotante — aparece cuando hay selección */}
       {selectedProducts.size > 0 && (
-        <div className="fixed bottom-8 right-8 z-40 animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border-2 border-orange-500 p-4 flex flex-col gap-2 min-w-[200px]">
+        <div className="fixed bottom-6 right-6 z-40 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border-2 border-orange-500 p-3.5 flex flex-col gap-2 min-w-[190px]">
             <div className="text-center">
               <div className="text-xs text-gray-500 dark:text-gray-400">Seleccionados</div>
-              <div className="text-3xl font-bold text-orange-600">{selectedProducts.size}</div>
+              <div className="text-2xl font-bold text-orange-600">{selectedProducts.size}</div>
             </div>
 
             {/* Actualizar */}
             <Button
               onClick={() => setShowBulkEditModal(true)}
               className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white shadow-lg"
-              size="lg"
+              size="md"
             >
-              <TrendingUp size={18} className="mr-2" />
+              <TrendingUp size={16} className="mr-2" />
               Actualizar Precios
-            </Button>
-
-            {/* Ver borradores */}
-            <Button
-              variant="outline"
-              onClick={() => setShowDrafts(v => !v)}
-              className="w-full border-orange-300 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"
-            >
-              <FolderOpen size={16} className="mr-2" />
-              Ver borradores {draftsData && draftsData.length > 0 && `(${draftsData.length})`}
             </Button>
           </div>
         </div>

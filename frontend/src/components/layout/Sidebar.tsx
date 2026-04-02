@@ -2,24 +2,14 @@
  * Sidebar de navegación principal.
  * Muestra el menú de navegación con iconos.
  */
-import { NavLink } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  ShoppingCart,
-  Package,
-  Users,
-  Truck,
-  FolderTree,
-  FileText,
-  BarChart3,
-  TrendingUp,
-  Wallet,
-  ClipboardList,
-} from 'lucide-react'
+import { NavLink, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
+import { useEffect, useMemo, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { useCurrentCash } from '../../hooks/useCash'
+import { navigationItems, navigationSections, type NavigationItem } from './navigationItems'
 
-function CajaBadge({ isCollapsed }: { isCollapsed: boolean }) {
+function CajaBadge() {
   const { data: cash } = useCurrentCash()
 
   if (!cash) return null
@@ -40,26 +30,72 @@ function CajaBadge({ isCollapsed }: { isCollapsed: boolean }) {
   return null
 }
 
-const navItems = [
-  { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { path: '/sales', icon: ShoppingCart, label: 'Ventas' },
-  { path: '/comprobantes', icon: FileText, label: 'Comprobantes' },
-  { path: '/products', icon: Package, label: 'Productos' },
-  { path: '/price-update', icon: TrendingUp, label: 'Actualizar Precios' },
-  { path: '/clients', icon: Users, label: 'Clientes' },
-  { path: '/suppliers', icon: Truck, label: 'Proveedores' },
-  { path: '/categories', icon: FolderTree, label: 'Categorías' },
-  { path: '/caja', icon: Wallet, label: 'Caja', badge: true },
-  { path: '/reports', icon: BarChart3, label: 'Reportes' },
-  { path: '/inventory', icon: ClipboardList, label: 'Inventario' },
-]
-
 interface SidebarProps {
   isCollapsed?: boolean
   onToggle?: () => void
 }
 
 export default function Sidebar({ isCollapsed = false }: SidebarProps) {
+  const location = useLocation()
+
+  const getActiveSection = (pathname: string) =>
+    navigationItems.find((item) => {
+      if (item.path === '/') {
+        return pathname === '/'
+      }
+      return pathname.startsWith(item.path)
+    })?.section
+
+  const groupedItems = useMemo(() => {
+    return navigationSections.map((section) => ({
+      section,
+      items: navigationItems.filter((item) => item.section === section.key),
+    }))
+  }, [])
+
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    const activeSection = getActiveSection(location.pathname)
+
+    return navigationSections.reduce<Record<string, boolean>>((acc, section) => {
+      acc[section.key] = section.key === activeSection
+      return acc
+    }, {})
+  })
+
+  useEffect(() => {
+    const activeSection = getActiveSection(location.pathname)
+
+    if (!activeSection) {
+      return
+    }
+
+    setOpenSections((prev) => {
+      if (prev[activeSection]) {
+        return prev
+      }
+
+      return { ...prev, [activeSection]: true }
+    })
+  }, [location.pathname])
+
+  const renderNavItem = (item: NavigationItem) => (
+    <NavLink
+      key={item.path}
+      to={item.path}
+      end={item.path === '/'}
+      className={({ isActive }) =>
+        clsx(
+          'flex items-center rounded-md px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors',
+          isActive && 'bg-gray-800 text-white border-r-4 border-primary-500'
+        )
+      }
+    >
+      <item.icon size={18} className="flex-shrink-0" />
+      {!isCollapsed && <span className="ml-2.5 truncate flex-1">{item.label}</span>}
+      {item.badge && <CajaBadge />}
+    </NavLink>
+  )
+
   return (
     <aside
       className={clsx(
@@ -72,41 +108,54 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
         <img
           src="/octopus-logo-blue.png"
           alt="Octopus"
-          className="h-14 w-14 flex-shrink-0 object-contain"
+          className="h-12 w-12 flex-shrink-0 object-contain"
         />
         {!isCollapsed && (
-          <span className="ml-2 text-lg font-bold truncate">Octopus</span>
+          <span className="ml-2 text-base font-bold truncate">Octopus</span>
         )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 overflow-y-auto">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            end={item.path === '/'}
-            className={({ isActive }) =>
-              clsx(
-                'flex items-center px-4 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors',
-                isActive &&
-                  'bg-gray-800 text-white border-r-4 border-primary-500'
-              )
-            }
-          >
-            <item.icon size={20} className="flex-shrink-0" />
-            {!isCollapsed && <span className="ml-3 truncate flex-1">{item.label}</span>}
-            {(item as { badge?: boolean }).badge && (
-              <CajaBadge isCollapsed={isCollapsed} />
-            )}
-          </NavLink>
-        ))}
+      <nav className="flex-1 py-3 overflow-y-auto px-2">
+        {isCollapsed
+          ? navigationItems.map((item) => renderNavItem(item))
+            : groupedItems.map(({ section, items }) => (
+              <div key={section.key} className="mb-3 last:mb-0">
+                <button
+                  type="button"
+                  onClick={() => setOpenSections((prev) => ({ ...prev, [section.key]: !prev[section.key] }))}
+                  className={clsx(
+                    'w-full flex items-center justify-between rounded-md px-2.5 py-2 text-xs font-medium tracking-[0.08em] text-gray-400 transition-all',
+                    'hover:bg-gray-800/60 hover:text-gray-200',
+                    openSections[section.key] && 'bg-gray-800/40 text-gray-200'
+                  )}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <section.icon size={14} className="flex-shrink-0" />
+                    <span className="truncate normal-case">{section.label}</span>
+                  </span>
+                  <ChevronDown
+                    size={16}
+                    strokeWidth={2.25}
+                    className={clsx(
+                      'flex-shrink-0 text-gray-500 transition-transform duration-200',
+                      openSections[section.key] && 'rotate-180 text-gray-300'
+                    )}
+                  />
+                </button>
+                {openSections[section.key] && (
+                  <div className="mt-1 space-y-0.5 border-l border-gray-800/70 pl-1.5">
+                    {items.map((item) => renderNavItem(item))}
+                  </div>
+                )}
+              </div>
+            ))}
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-gray-800">
+      <div className="p-3 border-t border-gray-800">
         {!isCollapsed && (
-          <p className="text-xs text-gray-500 text-center">
+          <p className="text-[11px] text-gray-500 text-center">
             OctopusTrack v1.0
           </p>
         )}

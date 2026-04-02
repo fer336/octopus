@@ -19,6 +19,7 @@ interface TableProps<T> {
   isLoading?: boolean
   emptyMessage?: string
   onRowClick?: (item: T) => void
+  density?: 'default' | 'compact'
 }
 
 export default function Table<T>({
@@ -28,6 +29,7 @@ export default function Table<T>({
   isLoading,
   emptyMessage = 'No hay datos para mostrar',
   onRowClick,
+  density = 'default',
 }: TableProps<T>) {
   // Loading skeleton
   if (isLoading) {
@@ -53,7 +55,9 @@ export default function Table<T>({
               <th
                 key={String(column.key)}
                 className={clsx(
-                  'px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider',
+                  density === 'compact'
+                    ? 'px-3 py-2.5 text-left text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'
+                    : 'px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider',
                   column.className
                 )}
               >
@@ -74,10 +78,10 @@ export default function Table<T>({
             </tr>
           ) : (
             data.map((item) => (
-              <tr
-                key={keyExtractor(item)}
-                onClick={() => onRowClick?.(item)}
-                className={clsx(
+                <tr
+                  key={keyExtractor(item)}
+                  onClick={() => onRowClick?.(item)}
+                  className={clsx(
                   'hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors',
                   onRowClick && 'cursor-pointer'
                 )}
@@ -86,7 +90,9 @@ export default function Table<T>({
                   <td
                     key={String(column.key)}
                     className={clsx(
-                      'px-4 py-3 text-sm text-gray-900 dark:text-gray-100',
+                      density === 'compact'
+                        ? 'px-3 py-2.5 text-[13px] text-gray-900 dark:text-gray-100'
+                        : 'px-4 py-3 text-sm text-gray-900 dark:text-gray-100',
                       column.className
                     )}
                   >
