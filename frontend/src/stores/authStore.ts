@@ -1,10 +1,36 @@
 /**
  * Store de autenticación con Zustand.
  * Maneja el estado del usuario y los tokens JWT.
- * Persiste tokens en localStorage.
+ * Persiste tokens en localStorage con key aislada por shell.
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+
+type AuthShell = 'tenant' | 'admin'
+
+const LEGACY_AUTH_STORAGE_KEY = 'auth-storage'
+const AUTH_STORAGE_PREFIX = 'auth-storage'
+
+function detectAuthShell(pathname?: string): AuthShell {
+  const currentPathname = pathname ?? (typeof window !== 'undefined' ? window.location.pathname : '')
+  const normalizedPathname = currentPathname.toLowerCase()
+
+  if (
+    normalizedPathname.includes('/admin.html') ||
+    normalizedPathname.endsWith('/admin') ||
+    normalizedPathname.includes('/admin/')
+  ) {
+    return 'admin'
+  }
+
+  return 'tenant'
+}
+
+export function getAuthStorageKey(shell: AuthShell = detectAuthShell()): string {
+  return `${AUTH_STORAGE_PREFIX}:${shell}`
+}
+
+const authStorageKey = getAuthStorageKey()
 
 export interface User {
   id: string
@@ -77,7 +103,11 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: false,
           isLoading: false,
         })
-        localStorage.removeItem('auth-storage')
+
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(authStorageKey)
+          localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY)
+        }
       },
 
       setLoading: (loading: boolean) => {
@@ -87,7 +117,7 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'auth-storage',
+      name: authStorageKey,
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,

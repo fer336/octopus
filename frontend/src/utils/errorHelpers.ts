@@ -12,6 +12,14 @@ export function formatErrorMessage(error: any): string {
     return error
   }
 
+  if (error?.code === 'ERR_NETWORK' || error?.message === 'Network Error') {
+    const requestUrl = [error?.config?.baseURL, error?.config?.url].filter(Boolean).join('')
+
+    return requestUrl
+      ? `Network error al conectar con ${requestUrl}. Revisá sesión activa y conectividad.`
+      : 'Network error al conectar con la API. Revisá sesión activa y conectividad.'
+  }
+
   // Si es un objeto con response (axios error)
   if (error.response) {
     const { status, data } = error.response
