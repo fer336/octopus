@@ -13,10 +13,12 @@ from sqlalchemy.orm import selectinload
 
 from app.models.business import Business
 from app.models.client import Client
+from app.models.payment_method import PaymentMethodCatalog
 from app.models.product import Product
 from app.models.user import User
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
+from app.models.voucher_payment import VoucherPayment
 from app.schemas.voucher import VoucherCreate, VoucherUpdate
 from app.services.pdf_service import pdf_service
 
@@ -24,6 +26,63 @@ from app.services.pdf_service import pdf_service
 class VoucherService:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def _create_voucher_payments(
+        self,
+        voucher_id: UUID,
+        business_id: UUID,
+        payments: Optional[List[Dict[str, Any]]],
+        total_expected: Decimal,
+        *,
+        require_payments: bool = False,
+    ) -> None:
+        """Valida y crea los pagos asociados a un comprobante."""
+
+        normalized_payments = payments or []
+
+        if require_payments and not normalized_payments:
+            raise ValueError("Debe cargar al menos un método de pago para facturas")
+
+        if not normalized_payments:
+            return
+
+        total_payments = sum(
+            Decimal(str(payment_data["amount"])) for payment_data in normalized_payments
+        )
+
+        if abs(total_payments - total_expected) > Decimal("0.01"):
+            raise ValueError(
+                f"La suma de pagos (${total_payments}) no coincide con el total del comprobante (${total_expected})"
+            )
+
+        for payment_data in normalized_payments:
+            payment_method = await self.db.get(
+                PaymentMethodCatalog, payment_data["payment_method_id"]
+            )
+            if not payment_method or payment_method.business_id != business_id:
+                raise ValueError(
+                    f"Método de pago {payment_data['payment_method_id']} no encontrado"
+                )
+
+            if not payment_method.is_active:
+                raise ValueError(
+                    f"Método de pago '{payment_method.name}' está inactivo"
+                )
+
+            reference = payment_data.get("reference")
+            if payment_method.requires_reference and not reference:
+                raise ValueError(
+                    f"El método '{payment_method.name}' requiere número de referencia"
+                )
+
+            self.db.add(
+                VoucherPayment(
+                    voucher_id=voucher_id,
+                    payment_method_id=payment_data["payment_method_id"],
+                    amount=Decimal(str(payment_data["amount"])),
+                    reference=reference,
+                )
+            )
 
     async def _build_items_and_totals(
         self,
@@ -165,50 +224,23 @@ class VoucherService:
             item.voucher_id = voucher.id
             self.db.add(item)
 
-        # 4. Procesar pagos si se enviaron
-        if data.payments:
-            from app.models.voucher_payment import VoucherPayment
-            from app.models.payment_method import PaymentMethodCatalog
-
-            # Validar que la suma de pagos = total del voucher
-            total_payments = sum(p.amount for p in data.payments)
-
-            # Permitir pequeñas diferencias por redondeo (0.01)
-            if abs(total_payments - total_final) > Decimal("0.01"):
-                raise ValueError(
-                    f"La suma de pagos (${total_payments}) no coincide con el total del comprobante (${total_final})"
-                )
-
-            # Crear registros de pago
-            for payment_data in data.payments:
-                # Verificar que el método de pago exista y esté activo
-                payment_method = await self.db.get(
-                    PaymentMethodCatalog, payment_data.payment_method_id
-                )
-                if not payment_method or payment_method.business_id != business_id:
-                    raise ValueError(
-                        f"Método de pago {payment_data.payment_method_id} no encontrado"
-                    )
-
-                if not payment_method.is_active:
-                    raise ValueError(
-                        f"Método de pago '{payment_method.name}' está inactivo"
-                    )
-
-                # Validar referencia si es requerida
-                if payment_method.requires_reference and not payment_data.reference:
-                    raise ValueError(
-                        f"El método '{payment_method.name}' requiere número de referencia"
-                    )
-
-                # Crear el pago
-                voucher_payment = VoucherPayment(
-                    voucher_id=voucher.id,
-                    payment_method_id=payment_data.payment_method_id,
-                    amount=payment_data.amount,
-                    reference=payment_data.reference,
-                )
-                self.db.add(voucher_payment)
+        payments_raw = (
+            [payment.model_dump() for payment in data.payments]
+            if data.payments
+            else None
+        )
+        await self._create_voucher_payments(
+            voucher_id=voucher.id,
+            business_id=business_id,
+            payments=payments_raw,
+            total_expected=total_final,
+            require_payments=data.voucher_type
+            in {
+                VoucherType.INVOICE_A,
+                VoucherType.INVOICE_B,
+                VoucherType.INVOICE_C,
+            },
+        )
 
         await self.db.commit()
         await self.db.refresh(voucher)
@@ -300,6 +332,7 @@ class VoucherService:
         search: Optional[str] = None,
         voucher_type: Optional[VoucherType] = None,
         status: Optional[VoucherStatus] = None,
+        payment_method_id: Optional[UUID] = None,
     ) -> Tuple[List[Voucher], int]:
         """Lista comprobantes con filtros y paginación."""
 
@@ -313,6 +346,13 @@ class VoucherService:
 
         if status:
             base_conditions.append(Voucher.status == status)
+
+        if payment_method_id:
+            base_conditions.append(
+                Voucher.voucher_payments.any(
+                    VoucherPayment.payment_method_id == payment_method_id
+                )
+            )
 
         if search:
             search_pattern = f"%{search}%"
@@ -517,7 +557,6 @@ class VoucherService:
                 "comp_number": voucher.number or "00000001",
                 "date": voucher.date.strftime("%d/%m/%Y"),
                 "due_date": voucher.date.strftime("%d/%m/%Y"),
-                "payment_method": "Efectivo",
                 "cae": voucher.cae,
                 "cae_expiration": (
                     voucher.cae_expiration.strftime("%d/%m/%Y")
@@ -879,43 +918,13 @@ class VoucherService:
             item.voucher_id = invoice.id
             self.db.add(item)
 
-        # 9. Procesar pagos si se enviaron
-        if payments:
-            from app.models.voucher_payment import VoucherPayment
-            from app.models.payment_method import PaymentMethodCatalog
-
-            total_payments = sum(Decimal(str(p["amount"])) for p in payments)
-            if abs(total_payments - total_final) > Decimal("0.01"):
-                raise ValueError(
-                    f"La suma de pagos (${total_payments}) no coincide con el total de la factura (${total_final})"
-                )
-
-            for payment_data in payments:
-                payment_method = await self.db.get(
-                    PaymentMethodCatalog, payment_data["payment_method_id"]
-                )
-                if not payment_method or payment_method.business_id != business_id:
-                    raise ValueError(
-                        f"Método de pago {payment_data['payment_method_id']} no encontrado"
-                    )
-                if not payment_method.is_active:
-                    raise ValueError(
-                        f"Método de pago '{payment_method.name}' está inactivo"
-                    )
-                if payment_method.requires_reference and not payment_data.get(
-                    "reference"
-                ):
-                    raise ValueError(
-                        f"El método '{payment_method.name}' requiere número de referencia"
-                    )
-
-                voucher_payment = VoucherPayment(
-                    voucher_id=invoice.id,
-                    payment_method_id=payment_data["payment_method_id"],
-                    amount=Decimal(str(payment_data["amount"])),
-                    reference=payment_data.get("reference"),
-                )
-                self.db.add(voucher_payment)
+        await self._create_voucher_payments(
+            voucher_id=invoice.id,
+            business_id=business_id,
+            payments=payments,
+            total_expected=total_final,
+            require_payments=True,
+        )
 
         # 10. Marcar la cotización como facturada
         quotation.invoiced_voucher_id = invoice.id

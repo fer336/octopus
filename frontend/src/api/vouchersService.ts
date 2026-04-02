@@ -95,6 +95,7 @@ const vouchersService = {
     search?: string
     voucher_type?: string
     status?: string
+    payment_method_id?: string
   }): Promise<PaginatedVouchers> => {
     const response = await httpClient.get('/vouchers', { params })
     return response.data

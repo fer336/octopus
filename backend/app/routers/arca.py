@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.config import get_settings
 from app.database import get_db
 from app.models.business import Business
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
@@ -27,6 +28,7 @@ from app.services.afip_sdk_service import AfipSdkService
 from app.utils.security import get_current_business, get_current_user
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 router = APIRouter(prefix="/arca", tags=["arca"])
 CMS_SUPERADMIN_MESSAGE = "Gestionado desde CMS superadmin."
@@ -379,7 +381,7 @@ async def emit_electronic_invoice(
                 if voucher.cae_expiration
                 else None,
                 voucher_number=voucher.full_number,
-                pdf_url=f"/api/vouchers/{voucher.id}/pdf",
+                pdf_url=f"{settings.API_TENANT_PREFIX}/vouchers/{voucher.id}/pdf",
             )
         else:
             await _log_audit(

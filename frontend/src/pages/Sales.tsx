@@ -3,7 +3,7 @@
  * Permite crear cotizaciones, remitos y facturas.
  */
 import { useState, useEffect, useRef } from 'react'
-import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, ZoomIn, ZoomOut, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, ChevronUp, ChevronDown } from 'lucide-react'
+import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, ZoomIn, ZoomOut, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle } from 'lucide-react'
 import { Button, Modal, Select, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import productsService from '../api/productsService'
@@ -72,6 +72,12 @@ interface PaymentSelectionState {
   extra_date?: string
 }
 
+type PaymentMethodLike = {
+  code?: string
+  name?: string
+  requires_reference?: boolean
+}
+
 interface VoucherEditPayload {
   id: string
   voucher_type: 'quotation'
@@ -109,6 +115,71 @@ const safeText = (value: unknown): string => (typeof value === 'string' ? value 
 const safeNumber = (value: unknown): number => {
   const numeric = Number(value)
   return Number.isFinite(numeric) ? numeric : 0
+}
+
+const normalizePaymentMethodValue = (value: unknown): string => (
+  typeof value === 'string'
+    ? value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toUpperCase()
+    : ''
+)
+
+const PAYMENT_METHOD_CODE_GROUPS = {
+  check: new Set(['CHECK', 'CHEQUE']),
+  transfer: new Set(['TRANSFER', 'TRANSFERENCIA', 'BANK_TRANSFER']),
+  credit: new Set(['CREDIT', 'CREDITO', 'CARD_CREDIT', 'TARJETA_CREDITO']),
+  debit: new Set(['DEBIT', 'DEBITO', 'CARD_DEBIT', 'TARJETA_DEBITO']),
+}
+
+const getPaymentMethodStableKey = (method: PaymentMethodLike): string => {
+  const normalizedCode = normalizePaymentMethodValue(method.code)
+  if (normalizedCode) {
+    return normalizedCode
+  }
+
+  return normalizePaymentMethodValue(method.name)
+}
+
+const isPaymentMethodInGroup = (
+  method: PaymentMethodLike,
+  group: keyof typeof PAYMENT_METHOD_CODE_GROUPS,
+): boolean => PAYMENT_METHOD_CODE_GROUPS[group].has(getPaymentMethodStableKey(method))
+
+const isCheckPaymentMethod = (method: PaymentMethodLike): boolean => isPaymentMethodInGroup(method, 'check')
+
+const getPaymentReferenceLabel = (method: PaymentMethodLike): string => {
+  if (isCheckPaymentMethod(method)) {
+    return 'el número de cheque'
+  }
+
+  if (isPaymentMethodInGroup(method, 'transfer')) {
+    return 'el número de transferencia'
+  }
+
+  if (isPaymentMethodInGroup(method, 'credit') || isPaymentMethodInGroup(method, 'debit')) {
+    return 'el número de cupón'
+  }
+
+  return 'la referencia'
+}
+
+const getPaymentReferencePlaceholder = (method: PaymentMethodLike): string => {
+  if (isCheckPaymentMethod(method)) {
+    return 'Nro Cheque'
+  }
+
+  if (isPaymentMethodInGroup(method, 'transfer')) {
+    return 'Nro de transferencia'
+  }
+
+  if (isPaymentMethodInGroup(method, 'credit') || isPaymentMethodInGroup(method, 'debit')) {
+    return 'Nro de cupón'
+  }
+
+  return method.requires_reference ? 'Obligatoria' : 'Opcional'
 }
 
 const formatNumber = (
@@ -756,21 +827,6 @@ export default function Sales() {
     ))
   }
 
-  const moveItem = (index: number, direction: 'up' | 'down') => {
-    setItems((prevItems) => {
-      const targetIndex = direction === 'up' ? index - 1 : index + 1
-
-      if (targetIndex < 0 || targetIndex >= prevItems.length) {
-        return prevItems
-      }
-
-      const reordered = [...prevItems]
-      const [movedItem] = reordered.splice(index, 1)
-      reordered.splice(targetIndex, 0, movedItem)
-      return reordered
-    })
-  }
-
   const calculateItemTotal = (item: CartItem) => {
     const subtotal = item.sale_price * item.quantity
     const discountAmount = subtotal * (item.discount / 100)
@@ -1078,7 +1134,7 @@ export default function Sales() {
         const newAmount = (!current.amount && difference > 0) ? difference.toFixed(2) : current.amount
         return { ...prev, [methodId]: { ...current, selected, amount: newAmount, reference: current.reference || '' } }
       }
-      return { ...prev, [methodId]: { ...current, selected, amount: '', reference: '' } }
+      return { ...prev, [methodId]: { ...current, selected, amount: '', reference: '', extra_date: '' } }
     })
   }
 
@@ -1125,7 +1181,7 @@ export default function Sales() {
         const amountValue = Number(selection.amount)
         if (!Number.isFinite(amountValue) || amountValue <= 0) return null
         let referenceValue = selection.reference?.trim()
-        if (method.name === 'Cheque' && selection.extra_date) {
+        if (isCheckPaymentMethod(method) && selection.extra_date) {
           const formattedDate = new Date(selection.extra_date).toLocaleDateString('es-AR')
           referenceValue = referenceValue ? `${referenceValue} - Vto: ${formattedDate}` : `Vto: ${formattedDate}`
         }
@@ -1144,6 +1200,10 @@ export default function Sales() {
     if (!selectedQuotation) return { valid: false, message: 'No hay cotización seleccionada' }
     const quotationTotal = Number(selectedQuotation.total)
 
+    if (paymentMethods.length === 0) {
+      return { valid: false, message: 'No hay métodos de pago disponibles para facturas' }
+    }
+
     for (const method of paymentMethods) {
       const selection = convertPaymentSelections[method.id]
       if (!selection?.selected) continue
@@ -1154,7 +1214,7 @@ export default function Sales() {
       if (method.requires_reference && !selection.reference?.trim()) {
         return { valid: false, message: `Debe ingresar referencia para ${method.name}` }
       }
-      if (method.name === 'Cheque' && method.requires_reference && !selection.extra_date) {
+      if (isCheckPaymentMethod(method) && method.requires_reference && !selection.extra_date) {
         return { valid: false, message: `Debe ingresar la fecha de vencimiento para el Cheque` }
       }
     }
@@ -1165,6 +1225,10 @@ export default function Sales() {
       const amountValue = Number(selection.amount)
       return acc + (Number.isFinite(amountValue) ? amountValue : 0)
     }, 0)
+
+    if (assignedTotal <= 0) {
+      return { valid: false, message: 'Debe cargar al menos un método de pago para facturas' }
+    }
 
     if (assignedTotal > 0 && Math.abs(Number(assignedTotal.toFixed(2)) - Number(quotationTotal.toFixed(2))) > 0.01) {
       return {
@@ -1316,7 +1380,7 @@ export default function Sales() {
         let referenceValue = selection.reference?.trim()
         
         // Formatear referencia para Cheque con vencimiento
-        if (method.name === 'Cheque' && selection.extra_date) {
+        if (isCheckPaymentMethod(method) && selection.extra_date) {
           const formattedDate = new Date(selection.extra_date).toLocaleDateString('es-AR')
           referenceValue = referenceValue ? `${referenceValue} - Vto: ${formattedDate}` : `Vto: ${formattedDate}`
         }
@@ -1351,16 +1415,10 @@ export default function Sales() {
       }
 
       if (method.requires_reference && !selection.reference?.trim()) {
-        const refName = 
-          method.name === 'Cheque' ? 'el número de cheque' : 
-          method.name === 'Transferencia' ? 'el número de transferencia' :
-          (method.name === 'Crédito' || method.name === 'Débito') ? 'el número de cupón' :
-          'la referencia'
-        
-        return { valid: false, message: `Debe ingresar ${refName} para ${method.name}` }
+        return { valid: false, message: `Debe ingresar ${getPaymentReferenceLabel(method)} para ${method.name}` }
       }
 
-      if (method.name === 'Cheque' && method.requires_reference && !selection.extra_date) {
+      if (isCheckPaymentMethod(method) && method.requires_reference && !selection.extra_date) {
         return { valid: false, message: `Debe ingresar la fecha de vencimiento para el Cheque` }
       }
     }
@@ -1407,69 +1465,15 @@ export default function Sales() {
   const isPaymentBalanced = shouldShowPaymentDifference ? Math.abs(Number(total.toFixed(2)) - Number(assignedPaymentsTotal.toFixed(2))) <= 0.01 : true
 
   return (
-    <div className="space-y-3">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            Nueva Venta
-          </h1>
-          <Button variant="outline" size="sm" onClick={handleClear} className="text-xs">
-            <RotateCcw size={14} className="mr-1" />
-            Limpiar
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowDraftsModal(true)} className="text-xs relative">
-            <FileText size={14} className="mr-1" />
-            Borradores
-            {drafts.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
-                {drafts.length}
-              </span>
-            )}
-          </Button>
-          {/* Controles de Zoom */}
-          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5 border border-gray-200 dark:border-gray-600 ml-2">
-            <button
-              onClick={() => setZoomLevel(prev => Math.max(prev - 0.1, 0.8))}
-              className="p-1.5 hover:bg-white dark:hover:bg-gray-600 rounded-md text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-              title="Reducir tamaño"
-            >
-              <ZoomOut size={14} />
-            </button>
-            <span className="text-[10px] font-medium text-gray-500 w-8 text-center select-none">
-              {Math.round(zoomLevel * 100)}%
-            </span>
-            <button
-              onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 1.5))}
-              className="p-1.5 hover:bg-white dark:hover:bg-gray-600 rounded-md text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-              title="Aumentar tamaño"
-            >
-              <ZoomIn size={14} />
-            </button>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          {voucherTypes.map((type) => (
-            <button
-              key={type.value}
-              onClick={() => setVoucherType(type.value as VoucherType)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                voucherType === type.value
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300'
-              }`}
-            >
-              {type.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Cliente */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="relative">
-          <div className="flex gap-2 items-center">
-            <div className="flex-1 relative">
+    <div className="-mt-4 space-y-2.5">
+      {/* Header compacto */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-2.5 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowClientModal(true)} title="Nuevo cliente" className="px-2 py-1">
+              <Plus size={16} />
+            </Button>
+            <div className="relative min-w-[220px] flex-1">
               <input
                 type="text"
                 value={selectedClient ? selectedClient.name : clientSearch}
@@ -1478,12 +1482,12 @@ export default function Sales() {
                   if (!e.target.value) setSelectedClient(null)
                 }}
                 placeholder="Cliente (buscar o seleccionar)"
-                className="w-full px-3 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600"
+                className="w-full rounded-lg border px-3 py-1.5 text-sm dark:bg-gray-700 dark:border-gray-600"
                 readOnly={!!selectedClient}
               />
               {selectedClient && (
                 <div className="absolute inset-y-0 right-2 flex items-center gap-2">
-                  <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                  <span className="text-xs font-medium text-green-600 dark:text-green-400">
                     ✓ {selectedClient.document_number}
                   </span>
                   <button
@@ -1499,14 +1503,66 @@ export default function Sales() {
                 </div>
               )}
             </div>
-            <Button variant="outline" size="sm" onClick={() => setShowClientSelectorModal(true)} title="Seleccionar cliente">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowClientSelectorModal(true)}
+              title="Seleccionar cliente"
+              className="px-2 py-1"
+            >
               <Search size={16} />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowClientModal(true)} title="Nuevo cliente">
-              <Plus size={16} />
-            </Button>
           </div>
-
+          <div className="flex flex-wrap items-center justify-end gap-2 self-start sm:self-auto">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={handleClear} className="text-xs px-2.5 py-1">
+                <RotateCcw size={14} />
+                Limpiar
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowDraftsModal(true)} className="relative text-xs px-2.5 py-1">
+                <FileText size={14} />
+                Borradores
+                {drafts.length > 0 && (
+                  <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold leading-none text-white">
+                    {drafts.length}
+                  </span>
+                )}
+              </Button>
+              {voucherTypes.map((type) => (
+                <button
+                  key={type.value}
+                  onClick={() => setVoucherType(type.value as VoucherType)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                    voucherType === type.value
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300'
+                  }`}
+                >
+                  {type.label}
+                </button>
+              ))}
+            </div>
+            {/* Controles de Zoom */}
+            <div className="flex items-center rounded-lg border border-gray-200 bg-gray-100 p-0.5 dark:border-gray-600 dark:bg-gray-700">
+              <button
+                onClick={() => setZoomLevel(prev => Math.max(prev - 0.1, 0.8))}
+                className="rounded-md p-1 hover:bg-white text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-gray-200"
+                title="Reducir tamaño"
+              >
+                <ZoomOut size={14} />
+              </button>
+              <span className="w-8 select-none text-center text-[10px] font-medium text-gray-500">
+                {Math.round(zoomLevel * 100)}%
+              </span>
+              <button
+                onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 1.5))}
+                className="rounded-md p-1 hover:bg-white text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-gray-200"
+                title="Aumentar tamaño"
+              >
+                <ZoomIn size={14} />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1529,7 +1585,6 @@ export default function Sales() {
                     <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: `${5 * zoomLevel}rem` }}>Cant.</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Precio</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: `${5 * zoomLevel}rem` }}>Desc%</th>
-                    <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-400">Orden</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Total</th>
                     <th className="px-3 py-2 w-10"></th>
                   </tr>
@@ -1537,13 +1592,13 @@ export default function Sales() {
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {items.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-3 py-6 text-center text-gray-400">
+                      <td colSpan={7} className="px-3 py-6 text-center text-gray-400">
                         <ShoppingCart className="mx-auto mb-1 opacity-50" size={28 * zoomLevel} />
                         <p className="text-sm">Sin productos</p>
                       </td>
                     </tr>
                   ) : (
-                    items.map((item, index) => (
+                    items.map((item) => (
                       <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-3 py-2 font-medium">{item.code}</td>
                         <td className="px-3 py-2">{item.description}</td>
@@ -1575,32 +1630,6 @@ export default function Sales() {
                             max={100}
                             step={0.1}
                           />
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="flex justify-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => moveItem(index, 'up')}
-                              disabled={index === 0}
-                              className="p-1 rounded border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/60 text-gray-700 dark:text-gray-100 disabled:opacity-70 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600"
-                              title="Mover arriba"
-                              aria-label="Mover item arriba"
-                            >
-                              <span aria-hidden="true" className="text-[11px] font-bold leading-none">↑</span>
-                              <ChevronUp size={14 * zoomLevel} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveItem(index, 'down')}
-                              disabled={index === items.length - 1}
-                              className="p-1 rounded border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/60 text-gray-700 dark:text-gray-100 disabled:opacity-70 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600"
-                              title="Mover abajo"
-                              aria-label="Mover item abajo"
-                            >
-                              <span aria-hidden="true" className="text-[11px] font-bold leading-none">↓</span>
-                              <ChevronDown size={14 * zoomLevel} />
-                            </button>
-                          </div>
                         </td>
                         <td className="px-3 py-2 text-right font-medium">
                           ${formatNumber(calculateItemTotal(item))}
@@ -2391,7 +2420,7 @@ export default function Sales() {
                         </label>
 
                         <div className="flex flex-1 gap-2">
-                          <div className={`${method.name === 'Cheque' ? 'w-[25%]' : 'w-[40%]'}`}>
+                          <div className={`${isCheckPaymentMethod(method) ? 'w-[25%]' : 'w-[40%]'}`}>
                             <Input
                               type="number"
                               min={0}
@@ -2404,14 +2433,14 @@ export default function Sales() {
                             />
                           </div>
 
-                          <div className={`flex gap-2 ${method.name === 'Cheque' ? 'w-[75%]' : 'w-[60%]'}`}>
-                            {method.name === 'Cheque' ? (
+                          <div className={`flex gap-2 ${isCheckPaymentMethod(method) ? 'w-[75%]' : 'w-[60%]'}`}>
+                            {isCheckPaymentMethod(method) ? (
                               <>
                                 <Input
                                   type="text"
                                   value={selection?.reference || ''}
                                   onChange={(e) => handlePaymentReferenceChange(method.id, e.target.value)}
-                                  placeholder="Nro Cheque"
+                                  placeholder={getPaymentReferencePlaceholder(method)}
                                   disabled={!isSelected}
                                   className={`h-8 text-sm w-[60%] ${!isSelected && 'opacity-50 bg-gray-50 dark:bg-gray-900'}`}
                                 />
@@ -2426,18 +2455,14 @@ export default function Sales() {
                                 />
                               </>
                             ) : (
-                              <Input
-                                type="text"
-                                value={selection?.reference || ''}
-                                onChange={(e) => handlePaymentReferenceChange(method.id, e.target.value)}
-                                placeholder={
-                                  method.name === 'Transferencia' ? 'Nro de transferencia' :
-                                  (method.name === 'Crédito' || method.name === 'Débito') ? 'Nro de cupón' :
-                                  (method.requires_reference ? 'Obligatoria' : 'Opcional')
-                                }
-                                disabled={!isSelected}
-                                className={`h-8 text-sm w-full ${!isSelected && 'opacity-50 bg-gray-50 dark:bg-gray-900'}`}
-                              />
+                                <Input
+                                  type="text"
+                                  value={selection?.reference || ''}
+                                  onChange={(e) => handlePaymentReferenceChange(method.id, e.target.value)}
+                                  placeholder={getPaymentReferencePlaceholder(method)}
+                                  disabled={!isSelected}
+                                  className={`h-8 text-sm w-full ${!isSelected && 'opacity-50 bg-gray-50 dark:bg-gray-900'}`}
+                                />
                             )}
                           </div>
                         </div>
@@ -2830,7 +2855,7 @@ export default function Sales() {
               <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Métodos de Pago</h4>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Opcional</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Obligatorio</p>
                 </div>
                 <div className="space-y-2">
                   {paymentMethods.map((method) => {
@@ -2869,13 +2894,13 @@ export default function Sales() {
                               disabled={!isSelected}
                               className={`w-32 text-right text-sm px-2 py-1.5 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 ${!isSelected ? 'opacity-40' : ''}`}
                             />
-                            {method.name === 'Cheque' ? (
+                            {isCheckPaymentMethod(method) ? (
                               <>
                                 <input
                                   type="text"
                                   value={selection?.reference || ''}
                                   onChange={(e) => handleConvertPaymentReferenceChange(method.id, e.target.value)}
-                                  placeholder="Nro Cheque"
+                                  placeholder={getPaymentReferencePlaceholder(method)}
                                   disabled={!isSelected}
                                   className={`flex-1 text-sm px-2 py-1.5 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 ${!isSelected ? 'opacity-40' : ''}`}
                                 />
@@ -2889,18 +2914,14 @@ export default function Sales() {
                                 />
                               </>
                             ) : (
-                              <input
-                                type="text"
-                                value={selection?.reference || ''}
-                                onChange={(e) => handleConvertPaymentReferenceChange(method.id, e.target.value)}
-                                placeholder={
-                                  method.name === 'Transferencia' ? 'Nro de transferencia' :
-                                  (method.name === 'Crédito' || method.name === 'Débito') ? 'Nro de cupón' :
-                                  (method.requires_reference ? 'Obligatoria' : 'Opcional')
-                                }
-                                disabled={!isSelected}
-                                className={`flex-1 text-sm px-2 py-1.5 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 ${!isSelected ? 'opacity-40' : ''}`}
-                              />
+                                <input
+                                  type="text"
+                                  value={selection?.reference || ''}
+                                  onChange={(e) => handleConvertPaymentReferenceChange(method.id, e.target.value)}
+                                  placeholder={getPaymentReferencePlaceholder(method)}
+                                  disabled={!isSelected}
+                                  className={`flex-1 text-sm px-2 py-1.5 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 ${!isSelected ? 'opacity-40' : ''}`}
+                                />
                             )}
                           </div>
                         </div>

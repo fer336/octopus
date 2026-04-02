@@ -1,6 +1,7 @@
 import {
   BarChart3,
   ClipboardList,
+  CreditCard,
   FileText,
   FolderTree,
   LayoutDashboard,
@@ -39,6 +40,7 @@ export const navigationItems: NavigationItem[] = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard', section: 'inicio' },
   { path: '/sales', icon: ShoppingCart, label: 'Ventas', section: 'ventas' },
   { path: '/comprobantes', icon: FileText, label: 'Comprobantes', section: 'ventas' },
+  { path: '/payment-methods', icon: CreditCard, label: 'Métodos de Pago', section: 'ventas' },
   { path: '/caja', icon: Wallet, label: 'Caja', section: 'ventas', badge: true },
   { path: '/products', icon: Package, label: 'Productos', section: 'catalogo' },
   { path: '/price-update', icon: TrendingUp, label: 'Actualizar Precios', section: 'catalogo' },
@@ -48,3 +50,13 @@ export const navigationItems: NavigationItem[] = [
   { path: '/categories', icon: FolderTree, label: 'Categorias', section: 'contactos' },
   { path: '/reports', icon: BarChart3, label: 'Reportes', section: 'analisis' },
 ]
+
+export function getActiveNavigationItem(pathname: string): NavigationItem | undefined {
+  return navigationItems.find((item) => {
+    if (item.path === '/') {
+      return pathname === '/'
+    }
+
+    return pathname.startsWith(item.path)
+  })
+}

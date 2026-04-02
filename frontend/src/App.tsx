@@ -25,6 +25,7 @@ const Clients    = lazy(() => import('./pages/Clients'))
 const Suppliers  = lazy(() => import('./pages/Suppliers'))
 const Categories = lazy(() => import('./pages/Categories'))
 const Vouchers   = lazy(() => import('./pages/Vouchers'))
+const PaymentMethods = lazy(() => import('./pages/PaymentMethods'))
 const Reports    = lazy(() => import('./pages/Reports'))
 const Settings   = lazy(() => import('./pages/Settings'))
 const Cash       = lazy(() => import('./pages/Cash'))
@@ -143,6 +144,9 @@ export default function App() {
               } />
               <Route path="comprobantes" element={
                 <Suspense fallback={<PageLoader />}><Vouchers /></Suspense>
+              } />
+              <Route path="payment-methods" element={
+                <Suspense fallback={<PageLoader />}><PaymentMethods /></Suspense>
               } />
               <Route path="caja" element={
                 <Suspense fallback={<PageLoader />}><Cash /></Suspense>

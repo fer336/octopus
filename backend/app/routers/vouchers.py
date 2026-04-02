@@ -71,6 +71,7 @@ async def list_vouchers(
     search: Optional[str] = Query(default=None),
     voucher_type: Optional[VoucherType] = Query(default=None),
     status: Optional[VoucherStatus] = Query(default=None),
+    payment_method_id: Optional[UUID] = Query(default=None),
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
 ):
@@ -83,6 +84,7 @@ async def list_vouchers(
         search=search,
         voucher_type=voucher_type,
         status=status,
+        payment_method_id=payment_method_id,
     )
 
     pages = (total + per_page - 1) // per_page if per_page else 0
@@ -172,10 +174,18 @@ async def update_voucher(
         return VoucherResponse.model_validate(voucher)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/{voucher_id}/pdf")
+async def get_voucher_pdf(
+    voucher_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """Genera y devuelve el PDF inline de un comprobante."""
     service = VoucherService(db)
     try:
         pdf_bytes = await service.generate_pdf(voucher_id, business_id)
-        print(f"✅ [PDF] PDF generado exitosamente. Tamaño: {len(pdf_bytes)} bytes")
 
         return StreamingResponse(
             io.BytesIO(pdf_bytes),
@@ -185,13 +195,9 @@ async def update_voucher(
             },
         )
     except ValueError as e:
-        print(f"❌ [PDF] Error ValueError: {str(e)}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
-        print(f"❌ [PDF] Error inesperado: {str(e)}")
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("Error al generar PDF para voucher %s", voucher_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al generar PDF: {str(e)}",

@@ -259,7 +259,6 @@
                 <td class="client-col-right">
                     <div class="info-line"><strong>CUIL/CUIT:</strong> {{ client.document_number or '-' }}</div>
                     <div class="info-line"><strong>Condición Frente al IVA:</strong> {{ client.tax_condition or 'Consumidor Final' }}</div>
-                    <div class="info-line"><strong>Condición de venta:</strong> {{ voucher.payment_method or 'Efectivo' }}</div>
                 </td>
             </tr>
         </table>
@@ -269,12 +268,14 @@
     <table class="items-table">
         <thead>
             <tr>
-                <th style="width: 10%">Cantidad</th>
-                <th style="width: 15%">Código</th>
-                <th style="width: 45%">Producto / Servicio</th>
+                <th style="width: 12%">Cantidad</th>
+                <th style="width: 18%">Código</th>
+                <th style="width: {% if voucher.show_prices %}40%{% else %}70%{% endif %}">Producto / Servicio</th>
+                {% if voucher.show_prices %}
                 <th style="width: 10%">Precio Unit.</th>
                 <th style="width: 10%">% Bonif.</th>
                 <th style="width: 10%">Subtotal</th>
+                {% endif %}
             </tr>
         </thead>
         <tbody>
@@ -283,9 +284,11 @@
                 <td>{{ item.quantity }}</td>
                 <td>{{ item.code or '-' }}</td>
                 <td>{{ item.description }}</td>
+                {% if voucher.show_prices %}
                 <td>{{ item.unit_price }}</td>
                 <td>{{ item.discount or '0,00' }}</td>
                 <td>{{ item.subtotal }}</td>
+                {% endif %}
             </tr>
             {% endfor %}
         </tbody>

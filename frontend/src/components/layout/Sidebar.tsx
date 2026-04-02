@@ -7,7 +7,12 @@ import { clsx } from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { useCurrentCash } from '../../hooks/useCash'
-import { navigationItems, navigationSections, type NavigationItem } from './navigationItems'
+import {
+  getActiveNavigationItem,
+  navigationItems,
+  navigationSections,
+  type NavigationItem,
+} from './navigationItems'
 
 function CajaBadge() {
   const { data: cash } = useCurrentCash()
@@ -39,12 +44,7 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
   const location = useLocation()
 
   const getActiveSection = (pathname: string) =>
-    navigationItems.find((item) => {
-      if (item.path === '/') {
-        return pathname === '/'
-      }
-      return pathname.startsWith(item.path)
-    })?.section
+    getActiveNavigationItem(pathname)?.section
 
   const groupedItems = useMemo(() => {
     return navigationSections.map((section) => ({
@@ -85,13 +85,13 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
       end={item.path === '/'}
       className={({ isActive }) =>
         clsx(
-          'flex items-center rounded-md px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors',
+          'flex items-center rounded-md px-2.5 py-1.5 text-[13px] text-gray-300 hover:bg-gray-800 hover:text-white transition-colors',
           isActive && 'bg-gray-800 text-white border-r-4 border-primary-500'
         )
       }
     >
-      <item.icon size={18} className="flex-shrink-0" />
-      {!isCollapsed && <span className="ml-2.5 truncate flex-1">{item.label}</span>}
+      <item.icon size={17} className="flex-shrink-0" />
+      {!isCollapsed && <span className="ml-2 truncate flex-1">{item.label}</span>}
       {item.badge && <CajaBadge />}
     </NavLink>
   )
@@ -100,23 +100,23 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
     <aside
       className={clsx(
         'h-screen bg-gray-900 text-white flex flex-col transition-all duration-300 flex-shrink-0',
-        isCollapsed ? 'w-16' : 'w-64'
+        isCollapsed ? 'w-16' : 'w-60'
       )}
     >
       {/* Logo */}
-      <div className="h-16 flex items-center px-3 border-b border-gray-800">
+      <div className="h-14 flex items-center px-3 border-b border-gray-800">
         <img
           src="/octopus-logo-blue.png"
           alt="Octopus"
-          className="h-12 w-12 flex-shrink-0 object-contain"
+          className="h-10 w-10 flex-shrink-0 object-contain"
         />
         {!isCollapsed && (
-          <span className="ml-2 text-base font-bold truncate">Octopus</span>
+          <span className="ml-2 text-[15px] font-bold truncate">Octopus</span>
         )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-3 overflow-y-auto px-2">
+      <nav className="flex-1 py-2.5 overflow-y-auto px-2">
         {isCollapsed
           ? navigationItems.map((item) => renderNavItem(item))
             : groupedItems.map(({ section, items }) => (
@@ -125,7 +125,7 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
                   type="button"
                   onClick={() => setOpenSections((prev) => ({ ...prev, [section.key]: !prev[section.key] }))}
                   className={clsx(
-                    'w-full flex items-center justify-between rounded-md px-2.5 py-2 text-xs font-medium tracking-[0.08em] text-gray-400 transition-all',
+                    'w-full flex items-center justify-between rounded-md px-2 py-1.5 text-[11px] font-medium tracking-[0.08em] text-gray-400 transition-all',
                     'hover:bg-gray-800/60 hover:text-gray-200',
                     openSections[section.key] && 'bg-gray-800/40 text-gray-200'
                   )}
@@ -153,9 +153,9 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="p-3 border-t border-gray-800">
+      <div className="p-2.5 border-t border-gray-800">
         {!isCollapsed && (
-          <p className="text-[11px] text-gray-500 text-center">
+          <p className="text-[10px] text-gray-500 text-center">
             OctopusTrack v1.0
           </p>
         )}

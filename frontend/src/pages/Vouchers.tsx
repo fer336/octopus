@@ -8,6 +8,7 @@ import { Button, Table, Pagination, Select, Modal, Input } from '../components/u
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import vouchersService from '../api/vouchersService'
+import { usePaymentMethods } from '../hooks/usePaymentMethods'
 import CreditNoteModal from '../components/vouchers/CreditNoteModal'
 import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
@@ -39,21 +40,25 @@ export default function Vouchers() {
   const [page, setPage] = useState(1)
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState('')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [voucherToDelete, setVoucherToDelete] = useState<any>(null)
   const [deleteReason, setDeleteReason] = useState('')
   const [showCreditNoteModal, setShowCreditNoteModal] = useState(false)
   const [selectedVoucherForNC, setSelectedVoucherForNC] = useState<any>(null)
 
+  const { data: paymentMethods = [] } = usePaymentMethods(false)
+
   // Query para comprobantes
   const { data: vouchersData, isLoading, error } = useQuery({
-    queryKey: ['vouchers', page, search, filterType, filterStatus],
+    queryKey: ['vouchers', page, search, filterType, filterStatus, filterPaymentMethod],
     queryFn: () => vouchersService.getAll({ 
       page, 
       per_page: 20, 
       search,
       voucher_type: filterType || undefined,
-      status: filterStatus || undefined
+      status: filterStatus || undefined,
+      payment_method_id: filterPaymentMethod || undefined,
     }),
     retry: false,
   })
@@ -84,7 +89,7 @@ export default function Vouchers() {
       setTimeout(() => URL.revokeObjectURL(pdfUrl), 10000)
     } catch (error) {
       console.error('Error al abrir PDF:', error)
-      alert('Error al abrir el PDF. Por favor intenta nuevamente.')
+      toast.error(`Error al abrir el PDF: ${formatErrorMessage(error)}`)
     }
   }
 
@@ -102,8 +107,8 @@ export default function Vouchers() {
       const pdfUrl = URL.createObjectURL(pdfBlob)
       window.open(pdfUrl, '_blank')
       setTimeout(() => URL.revokeObjectURL(pdfUrl), 10000)
-    } catch {
-      toast.error('No se pudo abrir el comprobante relacionado')
+    } catch (error) {
+      toast.error(`No se pudo abrir el comprobante relacionado: ${formatErrorMessage(error)}`)
     }
   }
 
@@ -122,7 +127,7 @@ export default function Vouchers() {
       setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000)
     } catch (error) {
       console.error('Error al descargar PDF:', error)
-      alert('Error al descargar el PDF. Por favor intenta nuevamente.')
+      toast.error(`Error al descargar el PDF: ${formatErrorMessage(error)}`)
     }
   }
 
@@ -380,20 +385,23 @@ export default function Vouchers() {
   }
 
   if (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
-    const isUnauthorized = errorMessage.includes('401') || errorMessage.includes('Unauthorized')
+    const errorMessage = formatErrorMessage(error)
+    const errorStatus = typeof error === 'object' && error !== null && 'response' in error
+      ? (error as { response?: { status?: number } }).response?.status
+      : undefined
+    const isUnauthorized = errorStatus === 401 || errorMessage.includes('401') || errorMessage.includes('Unauthorized')
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
         <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-full mb-4">
           <FileText className="h-8 w-8 text-red-500" />
         </div>
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-          {isUnauthorized ? 'Sesión Expirada' : 'Error de Conexión'}
+          {isUnauthorized ? 'Sesión Expirada' : 'Error al cargar comprobantes'}
         </h2>
         <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md">
           {isUnauthorized 
             ? 'Tu sesión ha caducado. Por favor inicia sesión nuevamente.' 
-            : 'No pudimos cargar los comprobantes. Intenta nuevamente más tarde.'}
+            : errorMessage}
         </p>
         {isUnauthorized && (
           <Button onClick={() => window.location.href = '/login'}>Ir al Login</Button>
@@ -406,25 +414,9 @@ export default function Vouchers() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Comprobantes
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400">
-            Historial de cotizaciones, remitos y facturas
-          </p>
-        </div>
-        <Button onClick={() => window.location.href = '/sales'}>
-          <FileText size={18} className="mr-2" />
-          Nueva Venta
-        </Button>
-      </div>
-
       {/* Filtros */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
             <input
@@ -460,6 +452,18 @@ export default function Vouchers() {
               { value: 'draft', label: 'Borradores' },
               { value: 'confirmed', label: 'Confirmados' },
               { value: 'cancelled', label: 'Anulados' },
+            ]}
+          />
+
+          <Select
+            value={filterPaymentMethod}
+            onChange={(e) => setFilterPaymentMethod(e.target.value)}
+            options={[
+              { value: '', label: 'Todos los Medios de Pago' },
+              ...paymentMethods.map((method) => ({
+                value: method.id,
+                label: method.is_active ? method.name : `${method.name} (inactivo)`,
+              })),
             ]}
           />
         </div>

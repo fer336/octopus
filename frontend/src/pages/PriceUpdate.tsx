@@ -3,7 +3,7 @@
  * Permite actualizar precios por categoría, proveedor o selección manual.
  * Soporta guardar listas de selección en memoria (localStorage) para continuar después.
  */
-import { useState } from 'react'
+import { useState, type MouseEvent } from 'react'
 import { TrendingUp, Search, Filter, DollarSign, FolderOpen, Trash2, ChevronUp, Clock, Package } from 'lucide-react'
 import { Button, Table } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -114,7 +114,7 @@ export default function PriceUpdate() {
     }
   }
 
-  const handleDeleteDraft = async (draftId: string, e: React.MouseEvent) => {
+  const handleDeleteDraft = async (draftId: string, e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation()
     try {
       await priceUpdateDraftsService.delete(draftId)
@@ -279,12 +279,12 @@ export default function PriceUpdate() {
           <div className="flex items-center gap-4 ml-auto">
             <button
               onClick={() => setShowDrafts(v => !v)}
-              className="flex items-center gap-1.5 text-gray-500 hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-400 transition-colors relative"
+              className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 text-gray-500 hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-400 transition-colors"
             >
-              <FolderOpen size={18} />
+              <FolderOpen size={18} className="shrink-0" />
               <span className="text-xs font-medium">Borradores</span>
               {draftsData && draftsData.length > 0 && (
-                <span className="absolute -top-1 -right-2 bg-orange-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold leading-none text-white">
                   {draftsData.length}
                 </span>
               )}
@@ -481,7 +481,9 @@ export default function PriceUpdate() {
             {products.length} productos encontrados
           </span>
         </div>
-        <Table columns={columns} data={products} density="compact" emptyMessage="No se encontraron productos con los filtros seleccionados" />
+        <div className="max-h-[58vh] overflow-y-auto rounded-lg">
+          <Table columns={columns} data={products} density="compact" emptyMessage="No se encontraron productos con los filtros seleccionados" />
+        </div>
       </div>
 
       {/* Botón flotante — aparece cuando hay selección */}
