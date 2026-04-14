@@ -59,6 +59,18 @@ export const httpClient = axios.create({
   withCredentials: false,
 })
 
+/**
+ * Cliente HTTP específico para Admin.
+ * Evita colisiones con la baseURL de tenant.
+ */
+export const adminHttpClient = axios.create({
+  baseURL: getAdminApiUrl(),
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  withCredentials: false,
+})
+
 // Variable para controlar el refresh token en curso
 let isRefreshing = false
 let failedQueue: Array<{
@@ -88,6 +100,79 @@ httpClient.interceptors.request.use(
     return config
   },
   (error) => Promise.reject(error)
+)
+
+// Interceptor para Admin (comparte lógica de token)
+adminHttpClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const { accessToken } = useAuthStore.getState()
+    if (accessToken && config.headers) {
+      config.headers.Authorization = `Bearer ${accessToken}`
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
+
+// Interceptor de respuesta para Admin (maneja refresh token)
+adminHttpClient.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & {
+      _retry?: boolean
+    }
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        })
+          .then((token) => {
+            if (originalRequest.headers) {
+              originalRequest.headers.Authorization = `Bearer ${token}`
+            }
+            return adminHttpClient(originalRequest)
+          })
+          .catch((err) => Promise.reject(err))
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      const { refreshToken, updateAccessToken, logout } = useAuthStore.getState()
+
+      if (refreshToken) {
+        try {
+          const response = await axios.post(`${BACKEND_URL}/auth/refresh`, {
+            refresh_token: refreshToken,
+          })
+
+          const { access_token } = response.data
+          updateAccessToken(access_token)
+          processQueue(null, access_token)
+
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${access_token}`
+          }
+          return adminHttpClient(originalRequest)
+        } catch (refreshError) {
+          processQueue(refreshError as Error, null)
+          logout()
+          window.location.href = getLoginRedirectUrl()
+          return Promise.reject(refreshError)
+        } finally {
+          isRefreshing = false
+        }
+      } else {
+        isRefreshing = false
+        logout()
+        window.location.href = getLoginRedirectUrl()
+        return Promise.reject(error)
+      }
+    }
+
+    return Promise.reject(error)
+  }
 )
 
 // Interceptor de response: manejar errores y refresh token

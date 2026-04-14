@@ -25,7 +25,7 @@ import purchaseOrdersService, {
   PurchaseOrderListItem,
   PurchaseOrderStatus,
 } from '../api/purchaseOrdersService'
-import { Button } from '../components/ui'
+import { Button, ConfirmModal } from '../components/ui'
 import NewPurchaseOrderModal from '../components/inventory/NewPurchaseOrderModal'
 import PurchaseOrderDetailModal from '../components/inventory/PurchaseOrderDetailModal'
 
@@ -77,6 +77,7 @@ export default function Inventory() {
   // Modales
   const [showNewOrderModal, setShowNewOrderModal] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
+  const [orderToDelete, setOrderToDelete] = useState<string | null>(null)
   const [editingDraft, setEditingDraft] = useState<PurchaseOrder | null>(null)
 
   // Queries
@@ -144,8 +145,16 @@ export default function Inventory() {
   }
 
   const handleDelete = (id: string) => {
-    if (confirm('¿Eliminar esta orden de pedido?')) {
-      deleteMutation.mutate(id)
+    setOrderToDelete(id)
+  }
+
+  const confirmDelete = () => {
+    if (orderToDelete) {
+      deleteMutation.mutate(orderToDelete, {
+        onSuccess: () => {
+          setOrderToDelete(null)
+        },
+      })
     }
   }
 
@@ -160,16 +169,13 @@ export default function Inventory() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-            <ClipboardList className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+          <div className="p-2 rounded-lg bg-primary-100 dark:bg-primary-900/30">
+            <ClipboardList className="w-6 h-6 text-primary-600 dark:text-primary-400" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               Control de Inventario
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Generá planillas de conteo y órdenes de pedido a proveedores
-            </p>
           </div>
         </div>
         <Button
@@ -187,7 +193,7 @@ export default function Inventory() {
           <select
             value={filterSupplier}
             onChange={(e) => setFilterSupplier(e.target.value)}
-            className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">Todos los proveedores</option>
             {suppliers.map((s) => (
@@ -200,7 +206,7 @@ export default function Inventory() {
           <select
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
-            className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">Todas las categorías</option>
             {categories.map((c) => (
@@ -213,7 +219,7 @@ export default function Inventory() {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value as PurchaseOrderStatus | '')}
-            className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">Todos los estados</option>
             <option value="draft">Borrador</option>
@@ -226,7 +232,7 @@ export default function Inventory() {
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
           </div>
         ) : orders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500">
@@ -319,7 +325,7 @@ export default function Inventory() {
                         <button
                           onClick={() => setSelectedOrderId(order.id)}
                           title="Ver detalle"
-                          className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors"
+                          className="p-1.5 rounded-lg text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/30 transition-colors"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -328,7 +334,7 @@ export default function Inventory() {
                         <button
                           onClick={() => handlePreviewPdf(order)}
                           title="Ver PDF"
-                          className="p-1.5 rounded-lg text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-900/30 transition-colors"
+                          className="p-1.5 rounded-lg text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/30 transition-colors"
                         >
                           <FileText className="w-4 h-4" />
                         </button>
@@ -418,6 +424,16 @@ export default function Inventory() {
           }}
         />
       )}
+
+      <ConfirmModal
+        isOpen={!!orderToDelete}
+        onClose={() => setOrderToDelete(null)}
+        onConfirm={confirmDelete}
+        title="¿Eliminar orden?"
+        description="Esta acción marcará la orden como eliminada. No se borrará permanentemente de la base de datos, pero ya no será visible en el listado."
+        confirmText="Eliminar"
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   )
 }

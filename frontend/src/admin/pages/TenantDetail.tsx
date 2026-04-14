@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 import adminAPI, { type BrandingUpdate } from '../../api/adminService'
 
-type Tab = 'general' | 'branding' | 'users'
+type Tab = 'general' | 'branding' | 'features' | 'users'
 
 function InfoField({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -155,6 +155,181 @@ function BrandingTab({ tenantId }: { tenantId: string }) {
         </button>
       </div>
     </form>
+  )
+}
+
+function FeaturesTab({ tenantId }: { tenantId: string }) {
+  const queryClient = useQueryClient()
+  const [linearApiKey, setLinearApiKey] = useState('')
+
+  const flagsQuery = useQuery({
+    queryKey: ['admin-feature-flags', tenantId],
+    queryFn: () => adminAPI.getFeatureFlags(tenantId),
+  })
+
+  const linearSecretsQuery = useQuery({
+    queryKey: ['admin-arca-secrets', tenantId],
+    queryFn: () => adminAPI.getArcaSecrets(tenantId),
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: (payload: { ai_agent_enabled?: boolean; linear_sync_enabled?: boolean }) =>
+      adminAPI.updateFeatureFlags(tenantId, payload),
+    onSuccess: (_, payload) => {
+      if (typeof payload.ai_agent_enabled === 'boolean') {
+        toast.success(payload.ai_agent_enabled ? 'Agente IA habilitado' : 'Agente IA deshabilitado')
+      }
+      if (typeof payload.linear_sync_enabled === 'boolean') {
+        toast.success(
+          payload.linear_sync_enabled
+            ? 'Sync con Linear habilitada'
+            : 'Sync con Linear deshabilitada',
+        )
+      }
+      queryClient.invalidateQueries({ queryKey: ['admin-feature-flags', tenantId] })
+    },
+    onError: (error: any) => {
+      const detail = error?.response?.data?.detail
+      toast.error(typeof detail === 'string' ? detail : 'No se pudo actualizar la funcionalidad')
+    },
+  })
+
+  const saveLinearKeyMutation = useMutation({
+    mutationFn: (apiKey: string) =>
+      adminAPI.updateArcaSecrets(tenantId, {
+        linear_api_key: apiKey,
+      }),
+    onSuccess: () => {
+      toast.success('Linear API Key guardada')
+      setLinearApiKey('')
+      queryClient.invalidateQueries({ queryKey: ['admin-arca-secrets', tenantId] })
+    },
+    onError: (error: any) => {
+      const detail = error?.response?.data?.detail
+      toast.error(typeof detail === 'string' ? detail : 'No se pudo guardar la API Key de Linear')
+    },
+  })
+
+  const currentEnabled = flagsQuery.data?.ai_agent_enabled ?? false
+  const linearSyncEnabled = flagsQuery.data?.linear_sync_enabled ?? false
+  const linearConfigured = Boolean(linearSecretsQuery.data?.secrets?.linear_api_key?.configured)
+  const linearLast4 = linearSecretsQuery.data?.secrets?.linear_api_key?.last4
+
+  if (flagsQuery.isLoading || linearSecretsQuery.isLoading) {
+    return <div className="h-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Agente IA</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Controla si el tenant puede usar los endpoints del asistente inteligente.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={currentEnabled}
+            onClick={() => updateMutation.mutate({ ai_agent_enabled: !currentEnabled })}
+            disabled={updateMutation.isPending}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+              currentEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                currentEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="mt-3">
+          <span
+            className={`inline-flex px-2 py-1 text-xs rounded-full ${
+              currentEnabled
+                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+            }`}
+          >
+            {currentEnabled ? 'Habilitado' : 'Deshabilitado'}
+          </span>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Sincronización con Linear</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Cuando está activa, cada feedback nuevo intenta crearse también como issue en Linear.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={linearSyncEnabled}
+            onClick={() => updateMutation.mutate({ linear_sync_enabled: !linearSyncEnabled })}
+            disabled={updateMutation.isPending}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+              linearSyncEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                linearSyncEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex px-2 py-1 text-xs rounded-full ${
+              linearConfigured
+                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+            }`}
+          >
+            {linearConfigured ? `API Key configurada (${linearLast4 ?? '****'})` : 'API Key no configurada'}
+          </span>
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Linear API Key
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="password"
+              value={linearApiKey}
+              onChange={(e) => setLinearApiKey(e.target.value)}
+              placeholder="lin_api_xxxxx..."
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (!linearApiKey.trim()) {
+                  toast.error('Ingresá una API Key válida')
+                  return
+                }
+                saveLinearKeyMutation.mutate(linearApiKey.trim())
+              }}
+              disabled={saveLinearKeyMutation.isPending}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            >
+              {saveLinearKeyMutation.isPending ? 'Guardando...' : 'Guardar key'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -346,7 +521,7 @@ function UsersTab({ tenantId }: { tenantId: string }) {
                             type="button"
                             onClick={() => accessMutation.mutate({ userId: user.id, accessStatus: 'active' })}
                             disabled={trialMutation.isPending || accessMutation.isPending}
-                            className="px-2 py-1 text-xs rounded border border-emerald-500 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                            className="px-2 py-1 text-xs rounded border border-primary-500 text-primary-600 hover:bg-primary-50 disabled:opacity-50"
                           >
                             Reactivar
                           </button>
@@ -389,6 +564,7 @@ export default function TenantDetail() {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'general', label: 'Información General' },
     { key: 'branding', label: 'Branding Fiscal' },
+    { key: 'features', label: 'Funcionalidades' },
     { key: 'users', label: 'Usuarios' },
   ]
 
@@ -437,6 +613,7 @@ export default function TenantDetail() {
       {/* Tab content */}
       {activeTab === 'general' && <GeneralTab tenantId={id} />}
       {activeTab === 'branding' && <BrandingTab tenantId={id} />}
+      {activeTab === 'features' && <FeaturesTab tenantId={id} />}
       {activeTab === 'users' && <UsersTab tenantId={id} />}
     </div>
   )

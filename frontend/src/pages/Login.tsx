@@ -1,11 +1,10 @@
 /**
  * Página de Login.
- * Permite iniciar sesión con Google OAuth.
+ * Permite iniciar sesión con Google OAuth o con credenciales.
  */
-import { useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Octagon } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import authService from '../api/authService'
@@ -15,67 +14,83 @@ export default function Login() {
   const navigate = useNavigate()
   const setAuth = useAuthStore((s) => s.setAuth)
 
-  const demoEmail = import.meta.env.VITE_DEMO_LOGIN_EMAIL || 'user@demo'
-  const demoPassword = import.meta.env.VITE_DEMO_LOGIN_PASSWORD || 'demo123'
+  const demoEmail = import.meta.env.VITE_DEMO_LOGIN_EMAIL || ''
+  const demoPassword = import.meta.env.VITE_DEMO_LOGIN_PASSWORD || ''
   const autoDevLogin = import.meta.env.VITE_DEV_AUTO_LOGIN === 'true'
-  const [demoUser, setDemoUser] = useState(demoEmail)
-  const [demoSecret, setDemoSecret] = useState(demoPassword)
-  const [isDemoLoading, setIsDemoLoading] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleGoogleLogin = () => {
     authService.loginWithGoogle()
   }
 
-  const handleDevLogin = async () => {
-    setIsDemoLoading(true)
+  const handleCredentialsLogin = async (
+    userEmail: string = email,
+    userPassword: string = password,
+  ) => {
+    if (!userEmail || !userPassword) {
+      toast.error('Completá usuario y contraseña')
+      return
+    }
+
+    setIsLoading(true)
 
     try {
-      const response = await authService.devLogin(demoUser, demoSecret)
+      const response = await authService.loginWithCredentials(userEmail, userPassword)
       setAuth(response)
-      toast.success('Ingreso demo habilitado')
+      toast.success('Ingreso exitoso')
       navigate('/', { replace: true })
     } catch (error) {
-      console.error('Dev login error:', error)
-      toast.error('No se pudo iniciar sesión con las credenciales demo')
+      console.error('Credentials login error:', error)
+      toast.error('No se pudo iniciar sesión. Revisá usuario y contraseña.')
     } finally {
-      setIsDemoLoading(false)
+      setIsLoading(false)
     }
   }
 
   useEffect(() => {
-    if (import.meta.env.DEV && autoDevLogin) {
-      void handleDevLogin()
+    if (import.meta.env.DEV && autoDevLogin && demoEmail && demoPassword) {
+      void handleCredentialsLogin(demoEmail, demoPassword)
     }
   }, [])
 
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    void handleCredentialsLogin()
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-      <div className="max-w-md w-full">
-        {/* Logo y título */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="p-4 bg-primary-100 dark:bg-primary-900/30 rounded-2xl">
-              <Octagon className="h-16 w-16 text-primary-600 dark:text-primary-400" />
-            </div>
+    <div className="min-h-screen bg-[var(--color-bg-primary)] px-4 py-4 overflow-y-auto">
+      <div className="max-w-xs w-full mx-auto">
+        {/* Logo (sin título de texto) */}
+        <div className="text-center mb-3">
+          <div className="flex justify-center">
+            <img
+              src="/logo-tentaculo.png"
+              alt="Octopus Track"
+              className="h-[83px] w-[83px] object-contain"
+            />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            OctopusTrack
-          </h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Sistema de gestión comercial para sanitarios, ferreterías y corralones
-          </p>
         </div>
 
         {/* Card de login */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 text-center">
+        <div className="bg-[var(--color-bg-secondary)] rounded-xl shadow-md p-4 border border-primary-200 dark:border-primary-800">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <img
+              src="/logo-tentaculo.png"
+              alt="Tentáculo"
+              className="h-5 w-5 object-contain"
+            />
+            <h2 className="text-lg font-semibold text-[var(--color-text-primary)] text-center">
             Iniciar sesión
-          </h2>
+            </h2>
+          </div>
 
           <Button
             onClick={handleGoogleLogin}
             variant="outline"
-            size="lg"
+            size="md"
             className="w-full"
           >
             <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
@@ -99,58 +114,56 @@ export default function Login() {
             Continuar con Google
           </Button>
 
-          {import.meta.env.DEV && (
-            <div className="mt-4 rounded-xl border border-primary-200 bg-primary-50 p-4 dark:border-primary-900/50 dark:bg-primary-900/10">
-              <div className="mb-3">
-                <p className="text-sm font-semibold text-primary-900 dark:text-primary-200">
-                  Acceso demo
-                </p>
-                <p className="mt-1 text-sm text-primary-800 dark:text-primary-300">
-                  Usuario: <span className="font-medium">{demoEmail}</span>
-                </p>
-                <p className="text-sm text-primary-800 dark:text-primary-300">
-                  Contraseña: <span className="font-medium">{demoPassword}</span>
-                </p>
-              </div>
+          <div className="my-3 flex items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              o
+            </span>
+            <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+          </div>
 
-              <div className="space-y-3">
-                <Input
-                  label="Usuario demo"
-                  name="demoUser"
-                  value={demoUser}
-                  onChange={(event) => setDemoUser(event.target.value)}
-                  autoComplete="username"
-                />
-                <Input
-                  label="Contraseña demo"
-                  name="demoPassword"
-                  type="password"
-                  value={demoSecret}
-                  onChange={(event) => setDemoSecret(event.target.value)}
-                  autoComplete="current-password"
-                />
-                <Button
-                  onClick={handleDevLogin}
-                  variant="primary"
-                  size="lg"
-                  className="w-full"
-                  isLoading={isDemoLoading}
-                >
-                  Ingresar con demo
-                </Button>
-              </div>
-            </div>
-          )}
+          <form
+            onSubmit={handleSubmit}
+            className="rounded-xl border border-primary-200 dark:border-primary-800 p-3 space-y-2.5"
+          >
+            <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+              Ingresar con usuario y contraseña
+            </p>
 
-          <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
+            <Input
+              label="Usuario"
+              name="email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="username"
+              placeholder="tu@email.com"
+            />
+
+            <Input
+              label="Contraseña"
+              name="password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+              placeholder="••••••••"
+            />
+
+            <Button type="submit" variant="primary" size="md" className="w-full" isLoading={isLoading}>
+              Ingresar
+            </Button>
+          </form>
+
+          <p className="mt-3 text-center text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
             Al iniciar sesión, aceptas nuestros términos de servicio y política
             de privacidad.
           </p>
         </div>
 
         {/* Footer */}
-        <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-          © 2024 OctopusTrack. Todos los derechos reservados.
+        <p className="mt-3 text-center text-[11px] text-gray-500 dark:text-gray-400">
+          © {new Date().getFullYear()} OctopusTrack. Todos los derechos reservados.
         </p>
       </div>
     </div>

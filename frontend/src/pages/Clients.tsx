@@ -3,8 +3,8 @@
  * Lista y gestión de clientes con base de datos.
  */
 import { useState } from 'react'
-import { Plus, Edit, Trash2 } from 'lucide-react'
-import { Button, SearchBar, Table, Pagination, Modal, Input, Select } from '../components/ui'
+import { Plus, Edit, Trash2, Users, Search, Phone, Mail, MapPin, CreditCard, FileText } from 'lucide-react'
+import { Button, Table, Pagination, Modal, Input, Select, ConfirmModal } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { TAX_CONDITIONS, DOCUMENT_TYPES } from '../types'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -18,6 +18,9 @@ export default function Clients() {
   const [showModal, setShowModal] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'general' | 'address' | 'notes'>('general')
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
+  const [isLookingUpCuit, setIsLookingUpCuit] = useState(false)
 
   // Query para clientes
   const { data: clientsData, isLoading, error } = useQuery({
@@ -61,6 +64,19 @@ export default function Clients() {
     },
   })
 
+  // Mutation para eliminar cliente
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => clientsService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+      toast.success('Cliente eliminado correctamente', { icon: '🗑️' })
+      setClientToDelete(null)
+    },
+    onError: (error: any) => {
+      toast.error(formatErrorMessage(error))
+    },
+  })
+
   // Formulario
   const [formData, setFormData] = useState<Partial<Client>>({
     name: '',
@@ -80,6 +96,7 @@ export default function Clients() {
   const resetForm = () => {
     setIsEditing(false)
     setEditingId(null)
+    setActiveTab('general')
     setFormData({
       name: '',
       document_type: 'DNI',
@@ -143,23 +160,106 @@ export default function Clients() {
     }
   }
 
+  const handleLookupCuit = async () => {
+    const cuit = formData.document_number?.replace(/\D/g, '')
+    if (!cuit || cuit.length < 11) {
+      toast.error('Ingresá un CUIT válido (11 números)')
+      return
+    }
+
+    setIsLookingUpCuit(true)
+    try {
+const data = await clientsService.lookupCuit(cuit)
+        
+      console.log('📥 Datos recibidos de AFIP:', JSON.stringify(data, null, 2))
+      
+      // Función para poner en formato título (Ej: "JUAN PEREZ" -> "Juan Perez")
+      const toTitleCase = (str: string) => {
+        if (!str) return ''
+        return str.toLowerCase().split(' ').map(word => 
+          word.charAt(0).toUpperCase() + word.slice(1)
+        ).join(' ')
+      }
+
+      // Cargar datos de forma agresiva (sin fallback al valor previo si viene vacío)
+      const updates: Partial<Client> = {
+        ...formData,
+      }
+
+      if (data.name) updates.name = toTitleCase(data.name)
+      if (data.tax_condition) updates.tax_condition = data.tax_condition
+      if (data.address) updates.street = toTitleCase(data.address)
+      if (data.city) updates.city = toTitleCase(data.city)
+      if (data.province) updates.province = toTitleCase(data.province)
+      if (data.postal_code) updates.postal_code = data.postal_code
+
+      console.log('📝 Estado actualizado:', JSON.stringify(updates, null, 2))
+      
+      // Forzar actualización con spread operator
+      setFormData({ ...updates })
+      toast.success('Datos recuperados de AFIP')
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || 'No se pudieron recuperar los datos'
+      toast.error(msg)
+    } finally {
+      setIsLookingUpCuit(false)
+    }
+  }
+
   const columns = [
-    { key: 'name', header: 'Nombre / Razón Social' },
     {
-      key: 'document',
-      header: 'Documento',
+      key: 'name',
+      header: 'Cliente',
       render: (item: Client) => (
-        <span>{item.document_type}: {item.document_number}</span>
+        <div>
+          <div className="font-medium text-gray-900 dark:text-white">{item.name}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            {item.document_type}: {item.document_number}
+          </div>
+        </div>
       ),
     },
-    { key: 'tax_condition', header: 'Condición IVA' },
-    { key: 'phone', header: 'Teléfono' },
+    {
+      key: 'tax_condition',
+      header: 'Condición IVA',
+      render: (item: Client) => (
+        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300 border border-primary-100 dark:border-primary-800">
+          {item.tax_condition}
+        </span>
+      ),
+    },
+    {
+      key: 'contact',
+      header: 'Contacto',
+      render: (item: Client) => (
+        <div className="space-y-1">
+          {item.phone && (
+            <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
+              <Phone size={12} /> {item.phone}
+            </div>
+          )}
+          {item.email && (
+            <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
+              <Mail size={12} /> {item.email}
+            </div>
+          )}
+        </div>
+      ),
+    },
     {
       key: 'current_balance',
       header: 'Saldo',
       render: (item: Client) => (
-        <span className={item.current_balance > 0 ? 'text-red-600 font-medium' : 'text-green-600'}>
-          ${item.current_balance.toLocaleString()}
+        <span
+          className={`font-mono font-medium ${
+            item.current_balance > 0
+              ? 'text-red-600 dark:text-red-400'
+              : item.current_balance < 0
+              ? 'text-green-600 dark:text-green-400'
+              : 'text-gray-500'
+          }`}
+        >
+          ${item.current_balance.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
         </span>
       ),
     },
@@ -167,14 +267,19 @@ export default function Clients() {
       key: 'actions',
       header: '',
       render: (item: Client) => (
-        <div className="flex gap-2">
-          <button 
-            className="text-gray-400 hover:text-primary-600"
+        <div className="flex gap-2 justify-end">
+          <button
+            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
             onClick={() => handleOpenModal(item)}
+            title="Editar"
           >
             <Edit size={18} />
           </button>
-          <button className="text-gray-400 hover:text-red-600">
+          <button
+            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+            onClick={() => setClientToDelete(item)}
+            title="Eliminar"
+          >
             <Trash2 size={18} />
           </button>
         </div>
@@ -221,38 +326,47 @@ export default function Clients() {
   const clients = clientsData?.items || []
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Clientes
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400">
-            Gestión de clientes y cuentas corrientes
-          </p>
+      <div className="bg-gradient-to-r from-primary-600 to-primary-600 rounded-2xl p-6 text-white shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <Users className="h-8 w-8 text-primary-200" />
+              Clientes
+            </h1>
+            <p className="text-primary-100 mt-2 text-lg">
+              Gestión de clientes y control de cuentas corrientes
+            </p>
+          </div>
+          <Button
+            onClick={() => handleOpenModal()}
+            className="bg-white text-primary-600 hover:bg-primary-50 border-none shadow-lg font-semibold"
+          >
+            <Plus size={18} className="mr-2" />
+            Nuevo Cliente
+          </Button>
         </div>
-        <Button onClick={() => handleOpenModal()}>
-          <Plus size={18} />
-          Nuevo cliente
-        </Button>
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <SearchBar
-          value={search}
-          onChange={setSearch}
-          placeholder="Buscar por nombre o documento..."
-          className="flex-1"
-        />
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre, documento..."
+            className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
+          />
+        </div>
       </div>
 
       {/* Tabla */}
-      <Table
-        columns={columns}
-        data={clients}
-      />
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <Table columns={columns} data={clients} />
+      </div>
 
       {/* Paginación */}
       <Pagination
@@ -262,155 +376,288 @@ export default function Clients() {
         onPageChange={setPage}
       />
 
-      {/* Modal */}
+      {/* Modal Mejorado con Tabs */}
       <Modal
         isOpen={showModal}
-        onClose={() => { setShowModal(false); resetForm(); }}
+        onClose={() => {
+          setShowModal(false)
+          resetForm()
+        }}
         title={isEditing ? 'Editar Cliente' : 'Nuevo Cliente'}
         size="lg"
       >
+        <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('general')}
+              className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'general'
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Users size={16} />
+                Info. General
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('address')}
+              className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'address'
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <MapPin size={16} />
+                Ubicación
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('notes')}
+              className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'notes'
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <FileText size={16} />
+                Notas
+              </div>
+            </button>
+          </nav>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Datos principales */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Nombre / Razón Social *
-              </label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Juan Pérez o Ferretería San Martín S.R.L."
-                required
-              />
-            </div>
+          {/* Tab: General */}
+          {activeTab === 'general' && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Nombre / Razón Social *
+                  </label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Ej: Juan Pérez"
+                    required
+                    autoFocus
+                  />
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Tipo de Documento *
-              </label>
-              <Select
-                value={formData.document_type}
-                onChange={(e) => setFormData({ ...formData, document_type: e.target.value })}
-                options={DOCUMENT_TYPES.map(d => ({ value: d.value, label: d.label }))}
-              />
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Tipo de Documento *
+                  </label>
+                  <Select
+                    value={formData.document_type}
+                    onChange={(e) => setFormData({ ...formData, document_type: e.target.value })}
+                    options={DOCUMENT_TYPES.map((d) => ({ value: d.value, label: d.label }))}
+                  />
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Número de Documento *
-              </label>
-              <Input
-                value={formData.document_number}
-                onChange={(e) => setFormData({ ...formData, document_number: e.target.value })}
-                placeholder="30-71234567-8"
-                required
-              />
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Número de Documento *
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={formData.document_number}
+                      onChange={(e) => setFormData({ ...formData, document_number: e.target.value })}
+                      placeholder="DNI o CUIT"
+                      required
+                      className="flex-1"
+                    />
+                    {formData.document_type === 'CUIT' && (
+                      <Button
+                        type="button"
+                        onClick={handleLookupCuit}
+                        isLoading={isLookingUpCuit}
+                        variant="outline"
+                        title="Buscar en padrón AFIP"
+                        className="px-3"
+                      >
+                        {!isLookingUpCuit && <Search size={16} />}
+                      </Button>
+                    )}
+                  </div>
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Condición IVA *
-              </label>
-              <Select
-                value={formData.tax_condition}
-                onChange={(e) => setFormData({ ...formData, tax_condition: e.target.value })}
-                options={TAX_CONDITIONS.map(t => ({ value: t.value, label: t.label }))}
-              />
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Condición IVA *
+                  </label>
+                  <Select
+                    value={formData.tax_condition}
+                    onChange={(e) => setFormData({ ...formData, tax_condition: e.target.value })}
+                    options={TAX_CONDITIONS.map((t) => ({ value: t.value, label: t.label }))}
+                  />
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Teléfono
-              </label>
-              <Input
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="11-1234-5678"
-              />
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Teléfono
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="Teléfono"
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Email
-              </label>
-              <Input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="cliente@ejemplo.com"
-              />
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="email@ejemplo.com"
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Dirección */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Calle
-              </label>
-              <Input
-                value={formData.street}
-                onChange={(e) => setFormData({ ...formData, street: e.target.value })}
-                placeholder="Av. Corrientes"
-              />
+          {/* Tab: Address */}
+          {activeTab === 'address' && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Calle
+                  </label>
+                  <Input
+                    value={formData.street}
+                    onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                    placeholder="Calle"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Número
+                  </label>
+                  <Input
+                    value={formData.street_number}
+                    onChange={(e) => setFormData({ ...formData, street_number: e.target.value })}
+                    placeholder="1234"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Ciudad
+                  </label>
+                  <Input
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    placeholder="Ciudad"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Provincia
+                  </label>
+                  <Input
+                    value={formData.province}
+                    onChange={(e) => setFormData({ ...formData, province: e.target.value })}
+                    placeholder="Provincia"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    C.P.
+                  </label>
+                  <Input
+                    value={formData.postal_code}
+                    onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                    placeholder="1000"
+                  />
+                </div>
+              </div>
             </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Número
-              </label>
-              <Input
-                value={formData.street_number}
-                onChange={(e) => setFormData({ ...formData, street_number: e.target.value })}
-                placeholder="1234"
-              />
+          {/* Tab: Notes */}
+          {activeTab === 'notes' && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Notas / Observaciones
+                </label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  placeholder="Información adicional sobre el cliente..."
+                  rows={6}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 dark:text-white"
+                />
+              </div>
             </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Ciudad
-              </label>
-              <Input
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                placeholder="CABA"
-              />
+          <div className="flex justify-between items-center pt-6 border-t border-gray-100 dark:border-gray-700 mt-6">
+            <div className="text-xs text-gray-500">
+              {activeTab === 'general' && 'Siguiente: Ubicación'}
+              {activeTab === 'address' && 'Siguiente: Notas'}
+              {activeTab === 'notes' && 'Listo para guardar'}
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Provincia
-              </label>
-              <Input
-                value={formData.province}
-                onChange={(e) => setFormData({ ...formData, province: e.target.value })}
-                placeholder="Buenos Aires"
-              />
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowModal(false)
+                  resetForm()
+                }}
+                type="button"
+              >
+                Cancelar
+              </Button>
+              {activeTab !== 'notes' ? (
+                <Button
+                  type="button"
+                  onClick={() =>
+                    setActiveTab(activeTab === 'general' ? 'address' : 'notes')
+                  }
+                >
+                  Siguiente
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                >
+                  {createMutation.isPending || updateMutation.isPending
+                    ? 'Guardando...'
+                    : 'Guardar Cliente'}
+                </Button>
+              )}
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Código Postal
-              </label>
-              <Input
-                value={formData.postal_code}
-                onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
-                placeholder="1000"
-              />
-            </div>
-          </div>
-
-          {/* Botones */}
-          <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <Button variant="outline" onClick={() => { setShowModal(false); resetForm(); }} type="button">
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-              {createMutation.isPending || updateMutation.isPending ? 'Guardando...' : 'Guardar'}
-            </Button>
           </div>
         </form>
       </Modal>
+
+      {/* Modal de confirmación de eliminación */}
+      <ConfirmModal
+        isOpen={!!clientToDelete}
+        onClose={() => setClientToDelete(null)}
+        onConfirm={() => clientToDelete && deleteMutation.mutate(clientToDelete.id)}
+        title="¿Eliminar cliente?"
+        description={`¿Estás seguro que deseas eliminar a "${clientToDelete?.name}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   )
 }

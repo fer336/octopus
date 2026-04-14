@@ -350,7 +350,7 @@ export default function BulkEditProductsModal({
                     <button onClick={() => applyPriceChange('decrease')} className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium" title="Disminuir">
                       <TrendingDown size={14} />
                     </button>
-                    <button onClick={() => applyPriceChange('remove_increase')} className="px-2 py-1 bg-purple-500 hover:bg-purple-600 text-white rounded text-xs font-medium" title="Quitar Aumento">
+                    <button onClick={() => applyPriceChange('remove_increase')} className="px-2 py-1 bg-primary-500 hover:bg-primary-600 text-white rounded text-xs font-medium" title="Quitar Aumento">
                       <RotateCcw size={14} />
                     </button>
                   </div>
@@ -365,7 +365,7 @@ export default function BulkEditProductsModal({
                     <option value="">Seleccionar...</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                  <button onClick={applyBulkCategory} disabled={!quickCategory} className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white rounded text-xs font-medium">Aplicar</button>
+                  <button onClick={applyBulkCategory} disabled={!quickCategory} className="px-3 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-400 text-white rounded text-xs font-medium">Aplicar</button>
                 </div>
               </div>
 
@@ -377,7 +377,7 @@ export default function BulkEditProductsModal({
                     <option value="">Seleccionar...</option>
                     {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
-                  <button onClick={applyBulkSupplier} disabled={!quickSupplier} className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-400 text-white rounded text-xs font-medium">Aplicar</button>
+                  <button onClick={applyBulkSupplier} disabled={!quickSupplier} className="px-3 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-400 text-white rounded text-xs font-medium">Aplicar</button>
                 </div>
               </div>
 
@@ -413,7 +413,7 @@ export default function BulkEditProductsModal({
                 <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">Stock</label>
                 <div className="flex gap-2">
                   <input type="number" value={quickStock} onChange={(e) => setQuickStock(e.target.value)} placeholder="100" className="flex-1 px-2 py-1.5 text-xs text-center border rounded dark:bg-gray-700 dark:border-gray-600" />
-                  <button onClick={applyBulkStock} disabled={!quickStock && quickStock !== '0'} className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-400 text-white rounded text-xs font-medium">Aplicar</button>
+                  <button onClick={applyBulkStock} disabled={!quickStock && quickStock !== '0'} className="px-3 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-400 text-white rounded text-xs font-medium">Aplicar</button>
                 </div>
               </div>
             </div>
@@ -433,7 +433,7 @@ export default function BulkEditProductsModal({
                   <th className="px-3 py-3 text-center w-24">Cargo %</th>
                   <th className="px-3 py-3 text-center w-24">Ganancia %</th>
                   <th className="px-3 py-3 text-center w-20">Stock</th>
-                  <th className="px-3 py-3 text-center bg-blue-100 dark:bg-blue-900/30 w-28">P. Final</th>
+                  <th className="px-3 py-3 text-center bg-primary-100 dark:bg-primary-900/30 w-28">P. Final</th>
                 </tr>
               </thead>
               <tbody>
@@ -472,8 +472,8 @@ export default function BulkEditProductsModal({
                     <td className="px-3 py-2.5 text-center">
                       <input type="number" value={product.current_stock} onChange={(e) => updateProduct(index, 'current_stock', parseInt(e.target.value) || 0)} className="w-full px-2 py-1.5 text-xs border rounded dark:bg-gray-700 dark:border-gray-600 text-center" />
                     </td>
-                    <td className="px-3 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-center">
-                      <span className="font-bold text-sm text-blue-700 dark:text-blue-300">${calculateFinalPrice(product).toFixed(2)}</span>
+                    <td className="px-3 py-2.5 bg-primary-50 dark:bg-primary-900/20 text-center">
+                      <span className="font-bold text-sm text-primary-700 dark:text-primary-300">${calculateFinalPrice(product).toFixed(2)}</span>
                     </td>
                   </tr>
                 ))}
@@ -482,8 +482,8 @@ export default function BulkEditProductsModal({
           </div>
 
           {/* Info */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
-            <p className="text-xs text-blue-800 dark:text-blue-300">
+          <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 rounded-lg p-3">
+            <p className="text-xs text-primary-800 dark:text-primary-300">
               💡 Usa las <span className="font-bold">Acciones Rápidas</span> para modificar todos los precios a la vez,
               o editá cada campo manualmente en la tabla.
             </p>

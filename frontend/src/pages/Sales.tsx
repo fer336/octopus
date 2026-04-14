@@ -84,6 +84,7 @@ interface VoucherEditPayload {
   client: Client
   date: string
   notes?: string
+  show_prices?: boolean
   items: CartItem[]
   general_discount?: number
 }
@@ -244,6 +245,7 @@ export default function Sales() {
   const allProducts = Array.isArray(productsData?.items) ? productsData.items : []
   const allClients = Array.isArray(clientsData?.items) ? clientsData.items : []
   const [voucherType, setVoucherType] = useState<VoucherType>('quotation')
+  const [showPrices, setShowPrices] = useState(true)
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null)
   const [editingVoucherDate, setEditingVoucherDate] = useState<string | null>(null)
   const [editingVoucherNotes, setEditingVoucherNotes] = useState<string | undefined>(undefined)
@@ -396,6 +398,7 @@ export default function Sales() {
       setSelectedClient(null)
       setClientSearch('')
       setGeneralDiscount(0)
+      setShowPrices(voucherType === 'receipt' ? false : true)
       setProductSearch('')
       resetPaymentSelections()
     },
@@ -423,6 +426,7 @@ export default function Sales() {
       setSelectedClient(null)
       setClientSearch('')
       setGeneralDiscount(0)
+      setShowPrices(voucherType === 'receipt' ? false : true)
       setProductSearch('')
       resetPaymentSelections()
 
@@ -541,6 +545,8 @@ export default function Sales() {
         }
 
         setVoucherType('quotation')
+        // Cotización siempre incluye precios según PRD
+        setShowPrices(true)
         setEditingVoucherId(parsed.id)
         setEditingVoucherDate(parsed.date)
         setEditingVoucherNotes(parsed.notes)
@@ -833,6 +839,23 @@ export default function Sales() {
     return subtotal - discountAmount
   }
 
+  const handleVoucherTypeChange = (nextType: VoucherType) => {
+    setVoucherType(nextType)
+
+    // Defaults por tipo (el usuario puede ajustar en cotización/remito)
+    if (nextType === 'invoice') {
+      setShowPrices(true)
+      return
+    }
+
+    if (nextType === 'receipt') {
+      setShowPrices(false)
+      return
+    }
+
+    setShowPrices(true)
+  }
+
   const handleClear = () => {
     if (items.length > 0 || selectedClient) {
       if (window.confirm('¿Está seguro de que desea limpiar la pantalla?')) {
@@ -841,6 +864,7 @@ export default function Sales() {
         setClientSearch('')
         setProductSearch('')
         setVoucherType('quotation')
+        setShowPrices(true)
         setEditingVoucherId(null)
         setEditingVoucherDate(null)
         setEditingVoucherNotes(undefined)
@@ -905,7 +929,7 @@ export default function Sales() {
       client_id: selectedClient.id,
       voucher_type: backendType as any,
       date: localDate,
-      show_prices: voucherType !== 'receipt', // Remito sin precios por defecto (configurable)
+      show_prices: voucherType === 'invoice' || voucherType === 'quotation' ? true : showPrices,
       general_discount: generalDiscount,
       items: normalizedItems.map(item => ({
         product_id: item.id,
@@ -974,6 +998,7 @@ export default function Sales() {
     setSelectedClient(null)
     setClientSearch('')
     setProductSearch('')
+    setShowPrices(voucherType === 'receipt' ? false : true)
   }
 
   const loadDraft = (draft: Draft) => {
@@ -982,6 +1007,7 @@ export default function Sales() {
     setEditingVoucherNotes(undefined)
     sessionStorage.removeItem('sales-edit-voucher')
     setVoucherType(draft.voucherType)
+    setShowPrices(draft.voucherType === 'receipt' ? false : true)
     setSelectedClient(draft.client)
     setClientSearch(draft.client.name)
     setItems(draft.items)
@@ -1523,7 +1549,7 @@ export default function Sales() {
                 <FileText size={14} />
                 Borradores
                 {drafts.length > 0 && (
-                  <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold leading-none text-white">
+                  <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-600 px-1 text-[10px] font-bold leading-none text-white">
                     {drafts.length}
                   </span>
                 )}
@@ -1531,16 +1557,27 @@ export default function Sales() {
               {voucherTypes.map((type) => (
                 <button
                   key={type.value}
-                  onClick={() => setVoucherType(type.value as VoucherType)}
+                  onClick={() => handleVoucherTypeChange(type.value as VoucherType)}
                   className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
                     voucherType === type.value
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-primary-600 text-white'
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300'
                   }`}
                 >
                   {type.label}
                 </button>
               ))}
+              {voucherType === 'receipt' && (
+                <label className="inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2.5 py-1 text-xs font-medium text-gray-700 dark:text-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={showPrices}
+                    onChange={(e) => setShowPrices(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  Incluir precios en impresión
+                </label>
+              )}
             </div>
             {/* Controles de Zoom */}
             <div className="flex items-center rounded-lg border border-gray-200 bg-gray-100 p-0.5 dark:border-gray-600 dark:bg-gray-700">
@@ -1724,7 +1761,7 @@ export default function Sales() {
                             isInTemp 
                               ? 'bg-green-100 dark:bg-green-900' 
                               : index === selectedProductIndex
-                                ? 'bg-blue-100 dark:bg-blue-900'
+                                ? 'bg-primary-100 dark:bg-primary-900'
                                 : 'hover:bg-gray-50 dark:hover:bg-gray-700'
                           }`}
                           onClick={() => setSelectedProductIndex(index)}
@@ -1866,8 +1903,8 @@ export default function Sales() {
         <div className="space-y-4">
           {tempSelectedProducts.length > 0 ? (
             <>
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                <p className="text-sm text-blue-900 dark:text-blue-200">
+              <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3">
+                <p className="text-sm text-primary-900 dark:text-primary-200">
                   <strong>Enter</strong> para navegar entre campos. Al completar el último campo, presioná <strong>Enter</strong> para agregar al carrito.
                 </p>
               </div>
@@ -2163,7 +2200,7 @@ export default function Sales() {
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                        <span className="text-xs font-semibold text-primary-600 dark:text-primary-400">
                           {voucherTypes.find(v => v.value === draft.voucherType)?.label}
                         </span>
                         <span className="text-xs text-gray-500">
@@ -2264,7 +2301,7 @@ export default function Sales() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                        <p className="text-xs font-medium text-primary-600 dark:text-primary-400">
                           {client.tax_condition}
                         </p>
                         {client.phone && (
@@ -2290,7 +2327,7 @@ export default function Sales() {
         <div className="space-y-4">
           <div className={voucherType === 'invoice' ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : ''}>
             {/* Detalles Venta */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-4">
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Cliente:</span>
@@ -2306,9 +2343,17 @@ export default function Sales() {
                   <span className="text-gray-600 dark:text-gray-400">Productos:</span>
                   <span className="font-medium text-gray-900 dark:text-white">{items.length}</span>
                 </div>
+                {voucherType === 'receipt' && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Impresión:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {showPrices ? 'Con precios' : 'Sin precios'}
+                    </span>
+                  </div>
+                )}
 
                 {/* Descuento General Editable */}
-                <div className="pt-3 border-t border-blue-200 dark:border-blue-700">
+                <div className="pt-3 border-t border-primary-200 dark:border-primary-700">
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       Descuento general:
@@ -2330,7 +2375,7 @@ export default function Sales() {
                 </div>
 
                 {/* Desglose de totales */}
-                <div className="space-y-2 pt-2 border-t border-blue-200 dark:border-blue-700">
+                <div className="space-y-2 pt-2 border-t border-primary-200 dark:border-primary-700">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">Subtotal items:</span>
                     <span className="font-medium">${formatNumber(subtotalItems, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -2354,9 +2399,9 @@ export default function Sales() {
                   </div>
 
                   {/* Total final */}
-                  <div className="flex justify-between pt-2 border-t-2 border-blue-300 dark:border-blue-600">
+                  <div className="flex justify-between pt-2 border-t-2 border-primary-300 dark:border-primary-600">
                     <span className="font-bold text-gray-900 dark:text-white text-base">TOTAL:</span>
-                    <span className="font-bold text-xl text-blue-600 dark:text-blue-400">
+                    <span className="font-bold text-xl text-primary-600 dark:text-primary-400">
                       ${formatNumber(total, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -2374,7 +2419,7 @@ export default function Sales() {
               </div>
               <div className="text-right">
                 <p className="text-xs text-gray-500 dark:text-gray-400">Total asignado</p>
-                <p className={`text-sm font-semibold ${isPaymentBalanced ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                <p className={`text-sm font-semibold ${isPaymentBalanced ? 'text-primary-600 dark:text-primary-400' : 'text-amber-600 dark:text-amber-400'}`}>
                   ${formatNumber(assignedPaymentsTotal, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
@@ -2395,7 +2440,7 @@ export default function Sales() {
                       key={method.id} 
                       className={`rounded-lg border p-2 transition-colors ${
                         isSelected 
-                          ? 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/20' 
+                          ? 'border-primary-300 dark:border-primary-700 bg-primary-50/50 dark:bg-primary-900/20' 
                           : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
                       }`}
                     >
@@ -2405,10 +2450,10 @@ export default function Sales() {
                             type="checkbox"
                             checked={isSelected}
                             onChange={(e) => handleTogglePayment(method.id, e.target.checked)}
-                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                           />
                           <div className="flex flex-col">
-                            <span className={`text-sm font-medium leading-tight ${isSelected ? 'text-blue-900 dark:text-blue-100' : 'text-gray-700 dark:text-gray-300'}`}>
+                            <span className={`text-sm font-medium leading-tight ${isSelected ? 'text-primary-900 dark:text-primary-100' : 'text-gray-700 dark:text-gray-300'}`}>
                               {method.name}
                             </span>
                             {method.requires_reference && (
@@ -2475,7 +2520,7 @@ export default function Sales() {
 
             <div className="mt-3 flex items-center justify-between text-sm">
               <span className="text-gray-600 dark:text-gray-400">Diferencia:</span>
-              <span className={`font-semibold ${isPaymentBalanced ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+              <span className={`font-semibold ${isPaymentBalanced ? 'text-primary-600 dark:text-primary-400' : 'text-red-600 dark:text-red-400'}`}>
                 ${formatNumber(paymentDifference, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
@@ -2703,7 +2748,7 @@ export default function Sales() {
                         <div className="shrink-0">
                           <span className={`inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded ${
                             isQuotation
-                              ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                              ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300'
                               : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
                           }`}>
                             {isQuotation ? 'COT' : 'REM'}
@@ -2721,7 +2766,7 @@ export default function Sales() {
                           <p className="text-[11px] text-gray-400 truncate leading-tight">
                             {voucher.client?.document_type}: {voucher.client?.document_number}
                             {voucher.client?.tax_condition && (
-                              <span className="ml-1.5 text-blue-500 dark:text-blue-400">
+                              <span className="ml-1.5 text-primary-500 dark:text-primary-400">
                                 · {voucher.client.tax_condition}
                               </span>
                             )}
@@ -2804,7 +2849,7 @@ export default function Sales() {
                 <div>
                   <span className="text-gray-500 dark:text-gray-400 text-xs">Condición IVA:</span>
                   <p className="font-medium text-gray-900 dark:text-white">{selectedQuotation.client?.tax_condition}</p>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                  <p className="text-xs text-primary-600 dark:text-primary-400 mt-1">
                     → Factura {selectedQuotation.client?.tax_condition === 'RI' ? 'A' : 'B'}
                   </p>
                 </div>
@@ -2841,7 +2886,7 @@ export default function Sales() {
                   <tfoot className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
                     <tr>
                       <td colSpan={3} className="px-2 py-2 text-right font-bold text-gray-900 dark:text-white">TOTAL:</td>
-                      <td className="px-2 py-2 text-right font-bold text-blue-600 dark:text-blue-400 text-sm">
+                      <td className="px-2 py-2 text-right font-bold text-primary-600 dark:text-primary-400 text-sm">
                         ${formatNumber(selectedQuotation.total, 'es-AR', { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
@@ -2867,7 +2912,7 @@ export default function Sales() {
                         key={method.id}
                         className={`rounded-lg border p-2 transition-colors ${
                           isSelected
-                            ? 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/20'
+                            ? 'border-primary-300 dark:border-primary-700 bg-primary-50/50 dark:bg-primary-900/20'
                             : 'border-gray-200 dark:border-gray-700'
                         }`}
                       >
@@ -2877,9 +2922,9 @@ export default function Sales() {
                               type="checkbox"
                               checked={isSelected}
                               onChange={(e) => handleConvertTogglePayment(method.id, e.target.checked)}
-                              className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                              className="h-4 w-4 rounded border-gray-300 text-primary-600"
                             />
-                            <span className={`text-sm font-medium ${isSelected ? 'text-blue-900 dark:text-blue-100' : 'text-gray-700 dark:text-gray-300'}`}>
+                            <span className={`text-sm font-medium ${isSelected ? 'text-primary-900 dark:text-primary-100' : 'text-gray-700 dark:text-gray-300'}`}>
                               {method.name}
                             </span>
                           </label>
@@ -2892,7 +2937,7 @@ export default function Sales() {
                               onChange={(e) => handleConvertPaymentAmountChange(method.id, e.target.value)}
                               placeholder="Monto"
                               disabled={!isSelected}
-                              className={`w-32 text-right text-sm px-2 py-1.5 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 ${!isSelected ? 'opacity-40' : ''}`}
+                              className={`w-32 text-right text-sm px-2 py-1.5 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-primary-500 ${!isSelected ? 'opacity-40' : ''}`}
                             />
                             {isCheckPaymentMethod(method) ? (
                               <>
@@ -2902,14 +2947,14 @@ export default function Sales() {
                                   onChange={(e) => handleConvertPaymentReferenceChange(method.id, e.target.value)}
                                   placeholder={getPaymentReferencePlaceholder(method)}
                                   disabled={!isSelected}
-                                  className={`flex-1 text-sm px-2 py-1.5 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 ${!isSelected ? 'opacity-40' : ''}`}
+                                  className={`flex-1 text-sm px-2 py-1.5 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-primary-500 ${!isSelected ? 'opacity-40' : ''}`}
                                 />
                                 <input
                                   type="date"
                                   value={selection?.extra_date || ''}
                                   onChange={(e) => handleConvertPaymentExtraDateChange(method.id, e.target.value)}
                                   disabled={!isSelected}
-                                  className={`text-sm px-2 py-1.5 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 ${!isSelected ? 'opacity-40' : ''}`}
+                                  className={`text-sm px-2 py-1.5 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-primary-500 ${!isSelected ? 'opacity-40' : ''}`}
                                   title="Fecha de vencimiento"
                                 />
                               </>
@@ -2920,7 +2965,7 @@ export default function Sales() {
                                   onChange={(e) => handleConvertPaymentReferenceChange(method.id, e.target.value)}
                                   placeholder={getPaymentReferencePlaceholder(method)}
                                   disabled={!isSelected}
-                                  className={`flex-1 text-sm px-2 py-1.5 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 ${!isSelected ? 'opacity-40' : ''}`}
+                                  className={`flex-1 text-sm px-2 py-1.5 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-primary-500 ${!isSelected ? 'opacity-40' : ''}`}
                                 />
                             )}
                           </div>

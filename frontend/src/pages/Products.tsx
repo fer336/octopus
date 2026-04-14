@@ -382,35 +382,6 @@ export default function Products() {
   // Handler cuando cambia el proveedor
   const handleSupplierChange = (supplierId: string) => {
     setFormData(prev => ({ ...prev, supplier_id: supplierId }))
-    
-    // Si seleccionó un proveedor, cargar sus descuentos por defecto
-    if (supplierId) {
-      const supplier = suppliers.find(s => s.id === supplierId)
-      if (supplier) {
-        // Construir el string de descuentos
-        const discounts = [
-          supplier.default_discount_1,
-          supplier.default_discount_2,
-          supplier.default_discount_3
-        ].filter(d => d > 0)
-        
-        if (discounts.length > 0) {
-          const discountStr = discounts.join('+')
-          setDiscountsInput(discountStr)
-          setFormData(prev => ({
-            ...prev,
-            discount_1: discounts[0] || 0,
-            discount_2: discounts[1] || 0,
-            discount_3: discounts[2] || 0,
-          }))
-          
-          toast.success(`Descuentos aplicados: ${discountStr}%`, {
-            duration: 2000,
-            icon: '🏷️'
-          })
-        }
-      }
-    }
   }
 
   // Calcular precio de venta estimado en frontend (solo visual)
@@ -556,7 +527,7 @@ export default function Products() {
       render: (item: Product) => {
         const category = categories.find(c => c.id === item.category_id)
         return category ? (
-          <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+          <span className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded">
             {category.name}
           </span>
         ) : (
@@ -666,17 +637,9 @@ export default function Products() {
   const products = productsData?.items || []
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Productos
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400">
-            Gestión del inventario con cálculo automático de precios
-          </p>
-        </div>
+      <div className="flex justify-end -mt-1">
         <div className="flex items-center gap-1.5">
           {/* Botones de acción — solo iconos con tooltip */}
           <input
@@ -704,7 +667,7 @@ export default function Products() {
           <button
             onClick={handleBackup}
             title="Backup Completo"
-            className="p-2 rounded-lg border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+            className="p-2 rounded-lg border border-primary-200 dark:border-primary-700 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
           >
             <Database size={17} />
           </button>
@@ -723,7 +686,7 @@ export default function Products() {
       </div>
 
       {/* Barra de Filtros Completa */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="bg-white dark:bg-gray-800 p-3 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 grid grid-cols-1 md:grid-cols-4 gap-3">
         <div className="md:col-span-2 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
           <input
@@ -731,7 +694,7 @@ export default function Products() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por código o descripción..."
-            className="w-full pl-9 pr-4 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-9 pr-4 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
           />
         </div>
         
@@ -779,7 +742,7 @@ export default function Products() {
       >
         <form onSubmit={handleSubmit} className="space-y-3">
           {/* Sección 1: Identificación - 2 columnas */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 p-3 rounded-lg">
+          <div className="bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/10 dark:to-primary-900/10 p-3 rounded-lg">
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -792,7 +755,7 @@ export default function Products() {
                   onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                   onKeyDown={(e) => handleEnterKey(e, supplierCodeRef)}
                   placeholder="PLO-001"
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                   required
                 />
               </div>
@@ -807,7 +770,7 @@ export default function Products() {
                   onChange={(e) => setFormData({ ...formData, supplier_code: e.target.value })}
                   onKeyDown={(e) => handleEnterKey(e, descriptionRef)}
                   placeholder="Opcional"
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 />
               </div>
               <div>
@@ -822,7 +785,7 @@ export default function Products() {
                   onFocus={handleNumericFocus}
                   onKeyDown={(e) => handleNumericKeyDown(e, 'current_stock', submitBtnRef)}
                   placeholder="0"
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 />
               </div>
             </div>
@@ -837,7 +800,7 @@ export default function Products() {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 onKeyDown={(e) => handleEnterKey(e, listPriceRef)}
                 placeholder="Nombre completo del producto"
-                className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-blue-500"
+                className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 required
               />
             </div>
@@ -850,13 +813,13 @@ export default function Products() {
                 onChange={(e) => setFormData({ ...formData, customer_terms: e.target.value })}
                 placeholder="Ej: rosca tuerca pp, entrerosca plastica, niple pp"
                 rows={2}
-                className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-blue-500"
+                className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
               />
             </div>
           </div>
 
           {/* Sección 2: Precios - Layout compacto */}
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 p-3 rounded-lg">
+          <div className="bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 p-3 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
               <Calculator className="text-green-600" size={16} />
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -963,10 +926,10 @@ export default function Products() {
               const finalPrice = netWithProfit + ivaAmount
 
               return (
-                <div className="mt-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                <div className="mt-3 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/10 dark:to-primary-900/10 rounded-lg p-4 border border-primary-200 dark:border-primary-700">
                   <div className="flex justify-between items-start">
                     <div className="space-y-1 flex-1">
-                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Desglose de Precio:</p>
+                      <p className="text-xs text-primary-600 dark:text-primary-400 font-medium">Desglose de Precio:</p>
                       <div className="text-xs space-y-0.5 text-gray-600 dark:text-gray-400">
                         <div className="flex justify-between">
                           <span>Precio Lista:</span>
@@ -994,15 +957,15 @@ export default function Products() {
                           <span>Neto sin IVA:</span>
                           <span className="font-mono font-medium">${netWithProfit.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                         </div>
-                        <div className="flex justify-between text-purple-600 dark:text-purple-400">
+                        <div className="flex justify-between text-primary-600 dark:text-primary-400">
                           <span>+ IVA ({iva}%):</span>
                           <span className="font-mono">+${ivaAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                         </div>
                       </div>
                     </div>
                     <div className="ml-4 text-right">
-                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mb-1">Precio Final:</p>
-                      <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                      <p className="text-xs text-primary-600 dark:text-primary-400 font-medium mb-1">Precio Final:</p>
+                      <p className="text-2xl font-bold text-primary-700 dark:text-primary-300">
                         ${finalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                     </div>
@@ -1013,7 +976,7 @@ export default function Products() {
           </div>
 
           {/* Sección 3: Categorización */}
-          <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 p-3 rounded-lg">
+          <div className="bg-gradient-to-r from-primary-50 to-pink-50 dark:from-primary-900/10 dark:to-pink-900/10 p-3 rounded-lg">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1024,7 +987,7 @@ export default function Products() {
                   value={formData.category_id || ''}
                   onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                   onKeyDown={(e) => handleEnterKey(e, supplierRef)}
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="">Seleccionar...</option>
                   {(categories || []).map((cat) => (
@@ -1043,17 +1006,12 @@ export default function Products() {
                   value={formData.supplier_id || ''}
                   onChange={(e) => handleSupplierChange(e.target.value)}
                   onKeyDown={(e) => handleEnterKey(e, stockRef)}
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="">Seleccionar...</option>
                   {(suppliers || []).map((sup) => (
                     <option key={sup.id} value={sup.id}>
                       {sup.name}
-                      {/* Mostrar descuentos si tiene */}
-                      {(() => {
-                        const discounts = [sup.default_discount_1, sup.default_discount_2, sup.default_discount_3].filter(d => d > 0)
-                        return discounts.length > 0 ? ` (${discounts.join('+')})` : ''
-                      })()}
                     </option>
                   ))}
                 </select>
@@ -1074,7 +1032,7 @@ export default function Products() {
                 ref={submitBtnRef}
                 type="submit"
                 size="sm"
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                className="bg-gradient-to-r from-primary-600 to-primary-600 hover:from-primary-700 hover:to-primary-700"
               >
                 ✓ {isEditing ? 'Actualizar' : 'Guardar'}
               </Button>

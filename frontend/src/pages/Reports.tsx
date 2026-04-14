@@ -18,7 +18,7 @@ const reportTypes = [
     title: 'Productos más vendidos',
     description: 'Ranking de productos por cantidad y monto',
     icon: Package,
-    color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30',
+    color: 'text-primary-600 bg-primary-100 dark:bg-primary-900/30',
   },
   {
     id: 'stock',
@@ -32,28 +32,19 @@ const reportTypes = [
     title: 'Cuentas corrientes',
     description: 'Saldos de clientes y antigüedad de deuda',
     icon: Users,
-    color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30',
+    color: 'text-primary-600 bg-primary-100 dark:bg-primary-900/30',
   },
 ]
 
 export default function Reports() {
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Reportes
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400">
-          Informes y estadísticas del negocio
-        </p>
-      </div>
+    <div className="space-y-3 -mt-1">
 
       {/* Filtros de período */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-            <Calendar size={20} />
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <Calendar size={16} />
             <span>Período:</span>
           </div>
           <Select
@@ -65,7 +56,7 @@ export default function Reports() {
               { value: 'year', label: 'Este año' },
               { value: 'custom', label: 'Personalizado' },
             ]}
-            className="w-48"
+            className="w-40 text-sm"
           />
         </div>
       </div>
@@ -104,8 +95,8 @@ export default function Reports() {
       </div>
 
       {/* Mensaje informativo */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-6 border border-blue-200 dark:border-blue-800">
-        <p className="text-blue-800 dark:text-blue-200">
+      <div className="bg-primary-50 dark:bg-primary-900/20 rounded-xl p-6 border border-primary-200 dark:border-primary-800">
+        <p className="text-primary-800 dark:text-primary-200">
           <strong>Próximamente:</strong> Gráficos interactivos, comparativas con períodos anteriores y exportación a Excel.
         </p>
       </div>

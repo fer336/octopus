@@ -291,9 +291,9 @@ export default function ImportPreviewModal({
       <div className="space-y-4">
         {/* Resumen */}
         <div className="grid grid-cols-5 gap-4">
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-            <p className="text-xs text-blue-600 dark:text-blue-400">Total Filas</p>
-            <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{previewData.total_rows}</p>
+          <div className="bg-primary-50 dark:bg-primary-900/20 p-3 rounded-lg">
+            <p className="text-xs text-primary-600 dark:text-primary-400">Total Filas</p>
+            <p className="text-2xl font-bold text-primary-700 dark:text-primary-300">{previewData.total_rows}</p>
           </div>
           <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
             <p className="text-xs text-green-600 dark:text-green-400">Válidas</p>
@@ -303,9 +303,9 @@ export default function ImportPreviewModal({
             <p className="text-xs text-red-600 dark:text-red-400">Con Errores</p>
             <p className="text-2xl font-bold text-red-700 dark:text-red-300">{previewData.rows_with_errors}</p>
           </div>
-          <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg">
-            <p className="text-xs text-purple-600 dark:text-purple-400">Nuevos</p>
-            <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">{previewData.new_products}</p>
+          <div className="bg-primary-50 dark:bg-primary-900/20 p-3 rounded-lg">
+            <p className="text-xs text-primary-600 dark:text-primary-400">Nuevos</p>
+            <p className="text-2xl font-bold text-primary-700 dark:text-primary-300">{previewData.new_products}</p>
           </div>
           <div className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg">
             <p className="text-xs text-orange-600 dark:text-orange-400">Actualizar</p>
@@ -315,8 +315,8 @@ export default function ImportPreviewModal({
 
         {/* Barra de acciones masivas */}
         {selectedRows.size > 0 && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3 flex items-center justify-between">
-            <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+          <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 rounded-lg p-3 flex items-center justify-between">
+            <span className="text-sm font-medium text-primary-900 dark:text-primary-200">
               {selectedRows.size} {selectedRows.size === 1 ? 'producto seleccionado' : 'productos seleccionados'}
             </span>
             <div className="flex gap-2">
@@ -335,7 +335,7 @@ export default function ImportPreviewModal({
                   setEditingRows(new Set(selectedRows))
                   toast.success(`${selectedRows.size} productos en modo edición`, { icon: '✏️' })
                 }}
-                className="border-purple-300 text-purple-600 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-400"
+                className="border-primary-300 text-primary-600 hover:bg-primary-50 dark:border-primary-700 dark:text-primary-400"
               >
                 <Edit2 size={16} className="mr-2" />
                 Editar Seleccionados
@@ -364,7 +364,7 @@ export default function ImportPreviewModal({
                     type="checkbox"
                     checked={selectedRows.size === rows.length && rows.length > 0}
                     onChange={toggleSelectAll}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   />
                 </th>
                 <th className="px-2 py-2 text-left">#</th>
@@ -390,11 +390,11 @@ export default function ImportPreviewModal({
                     key={row.row_number}
                     className={`border-t border-gray-200 dark:border-gray-700 ${
                       selectedRows.has(row.row_number)
-                        ? 'bg-blue-100 dark:bg-blue-900/30'
+                        ? 'bg-primary-100 dark:bg-primary-900/30'
                         : row.has_errors
                         ? 'bg-red-50 dark:bg-red-900/10'
                         : row.is_new
-                        ? 'bg-purple-50 dark:bg-purple-900/10'
+                        ? 'bg-primary-50 dark:bg-primary-900/10'
                         : 'bg-orange-50 dark:bg-orange-900/10'
                     }`}
                   >
@@ -403,7 +403,7 @@ export default function ImportPreviewModal({
                         type="checkbox"
                         checked={selectedRows.has(row.row_number)}
                         onChange={() => toggleSelectRow(row.row_number)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                       />
                     </td>
                     <td className="px-2 py-2">{row.row_number}</td>
@@ -414,7 +414,7 @@ export default function ImportPreviewModal({
                           <span className="text-xs">Error</span>
                         </div>
                       ) : row.is_new ? (
-                        <div className="flex items-center gap-1 text-purple-600">
+                        <div className="flex items-center gap-1 text-primary-600">
                           <AlertCircle size={16} />
                           <span className="text-xs">Nuevo</span>
                         </div>
@@ -577,7 +577,7 @@ export default function ImportPreviewModal({
                     </td>
                     {/* Precio Venta */}
                     <td className="px-2 py-2">
-                      <span className="font-bold text-xs text-blue-600 dark:text-blue-400">
+                      <span className="font-bold text-xs text-primary-600 dark:text-primary-400">
                         ${toNumber(row.sale_price).toFixed(2)}
                       </span>
                     </td>
@@ -639,7 +639,7 @@ export default function ImportPreviewModal({
               onClick={handleConfirm}
               disabled={isConfirming || rows.length === 0 || rows.some((r) => r.has_errors)}
               size="sm"
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              className="bg-gradient-to-r from-primary-600 to-primary-600 hover:from-primary-700 hover:to-primary-700"
             >
               {isConfirming ? (
                 <>

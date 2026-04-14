@@ -328,7 +328,7 @@ export default function NewPurchaseOrderModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <Package className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <Package className="w-5 h-5 text-primary-600 dark:text-primary-400" />
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               {isEditMode ? (
                 <span className="flex items-center gap-2">
@@ -350,7 +350,7 @@ export default function NewPurchaseOrderModal({
                 <div
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                     step === n
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-primary-600 text-white'
                       : step > n
                       ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                       : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
@@ -389,7 +389,7 @@ export default function NewPurchaseOrderModal({
                   <select
                     value={selectedSupplier}
                     onChange={(e) => setSelectedSupplier(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
                     <option value="">Todos los proveedores</option>
                     {suppliers.map((s) => (
@@ -405,7 +405,7 @@ export default function NewPurchaseOrderModal({
                   <select
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
                     <option value="">Todas las categorías</option>
                     {categories.map((c) => (
@@ -423,22 +423,22 @@ export default function NewPurchaseOrderModal({
                     onChange={(e) => setNotes(e.target.value)}
                     rows={2}
                     placeholder="Notas para esta orden..."
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
                   />
                 </div>
               </div>
 
               {/* Descargar planilla */}
               {(selectedSupplier || selectedCategory) && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-4">
-                  <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
+                <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 rounded-xl p-4">
+                  <p className="text-sm text-primary-700 dark:text-primary-300 mb-3">
                     Descargá la planilla de conteo para llevar al depósito.
                     Anotá el stock físico de cada producto y luego volvé a cargarlos acá.
                   </p>
                   <button
                     onClick={handleDownloadSheet}
                     disabled={isDownloading}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
                   >
                     <FileDown className="w-4 h-4" />
                     {isDownloading ? 'Descargando...' : 'Descargar Planilla de Conteo'}
@@ -464,9 +464,9 @@ export default function NewPurchaseOrderModal({
               )}
 
               {/* Instrucción */}
-              <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg px-4 py-3">
-                <span className="text-blue-500 text-base mt-0.5">📋</span>
-                <p className="text-sm text-blue-700 dark:text-blue-300">
+              <div className="flex items-start gap-2 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 rounded-lg px-4 py-3">
+                <span className="text-primary-500 text-base mt-0.5">📋</span>
+                <p className="text-sm text-primary-700 dark:text-primary-300">
                   Ingresá el stock físico contado para cada producto (de la planilla impresa).
                   El sistema calcula la diferencia automáticamente y sugiere qué pedir.
                   Los precios de costo ya están cargados con las bonificaciones del proveedor.
@@ -476,7 +476,7 @@ export default function NewPurchaseOrderModal({
               {/* Estados de carga / vacío */}
               {loadingProducts ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
                   <p className="text-sm text-gray-500 dark:text-gray-400">Cargando productos...</p>
                 </div>
               ) : countRows.length === 0 ? (
@@ -518,7 +518,7 @@ export default function NewPurchaseOrderModal({
                               key={row.product.id}
                               className={`transition-colors ${
                                 row.selected
-                                  ? 'bg-blue-50/50 dark:bg-blue-900/10'
+                                  ? 'bg-primary-50/50 dark:bg-primary-900/10'
                                   : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
                               }`}
                             >
@@ -546,7 +546,7 @@ export default function NewPurchaseOrderModal({
                                   min="0"
                                   value={row.counted}
                                   onChange={(e) => updateRow(idx, 'counted', e.target.value)}
-                                  className="w-16 text-center px-2 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                                  className="w-16 text-center px-2 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
                                   placeholder="—"
                                   autoFocus={idx === 0}
                                 />
@@ -577,7 +577,7 @@ export default function NewPurchaseOrderModal({
                                   type="checkbox"
                                   checked={row.selected}
                                   onChange={(e) => updateRow(idx, 'selected', e.target.checked)}
-                                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                  className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                                 />
                               </td>
 
@@ -592,14 +592,14 @@ export default function NewPurchaseOrderModal({
                                     if (Number(e.target.value) > 0) updateRow(idx, 'selected', true)
                                   }}
                                   disabled={!row.selected}
-                                  className="w-16 text-center px-2 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                  className="w-16 text-center px-2 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                   placeholder="0"
                                 />
                               </td>
 
                               {/* Bonificaciones */}
                               <td className="px-3 py-2 text-right">
-                                <span className="text-xs text-purple-600 dark:text-purple-400 font-medium whitespace-nowrap">
+                                <span className="text-xs text-primary-600 dark:text-primary-400 font-medium whitespace-nowrap">
                                   {formatDiscounts(
                                     row.product.discount_1,
                                     row.product.discount_2,
@@ -616,7 +616,7 @@ export default function NewPurchaseOrderModal({
                               {/* Subtotal fila */}
                               <td className="px-3 py-2 text-right font-mono text-xs whitespace-nowrap">
                                 {rowSubtotal !== null ? (
-                                  <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                  <span className="font-semibold text-primary-600 dark:text-primary-400">
                                     {formatCurrency(rowSubtotal)}
                                   </span>
                                 ) : (
@@ -639,7 +639,7 @@ export default function NewPurchaseOrderModal({
                       {selectedRows.length > 0 && (
                         <span className="text-sm text-gray-500 dark:text-gray-400">
                           Subtotal estimado:{' '}
-                          <span className="font-semibold text-blue-600 dark:text-blue-400 font-mono">
+                          <span className="font-semibold text-primary-600 dark:text-primary-400 font-mono">
                             {formatCurrency(
                               selectedRows.reduce(
                                 (acc, r) => acc + (Number(r.unitCost) || 0) * (Number(r.quantityToOrder) || 0),
@@ -650,7 +650,7 @@ export default function NewPurchaseOrderModal({
                         </span>
                       )}
                       {selectedRows.length > 0 ? (
-                        <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                        <span className="text-sm text-primary-600 dark:text-primary-400 font-medium">
                           ✓ {selectedRows.length} producto{selectedRows.length !== 1 ? 's' : ''} seleccionado{selectedRows.length !== 1 ? 's' : ''} para pedir
                         </span>
                       ) : (
@@ -715,7 +715,7 @@ export default function NewPurchaseOrderModal({
                               min="1"
                               value={row.quantityToOrder}
                               onChange={(e) => updateRow(idx, 'quantityToOrder', e.target.value)}
-                              className="w-16 text-center px-2 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-16 text-center px-2 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                             />
                           </td>
 
@@ -732,7 +732,7 @@ export default function NewPurchaseOrderModal({
                                 .map((d, i) => (
                                   <span
                                     key={i}
-                                    className="inline-block px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-medium rounded"
+                                    className="inline-block px-1.5 py-0.5 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-xs font-medium rounded"
                                   >
                                     {d}%
                                   </span>
@@ -757,7 +757,7 @@ export default function NewPurchaseOrderModal({
                                 step="0.01"
                                 value={row.unitCost}
                                 onChange={(e) => updateRow(idx, 'unitCost', e.target.value)}
-                                className="w-28 text-right px-2 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-28 text-right px-2 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                               />
                             </div>
                           </td>
@@ -830,7 +830,7 @@ export default function NewPurchaseOrderModal({
               <button
                 onClick={goToStep2}
                 disabled={!selectedSupplier && !selectedCategory}
-                className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 px-5 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Cargar conteo
                 <ArrowRight className="w-4 h-4" />
@@ -842,7 +842,7 @@ export default function NewPurchaseOrderModal({
               <button
                 onClick={goToStep3}
                 disabled={selectedRows.length === 0}
-                className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 px-5 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Revisar orden ({selectedRows.length})
                 <ArrowRight className="w-4 h-4" />

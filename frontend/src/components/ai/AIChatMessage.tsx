@@ -75,9 +75,9 @@ function ThinkingIndicator({ text }: { text?: string }) {
     <span className="inline-flex items-center gap-2">
       {/* Tres puntos animados */}
       <span className="inline-flex items-center gap-1">
-        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:0ms]" />
-        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:150ms]" />
-        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:300ms]" />
+        <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-bounce [animation-delay:0ms]" />
+        <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-bounce [animation-delay:150ms]" />
+        <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-bounce [animation-delay:300ms]" />
       </span>
       {/* Texto del paso actual — aparece cuando el backend emite eventos SSE */}
       {text && (
@@ -96,7 +96,7 @@ export default function AIChatMessage({ message, onQuoteProduct }: AIChatMessage
   if (isUser) {
     return (
       <div className="flex justify-end gap-2 px-3">
-        <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-gradient-to-br from-cyan-500 to-blue-500 px-3.5 py-2.5 shadow-sm">
+        <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-gradient-to-br from-primary-600 to-primary-400 px-3.5 py-2.5 shadow-sm">
           <p className="text-sm text-white leading-relaxed whitespace-pre-wrap break-words">
             {message.content}
           </p>
@@ -112,7 +112,7 @@ export default function AIChatMessage({ message, onQuoteProduct }: AIChatMessage
   return (
     <div className="flex gap-2 px-3">
       {/* Avatar */}
-      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center mt-1 shadow-sm">
+      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-primary-600 to-primary-400 flex items-center justify-center mt-1 shadow-sm">
         <Bot size={14} className="text-white" />
       </div>
 

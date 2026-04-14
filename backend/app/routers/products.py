@@ -36,6 +36,7 @@ from app.schemas.price_update import (
 )
 from app.services.product_service import ProductService
 from app.services.excel_service import ExcelService
+from app.services.backup_service import BackupService
 from app.utils.security import get_current_business, get_current_user
 
 router = APIRouter(prefix="/products", tags=["Productos"])
@@ -625,4 +626,38 @@ async def apply_price_update(
 
     return PriceUpdateApplyResponse(
         updated_count=count, message=f"Se actualizaron {count} productos correctamente"
+    )
+
+
+@router.get("/export/sql-backup")
+async def export_tenant_sql_backup(
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """
+    Exporta un backup SQL completo del tenant.
+    Incluye todas las tablas relevantes con datos filtrados por business_id.
+    """
+    service = BackupService(db)
+
+    try:
+        sql_content = await service.generate_tenant_backup_sql(business_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al generar backup SQL: {str(e)}",
+        )
+
+    from datetime import datetime
+
+    filename = (
+        f"backup-tenant-{business_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
+    )
+
+    return StreamingResponse(
+        io.StringIO(sql_content),
+        media_type="application/sql",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )

@@ -18,7 +18,7 @@ interface AIChatHistoryProps {
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[260px] h-full px-6 text-center select-none">
-      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center mb-4 shadow-lg shadow-cyan-500/20">
+      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-400 flex items-center justify-center mb-4 shadow-lg shadow-primary-500/20">
         <Bot size={28} className="text-white" />
       </div>
       <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">

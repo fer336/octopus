@@ -3,7 +3,7 @@
  * Gestión de proveedores con base de datos.
  */
 import { useState } from 'react'
-import { Plus, Edit, Trash2, Truck, Phone, Mail, MapPin, Tag, Search } from 'lucide-react'
+import { Plus, Edit, Trash2, Truck, Phone, Mail, MapPin, Search } from 'lucide-react'
 import { Button, Table, Pagination, Modal, Input } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -19,10 +19,9 @@ export default function Suppliers() {
   const [showModal, setShowModal] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'general' | 'commercial' | 'categories'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'categories'>('general')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null)
-  const [discountInput, setDiscountInput] = useState('')
 
   // Query para proveedores
   const { data: suppliersData, isLoading, error } = useQuery({
@@ -94,16 +93,13 @@ export default function Suppliers() {
     province: '',
     contact_name: '',
     notes: '',
-    default_discount_1: 0,
-    default_discount_2: 0,
-    default_discount_3: 0,
     category_ids: [],
   })
 
   const resetForm = () => {
     setIsEditing(false)
     setEditingId(null)
-    setDiscountInput('')
+    setActiveTab('general')
     setFormData({
       name: '',
       cuit: '',
@@ -114,9 +110,6 @@ export default function Suppliers() {
       province: '',
       contact_name: '',
       notes: '',
-      default_discount_1: 0,
-      default_discount_2: 0,
-      default_discount_3: 0,
       category_ids: [],
     })
   }
@@ -126,52 +119,10 @@ export default function Suppliers() {
       setIsEditing(true)
       setEditingId(supplier.id)
       setFormData(supplier)
-      
-      // Reconstruir el string de descuentos
-      const discounts = [
-        supplier.default_discount_1,
-        supplier.default_discount_2,
-        supplier.default_discount_3
-      ].filter(d => d > 0)
-      setDiscountInput(discounts.join('+'))
     } else {
       resetForm()
     }
     setShowModal(true)
-  }
-
-  // Parsear descuentos en cadena (ej: "10+5+2")
-  const parseDiscounts = (input: string): number[] => {
-    if (!input.trim()) return []
-    return input
-      .split('+')
-      .map(d => parseFloat(d.trim()))
-      .filter(d => !isNaN(d) && d > 0 && d <= 100)
-  }
-
-  // Calcular descuento compuesto real
-  const calculateCompoundDiscount = (discounts: number[]): number => {
-    if (discounts.length === 0) return 0
-    
-    let price = 100
-    discounts.forEach(discount => {
-      price = price * (1 - discount / 100)
-    })
-    
-    const totalDiscount = 100 - price
-    return Math.round(totalDiscount * 100) / 100
-  }
-
-  const handleDiscountChange = (input: string) => {
-    setDiscountInput(input)
-    const discounts = parseDiscounts(input)
-    
-    setFormData(prev => ({
-      ...prev,
-      default_discount_1: discounts[0] || 0,
-      default_discount_2: discounts[1] || 0,
-      default_discount_3: discounts[2] || 0,
-    }))
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -190,9 +141,6 @@ export default function Suppliers() {
       province: formData.province?.trim(),
       contact_name: formData.contact_name?.trim(),
       notes: formData.notes?.trim(),
-      default_discount_1: formData.default_discount_1 || 0,
-      default_discount_2: formData.default_discount_2 || 0,
-      default_discount_3: formData.default_discount_3 || 0,
       category_ids: formData.category_ids || [],
     }
     if (isEditing && editingId) {
@@ -247,6 +195,8 @@ export default function Suppliers() {
   }
 
   const suppliers = suppliersData?.items || []
+  const totalSuppliers = suppliersData?.total || 0
+  const totalPages = Math.max(1, Math.ceil(totalSuppliers / 20))
 
   const columns = [
     {
@@ -254,21 +204,24 @@ export default function Suppliers() {
       header: 'Proveedor',
       render: (item: Supplier) => (
         <div>
-          <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-white group">
-            <Truck size={16} className="text-blue-600" />
-            {item.name}
+          <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-white group text-sm">
+            <Truck size={14} className="text-primary-600 shrink-0" />
+            <span className="truncate">{item.name}</span>
             <button
               onClick={() => {
                 navigator.clipboard.writeText(item.name)
                 toast.success('Nombre copiado para importación', { duration: 1500, icon: '📋' })
               }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity bg-emerald-500 hover:bg-emerald-600 text-white text-xs px-2 py-1 rounded shadow-sm"
+              className="opacity-0 group-hover:opacity-100 transition-opacity bg-primary-500 hover:bg-primary-600 text-white text-[10px] px-2 py-0.5 rounded shadow-sm"
               title="Copiar nombre para Excel"
             >
               📋 Copiar
             </button>
           </div>
-          {item.cuit && <div className="text-xs text-gray-500 ml-6">{item.cuit}</div>}
+          <div className="text-xs text-gray-500 ml-6 space-y-0.5">
+            {item.cuit && <div>CUIT: {item.cuit}</div>}
+            {item.contact_name && <div>Contacto: {item.contact_name}</div>}
+          </div>
         </div>
       ),
     },
@@ -276,16 +229,19 @@ export default function Suppliers() {
       key: 'contact', 
       header: 'Contacto',
       render: (item: Supplier) => (
-        <div className="space-y-1">
+        <div className="space-y-1 text-xs">
           {item.phone && (
-            <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
+            <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
               <Phone size={12} /> {item.phone}
             </div>
           )}
           {item.email && (
-            <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
+            <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
               <Mail size={12} /> {item.email}
             </div>
+          )}
+          {!item.phone && !item.email && (
+            <span className="text-gray-400">Sin datos</span>
           )}
         </div>
       )
@@ -305,7 +261,7 @@ export default function Suppliers() {
         return (
           <div className="flex flex-wrap gap-1">
             {displayCats.map(cat => (
-              <span key={cat.id} className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-800">
+              <span key={cat.id} className="text-xs bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded-full border border-primary-100 dark:border-primary-800">
                 {cat.name}
               </span>
             ))}
@@ -319,28 +275,12 @@ export default function Suppliers() {
       },
     },
     {
-      key: 'discounts',
-      header: 'Bonif.',
-      render: (item: Supplier) => {
-        const discounts = [item.default_discount_1, item.default_discount_2, item.default_discount_3]
-          .filter(d => d > 0)
-        return discounts.length > 0 ? (
-          <span className="inline-flex items-center gap-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-2 py-1 rounded text-xs font-medium">
-            <Tag size={12} />
-            {discounts.join('+')}%
-          </span>
-        ) : (
-          <span className="text-gray-400">-</span>
-        )
-      },
-    },
-    {
       key: 'actions',
       header: '',
       render: (item: Supplier) => (
         <div className="flex gap-2 justify-end">
           <button
-            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
             onClick={() => handleOpenModal(item)}
             title="Editar"
           >
@@ -360,51 +300,75 @@ export default function Suppliers() {
   ]
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-4 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-6 text-white shadow-lg">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="bg-gradient-to-r from-primary-700 to-primary-600 rounded-2xl p-4 sm:p-5 text-white shadow-lg">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-              <Truck className="h-8 w-8 text-emerald-200" />
+            <h1 className="text-2xl font-bold flex items-center gap-2.5">
+              <Truck className="h-7 w-7 text-primary-200" />
               Proveedores
             </h1>
-            <p className="text-emerald-100 mt-2 text-lg">
-              Gestiona tus relaciones comerciales y condiciones de compra
+            <p className="text-primary-100 mt-1 text-sm sm:text-base">
+              Gestión compacta de proveedores, contactos y categorías
             </p>
           </div>
-          <Button 
-            onClick={() => handleOpenModal()} 
-            className="bg-green-600 hover:bg-green-700 text-white border-2 border-green-400 shadow-lg font-semibold"
-          >
-            <Plus size={18} className="mr-2" />
-            Nuevo Proveedor
-          </Button>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="rounded-lg bg-white/15 border border-white/30 px-3 py-1.5 text-xs font-medium">
+              Total: <span className="font-bold">{totalSuppliers}</span>
+            </div>
+            <div className="rounded-lg bg-white/15 border border-white/30 px-3 py-1.5 text-xs font-medium">
+              Página: <span className="font-bold">{page}/{totalPages}</span>
+            </div>
+            <Button
+              onClick={() => handleOpenModal()}
+              className="bg-white text-primary-700 hover:bg-primary-50 border-none shadow font-semibold"
+            >
+              <Plus size={16} className="mr-2" />
+              Nuevo Proveedor
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Filtros */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre, CUIT..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-          />
+      <div className="bg-white dark:bg-gray-800 p-3 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2.5">
+          <div className="relative w-full md:max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value)
+                setPage(1)
+              }}
+              placeholder="Buscar por nombre, CUIT, contacto o email..."
+              className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
+            />
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Mostrando <span className="font-semibold text-gray-700 dark:text-gray-200">{suppliers.length}</span> de <span className="font-semibold text-gray-700 dark:text-gray-200">{totalSuppliers}</span>
+          </p>
         </div>
       </div>
 
       {/* Tabla */}
-      <Table columns={columns} data={suppliers} />
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <Table
+          columns={columns}
+          data={suppliers}
+          density="compact"
+          emptyMessage="No hay proveedores para los filtros actuales"
+        />
+      </div>
 
       {/* Paginación */}
       <Pagination
         currentPage={page}
-        totalPages={Math.ceil((suppliersData?.total || 0) / 20)}
-        totalItems={suppliersData?.total || 0}
+        totalPages={totalPages}
+        totalItems={totalSuppliers}
         onPageChange={setPage}
       />
 
@@ -421,27 +385,17 @@ export default function Suppliers() {
               onClick={() => setActiveTab('general')}
               className={`pb-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'general'
-                  ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
               Información General
             </button>
             <button
-              onClick={() => setActiveTab('commercial')}
-              className={`pb-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'commercial'
-                  ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Condiciones Comerciales
-            </button>
-            <button
               onClick={() => setActiveTab('categories')}
               className={`pb-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'categories'
-                  ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
@@ -530,75 +484,18 @@ export default function Suppliers() {
                     />
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Tab: Commercial */}
-          {activeTab === 'commercial' && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="bg-emerald-50 dark:bg-emerald-900/10 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800/30">
-                <h3 className="text-sm font-semibold text-emerald-900 dark:text-emerald-100 mb-3 flex items-center gap-2">
-                  <Tag className="h-4 w-4" />
-                  Bonificaciones en Cadena
-                </h3>
-                <p className="text-xs text-emerald-700 dark:text-emerald-300/70 mb-4">
-                  Define los descuentos en cadena que este proveedor suele aplicar (ej: 10+5+2). 
-                  Los descuentos se aplican uno sobre otro.
-                </p>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-emerald-800 dark:text-emerald-200 mb-1">
-                      Bonificaciones (formato: 10+5+2)
-                    </label>
-                    <Input
-                      type="text"
-                      value={discountInput}
-                      onChange={(e) => handleDiscountChange(e.target.value)}
-                      placeholder="10+5+2"
-                      className="text-center font-medium text-lg"
-                    />
-                  </div>
-                  
-                  {discountInput && (() => {
-                    const discounts = parseDiscounts(discountInput)
-                    if (discounts.length === 0) return null
-                    
-                    const compoundDiscount = calculateCompoundDiscount(discounts)
-                    
-                    return (
-                      <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-emerald-200 dark:border-emerald-700">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <p className="text-xs text-gray-600 dark:text-gray-400">Descuento compuesto:</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                              Sobre $100 → ${(100 * (1 - compoundDiscount / 100)).toFixed(2)}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
-                              {compoundDiscount.toFixed(2)}%
-                            </p>
-                            <p className="text-xs text-emerald-600 dark:text-emerald-500">total</p>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })()}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Notas / Observaciones
+                  </label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Condiciones de pago, días de entrega, etc..."
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 dark:text-white"
+                  />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Notas / Observaciones
-                </label>
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Condiciones de pago, días de entrega, etc..."
-                  rows={4}
-                  className="w-full px-3 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-emerald-500"
-                />
               </div>
             </div>
           )}
@@ -606,11 +503,11 @@ export default function Suppliers() {
           {/* Tab: Categories */}
           {activeTab === 'categories' && (
             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30">
-                <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+              <div className="bg-primary-50 dark:bg-primary-900/10 p-4 rounded-xl border border-primary-100 dark:border-primary-800/30">
+                <h3 className="text-sm font-semibold text-primary-900 dark:text-primary-100 mb-2">
                   Familias de Productos
                 </h3>
-                <p className="text-xs text-blue-700 dark:text-blue-300/70 mb-4">
+                <p className="text-xs text-primary-700 dark:text-primary-300/70 mb-4">
                   Selecciona qué categorías de productos suministra este proveedor. Esto facilitará la carga de productos.
                 </p>
                 
@@ -621,8 +518,8 @@ export default function Suppliers() {
                         key={cat.id}
                         className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
                           formData.category_ids?.includes(cat.id)
-                            ? 'bg-blue-100 border-blue-300 dark:bg-blue-900/40 dark:border-blue-700'
-                            : 'bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700 hover:border-blue-200'
+                            ? 'bg-primary-100 border-primary-300 dark:bg-primary-900/40 dark:border-primary-700'
+                            : 'bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700 hover:border-primary-200'
                         }`}
                       >
                         <input
@@ -635,7 +532,7 @@ export default function Suppliers() {
                               : currentIds.filter(id => id !== cat.id)
                             setFormData({ ...formData, category_ids: newIds })
                           }}
-                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                          className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
                         />
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
                           {cat.name}
@@ -655,8 +552,7 @@ export default function Suppliers() {
 
           <div className="flex justify-between items-center pt-6 border-t border-gray-100 dark:border-gray-700 mt-6">
             <div className="text-xs text-gray-500">
-              {activeTab === 'general' && 'Siguiente: Condiciones Comerciales'}
-              {activeTab === 'commercial' && 'Siguiente: Categorías'}
+              {activeTab === 'general' && 'Siguiente: Categorías'}
               {activeTab === 'categories' && 'Listo para guardar'}
             </div>
             <div className="flex gap-2">
@@ -666,7 +562,7 @@ export default function Suppliers() {
               {activeTab !== 'categories' ? (
                 <Button 
                   type="button" 
-                  onClick={() => setActiveTab(activeTab === 'general' ? 'commercial' : 'categories')}
+                  onClick={() => setActiveTab('categories')}
                 >
                   Siguiente
                 </Button>

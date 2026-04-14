@@ -25,9 +25,11 @@ const Clients    = lazy(() => import('../pages/Clients'))
 const Suppliers  = lazy(() => import('../pages/Suppliers'))
 const Categories = lazy(() => import('../pages/Categories'))
 const Vouchers   = lazy(() => import('../pages/Vouchers'))
+const PaymentMethods = lazy(() => import('../pages/PaymentMethods'))
 const Reports    = lazy(() => import('../pages/Reports'))
 const Cash       = lazy(() => import('../pages/Cash'))
 const Inventory  = lazy(() => import('../pages/Inventory'))
+const Feedback   = lazy(() => import('../pages/Feedback'))
 
 // Skeleton de carga entre navegaciones
 function PageLoader() {
@@ -143,12 +145,18 @@ export default function App() {
               <Route path="comprobantes" element={
                 <Suspense fallback={<PageLoader />}><Vouchers /></Suspense>
               } />
+              <Route path="payment-methods" element={
+                <Suspense fallback={<PageLoader />}><PaymentMethods /></Suspense>
+              } />
               <Route path="caja" element={
                 <Suspense fallback={<PageLoader />}><Cash /></Suspense>
               } />
               <Route path="inventory" element={
                 <Suspense fallback={<PageLoader />}><Inventory /></Suspense>
               }/>
+              <Route path="feedback" element={
+                <Suspense fallback={<PageLoader />}><Feedback /></Suspense>
+              } />
               <Route path="reports" element={
                 <Suspense fallback={<PageLoader />}><Reports /></Suspense>
               } />

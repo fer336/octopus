@@ -2,9 +2,7 @@
  * Servicio API para el panel de superadmin (CMS).
  * Gestiona tenants, secretos ARCA y branding.
  */
-import httpClient, { getAdminApiUrl } from './httpClient'
-
-const ADMIN_BASE = getAdminApiUrl()
+import { adminHttpClient } from './httpClient'
 
 // ============================================================================
 // Types
@@ -49,6 +47,7 @@ export interface ArcaSecretsUpdate {
   afipsdk_access_token?: string
   afip_cert?: string
   afip_key?: string
+  linear_api_key?: string
 }
 
 export interface ArcaTestResponse {
@@ -94,6 +93,44 @@ export interface BrandingUpdate {
   arca_environment?: string
 }
 
+export interface FeatureFlagsResponse {
+  business_id: string
+  ai_agent_enabled: boolean
+  linear_sync_enabled: boolean
+}
+
+export interface FeatureFlagsUpdate {
+  ai_agent_enabled?: boolean
+  linear_sync_enabled?: boolean
+}
+
+export type FeedbackType = 'bug' | 'feature'
+export type FeedbackStatus = 'new' | 'reviewing' | 'planned' | 'done' | 'rejected'
+
+export interface FeedbackTicket {
+  id: string
+  business_id: string
+  user_id?: string | null
+  user_email?: string | null
+  feedback_type: FeedbackType
+  title: string
+  description: string
+  status: FeedbackStatus
+  source: string
+  admin_note?: string | null
+  resolved_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PaginatedFeedbackResponse {
+  items: FeedbackTicket[]
+  total: number
+  page: number
+  per_page: number
+  pages: number
+}
+
 export interface AdminUser {
   id: string
   email: string
@@ -119,6 +156,7 @@ export interface AdminUserListResponse {
 
 export interface CreateAdminUserPayload {
   email: string
+  password: string
   name?: string
   platform_role?: string
   is_active?: boolean
@@ -170,7 +208,7 @@ export interface UpdateTenantUserAccessPayload {
 const adminAPI = {
   // Tenants
   async listTenants(page = 1, perPage = 20, search?: string): Promise<TenantListResponse> {
-    const response = await httpClient.get(`${ADMIN_BASE}/tenants`, {
+    const response = await adminHttpClient.get(`/tenants`, {
       params: { page, per_page: perPage, ...(search && { search }) },
     })
     return response.data
@@ -178,56 +216,88 @@ const adminAPI = {
 
   // ARCA Secrets
   async getArcaSecrets(businessId: string): Promise<ArcaSecretsResponse> {
-    const response = await httpClient.get(`${ADMIN_BASE}/tenants/${businessId}/arca-secrets`)
+    const response = await adminHttpClient.get(`/tenants/${businessId}/arca-secrets`)
     return response.data
   },
 
   async updateArcaSecrets(businessId: string, data: ArcaSecretsUpdate): Promise<ArcaSecretsResponse> {
-    const response = await httpClient.put(`${ADMIN_BASE}/tenants/${businessId}/arca-secrets`, data)
+    const response = await adminHttpClient.put(`/tenants/${businessId}/arca-secrets`, data)
     return response.data
   },
 
   async deleteArcaSecrets(businessId: string): Promise<void> {
-    await httpClient.delete(`${ADMIN_BASE}/tenants/${businessId}/arca-secrets`)
+    await adminHttpClient.delete(`/tenants/${businessId}/arca-secrets`)
   },
 
   async testArcaConnection(businessId: string): Promise<ArcaTestResponse> {
-    const response = await httpClient.post(`${ADMIN_BASE}/tenants/${businessId}/arca-test`)
+    const response = await adminHttpClient.post(`/tenants/${businessId}/arca-test`)
     return response.data
   },
 
   // Branding
   async getBranding(businessId: string): Promise<BrandingResponse> {
-    const response = await httpClient.get(`${ADMIN_BASE}/tenants/${businessId}/branding`)
+    const response = await adminHttpClient.get(`/tenants/${businessId}/branding`)
     return response.data
   },
 
   async updateBranding(businessId: string, data: BrandingUpdate): Promise<BrandingResponse> {
-    const response = await httpClient.put(`${ADMIN_BASE}/tenants/${businessId}/branding`, data)
+    const response = await adminHttpClient.put(`/tenants/${businessId}/branding`, data)
+    return response.data
+  },
+
+  // Feature flags (premium)
+  async getFeatureFlags(businessId: string): Promise<FeatureFlagsResponse> {
+    const response = await adminHttpClient.get(`/tenants/${businessId}/features`)
+    return response.data
+  },
+
+  async updateFeatureFlags(businessId: string, data: FeatureFlagsUpdate): Promise<FeatureFlagsResponse> {
+    const response = await adminHttpClient.patch(`/tenants/${businessId}/features`, data)
+    return response.data
+  },
+
+  // Feedback inbox
+  async listFeedback(params?: {
+    business_id?: string
+    feedback_type?: FeedbackType
+    status?: FeedbackStatus
+    q?: string
+    page?: number
+    per_page?: number
+  }): Promise<PaginatedFeedbackResponse> {
+    const response = await adminHttpClient.get(`/feedback`, { params })
+    return response.data
+  },
+
+  async updateFeedbackStatus(
+    ticketId: string,
+    data: { status: FeedbackStatus; admin_note?: string },
+  ): Promise<FeedbackTicket> {
+    const response = await adminHttpClient.patch(`/feedback/${ticketId}`, data)
     return response.data
   },
 
   // Users
   async listUsers(page = 1, perPage = 20, search?: string): Promise<AdminUserListResponse> {
-    const response = await httpClient.get(`${ADMIN_BASE}/users`, {
+    const response = await adminHttpClient.get(`/users`, {
       params: { page, per_page: perPage, ...(search && { search }) },
     })
     return response.data
   },
 
   async createUser(data: CreateAdminUserPayload): Promise<AdminUser> {
-    const response = await httpClient.post(`${ADMIN_BASE}/users`, data)
+    const response = await adminHttpClient.post(`/users`, data)
     return response.data
   },
 
   async updateUserStatus(userId: string, is_active: boolean): Promise<AdminUser> {
     const payload: UpdateAdminUserStatusPayload = { is_active }
-    const response = await httpClient.patch(`${ADMIN_BASE}/users/${userId}/status`, payload)
+    const response = await adminHttpClient.patch(`/users/${userId}/status`, payload)
     return response.data
   },
 
   async listTenantUsers(businessId: string): Promise<TenantUserListResponse> {
-    const response = await httpClient.get(`${ADMIN_BASE}/tenants/${businessId}/users`)
+    const response = await adminHttpClient.get(`/tenants/${businessId}/users`)
     return response.data
   },
 
@@ -235,7 +305,7 @@ const adminAPI = {
     businessId: string,
     data: AssignTenantUserPayload,
   ): Promise<AssignTenantUserResponse> {
-    const response = await httpClient.post(`${ADMIN_BASE}/tenants/${businessId}/users`, data)
+    const response = await adminHttpClient.post(`/tenants/${businessId}/users`, data)
     return response.data
   },
 
@@ -244,8 +314,8 @@ const adminAPI = {
     userId: string,
     data: ActivateTrialPayload = { days: 30 },
   ): Promise<TenantUser> {
-    const response = await httpClient.post(
-      `${ADMIN_BASE}/tenants/${businessId}/users/${userId}/trial`,
+    const response = await adminHttpClient.post(
+      `/tenants/${businessId}/users/${userId}/trial`,
       data,
     )
     return response.data
@@ -256,8 +326,8 @@ const adminAPI = {
     userId: string,
     data: UpdateTenantUserAccessPayload,
   ): Promise<TenantUser> {
-    const response = await httpClient.patch(
-      `${ADMIN_BASE}/tenants/${businessId}/users/${userId}/access`,
+    const response = await adminHttpClient.patch(
+      `/tenants/${businessId}/users/${userId}/access`,
       data,
     )
     return response.data

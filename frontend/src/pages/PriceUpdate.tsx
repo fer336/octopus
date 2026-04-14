@@ -178,7 +178,7 @@ export default function PriceUpdate() {
           type="checkbox"
           checked={selectedProducts.size === products.length && products.length > 0}
           onChange={toggleSelectAll}
-          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
         />
       ),
       render: (item: Product) => (
@@ -186,7 +186,7 @@ export default function PriceUpdate() {
           type="checkbox"
           checked={selectedProducts.has(item.id)}
           onChange={() => toggleSelectProduct(item.id)}
-          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
         />
       ),
     },
@@ -206,7 +206,7 @@ export default function PriceUpdate() {
       render: (item: Product) => {
         const category = categories.find(c => c.id === item.category_id)
         return category ? (
-          <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+          <span className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded">
             {category.name}
           </span>
         ) : <span className="text-gray-400 text-xs">-</span>
@@ -242,7 +242,7 @@ export default function PriceUpdate() {
       key: 'sale_price',
       header: 'P. Venta',
       render: (item: Product) => (
-        <span className="font-bold text-sm text-blue-600 dark:text-blue-400">
+        <span className="font-bold text-sm text-primary-600 dark:text-primary-400">
           ${Number(item.sale_price).toFixed(2)}
         </span>
       ),
@@ -259,7 +259,7 @@ export default function PriceUpdate() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
       </div>
     )
   }
@@ -360,7 +360,7 @@ export default function PriceUpdate() {
                             <Clock size={11} />{dateStr}
                           </span>
                           {draft.filter_category_name && (
-                            <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded">{draft.filter_category_name}</span>
+                            <span className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-300 px-1.5 py-0.5 rounded">{draft.filter_category_name}</span>
                           )}
                           {draft.filter_supplier_name && (
                             <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300 px-1.5 py-0.5 rounded">{draft.filter_supplier_name}</span>
@@ -450,7 +450,7 @@ export default function PriceUpdate() {
           <div className="mt-4 flex items-center gap-2 flex-wrap">
             <span className="text-xs text-gray-600 dark:text-gray-400">Filtrando:</span>
             {selectedCategory && (
-              <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full">
+              <span className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-2 py-1 rounded-full">
                 {categories.find(c => c.id === selectedCategory)?.name}
               </span>
             )}

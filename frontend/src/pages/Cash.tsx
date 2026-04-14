@@ -87,7 +87,7 @@ function OpenCashModal({ onClose }: { onClose: () => void }) {
               placeholder="$ 0,00"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-right text-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-right text-lg font-mono focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
             />
           </div>
           <div className="flex gap-2 pt-2">
@@ -101,7 +101,7 @@ function OpenCashModal({ onClose }: { onClose: () => void }) {
             <button
               type="submit"
               disabled={openCash.isPending}
-              className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              className="flex-1 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-60"
             >
               {openCash.isPending ? 'Abriendo...' : 'Abrir Caja'}
             </button>
@@ -154,7 +154,7 @@ function MovementModal({
               type="text"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
             />
           </div>
           <div className="flex gap-3">
@@ -169,7 +169,7 @@ function MovementModal({
                 step="0.01"
                 value={form.amount || ''}
                 onChange={(e) => setForm({ ...form, amount: parseFloat(e.target.value) || 0 })}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-right font-mono focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               />
             </div>
             <div className="flex-1">
@@ -181,7 +181,7 @@ function MovementModal({
                 onChange={(e) =>
                   setForm({ ...form, payment_method: e.target.value as CashPaymentMethod })
                 }
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               >
                 {(Object.keys(PAYMENT_METHOD_LABELS) as CashPaymentMethod[]).map((key) => (
                   <option key={key} value={key}>
@@ -247,13 +247,13 @@ function CloseCashModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-lg rounded-xl bg-white shadow-xl dark:bg-gray-800">
+      <div className="w-full max-w-lg max-h-[90vh] rounded-xl bg-white shadow-xl dark:bg-gray-800 flex flex-col">
         <div className="border-b p-5 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Cerrar Caja del Día</h2>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col min-h-0">
+          <div className="p-5 space-y-4 overflow-y-auto">
             {/* Resumen por método */}
             {summary && (
               <div>
@@ -302,7 +302,7 @@ function CloseCashModal({
                 placeholder="$ 0,00"
                 value={countedCash}
                 onChange={(e) => setCountedCash(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-right text-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-right text-lg font-mono focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               />
             </div>
 
@@ -334,13 +334,13 @@ function CloseCashModal({
                   rows={2}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 />
               </div>
             )}
           </div>
 
-          <div className="flex gap-2 border-t p-5 dark:border-gray-700">
+          <div className="flex gap-2 border-t p-5 dark:border-gray-700 bg-white dark:bg-gray-800 sticky bottom-0">
             <button
               type="button"
               onClick={onClose}
@@ -431,7 +431,7 @@ function ClosedCashCard({ cashRegisterId, closedAt }: { cashRegisterId: string; 
         <button
           onClick={handleOpen}
           disabled={loading}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-60 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-400"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-semibold text-primary-700 hover:bg-primary-100 disabled:opacity-60 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-400"
         >
           <Eye className="h-4 w-4" />
           {loading ? 'Generando...' : 'Ver resumen PDF'}
@@ -501,7 +501,7 @@ function CashHistory() {
                       onClick={() => handleOpen(r.id)}
                       disabled={loading === r.id}
                       title="Ver PDF"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-400"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700 hover:bg-primary-100 disabled:opacity-60 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-400"
                     >
                       <Eye className="h-3.5 w-3.5" />
                       {loading === r.id ? 'Generando...' : 'Ver PDF'}
@@ -546,8 +546,8 @@ export default function Cash() {
         <div className="flex min-h-[60vh] items-center justify-center">
           <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-700 dark:bg-gray-800">
             <div className="mb-6 flex justify-center">
-              <div className="rounded-full bg-blue-100 p-4 dark:bg-blue-900/30">
-                <PlusCircle className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+              <div className="rounded-full bg-primary-100 p-4 dark:bg-primary-900/30">
+                <PlusCircle className="h-8 w-8 text-primary-600 dark:text-primary-400" />
               </div>
             </div>
             <h2 className="mb-2 text-center text-lg font-semibold text-gray-900 dark:text-white">
@@ -558,7 +558,7 @@ export default function Cash() {
             </p>
             <button
               onClick={() => setShowOpen(true)}
-              className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+              className="w-full rounded-lg bg-primary-600 px-4 py-3 text-sm font-semibold text-white hover:bg-primary-700"
             >
               Abrir Caja
             </button>

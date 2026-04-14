@@ -101,6 +101,23 @@ export const clientsService = {
     })
     return response.data.items
   },
+
+  /**
+   * Busca los datos de un contribuyente en el padrón de AFIP por CUIT.
+   */
+  lookupCuit: async (
+    cuit: string
+  ): Promise<{
+    name: string
+    tax_condition: string
+    address: string
+    city: string
+    province: string
+    postal_code: string
+  }> => {
+    const response = await httpClient.get(`/clients/lookup-cuit/${cuit}`)
+    return response.data
+  },
 }
 
 export default clientsService

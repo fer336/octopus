@@ -29,6 +29,7 @@ export default function UsersPage() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const perPage = 20
 
@@ -49,10 +50,16 @@ export default function UsersPage() {
   }, [usersQuery.error])
 
   const createMutation = useMutation({
-    mutationFn: () => adminAPI.createUser({ email, ...(name.trim() ? { name } : {}) }),
+    mutationFn: () =>
+      adminAPI.createUser({
+        email,
+        password,
+        ...(name.trim() ? { name } : {}),
+      }),
     onSuccess: () => {
       toast.success('Usuario creado correctamente')
       setEmail('')
+      setPassword('')
       setName('')
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
     },
@@ -79,6 +86,10 @@ export default function UsersPage() {
     e.preventDefault()
     if (!email.trim()) {
       toast.error('El email es obligatorio')
+      return
+    }
+    if (!password.trim() || password.trim().length < 6) {
+      toast.error('La contraseña debe tener al menos 6 caracteres')
       return
     }
     createMutation.mutate()
@@ -109,7 +120,7 @@ export default function UsersPage() {
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Crear usuario</h2>
-        <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <input
             type="email"
             placeholder="Email *"
@@ -122,6 +133,13 @@ export default function UsersPage() {
             placeholder="Nombre (opcional)"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          />
+          <input
+            type="password"
+            placeholder="Contraseña *"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
           />
           <button

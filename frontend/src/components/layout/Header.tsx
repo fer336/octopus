@@ -15,6 +15,7 @@ interface HeaderProps {
   isSidebarCollapsed?: boolean
   currentRouteLabel: string
   contextualAction?: ReactNode
+  aiEnabled?: boolean
 }
 
 export default function Header({
@@ -22,6 +23,7 @@ export default function Header({
   isSidebarCollapsed,
   currentRouteLabel,
   contextualAction,
+  aiEnabled = false,
 }: HeaderProps) {
   const { theme, toggleTheme } = useTheme()
   const { user, logout } = useAuthStore()
@@ -34,18 +36,18 @@ export default function Header({
   }
 
   return (
-    <header className="h-[59px] bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 flex-shrink-0">
+    <header className="h-[59px] bg-[var(--color-bg-secondary)] border-b border-primary-200 dark:border-primary-800 flex items-center justify-between px-4 flex-shrink-0 transition-colors">
         {/* Left side */}
         <div className="flex items-center gap-3">
           <button
             onClick={onMenuClick}
-            className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            className="p-1.5 text-primary-700 hover:text-primary-900 dark:text-primary-300 dark:hover:text-primary-100 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors"
             aria-label={isSidebarCollapsed ? 'Expandir menú' : 'Colapsar menú'}
           >
             {isSidebarCollapsed ? <Menu size={22} /> : <ChevronLeft size={22} />}
           </button>
           <div className="min-w-0">
-            <h1 className="text-sm font-semibold text-gray-900 dark:text-white tracking-tight truncate">
+            <h1 className="text-sm font-semibold text-[var(--color-text-primary)] tracking-tight truncate">
               {currentRouteLabel}
             </h1>
           </div>
@@ -56,38 +58,40 @@ export default function Header({
           {contextualAction}
 
           {/* ── Botón Agente IA ─────────────────────────────────── */}
-          <button
-            type="button"
-            onClick={toggleAI}
-            className="
-              relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl
-              bg-gradient-to-r from-cyan-500 to-blue-500
-              hover:from-cyan-400 hover:to-blue-400
-              text-white text-xs font-semibold
-              shadow-md shadow-cyan-500/30
-              hover:shadow-lg hover:shadow-cyan-500/40
-              transition-all duration-200
-              group
-            "
-            aria-label="Abrir agente de presupuestos IA"
-            aria-expanded={isAIOpen}
-            aria-controls="luci-assistant-panel"
-            data-state={isAIOpen ? 'open' : 'closed'}
-            data-testid="luci-toggle-button"
-          >
-            {/* Glow pulsante sutil */}
-            <span className="absolute inset-0 rounded-xl bg-cyan-400 opacity-0 group-hover:opacity-10 transition-opacity" />
-            <Sparkles
-              size={15}
-              className="relative z-10 group-hover:rotate-12 transition-transform duration-200"
-            />
-            <span className="relative z-10 hidden sm:inline">IA</span>
-          </button>
+          {aiEnabled && (
+            <button
+              type="button"
+              onClick={toggleAI}
+              className="
+                relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl
+                bg-gradient-to-r from-primary-600 to-primary-700
+                hover:from-primary-500 hover:to-primary-600
+                text-white text-xs font-semibold
+                shadow-md shadow-primary-700/30
+                hover:shadow-lg hover:shadow-primary-700/40
+                transition-all duration-200
+                group
+              "
+              aria-label="Abrir agente de presupuestos IA"
+              aria-expanded={isAIOpen}
+              aria-controls="luci-assistant-panel"
+              data-state={isAIOpen ? 'open' : 'closed'}
+              data-testid="luci-toggle-button"
+            >
+              {/* Glow pulsante sutil */}
+              <span className="absolute inset-0 rounded-xl bg-primary-300 opacity-0 group-hover:opacity-10 transition-opacity" />
+              <Sparkles
+                size={15}
+                className="relative z-10 group-hover:rotate-12 transition-transform duration-200"
+              />
+              <span className="relative z-10 hidden sm:inline">IA</span>
+            </button>
+          )}
 
           {/* Theme toggle */}
           <button
             onClick={toggleTheme}
-            className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            className="p-1.5 text-primary-700 hover:text-primary-900 dark:text-primary-300 dark:hover:text-primary-100 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors"
             aria-label={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
           >
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
@@ -103,7 +107,7 @@ export default function Header({
                   className="w-7 h-7 rounded-full"
                 />
               )}
-              <span className="text-[13px] text-gray-700 dark:text-gray-200 hidden sm:block max-w-[150px] truncate">
+              <span className="text-[13px] text-primary-800 dark:text-primary-200 hidden sm:block max-w-[150px] truncate">
                 {user.name}
               </span>
             </div>

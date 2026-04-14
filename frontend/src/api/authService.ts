@@ -39,6 +39,20 @@ export const authService = {
   },
 
   /**
+   * Login con usuario y contraseña.
+   */
+  loginWithCredentials: async (
+    email: string,
+    password: string,
+  ): Promise<AuthResponse> => {
+    const response = await authClient.post('/auth/login', {
+      email,
+      password,
+    })
+    return response.data
+  },
+
+  /**
    * Login de desarrollo para testing E2E.
    * Solo funciona si backend está en DEBUG.
    */

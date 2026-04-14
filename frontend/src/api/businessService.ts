@@ -17,6 +17,7 @@ export interface Business {
   logo_url?: string
   header_text?: string
   sale_point: string
+  ai_agent_enabled: boolean
   arca_environment?: string
 }
 

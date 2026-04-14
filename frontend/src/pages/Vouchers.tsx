@@ -13,24 +13,24 @@ import CreditNoteModal from '../components/vouchers/CreditNoteModal'
 import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
 
-const voucherTypeLabels: Record<string, { label: string; color: string; icon: any }> = {
-  quotation:      { label: 'Cotización',      color: 'blue',   icon: FileText  },
-  receipt:        { label: 'Remito',           color: 'orange', icon: Truck     },
-  invoice_a:      { label: 'Factura A',        color: 'green',  icon: Receipt   },
-  invoice_b:      { label: 'Factura B',        color: 'green',  icon: Receipt   },
-  invoice_c:      { label: 'Factura C',        color: 'green',  icon: Receipt   },
-  credit_note_a:  { label: 'Nota de Crédito A', color: 'red',  icon: FileMinus },
-  credit_note_b:  { label: 'Nota de Crédito B', color: 'red',  icon: FileMinus },
-  credit_note_c:  { label: 'Nota de Crédito C', color: 'red',  icon: FileMinus },
-  debit_note_a:   { label: 'Nota de Débito A',  color: 'purple', icon: FileMinus },
-  debit_note_b:   { label: 'Nota de Débito B',  color: 'purple', icon: FileMinus },
-  debit_note_c:   { label: 'Nota de Débito C',  color: 'purple', icon: FileMinus },
+const voucherTypeLabels: Record<string, { label: string; textClass: string; icon: any }> = {
+  quotation:      { label: 'Cotización',      textClass: 'text-primary-600 dark:text-primary-400',   icon: FileText  },
+  receipt:        { label: 'Remito',           textClass: 'text-orange-600 dark:text-orange-400', icon: Truck     },
+  invoice_a:      { label: 'Factura A',        textClass: 'text-green-600 dark:text-green-400',  icon: Receipt   },
+  invoice_b:      { label: 'Factura B',        textClass: 'text-green-600 dark:text-green-400',  icon: Receipt   },
+  invoice_c:      { label: 'Factura C',        textClass: 'text-green-600 dark:text-green-400',  icon: Receipt   },
+  credit_note_a:  { label: 'Nota de Crédito A', textClass: 'text-red-600 dark:text-red-400',  icon: FileMinus },
+  credit_note_b:  { label: 'Nota de Crédito B', textClass: 'text-red-600 dark:text-red-400',  icon: FileMinus },
+  credit_note_c:  { label: 'Nota de Crédito C', textClass: 'text-red-600 dark:text-red-400',  icon: FileMinus },
+  debit_note_a:   { label: 'Nota de Débito A',  textClass: 'text-primary-600 dark:text-primary-400', icon: FileMinus },
+  debit_note_b:   { label: 'Nota de Débito B',  textClass: 'text-primary-600 dark:text-primary-400', icon: FileMinus },
+  debit_note_c:   { label: 'Nota de Débito C',  textClass: 'text-primary-600 dark:text-primary-400', icon: FileMinus },
 }
 
-const statusLabels: Record<string, { label: string; color: string }> = {
-  draft: { label: 'Borrador', color: 'gray' },
-  confirmed: { label: 'Confirmado', color: 'green' },
-  cancelled: { label: 'Anulado', color: 'red' },
+const statusLabels: Record<string, { label: string; className: string }> = {
+  draft: { label: 'Borrador', className: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' },
+  confirmed: { label: 'Confirmado', className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+  cancelled: { label: 'Anulado', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
 }
 
 export default function Vouchers() {
@@ -150,6 +150,7 @@ export default function Vouchers() {
       client: voucher.client,
       date: voucher.date,
       notes: voucher.notes,
+      show_prices: voucher.show_prices,
       items: (voucher.items || []).map((item: any) => ({
         id: item.product_id,
         code: item.code,
@@ -170,15 +171,15 @@ export default function Vouchers() {
       key: 'type',
       header: 'Tipo',
       render: (item: any) => {
-        const typeInfo = voucherTypeLabels[item.voucher_type] || { label: item.voucher_type, color: 'gray', icon: FileText }
+        const typeInfo = voucherTypeLabels[item.voucher_type] || { label: item.voucher_type, textClass: 'text-gray-600 dark:text-gray-400', icon: FileText }
         const Icon = typeInfo.icon
         const isInvoiced = (item.voucher_type === 'quotation' || item.voucher_type === 'receipt') && item.invoiced_voucher_id
         const hasCreditNote = item.voucher_type?.startsWith('invoice_') && item.has_credit_note
         const isCreditNote = item.voucher_type?.startsWith('credit_note_')
         return (
           <div className="flex items-center gap-2 flex-wrap">
-            <Icon size={16} className={`text-${typeInfo.color}-600 shrink-0`} />
-            <span className={`text-xs font-medium text-${typeInfo.color}-700 dark:text-${typeInfo.color}-400`}>
+            <Icon size={16} className={`${typeInfo.textClass} shrink-0`} />
+            <span className={`text-xs font-medium ${typeInfo.textClass}`}>
               {typeInfo.label}
             </span>
             {isInvoiced && (
@@ -280,9 +281,9 @@ export default function Vouchers() {
       key: 'status',
       header: 'Estado',
       render: (item: any) => {
-        const statusInfo = statusLabels[item.status] || { label: item.status, color: 'gray' }
+        const statusInfo = statusLabels[item.status] || { label: item.status, className: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' }
         return (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-${statusInfo.color}-100 text-${statusInfo.color}-700 dark:bg-${statusInfo.color}-900/30 dark:text-${statusInfo.color}-400`}>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.className}`}>
             {statusInfo.label}
           </span>
         )
@@ -318,7 +319,7 @@ export default function Vouchers() {
                 )}
                 <button
                   onClick={() => handleViewPdf(item.id)}
-                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                  className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
                   title="Ver PDF"
                 >
                   <Eye size={18} />

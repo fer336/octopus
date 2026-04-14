@@ -2,6 +2,7 @@
 Servicio de Órdenes de Pedido.
 Gestiona el ciclo completo: conteo físico → orden → confirmación.
 """
+
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
@@ -14,10 +15,15 @@ from sqlalchemy.orm import selectinload
 from app.models.business import Business
 from app.models.category import Category
 from app.models.product import Product
-from app.models.purchase_order import PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus
+from app.models.purchase_order import (
+    PurchaseOrder,
+    PurchaseOrderItem,
+    PurchaseOrderStatus,
+)
 from app.models.supplier import Supplier
 from app.models.user import User
 from app.schemas.purchase_order import PurchaseOrderCreate, PurchaseOrderUpdate
+from app.utils.audit import log_audit
 
 
 class PurchaseOrderService:
@@ -63,7 +69,9 @@ class PurchaseOrderService:
         if order.category:
             order.category_name = order.category.name
         if order.created_by_user:
-            order.created_by_name = order.created_by_user.name or order.created_by_user.email
+            order.created_by_name = (
+                order.created_by_user.name or order.created_by_user.email
+            )
         for item in order.items:
             await self._enrich_item(item)
         return order
@@ -140,9 +148,11 @@ class PurchaseOrderService:
         result = await self.db.execute(
             select(PurchaseOrder)
             .options(
-                selectinload(PurchaseOrder.items).selectinload(PurchaseOrderItem.product)
+                selectinload(PurchaseOrder.items)
+                .selectinload(PurchaseOrderItem.product)
                 .selectinload(Product.category),
-                selectinload(PurchaseOrder.items).selectinload(PurchaseOrderItem.product)
+                selectinload(PurchaseOrder.items)
+                .selectinload(PurchaseOrderItem.product)
                 .selectinload(Product.supplier),
                 selectinload(PurchaseOrder.supplier),
                 selectinload(PurchaseOrder.category),
@@ -296,14 +306,39 @@ class PurchaseOrderService:
         await self.db.commit()
         return await self.get_by_id(order_id, business_id)
 
-    async def delete(self, order_id: UUID, business_id: UUID) -> bool:
+    async def delete(
+        self, order_id: UUID, business_id: UUID, user_id: Optional[UUID] = None
+    ) -> bool:
         """Soft delete de una orden (solo si está en DRAFT)."""
         order = await self.get_by_id(order_id, business_id)
         if not order:
             return False
         if order.status == PurchaseOrderStatus.CONFIRMED:
             raise ValueError("No se puede eliminar una orden confirmada")
+
+        # Guardar datos para auditoría antes de marcar como eliminado
+        order_details = {
+            "number": order.number,
+            "sale_point": order.sale_point,
+            "supplier_name": order.supplier_name,
+            "total": float(order.total) if order.total else 0,
+            "items_count": len(order.items),
+        }
+
         order.soft_delete()
+
+        # Registrar auditoría
+        if user_id:
+            await log_audit(
+                db=self.db,
+                user_id=user_id,
+                business_id=business_id,
+                action="delete",
+                resource_type="purchase_order",
+                resource_id=order_id,
+                details=order_details,
+            )
+
         await self.db.commit()
         return True
 

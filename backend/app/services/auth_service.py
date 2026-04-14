@@ -14,7 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.models.business import Business
 from app.models.user import User, PlatformRole
-from app.utils.security import create_access_token, create_refresh_token, verify_token
+from app.utils.security import (
+    create_access_token,
+    create_refresh_token,
+    verify_password,
+    verify_token,
+)
 
 settings = get_settings()
 
@@ -58,23 +63,37 @@ class AuthService:
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
+    async def get_user_by_email(self, email: str) -> Optional[User]:
+        """Busca un usuario activo por email normalizado."""
+        normalized_email = email.strip().lower()
+        query = select(User).where(User.email == normalized_email)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
     async def get_or_create_user(self, google_data: dict) -> User:
         """
         Obtiene o crea un usuario basado en datos de Google.
         Si es nuevo, también crea un negocio por defecto.
         """
-        # Buscar usuario existente
+        normalized_email = google_data["email"].strip().lower()
+
+        # Buscar usuario existente: prioridad google_id, fallback email
         user = await self.get_user_by_google_id(google_data["google_id"])
+        if not user:
+            user = await self.get_user_by_email(normalized_email)
 
         if user:
             # Actualizar datos por si cambiaron en Google
+            user.email = normalized_email
             user.name = google_data["name"]
             user.picture = google_data["picture"]
+            if not user.google_id:
+                user.google_id = google_data["google_id"]
             await self.db.commit()
         else:
             # Crear nuevo usuario
             user = User(
-                email=google_data["email"],
+                email=normalized_email,
                 name=google_data["name"],
                 picture=google_data["picture"],
                 google_id=google_data["google_id"],
@@ -158,6 +177,31 @@ class AuthService:
         user = await self.get_or_create_user(google_data)
 
         # Generar tokens
+        access_token = create_access_token(user.id, user.email, user.platform_role)
+        refresh_token = create_refresh_token(user.id)
+
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "name": user.name,
+                "picture": user.picture,
+            },
+        }
+
+    async def login_with_password(self, email: str, password: str) -> Optional[dict]:
+        """Login clásico por email + contraseña."""
+        user = await self.get_user_by_email(email)
+
+        if not user or not user.is_active:
+            return None
+
+        if not verify_password(password, user.password_hash):
+            return None
+
         access_token = create_access_token(user.id, user.email, user.platform_role)
         refresh_token = create_refresh_token(user.id)
 

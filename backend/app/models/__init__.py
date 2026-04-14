@@ -40,6 +40,7 @@ from app.models.tenant_membership import (
     MembershipAccessStatus,
 )
 from app.models.audit_log import AuditLog
+from app.models.feedback_ticket import FeedbackTicket
 
 __all__ = [
     # Base
@@ -52,6 +53,7 @@ __all__ = [
     "MembershipRole",
     "MembershipAccessStatus",
     "AuditLog",
+    "FeedbackTicket",
     # Entidades principales
     "Category",
     "Supplier",

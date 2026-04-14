@@ -5,7 +5,6 @@ Todos los endpoints están protegidos con require_superadmin().
 
 import logging
 from datetime import datetime, timedelta
-from uuid import uuid4
 from uuid import UUID
 from typing import Optional, List
 
@@ -25,9 +24,11 @@ from app.models.tenant_membership import (
 )
 from app.models.tenant_secret import TenantSecret
 from app.models.audit_log import AuditLog
+from app.utils.audit import log_audit
 from app.middleware.tenant_resolver import require_superadmin, AdminContext
 from app.services.afip_sdk_service import AfipSdkService
 from app.utils.crypto import encrypt_api_key, get_last4
+from app.utils.security import hash_password
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ SECRET_TYPES = [
     "afipsdk_access_token",
     "afip_cert",
     "afip_key",
+    "linear_api_key",
 ]
 
 # ============================================================================
@@ -83,6 +85,7 @@ class ArcaSecretsUpdate(BaseModel):
     afipsdk_access_token: Optional[str] = None
     afip_cert: Optional[str] = None
     afip_key: Optional[str] = None
+    linear_api_key: Optional[str] = None
 
 
 class ArcaTestResponse(BaseModel):
@@ -132,6 +135,21 @@ class BrandingUpdate(BaseModel):
     header_text: Optional[str] = None
     sale_point: Optional[str] = None
     arca_environment: Optional[str] = None
+
+
+class FeatureFlagsResponse(BaseModel):
+    """Feature flags habilitadas para un tenant."""
+
+    business_id: str
+    ai_agent_enabled: bool
+    linear_sync_enabled: bool
+
+
+class FeatureFlagsUpdate(BaseModel):
+    """Actualización parcial de feature flags del tenant."""
+
+    ai_agent_enabled: Optional[bool] = None
+    linear_sync_enabled: Optional[bool] = None
 
 
 class TenantResponse(BaseModel):
@@ -187,6 +205,7 @@ class UserCreateRequest(BaseModel):
     """Payload mínimo para crear usuarios desde CMS admin."""
 
     email: str = Field(..., min_length=3, max_length=255)
+    password: str = Field(..., min_length=6, max_length=128)
     name: Optional[str] = Field(default=None, max_length=255)
     platform_role: str = Field(default=PlatformRole.TENANT_USER)
     is_active: bool = Field(default=True)
@@ -268,31 +287,38 @@ class MembershipAccessUpdateRequest(BaseModel):
         return self
 
 
+class PurgeTenantRequest(BaseModel):
+    """Solicitud de purga total de datos de un tenant."""
+
+    reason: str = Field(
+        ..., min_length=10, max_length=500, description="Motivo obligatorio de la purga"
+    )
+    confirm_deletion: bool = Field(
+        ..., description="Confirmación explícita de que se requiere eliminación total"
+    )
+
+    @model_validator(mode="after")
+    def validate_confirmation(self):
+        if not self.confirm_deletion:
+            raise ValueError(
+                "Debe confirmar la eliminación marcando confirm_deletion=true"
+            )
+        return self
+
+
+class PurgeTenantResponse(BaseModel):
+    """Respuesta de operación de purga."""
+
+    tenant_id: str
+    purged_tables: dict[str, int]  # table_name -> records_deleted
+    reason: str
+    executed_by: str  # email del superadmin
+    executed_at: datetime
+
+
 # ============================================================================
 # Helpers
 # ============================================================================
-
-
-async def log_audit(
-    db: AsyncSession,
-    user_id: UUID,
-    business_id: UUID,
-    action: str,
-    resource_type: str,
-    resource_id: Optional[UUID] = None,
-    details: Optional[dict] = None,
-):
-    """Crea una entrada de auditoría."""
-    log = AuditLog(
-        user_id=user_id,
-        business_id=business_id,
-        action=action,
-        resource_type=resource_type,
-        resource_id=resource_id,
-        details=details or {},
-    )
-    db.add(log)
-    await db.commit()
 
 
 async def get_business_or_404(tenant_id: UUID, db: AsyncSession) -> Business:
@@ -561,7 +587,8 @@ async def create_user(
     user = User(
         email=normalized_email,
         name=name,
-        google_id=f"admin_created_{uuid4().hex}",
+        password_hash=hash_password(data.password),
+        google_id=None,
         platform_role=data.platform_role,
         is_active=data.is_active,
     )
@@ -1005,6 +1032,62 @@ async def get_branding(
     )
 
 
+@router.get("/tenants/{tenant_id}/features", response_model=FeatureFlagsResponse)
+async def get_feature_flags(
+    tenant_id: UUID,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Obtiene las feature flags configurables del tenant."""
+    business = await get_business_or_404(tenant_id, db)
+
+    return FeatureFlagsResponse(
+        business_id=str(business.id),
+        ai_agent_enabled=bool(business.ai_agent_enabled),
+        linear_sync_enabled=bool(business.linear_sync_enabled),
+    )
+
+
+@router.patch("/tenants/{tenant_id}/features", response_model=FeatureFlagsResponse)
+async def update_feature_flags(
+    tenant_id: UUID,
+    data: FeatureFlagsUpdate,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualiza feature flags del tenant desde CMS admin."""
+    business = await get_business_or_404(tenant_id, db)
+
+    update_data = data.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se enviaron cambios de funcionalidades",
+        )
+
+    for field, value in update_data.items():
+        setattr(business, field, value)
+
+    await db.commit()
+    await db.refresh(business)
+
+    await log_audit(
+        db=db,
+        user_id=admin.user_id,
+        business_id=tenant_id,
+        action="update",
+        resource_type="feature_flags",
+        resource_id=tenant_id,
+        details={"updated_fields": list(update_data.keys()), **update_data},
+    )
+
+    return FeatureFlagsResponse(
+        business_id=str(business.id),
+        ai_agent_enabled=bool(business.ai_agent_enabled),
+        linear_sync_enabled=bool(business.linear_sync_enabled),
+    )
+
+
 @router.put("/tenants/{tenant_id}/branding", response_model=BrandingResponse)
 async def update_branding(
     tenant_id: UUID,
@@ -1052,4 +1135,349 @@ async def update_branding(
         header_text=business.header_text,
         sale_point=business.sale_point,
         arca_environment=business.arca_environment,
+    )
+
+
+@router.post("/tenants/{tenant_id}/purge", response_model=PurgeTenantResponse)
+async def purge_tenant_data(
+    tenant_id: UUID,
+    data: PurgeTenantRequest,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    PURGA TOTAL E INMUTABLE de todos los datos de un tenant.
+    Esta operación es DESTRUCTIVA e IRREVERSIBLE.
+
+    Elimina (soft delete donde corresponde):
+    - Todas las órdenes de pedido
+    - Todos los movimientos de caja
+    - Todos los comprobantes y sus ítems
+    - Todos los productos y su historial de precios
+    - Todas las categorías (solo las que tienen productos del tenant)
+    - Todos los proveedores (solo los que tienen productos del tenant)
+    - Todos los clientes
+    - Todos los miembros del tenant (membresías, no usuarios)
+    - Todos los secrets de configuración
+    - Todos los proveedores de AI configurados
+
+    NO ELIMINA:
+    - El registro del business (solo marco como inactivo)
+    - Los usuarios (solo su membresía en este tenant)
+
+    REQUIERE:
+    - Permisos de superadmin
+    - Razón explícita y confirmación de eliminación
+
+    La operación se registra en auditoría con detalles completos.
+    """
+    business = await get_business_or_404(tenant_id, db)
+
+    logger.warning(
+        f"=== TENANT PURGE REQUESTED === Tenant: {tenant_id}, Admin: {admin.user.email}, Reason: {data.reason}"
+    )
+
+    purged_tables = {}
+
+    # 1. Purchase Order Items (primero por FK)
+    poi_result = await db.execute(
+        select(func.count()).select_from(
+            text(f"""
+                (SELECT poi.id FROM purchase_order_items poi
+                 JOIN purchase_orders po ON poi.purchase_order_id = po.id
+                 WHERE po.business_id = '{tenant_id}')
+            """)
+        )
+    )
+    poi_count = poi_result.scalar() or 0
+    if poi_count > 0:
+        await db.execute(
+            text(f"""
+                UPDATE purchase_order_items SET deleted_at = NOW()
+                WHERE id IN (
+                    SELECT poi.id FROM purchase_order_items poi
+                    JOIN purchase_orders po ON poi.purchase_order_id = po.id
+                    WHERE po.business_id = '{tenant_id}' AND poi.deleted_at IS NULL
+                )
+            """)
+        )
+    purged_tables["purchase_order_items"] = poi_count
+
+    # 2. Purchase Orders
+    po_result = await db.execute(
+        select(func.count(PurchaseOrder.id)).where(
+            PurchaseOrder.business_id == tenant_id, PurchaseOrder.deleted_at.is_(None)
+        )
+    )
+    po_count = po_result.scalar() or 0
+    if po_count > 0:
+        await db.execute(
+            text(
+                f"UPDATE purchase_orders SET deleted_at = NOW() WHERE business_id = '{tenant_id}' AND deleted_at IS NULL"
+            )
+        )
+    purged_tables["purchase_orders"] = po_count
+
+    # 3. Cash Movements (vía Cash Registers)
+    cm_result = await db.execute(
+        select(func.count()).select_from(
+            text(f"""
+                (SELECT cm.id FROM cash_movements cm
+                 JOIN cash_registers cr ON cm.cash_register_id = cr.id
+                 WHERE cr.business_id = '{tenant_id}')
+            """)
+        )
+    )
+    cm_count = cm_result.scalar() or 0
+    if cm_count > 0:
+        await db.execute(
+            text(f"""
+                UPDATE cash_movements SET deleted_at = NOW()
+                WHERE id IN (
+                    SELECT cm.id FROM cash_movements cm
+                    JOIN cash_registers cr ON cm.cash_register_id = cr.id
+                    WHERE cr.business_id = '{tenant_id}' AND cm.deleted_at IS NULL
+                )
+            """)
+        )
+    purged_tables["cash_movements"] = cm_count
+
+    # 4. Cash Registers
+    cr_result = await db.execute(
+        select(func.count(CashRegister.id)).where(
+            CashRegister.business_id == tenant_id, CashRegister.deleted_at.is_(None)
+        )
+    )
+    cr_count = cr_result.scalar() or 0
+    if cr_count > 0:
+        await db.execute(
+            text(
+                f"UPDATE cash_registers SET deleted_at = NOW() WHERE business_id = '{tenant_id}' AND deleted_at IS NULL"
+            )
+        )
+    purged_tables["cash_registers"] = cr_count
+
+    # 5. Payments (vía Vouchers)
+    p_result = await db.execute(
+        select(func.count()).select_from(
+            text(f"""
+                (SELECT p.id FROM payments p
+                 JOIN vouchers v ON p.voucher_id = v.id
+                 WHERE v.business_id = '{tenant_id}')
+            """)
+        )
+    )
+    p_count = p_result.scalar() or 0
+    if p_count > 0:
+        await db.execute(
+            text(f"""
+                UPDATE payments SET deleted_at = NOW()
+                WHERE id IN (
+                    SELECT p.id FROM payments p
+                    JOIN vouchers v ON p.voucher_id = v.id
+                    WHERE v.business_id = '{tenant_id}' AND p.deleted_at IS NULL
+                )
+            """)
+        )
+    purged_tables["payments"] = p_count
+
+    # 6. Voucher Items (vía Vouchers)
+    vi_result = await db.execute(
+        select(func.count()).select_from(
+            text(f"""
+                (SELECT vi.id FROM voucher_items vi
+                 JOIN vouchers v ON vi.voucher_id = v.id
+                 WHERE v.business_id = '{tenant_id}')
+            """)
+        )
+    )
+    vi_count = vi_result.scalar() or 0
+    if vi_count > 0:
+        await db.execute(
+            text(f"""
+                UPDATE voucher_items SET deleted_at = NOW()
+                WHERE id IN (
+                    SELECT vi.id FROM voucher_items vi
+                    JOIN vouchers v ON vi.voucher_id = v.id
+                    WHERE v.business_id = '{tenant_id}' AND vi.deleted_at IS NULL
+                )
+            """)
+        )
+    purged_tables["voucher_items"] = vi_count
+
+    # 7. Vouchers
+    v_result = await db.execute(
+        select(func.count(Voucher.id)).where(
+            Voucher.business_id == tenant_id, Voucher.deleted_at.is_(None)
+        )
+    )
+    v_count = v_result.scalar() or 0
+    if v_count > 0:
+        await db.execute(
+            text(
+                f"UPDATE vouchers SET deleted_at = NOW() WHERE business_id = '{tenant_id}' AND deleted_at IS NULL"
+            )
+        )
+    purged_tables["vouchers"] = v_count
+
+    # 8. Price History (vía Products)
+    ph_result = await db.execute(
+        select(func.count()).select_from(
+            text(f"""
+                (SELECT ph.id FROM price_histories ph
+                 JOIN products p ON ph.product_id = p.id
+                 WHERE p.business_id = '{tenant_id}')
+            """)
+        )
+    )
+    ph_count = ph_result.scalar() or 0
+    if ph_count > 0:
+        await db.execute(
+            text(f"""
+                UPDATE price_histories SET deleted_at = NOW()
+                WHERE id IN (
+                    SELECT ph.id FROM price_histories ph
+                    JOIN products p ON ph.product_id = p.id
+                    WHERE p.business_id = '{tenant_id}' AND ph.deleted_at IS NULL
+                )
+            """)
+        )
+    purged_tables["price_histories"] = ph_count
+
+    # 9. Products
+    prod_result = await db.execute(
+        select(func.count(Product.id)).where(
+            Product.business_id == tenant_id, Product.deleted_at.is_(None)
+        )
+    )
+    prod_count = prod_result.scalar() or 0
+    if prod_count > 0:
+        await db.execute(
+            text(
+                f"UPDATE products SET deleted_at = NOW() WHERE business_id = '{tenant_id}' AND deleted_at IS NULL"
+            )
+        )
+    purged_tables["products"] = prod_count
+
+    # 10. Categories (solo las que tenían productos del tenant)
+    cat_ids_result = await db.execute(
+        text(f"""
+            SELECT DISTINCT c.id FROM categories c
+            JOIN products p ON c.id = p.category_id
+            WHERE p.business_id = '{tenant_id}'
+        """)
+    )
+    cat_ids = [row[0] for row in cat_ids_result.fetchall()]
+    if cat_ids:
+        await db.execute(
+            text(
+                f"UPDATE categories SET deleted_at = NOW() WHERE id = ANY(ARRAY{cat_ids}) AND deleted_at IS NULL"
+            )
+        )
+    purged_tables["categories"] = len(cat_ids)
+
+    # 11. Suppliers
+    supp_ids_result = await db.execute(
+        text(f"""
+            SELECT DISTINCT s.id FROM suppliers s
+            JOIN products p ON s.id = p.supplier_id
+            WHERE p.business_id = '{tenant_id}'
+            UNION
+            SELECT DISTINCT s.id FROM suppliers s
+            JOIN purchase_orders po ON s.id = po.supplier_id
+            WHERE po.business_id = '{tenant_id}'
+        """)
+    )
+    supp_ids = [row[0] for row in supp_ids_result.fetchall()]
+    if supp_ids:
+        await db.execute(
+            text(
+                f"UPDATE suppliers SET deleted_at = NOW() WHERE id = ANY(ARRAY{supp_ids}) AND deleted_at IS NULL"
+            )
+        )
+    purged_tables["suppliers"] = len(supp_ids)
+
+    # 12. Clients
+    client_result = await db.execute(
+        select(func.count(Client.id)).where(
+            Client.business_id == tenant_id, Client.deleted_at.is_(None)
+        )
+    )
+    client_count = client_result.scalar() or 0
+    if client_count > 0:
+        await db.execute(
+            text(
+                f"UPDATE clients SET deleted_at = NOW() WHERE business_id = '{tenant_id}' AND deleted_at IS NULL"
+            )
+        )
+    purged_tables["clients"] = client_count
+
+    # 13. Tenant Secrets (hard delete)
+    secret_result = await db.execute(
+        select(func.count(TenantSecret.id)).where(TenantSecret.business_id == tenant_id)
+    )
+    secret_count = secret_result.scalar() or 0
+    if secret_count > 0:
+        await db.execute(
+            text(f"DELETE FROM tenant_secrets WHERE business_id = '{tenant_id}'")
+        )
+    purged_tables["tenant_secrets"] = secret_count
+
+    # 14. AI Provider Configs (hard delete)
+    ai_result = await db.execute(
+        select(func.count(AIProviderConfig.id)).where(
+            AIProviderConfig.business_id == tenant_id
+        )
+    )
+    ai_count = ai_result.scalar() or 0
+    if ai_count > 0:
+        await db.execute(
+            text(f"DELETE FROM ai_provider_configs WHERE business_id = '{tenant_id}'")
+        )
+    purged_tables["ai_provider_configs"] = ai_count
+
+    # 15. Tenant Memberships (hard delete)
+    member_result = await db.execute(
+        select(func.count(TenantMembership.id)).where(
+            TenantMembership.business_id == tenant_id
+        )
+    )
+    member_count = member_result.scalar() or 0
+    if member_count > 0:
+        await db.execute(
+            text(f"DELETE FROM tenant_memberships WHERE business_id = '{tenant_id}'")
+        )
+    purged_tables["tenant_memberships"] = member_count
+
+    # Marcar business como purgado
+    business.deleted_at = datetime.utcnow()
+    await db.commit()
+
+    # Log audit con detalles completos
+    await log_audit(
+        db=db,
+        user_id=admin.user_id,
+        business_id=tenant_id,
+        action="tenant_purge",
+        resource_type="business",
+        resource_id=tenant_id,
+        details={
+            "reason": data.reason,
+            "purged_tables": purged_tables,
+            "total_records_deleted": sum(purged_tables.values()),
+        },
+    )
+
+    executed_at = datetime.utcnow()
+
+    logger.warning(
+        f"=== TENANT PURGE COMPLETED === Tenant: {tenant_id}, Records: {sum(purged_tables.values())}, Admin: {admin.user.email}"
+    )
+
+    return PurgeTenantResponse(
+        tenant_id=str(tenant_id),
+        purged_tables=purged_tables,
+        reason=data.reason,
+        executed_by=admin.user.email,
+        executed_at=executed_at,
     )

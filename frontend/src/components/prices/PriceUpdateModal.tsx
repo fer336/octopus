@@ -61,18 +61,18 @@ export default function PriceUpdateModal({
       key: 'remove_increase', 
       label: 'Quitar Aumento %', 
       icon: RotateCcw, 
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50 dark:bg-purple-900/20',
-      borderColor: 'border-purple-300 dark:border-purple-700',
+      color: 'text-primary-600',
+      bgColor: 'bg-primary-50 dark:bg-primary-900/20',
+      borderColor: 'border-primary-300 dark:border-primary-700',
       description: 'Ejemplo: $110 ÷ 1.10 = $100 (inverso)'
     },
     { 
       key: 'set_value', 
       label: 'Establecer Valor Fijo', 
       icon: DollarSign, 
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50 dark:bg-blue-900/20',
-      borderColor: 'border-blue-300 dark:border-blue-700',
+      color: 'text-primary-600',
+      bgColor: 'bg-primary-50 dark:bg-primary-900/20',
+      borderColor: 'border-primary-300 dark:border-primary-700',
       description: 'Ejemplo: Establecer todos en $1500'
     },
   ]
@@ -198,7 +198,7 @@ export default function PriceUpdateModal({
             </span>
           </div>
           {updateType === 'remove_increase' && (
-            <p className="text-xs text-purple-600 dark:text-purple-400 mt-2 flex items-center gap-1">
+            <p className="text-xs text-primary-600 dark:text-primary-400 mt-2 flex items-center gap-1">
               <RotateCcw size={12} />
               Esto revierte un aumento previo aplicando la fórmula inversa
             </p>
@@ -226,13 +226,13 @@ export default function PriceUpdateModal({
               )}
               {updateType === 'remove_increase' && (
                 <p className="text-gray-700 dark:text-gray-300">
-                  $110.00 → <span className="font-bold text-purple-600">${(110 / (1 + parseFloat(value) / 100)).toFixed(2)}</span>
-                  <span className="text-xs text-purple-600 ml-2">(quitar {value}%)</span>
+                  $110.00 → <span className="font-bold text-primary-600">${(110 / (1 + parseFloat(value) / 100)).toFixed(2)}</span>
+                  <span className="text-xs text-primary-600 ml-2">(quitar {value}%)</span>
                 </p>
               )}
               {updateType === 'set_value' && (
                 <p className="text-gray-700 dark:text-gray-300">
-                  Cualquier valor → <span className="font-bold text-blue-600">${parseFloat(value).toFixed(2)}</span>
+                  Cualquier valor → <span className="font-bold text-primary-600">${parseFloat(value).toFixed(2)}</span>
                 </p>
               )}
             </div>

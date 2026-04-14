@@ -61,6 +61,13 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
+class CredentialsLoginRequest(BaseModel):
+    """Request para login con usuario y contraseña."""
+
+    email: str
+    password: str
+
+
 class TokenResponse(BaseModel):
     """Response con tokens de autenticación."""
 
@@ -267,6 +274,38 @@ async def login_with_google(
     return result
 
 
+@router.post("/login", response_model=TokenResponse)
+async def login_with_credentials(
+    request: CredentialsLoginRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Login con usuario y contraseña (credenciales locales)."""
+    service = AuthService(db)
+    result = await service.login_with_password(request.email, request.password)
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario o contraseña inválidos",
+        )
+
+    user_id = result.get("user", {}).get("id") if result.get("user") else None
+    if user_id:
+        await _log_audit(
+            db=db,
+            user_id=user_id,
+            action="login",
+            resource_type="user",
+            resource_id=user_id,
+            details={
+                "description": "Login exitoso con usuario y contraseña",
+                "method": "credentials",
+            },
+        )
+
+    return result
+
+
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
     request: RefreshTokenRequest,
@@ -319,11 +358,11 @@ async def logout():
 async def dev_login(
     email: str | None = Query(
         None,
-        description="Usuario demo para login de desarrollo o email legacy para bypass manual.",
+        description="Usuario para login de desarrollo.",
     ),
     password: str | None = Query(
         None,
-        description="Contraseña del acceso demo de desarrollo.",
+        description="Contraseña del acceso de desarrollo.",
     ),
     db: AsyncSession = Depends(get_db),
 ):
@@ -342,7 +381,7 @@ async def dev_login(
     from app.models.user import User
 
     user = None
-    use_demo_credentials = email is not None or password is not None
+    use_demo_credentials = bool(email and password)
 
     async def get_first_active_user():
         query = select(User).where(User.is_active.is_(True)).limit(1)
@@ -359,10 +398,16 @@ async def dev_login(
         return result.scalar_one_or_none()
 
     if use_demo_credentials:
+        if not settings.DEV_LOGIN_EMAIL or not settings.DEV_LOGIN_PASSWORD:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Credenciales de desarrollo no configuradas en el servidor",
+            )
+
         if email != settings.DEV_LOGIN_EMAIL or password != settings.DEV_LOGIN_PASSWORD:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Credenciales demo inválidas",
+                detail="Credenciales inválidas",
             )
 
         if settings.DEV_LOGIN_TARGET_EMAIL:
@@ -372,10 +417,10 @@ async def dev_login(
 
         if not user:
             user = User(
-                email=settings.DEV_LOGIN_EMAIL,
-                name="Demo",
+                email=email,
+                name=email.split("@")[0] if email else "Usuario",
                 picture="",
-                google_id=f"dev-{settings.DEV_LOGIN_EMAIL}",
+                google_id=f"dev-{email}",
             )
             db.add(user)
             await db.commit()

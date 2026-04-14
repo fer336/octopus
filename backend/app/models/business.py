@@ -3,7 +3,7 @@ Modelo del Negocio/Empresa.
 Contiene los datos del comercio para el membrete y facturación.
 """
 
-from sqlalchemy import Column, ForeignKey, String, Text
+from sqlalchemy import Boolean, Column, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -50,6 +50,10 @@ class Business(BaseModel):
     last_invoice_b_number = Column(String(8), default="00000000")
     last_invoice_c_number = Column(String(8), default="00000000")
     last_purchase_order_number = Column(String(8), default="00000000")
+
+    # Feature flags por tenant (CMS superadmin)
+    ai_agent_enabled = Column(Boolean, nullable=False, default=False)
+    linear_sync_enabled = Column(Boolean, nullable=False, default=False)
 
     # Configuración ARCA/AFIP
     arca_token = Column(Text, nullable=True)  # Token del WSAA

@@ -10,7 +10,7 @@ import type {
   PaymentMethodCreate,
   PaymentMethodUpdate,
 } from '../api/paymentMethodsService'
-import { Button, Input, Modal, Table } from '../components/ui'
+import { Button, Input, Table } from '../components/ui'
 import {
   useCreatePaymentMethod,
   usePaymentMethods,
@@ -63,7 +63,7 @@ export default function PaymentMethods() {
 
   const openCreateModal = () => {
     resetForm()
-    setShowModal(true)
+    window.setTimeout(() => setShowModal(true), 0)
   }
 
   const openEditModal = (method: PaymentMethod) => {
@@ -74,7 +74,7 @@ export default function PaymentMethods() {
       requires_reference: method.requires_reference,
       is_active: method.is_active,
     })
-    setShowModal(true)
+    window.setTimeout(() => setShowModal(true), 0)
   }
 
   const handleCloseModal = () => {
@@ -197,7 +197,7 @@ export default function PaymentMethods() {
       key: 'requires_reference',
       header: 'Referencia',
       render: (item: PaymentMethod) => (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${item.requires_reference ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'}`}>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${item.requires_reference ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300'}`}>
           {item.requires_reference ? 'Requerida' : 'Opcional'}
         </span>
       ),
@@ -206,7 +206,7 @@ export default function PaymentMethods() {
       key: 'status',
       header: 'Estado',
       render: (item: PaymentMethod) => (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${item.is_active ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${item.is_active ? 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300' : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
           {item.is_active ? 'Activo' : 'Inactivo'}
         </span>
       ),
@@ -220,7 +220,7 @@ export default function PaymentMethods() {
           <button
             type="button"
             onClick={() => openEditModal(item)}
-            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
             title="Editar"
           >
             <Pencil size={18} />
@@ -241,20 +241,24 @@ export default function PaymentMethods() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-violet-50 to-fuchsia-50 dark:from-violet-900/20 dark:to-fuchsia-900/20 p-6 rounded-xl border border-violet-200 dark:border-violet-800">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 p-6 rounded-xl border border-primary-200 dark:border-primary-800">
         <div>
-          <h1 className="text-2xl font-bold text-violet-900 dark:text-violet-100 flex items-center gap-2">
-            <CreditCard className="h-7 w-7 text-violet-600 dark:text-violet-400" />
+          <h1 className="text-2xl font-bold text-primary-900 dark:text-primary-100 flex items-center gap-2">
+            <CreditCard className="h-7 w-7 text-primary-600 dark:text-primary-400" />
             Métodos de Pago
           </h1>
-          <p className="text-violet-700 dark:text-violet-300">
+          <p className="text-primary-700 dark:text-primary-300">
             Administrá los medios de cobro que usa tu negocio en ventas y comprobantes.
           </p>
         </div>
-        <Button onClick={openCreateModal} className="bg-violet-600 hover:bg-violet-700 text-white border-none shadow-md">
-          <Plus size={18} className="mr-2" />
+        <button
+          type="button"
+          onClick={openCreateModal}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-md hover:bg-primary-700"
+        >
+          <Plus size={18} />
           Nuevo Método
-        </Button>
+        </button>
       </div>
 
       <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
@@ -277,7 +281,7 @@ export default function PaymentMethods() {
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
           <p className="text-sm text-gray-500 dark:text-gray-400">Activos</p>
-          <p className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+          <p className="text-2xl font-semibold text-primary-600 dark:text-primary-400">
             {paymentMethods.filter((method) => method.is_active).length}
           </p>
         </div>
@@ -291,12 +295,30 @@ export default function PaymentMethods() {
 
       <Table columns={columns} data={filteredMethods} emptyMessage="No hay métodos de pago cargados." />
 
-      <Modal
-        isOpen={showModal}
-        onClose={handleCloseModal}
-        title={editingMethod ? 'Editar Método de Pago' : 'Nuevo Método de Pago'}
-      >
-        <form onSubmit={handleSubmit} className="space-y-4">
+      {showModal && (
+        <div className="fixed inset-0 z-[80]">
+          <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
+          <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+            <div
+              className="pointer-events-auto relative w-full max-w-lg rounded-xl bg-white shadow-xl dark:bg-gray-800"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+            <div className="flex items-center justify-between border-b px-6 py-4 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {editingMethod ? 'Editar Método de Pago' : 'Nuevo Método de Pago'}
+              </h3>
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="px-6 py-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             label="Nombre"
             value={formData.name}
@@ -351,8 +373,12 @@ export default function PaymentMethods() {
                   : 'Crear método'}
             </Button>
           </div>
-        </form>
-      </Modal>
+              </form>
+            </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

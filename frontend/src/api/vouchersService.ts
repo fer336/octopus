@@ -68,6 +68,7 @@ export interface Voucher {
   number: string
   date: string
   notes?: string
+  show_prices?: boolean
   general_discount?: number
   subtotal: number
   iva_amount: number

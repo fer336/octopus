@@ -17,6 +17,7 @@ const TenantList = lazy(() => import('./pages/TenantList'))
 const TenantDetail = lazy(() => import('./pages/TenantDetail'))
 const ArcaManagement = lazy(() => import('./pages/ArcaManagement'))
 const UsersPage = lazy(() => import('./pages/UsersPage'))
+const FeedbackInbox = lazy(() => import('./pages/FeedbackInbox'))
 const AdminLogin = lazy(() => import('./pages/AdminLogin'))
 const AdminAuthCallback = lazy(() => import('./pages/AdminAuthCallback'))
 
@@ -118,6 +119,7 @@ function AdminSidebar() {
     { path: '/', label: 'Dashboard', icon: '📊' },
     { path: '/tenants', label: 'Tenants', icon: '🏢' },
     { path: '/users', label: 'Usuarios', icon: '👤' },
+    { path: '/feedback', label: 'Feedback', icon: '🧩' },
   ]
 
   const isActive = (path: string) => {
@@ -243,6 +245,18 @@ export default function App() {
                   <AdminLayout>
                     <Suspense fallback={<PageLoader />}>
                       <UsersPage />
+                    </Suspense>
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/feedback"
+              element={
+                <ProtectedRoute>
+                  <AdminLayout>
+                    <Suspense fallback={<PageLoader />}>
+                      <FeedbackInbox />
                     </Suspense>
                   </AdminLayout>
                 </ProtectedRoute>

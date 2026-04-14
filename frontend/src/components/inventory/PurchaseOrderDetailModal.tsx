@@ -80,11 +80,11 @@ export default function PurchaseOrderDetailModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <Package className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <Package className="w-5 h-5 text-primary-600 dark:text-primary-400" />
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               Orden de Pedido
               {order && (
-                <span className="ml-2 font-mono text-blue-600 dark:text-blue-400">
+                <span className="ml-2 font-mono text-primary-600 dark:text-primary-400">
                   #{order.sale_point}-{order.number}
                 </span>
               )}
@@ -102,7 +102,7 @@ export default function PurchaseOrderDetailModal({
         <div className="flex-1 overflow-y-auto px-6 py-5 min-h-0">
           {isLoading ? (
             <div className="flex items-center justify-center py-16">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
             </div>
           ) : !order ? (
             <div className="text-center py-16 text-gray-400">
@@ -180,7 +180,7 @@ export default function PurchaseOrderDetailModal({
                         <td className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">
                           {item.counted_stock ?? <span className="text-gray-300 dark:text-gray-600">—</span>}
                         </td>
-                        <td className="px-3 py-2 text-center font-bold text-blue-600 dark:text-blue-400">
+                        <td className="px-3 py-2 text-center font-bold text-primary-600 dark:text-primary-400">
                           {item.quantity_to_order}
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-gray-700 dark:text-gray-300">
@@ -233,7 +233,7 @@ export default function PurchaseOrderDetailModal({
             <div className="flex items-center gap-3">
               <button
                 onClick={handlePreviewPdf}
-                className="flex items-center gap-2 px-4 py-2 text-sm border border-purple-300 dark:border-purple-600 rounded-lg text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm border border-primary-300 dark:border-primary-600 rounded-lg text-primary-700 dark:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
               >
                 <FileText className="w-4 h-4" />
                 Ver PDF

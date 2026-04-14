@@ -216,8 +216,8 @@ export default function Settings() {
       {/* Membrete PDF */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-            <FileText className="text-purple-600" size={20} />
+          <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
+            <FileText className="text-primary-600" size={20} />
           </div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Membrete para documentos
@@ -278,8 +278,8 @@ export default function Settings() {
       {/* Facturación Electrónica ARCA/AFIP */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3 mb-3">
-          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-            <Shield className="text-blue-600" size={20} />
+          <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
+            <Shield className="text-primary-600" size={20} />
           </div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Facturación electrónica ARCA/AFIP

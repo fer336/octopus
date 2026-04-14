@@ -85,8 +85,8 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
       end={item.path === '/'}
       className={({ isActive }) =>
         clsx(
-          'flex items-center rounded-md px-2.5 py-1.5 text-[13px] text-gray-300 hover:bg-gray-800 hover:text-white transition-colors',
-          isActive && 'bg-gray-800 text-white border-r-4 border-primary-500'
+          'flex items-center rounded-md px-2.5 py-1.5 text-[13px] text-primary-300 hover:bg-[#2b2340] hover:text-white transition-colors',
+          isActive && 'bg-[#3b2b55] text-white border-r-4 border-primary-400'
         )
       }
     >
@@ -99,19 +99,24 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
   return (
     <aside
       className={clsx(
-        'h-screen bg-gray-900 text-white flex flex-col transition-all duration-300 flex-shrink-0',
+        'h-screen bg-[var(--color-brand-black)] text-white flex flex-col transition-all duration-300 flex-shrink-0 border-r border-[#2b2340]',
         isCollapsed ? 'w-16' : 'w-60'
       )}
     >
       {/* Logo */}
-      <div className="h-14 flex items-center px-3 border-b border-gray-800">
+      <div className="h-14 flex items-center justify-center border-b border-[#2b2340]">
         <img
-          src="/octopus-logo-blue.png"
-          alt="Octopus"
-          className="h-10 w-10 flex-shrink-0 object-contain"
+          src="/logo-tenculo-finalpng"
+          alt="Octopus Logo"
+          className="h-[24px] w-[24px] object-contain"
         />
         {!isCollapsed && (
-          <span className="ml-2 text-[15px] font-bold truncate">Octopus</span>
+          <img
+            src="/texto-solo-octopus.png"
+            alt="Octopus"
+            className="ml-3 h-[20px] w-auto object-contain"
+            style={{ filter: 'brightness(0) saturate(100%) invert(24%) sepia(26%) saturate(1308%) hue-rotate(230deg) brightness(93%) contrast(92%)' }}
+          />
         )}
       </div>
 
@@ -125,9 +130,9 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
                   type="button"
                   onClick={() => setOpenSections((prev) => ({ ...prev, [section.key]: !prev[section.key] }))}
                   className={clsx(
-                    'w-full flex items-center justify-between rounded-md px-2 py-1.5 text-[11px] font-medium tracking-[0.08em] text-gray-400 transition-all',
-                    'hover:bg-gray-800/60 hover:text-gray-200',
-                    openSections[section.key] && 'bg-gray-800/40 text-gray-200'
+                    'w-full flex items-center justify-between rounded-md px-2 py-1.5 text-[11px] font-medium tracking-[0.08em] text-primary-300 transition-all',
+                    'hover:bg-[#2b2340]/80 hover:text-primary-100',
+                    openSections[section.key] && 'bg-[#2b2340]/60 text-primary-100'
                   )}
                 >
                   <span className="flex min-w-0 items-center gap-2">
@@ -138,13 +143,13 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
                     size={16}
                     strokeWidth={2.25}
                     className={clsx(
-                      'flex-shrink-0 text-gray-500 transition-transform duration-200',
-                      openSections[section.key] && 'rotate-180 text-gray-300'
+                      'flex-shrink-0 text-primary-400 transition-transform duration-200',
+                      openSections[section.key] && 'rotate-180 text-primary-200'
                     )}
                   />
                 </button>
                 {openSections[section.key] && (
-                  <div className="mt-1 space-y-0.5 border-l border-gray-800/70 pl-1.5">
+                  <div className="mt-1 space-y-0.5 border-l border-[#2b2340]/80 pl-1.5">
                     {items.map((item) => renderNavItem(item))}
                   </div>
                 )}
@@ -153,9 +158,9 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="p-2.5 border-t border-gray-800">
+      <div className="p-2.5 border-t border-[#2b2340]">
         {!isCollapsed && (
-          <p className="text-[10px] text-gray-500 text-center">
+          <p className="text-[10px] text-primary-400 text-center">
             OctopusTrack v1.0
           </p>
         )}

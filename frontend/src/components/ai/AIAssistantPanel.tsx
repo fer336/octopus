@@ -280,7 +280,7 @@ export default function AIAssistantPanel() {
         {/* Header */}
         <div className="h-14 shrink-0 px-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-sm">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary-600 to-primary-400 flex items-center justify-center shadow-sm">
               <Sparkles size={14} className="text-white" />
             </div>
             <div className="min-w-0">
@@ -299,7 +299,7 @@ export default function AIAssistantPanel() {
                 historyLoaded.current = false
                 clearFromDB()
               }}
-              className="p-1.5 rounded-md text-gray-500 hover:text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors"
+              className="p-1.5 rounded-md text-gray-500 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
               aria-label="Limpiar historial"
               title="Limpiar historial"
             >
@@ -324,9 +324,9 @@ export default function AIAssistantPanel() {
 
         {/* Input */}
         {quoteCart.length > 0 && (
-          <div className="shrink-0 px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-cyan-50/70 dark:bg-cyan-900/10">
+          <div className="shrink-0 px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-primary-50/70 dark:bg-primary-900/10">
             <div className="flex items-center justify-between gap-2">
-                <p className="text-xs text-cyan-800 dark:text-cyan-300">
+                <p className="text-xs text-primary-800 dark:text-primary-300">
                   Carrito virtual: {quoteCart.reduce((sum, item) => sum + item.qty, 0)} ítems · $
                 {quoteCart
                   .reduce((sum, item) => sum + item.qty * safePrice(item.product.sale_price), 0)
@@ -335,13 +335,13 @@ export default function AIAssistantPanel() {
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={clearQuoteCart}
-                  className="text-[11px] px-2 py-1 rounded-md border border-cyan-200 dark:border-cyan-800 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-100/70 dark:hover:bg-cyan-900/20 transition-colors"
+                  className="text-[11px] px-2 py-1 rounded-md border border-primary-200 dark:border-primary-800 text-primary-700 dark:text-primary-300 hover:bg-primary-100/70 dark:hover:bg-primary-900/20 transition-colors"
                 >
                   Limpiar
                 </button>
                 <button
                   onClick={handleSendToSales}
-                  className="text-[11px] px-2 py-1 rounded-md bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:from-cyan-600 hover:to-blue-600 transition-colors"
+                  className="text-[11px] px-2 py-1 rounded-md bg-gradient-to-r from-primary-600 to-primary-400 text-white hover:from-primary-700 hover:to-primary-500 transition-colors"
                 >
                   Pasar a Ventas
                 </button>

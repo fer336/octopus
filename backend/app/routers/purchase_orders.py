@@ -2,6 +2,7 @@
 Router de Órdenes de Pedido.
 Endpoints para control de inventario físico y gestión de órdenes a proveedores.
 """
+
 from typing import Optional
 from uuid import UUID
 
@@ -69,7 +70,6 @@ async def download_inventory_count_pdf(
     supplier_name = ""
     category_name = ""
     if products:
-
         first = products[0]
         if first.supplier:
             supplier_name = first.supplier.name
@@ -89,6 +89,7 @@ async def download_inventory_count_pdf(
     if category_name:
         suffix += f"_{category_name[:15].replace(' ', '_')}"
     from datetime import date
+
     filename = f"planilla_conteo{suffix}_{date.today().strftime('%Y_%m_%d')}.pdf"
 
     return StreamingResponse(
@@ -127,7 +128,9 @@ async def list_purchase_orders(
     return result
 
 
-@router.post("", response_model=PurchaseOrderResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=PurchaseOrderResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_purchase_order(
     data: PurchaseOrderCreate,
     db: AsyncSession = Depends(get_db),
@@ -226,7 +229,9 @@ async def delete_purchase_order(
     """Elimina una orden de pedido (solo si está en DRAFT)."""
     service = PurchaseOrderService(db)
     try:
-        deleted = await service.delete(order_id, current_business)
+        deleted = await service.delete(
+            order_id, current_business, user_id=current_user.id
+        )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -263,7 +268,10 @@ async def download_purchase_order_pdf(
     )
 
     from datetime import date
-    supplier_slug = (getattr(order, 'supplier_name', None) or "sin_proveedor").replace(" ", "_")[:20]
+
+    supplier_slug = (getattr(order, "supplier_name", None) or "sin_proveedor").replace(
+        " ", "_"
+    )[:20]
     filename = f"orden_pedido_{supplier_slug}_{date.today().strftime('%Y_%m_%d')}.pdf"
 
     return StreamingResponse(

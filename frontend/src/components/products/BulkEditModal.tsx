@@ -83,16 +83,16 @@ export default function BulkEditModal({
     <Modal isOpen={isOpen} onClose={handleClose} title="Editar Campo en Lote" size="sm">
       <div className="space-y-6">
         {/* Información */}
-        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-4">
+        <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 rounded-lg p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/40 rounded-full flex items-center justify-center">
-              <Edit2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center">
+              <Edit2 className="w-5 h-5 text-primary-600 dark:text-primary-400" />
             </div>
             <div>
-              <p className="text-sm font-medium text-purple-900 dark:text-purple-200">
+              <p className="text-sm font-medium text-primary-900 dark:text-primary-200">
                 Editar {selectedCount} {selectedCount === 1 ? 'producto' : 'productos'}
               </p>
-              <p className="text-xs text-purple-700 dark:text-purple-400">
+              <p className="text-xs text-primary-700 dark:text-primary-400">
                 El mismo valor se aplicará a todos los seleccionados
               </p>
             </div>
@@ -110,7 +110,7 @@ export default function BulkEditModal({
               setSelectedField(e.target.value)
               setFieldValue('')
             }}
-            className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-white"
+            className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
           >
             <option value="">Seleccionar campo...</option>
             {fields.map(field => (
@@ -132,7 +132,7 @@ export default function BulkEditModal({
               <select
                 value={fieldValue}
                 onChange={(e) => setFieldValue(e.target.value)}
-                className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-white"
+                className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
                 autoFocus
               >
                 <option value="">Seleccionar...</option>
@@ -160,7 +160,7 @@ export default function BulkEditModal({
                       ? '1500.00'
                       : '0'
                   }
-                  className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-white text-lg font-medium text-center"
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white text-lg font-medium text-center"
                   autoFocus
                 />
                 {selectedField === 'discount_display' && (
@@ -194,7 +194,7 @@ export default function BulkEditModal({
           <Button
             onClick={handleConfirm}
             disabled={!selectedField || !fieldValue}
-            className="flex-1 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800"
+            className="flex-1 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800"
           >
             <Check size={18} className="mr-2" />
             Aplicar Cambios

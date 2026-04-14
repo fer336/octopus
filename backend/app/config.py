@@ -51,9 +51,9 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"
     FRONTEND_ADMIN_URL: str = "http://localhost:5174"
 
-    # Login demo de desarrollo
-    DEV_LOGIN_EMAIL: str = "user@demo"
-    DEV_LOGIN_PASSWORD: str = "demo123"
+    # Login de desarrollo (configurar en .env)
+    DEV_LOGIN_EMAIL: str = ""
+    DEV_LOGIN_PASSWORD: str = ""
     DEV_LOGIN_TARGET_EMAIL: str = ""
 
     # OpenAI — Fallback de desarrollo (las keys reales se guardan por negocio en DB)

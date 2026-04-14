@@ -536,7 +536,7 @@ export default function ArcaManagement() {
             type="button"
             onClick={handleTest}
             disabled={testMutation.isPending}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
           >
             {testMutation.isPending ? 'Probando...' : 'Probar conexión'}
           </button>

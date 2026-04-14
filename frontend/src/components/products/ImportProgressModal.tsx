@@ -34,10 +34,10 @@ export default function ImportProgressModal({
               ? 'bg-green-100 dark:bg-green-900/30' 
               : status === 'error'
               ? 'bg-red-100 dark:bg-red-900/30'
-              : 'bg-blue-100 dark:bg-blue-900/30'
+              : 'bg-primary-100 dark:bg-primary-900/30'
           }`}>
             {status === 'importing' && (
-              <Loader2 className="w-10 h-10 text-blue-600 dark:text-blue-400 animate-spin" />
+              <Loader2 className="w-10 h-10 text-primary-600 dark:text-primary-400 animate-spin" />
             )}
             {status === 'success' && (
               <CheckCircle className="w-10 h-10 text-green-600 dark:text-green-400" />
@@ -69,7 +69,7 @@ export default function ImportProgressModal({
                   ? 'bg-gradient-to-r from-green-500 to-green-600'
                   : status === 'error'
                   ? 'bg-gradient-to-r from-red-500 to-red-600'
-                  : 'bg-gradient-to-r from-blue-500 to-indigo-600'
+                  : 'bg-gradient-to-r from-primary-500 to-primary-600'
               }`}
               style={{ width: `${progress}%` }}
             />
@@ -83,8 +83,8 @@ export default function ImportProgressModal({
 
         {/* Detalles adicionales */}
         {status === 'importing' && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
-            <p className="text-xs text-blue-800 dark:text-blue-300 text-center">
+          <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 rounded-lg p-3">
+            <p className="text-xs text-primary-800 dark:text-primary-300 text-center">
               ⏳ Por favor espera mientras procesamos los datos...
             </p>
           </div>

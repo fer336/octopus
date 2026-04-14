@@ -74,8 +74,8 @@ export default function Dashboard() {
     if (isUnauthorized) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-full mb-4">
-            <Users className="h-8 w-8 text-blue-500" />
+          <div className="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-full mb-4">
+            <Users className="h-8 w-8 text-primary-500" />
           </div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
             Bienvenido a OctopusTrack
@@ -104,7 +104,7 @@ export default function Dashboard() {
         : 'Sin facturas',
       trend: (summary?.total_sales || 0) > 0 ? 'up' : 'neutral',
       icon: TrendingUp,
-      color: 'green',
+      iconClasses: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400',
     },
     {
       title: 'Productos',
@@ -114,7 +114,9 @@ export default function Dashboard() {
         : 'Stock saludable',
       trend: summary?.low_stock_products ? 'down' : 'neutral',
       icon: Package,
-      color: summary?.low_stock_products ? 'orange' : 'indigo',
+      iconClasses: summary?.low_stock_products 
+        ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400' 
+        : 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400',
     },
     {
       title: 'Clientes',
@@ -122,7 +124,7 @@ export default function Dashboard() {
       change: 'Activos',
       trend: 'up',
       icon: Users,
-      color: 'blue',
+      iconClasses: 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400',
     },
     {
       title: 'Valor Inventario',
@@ -130,24 +132,14 @@ export default function Dashboard() {
       change: 'Costo total',
       trend: 'neutral',
       icon: DollarSign,
-      color: 'purple',
+      iconClasses: 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400',
     },
   ]
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Dashboard
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400">
-            Resumen de actividad y métricas del negocio
-          </p>
-        </div>
-
-        {/* Selector de mes */}
+    <div className="space-y-4 max-w-7xl mx-auto">
+      {/* Selector de mes */}
+      <div className="flex justify-end">
         <div className="flex items-center gap-2">
           <button
             onClick={goPrevMonth}
@@ -159,7 +151,7 @@ export default function Dashboard() {
           <div className="text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 min-w-[160px] text-center">
             {MONTH_NAMES[filterMonth - 1]} {filterYear}
             {isCurrentMonth && (
-              <span className="ml-1.5 text-[10px] text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wide">
+              <span className="ml-1.5 text-[10px] text-primary-600 dark:text-primary-400 font-semibold uppercase tracking-wide">
                 actual
               </span>
             )}
@@ -176,17 +168,17 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat, index) => (
           <div
             key={index}
-            className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow"
+            className="bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-800 p-4 rounded-xl shadow-[0_8px_24px_rgba(15,23,42,0.06)] border border-slate-200 dark:border-gray-700 hover:shadow-[0_10px_26px_rgba(15,23,42,0.10)] transition-shadow"
           >
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-2">
               <div
-                className={`p-3 rounded-lg bg-${stat.color}-50 dark:bg-${stat.color}-900/20 text-${stat.color}-600 dark:text-${stat.color}-400`}
+                className={`p-2 rounded-lg ${stat.iconClasses}`}
               >
-                <stat.icon size={24} />
+                <stat.icon size={20} />
               </div>
               {stat.trend !== 'neutral' && (
                 <div
@@ -204,10 +196,10 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              {stat.title}
-            </h3>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                {stat.title}
+              </h3>
+            <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
               {stat.value}
             </p>
             <p className="text-xs text-gray-500 mt-1">{stat.change}</p>
@@ -216,10 +208,10 @@ export default function Dashboard() {
       </div>
 
       {/* Contenido adicional */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Alertas de stock */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 h-full">
-          <div className="flex items-center justify-between mb-6">
+        <div className="bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-800 rounded-xl p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)] border border-slate-200 dark:border-gray-700 h-full">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-orange-600 dark:text-orange-400">
                 <AlertTriangle size={20} />
@@ -256,8 +248,8 @@ export default function Dashboard() {
         </div>
 
         {/* Accesos Rápidos */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 h-full">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
+        <div className="bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-800 rounded-xl p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)] border border-slate-200 dark:border-gray-700 h-full">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Acciones Rápidas
           </h2>
           <div className="grid grid-cols-2 gap-4">
@@ -265,14 +257,14 @@ export default function Dashboard() {
               onClick={() => window.location.href = '/sales'}
               className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-dashed border-gray-200 dark:border-gray-600"
             >
-              <ShoppingCart className="h-6 w-6 text-blue-500 mb-2" />
+              <ShoppingCart className="h-6 w-6 text-primary-500 mb-2" />
               <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Nueva Venta</span>
             </button>
             <button
               onClick={() => window.location.href = '/products'}
               className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-dashed border-gray-200 dark:border-gray-600"
             >
-              <Package className="h-6 w-6 text-indigo-500 mb-2" />
+              <Package className="h-6 w-6 text-primary-500 mb-2" />
               <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Agregar Producto</span>
             </button>
             <button
@@ -286,7 +278,7 @@ export default function Dashboard() {
               onClick={() => window.location.href = '/reports'}
               className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-dashed border-gray-200 dark:border-gray-600"
             >
-              <TrendingUp className="h-6 w-6 text-purple-500 mb-2" />
+              <TrendingUp className="h-6 w-6 text-primary-500 mb-2" />
               <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Ver Reportes</span>
             </button>
           </div>

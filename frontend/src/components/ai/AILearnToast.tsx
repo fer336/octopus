@@ -46,8 +46,8 @@ export default function AILearnToast({
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-cyan-100 dark:bg-cyan-900/30">
-              <Sparkles size={14} className="text-cyan-500" />
+            <div className="p-1.5 rounded-lg bg-primary-100 dark:bg-primary-900/30">
+              <Sparkles size={14} className="text-primary-500" />
             </div>
             <span className="text-sm font-semibold text-gray-900 dark:text-white">
               ¿Guardar este término?
@@ -81,7 +81,7 @@ export default function AILearnToast({
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="flex-1 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 disabled:opacity-50 transition-all"
+            className="flex-1 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-primary-600 to-primary-400 hover:from-primary-700 hover:to-primary-500 disabled:opacity-50 transition-all"
           >
             {isSaving ? 'Guardando...' : 'Sí, guardar'}
           </button>

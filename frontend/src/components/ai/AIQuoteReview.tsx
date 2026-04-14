@@ -223,7 +223,7 @@ export default function AIQuoteReview({ result, onBack, onClose }: AIQuoteReview
               flex-2 flex-grow py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all
               ${hasUnresolved
                 ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
-                : 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 shadow-md shadow-cyan-500/20'
+                : 'bg-gradient-to-r from-primary-600 to-primary-400 hover:from-primary-700 hover:to-primary-500 shadow-md shadow-primary-500/20'
               }
             `}
           >
@@ -341,7 +341,7 @@ function ReviewItem({ item, index, onQtyChange, onSelectAlternative }: ReviewIte
               <button
                 key={alt.id}
                 onClick={() => onSelectAlternative(index, alt, item.item.raw_original)}
-                className="px-2.5 py-1 text-xs rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-cyan-400 hover:text-cyan-600 transition-colors truncate max-w-[150px]"
+                className="px-2.5 py-1 text-xs rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-primary-400 hover:text-primary-600 transition-colors truncate max-w-[150px]"
                 title={alt.description}
               >
                 {alt.description.length > 25
@@ -356,7 +356,7 @@ function ReviewItem({ item, index, onQtyChange, onSelectAlternative }: ReviewIte
       {/* Botón buscar manualmente para NONE */}
       {item.confidence === 'NONE' && (
         <div className="mt-3">
-          <button className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 hover:border-cyan-400 hover:text-cyan-500 transition-colors w-full justify-center">
+          <button className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 hover:border-primary-400 hover:text-primary-500 transition-colors w-full justify-center">
             <Search size={14} />
             Buscar producto manualmente
           </button>

@@ -60,7 +60,7 @@ const PROVIDER_META: Record<AIProvider, ProviderMeta> = {
     label: 'Google Gemini',
     description: 'Gemini 3.1 Pro, 2.5 Pro y Flash. Excelente relación calidad/precio.',
     docsUrl: 'https://aistudio.google.com/app/apikey',
-    color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600',
+    color: 'bg-primary-100 dark:bg-primary-900/30 text-primary-600',
     models: [
       { value: 'gemini-3.1-pro',   label: 'Gemini 3.1 Pro (preview, más nuevo)' },
       { value: 'gemini-3-flash',   label: 'Gemini 3 Flash (preview)' },
@@ -75,7 +75,7 @@ const PROVIDER_META: Record<AIProvider, ProviderMeta> = {
     label: 'OpenRouter',
     description: 'Acceso a cientos de modelos (Claude, Llama, Mistral, etc.) con una sola key.',
     docsUrl: 'https://openrouter.ai/keys',
-    color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600',
+    color: 'bg-primary-100 dark:bg-primary-900/30 text-primary-600',
     models: [
       { value: 'anthropic/claude-sonnet-4-6',         label: 'Claude Sonnet 4.6 (recomendado)' },
       { value: 'anthropic/claude-opus-4-6',           label: 'Claude Opus 4.6 (más inteligente)' },
@@ -565,8 +565,8 @@ export default function AIConfiguration({ businessId: _businessId }: AIConfigura
     <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
       {/* Header */}
       <div className="flex items-center gap-3 mb-2">
-        <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-          <Bot className="text-indigo-600" size={20} />
+        <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
+          <Bot className="text-primary-600" size={20} />
         </div>
         <div className="flex-1">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">

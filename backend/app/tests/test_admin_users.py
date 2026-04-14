@@ -52,7 +52,11 @@ async def test_superadmin_can_create_user_and_handle_duplicate_email(
     create_response = await client.post(
         "/api/admin/users",
         headers=headers,
-        json={"email": "nuevo_usuario@test.com", "name": "Nuevo Usuario"},
+        json={
+            "email": "nuevo_usuario@test.com",
+            "name": "Nuevo Usuario",
+            "password": "claveSegura123",
+        },
     )
     assert create_response.status_code == 201
     created = create_response.json()
@@ -63,7 +67,7 @@ async def test_superadmin_can_create_user_and_handle_duplicate_email(
     duplicate_response = await client.post(
         "/api/admin/users",
         headers=headers,
-        json={"email": "nuevo_usuario@test.com"},
+        json={"email": "nuevo_usuario@test.com", "password": "claveSegura123"},
     )
     assert duplicate_response.status_code == 409
 
@@ -183,3 +187,44 @@ async def test_superadmin_can_activate_trial_for_tenant_user(
 
     delta = membership.access_ends_at - membership.access_starts_at
     assert timedelta(days=29, hours=23) <= delta <= timedelta(days=30, minutes=1)
+
+
+@pytest.mark.asyncio
+async def test_superadmin_can_get_feature_flags(
+    client: AsyncClient,
+    superadmin_user: User,
+    business_a: Business,
+):
+    headers = make_auth_header(superadmin_user)
+
+    response = await client.get(
+        f"/api/admin/tenants/{business_a.id}/features", headers=headers
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["business_id"] == str(business_a.id)
+    assert payload["ai_agent_enabled"] is False
+
+
+@pytest.mark.asyncio
+async def test_superadmin_can_update_feature_flags(
+    client: AsyncClient,
+    superadmin_user: User,
+    business_a: Business,
+    db: AsyncSession,
+):
+    headers = make_auth_header(superadmin_user)
+
+    response = await client.patch(
+        f"/api/admin/tenants/{business_a.id}/features",
+        headers=headers,
+        json={"ai_agent_enabled": True},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ai_agent_enabled"] is True
+
+    await db.refresh(business_a)
+    assert business_a.ai_agent_enabled is True

@@ -26,7 +26,7 @@ from app.services.chat_history_service import (
     save_turn,
     clear_history,
 )
-from app.utils.security import get_current_business, get_current_user
+from app.utils.security import get_current_business_with_ai_enabled, get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +108,7 @@ async def parse_quote(
     ),
     text: str | None = Form(default=None, description="Texto libre del presupuesto"),
     db: AsyncSession = Depends(get_db),
-    current_business=Depends(get_current_business),
+    current_business=Depends(get_current_business_with_ai_enabled),
     current_user=Depends(get_current_user),
 ):
     """
@@ -210,7 +210,7 @@ async def parse_quote(
 async def learn_term(
     body: LearnTermRequest,
     db: AsyncSession = Depends(get_db),
-    current_business=Depends(get_current_business),
+    current_business=Depends(get_current_business_with_ai_enabled),
     current_user=Depends(get_current_user),
 ):
     """
@@ -250,7 +250,7 @@ async def chat(
         description="Archivo adjunto opcional (imagen, audio, PDF, DOCX)",
     ),
     db: AsyncSession = Depends(get_db),
-    current_business=Depends(get_current_business),
+    current_business=Depends(get_current_business_with_ai_enabled),
     current_user=Depends(get_current_user),
 ):
     """
@@ -376,7 +376,7 @@ async def chat_stream(
         description="Archivo adjunto opcional (imagen, audio, PDF, DOCX)",
     ),
     db: AsyncSession = Depends(get_db),
-    current_business=Depends(get_current_business),
+    current_business=Depends(get_current_business_with_ai_enabled),
     current_user=Depends(get_current_user),
 ):
     """
@@ -501,7 +501,7 @@ async def chat_stream(
 @router.get("/history", summary="Obtener historial de chat del usuario")
 async def get_chat_history(
     db: AsyncSession = Depends(get_db),
-    current_business=Depends(get_current_business),
+    current_business=Depends(get_current_business_with_ai_enabled),
     current_user=Depends(get_current_user),
 ):
     """
@@ -516,7 +516,7 @@ async def get_chat_history(
 @router.delete("/history", summary="Limpiar historial de chat")
 async def delete_chat_history(
     db: AsyncSession = Depends(get_db),
-    current_business=Depends(get_current_business),
+    current_business=Depends(get_current_business_with_ai_enabled),
     current_user=Depends(get_current_user),
 ):
     """

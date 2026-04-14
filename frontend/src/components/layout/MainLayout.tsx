@@ -2,10 +2,13 @@
  * Layout principal de la aplicación.
  * Combina Sidebar, Header y área de contenido.
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { ShoppingCart } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
+import { useAIStore } from '../../stores/aiStore'
+import businessService from '../../api/businessService'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import AIAssistantPanel from '../ai/AIAssistantPanel'
@@ -19,6 +22,22 @@ export default function MainLayout() {
 
   // Hook para cargar usuario en refresh
   useAuth()
+
+  const closeAI = useAIStore((s) => s.close)
+
+  const { data: business } = useQuery({
+    queryKey: ['business-me-layout'],
+    queryFn: () => businessService.getMyBusiness(),
+    staleTime: 60_000,
+  })
+
+  const aiEnabled = business?.ai_agent_enabled ?? false
+
+  useEffect(() => {
+    if (!aiEnabled) {
+      closeAI()
+    }
+  }, [aiEnabled, closeAI])
 
   const toggleSidebar = () => {
     setSidebarCollapsed((prev) => !prev)
@@ -44,7 +63,7 @@ export default function MainLayout() {
   ) : undefined
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-screen overflow-hidden bg-[var(--color-bg-primary)]">
       {/* Sidebar */}
       <Sidebar isCollapsed={sidebarCollapsed} onToggle={toggleSidebar} />
 
@@ -55,6 +74,7 @@ export default function MainLayout() {
           isSidebarCollapsed={sidebarCollapsed}
           currentRouteLabel={currentRouteLabel}
           contextualAction={contextualAction}
+          aiEnabled={aiEnabled}
         />
 
         <main className="flex-1 overflow-auto p-6">
@@ -62,7 +82,7 @@ export default function MainLayout() {
         </main>
       </div>
 
-      <AIAssistantPanel />
+      {aiEnabled && <AIAssistantPanel />}
     </div>
   )
 }

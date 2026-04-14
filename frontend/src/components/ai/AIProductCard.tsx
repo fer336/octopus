@@ -28,11 +28,11 @@ export default function AIProductCard({
   const ivaRate = Number(product.iva_rate ?? 0)
 
   return (
-    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 hover:border-cyan-300 dark:hover:border-cyan-700 transition-colors">
+    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 hover:border-primary-300 dark:hover:border-primary-700 transition-colors">
       {/* Encabezado */}
       <div className="flex items-start gap-2 mb-2">
-        <div className="p-1.5 rounded-lg bg-cyan-50 dark:bg-cyan-900/30 flex-shrink-0">
-          <Package size={14} className="text-cyan-500" />
+        <div className="p-1.5 rounded-lg bg-primary-50 dark:bg-primary-900/30 flex-shrink-0">
+          <Package size={14} className="text-primary-500" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight truncate">
@@ -90,7 +90,7 @@ export default function AIProductCard({
       {onQuote && (
         <button
           onClick={() => onQuote(product)}
-          className="mt-3 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/40 border border-cyan-200 dark:border-cyan-800 transition-colors"
+          className="mt-3 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/40 border border-primary-200 dark:border-primary-800 transition-colors"
         >
           <ShoppingCart size={12} />
           Cotizar este producto

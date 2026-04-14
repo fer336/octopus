@@ -171,7 +171,7 @@ export default function Categories() {
               navigator.clipboard.writeText(item.name)
               toast.success('Nombre copiado para importación', { duration: 1500, icon: '📋' })
             }}
-            className="opacity-0 group-hover:opacity-100 transition-opacity bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded shadow-sm ml-2"
+            className="opacity-0 group-hover:opacity-100 transition-opacity bg-primary-500 hover:bg-primary-600 text-white text-xs px-2 py-1 rounded shadow-sm ml-2"
             title="Copiar nombre para Excel"
           >
             📋 Copiar
@@ -194,7 +194,7 @@ export default function Categories() {
       render: (item: Category) => (
         <div className="flex gap-2 justify-end">
           <button
-            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
             onClick={() => handleOpenModal(item)}
             title="Editar"
           >
@@ -216,19 +216,19 @@ export default function Categories() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Header con color azul */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-xl border border-blue-200 dark:border-blue-800">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 p-6 rounded-xl border border-primary-200 dark:border-primary-800">
         <div>
-          <h1 className="text-2xl font-bold text-blue-900 dark:text-blue-100 flex items-center gap-2">
-            <FolderTree className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+          <h1 className="text-2xl font-bold text-primary-900 dark:text-primary-100 flex items-center gap-2">
+            <FolderTree className="h-7 w-7 text-primary-600 dark:text-primary-400" />
             Categorías
           </h1>
-          <p className="text-blue-700 dark:text-blue-300">
+          <p className="text-primary-700 dark:text-primary-300">
             Organiza tu inventario por familias de productos
           </p>
         </div>
         <Button 
           onClick={() => handleOpenModal()}
-          className="bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md"
+          className="bg-primary-600 hover:bg-primary-700 text-white border-none shadow-md"
         >
           <Plus size={18} className="mr-2" />
           Nueva Categoría

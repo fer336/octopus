@@ -53,16 +53,16 @@ export default function BulkAssignModal({
     <Modal isOpen={isOpen} onClose={handleClose} title="Asignar en Lote" size="md">
       <div className="space-y-6">
         {/* Información */}
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+        <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 rounded-lg p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/40 rounded-full flex items-center justify-center">
-              <Tag className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center">
+              <Tag className="w-5 h-5 text-primary-600 dark:text-primary-400" />
             </div>
             <div>
-              <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+              <p className="text-sm font-medium text-primary-900 dark:text-primary-200">
                 Asignar a {selectedCount} {selectedCount === 1 ? 'producto' : 'productos'}
               </p>
-              <p className="text-xs text-blue-700 dark:text-blue-400">
+              <p className="text-xs text-primary-700 dark:text-primary-400">
                 Selecciona la categoría y/o proveedor para aplicar
               </p>
             </div>
@@ -79,7 +79,7 @@ export default function BulkAssignModal({
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
+              className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
             >
               <option value="">Sin cambios</option>
               <option value="__remove__">🗑️ Quitar categoría</option>
@@ -104,7 +104,7 @@ export default function BulkAssignModal({
             <select
               value={selectedSupplier}
               onChange={(e) => setSelectedSupplier(e.target.value)}
-              className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
+              className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
             >
               <option value="">Sin cambios</option>
               <option value="__remove__">🗑️ Quitar proveedor</option>
@@ -162,7 +162,7 @@ export default function BulkAssignModal({
           <Button
             onClick={handleConfirm}
             disabled={!selectedCategory && !selectedSupplier}
-            className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+            className="flex-1 bg-gradient-to-r from-primary-600 to-primary-600 hover:from-primary-700 hover:to-primary-700"
           >
             <Check size={18} className="mr-2" />
             Aplicar Cambios

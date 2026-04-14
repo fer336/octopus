@@ -4,6 +4,7 @@ Maneja la facturación electrónica con ARCA/AFIP usando la librería afip.py.
 
 Documentación: https://docs.afipsdk.com/integracion/python
 """
+
 import asyncio
 import logging
 from typing import Optional, Dict, Any, List
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 class AfipSdkService:
     """
     Servicio para interactuar con ARCA/AFIP mediante Afip SDK.
-    
+
     Afip SDK simplifica la integración: no requiere certificados,
     ni manejo manual de Token/Sign del WSAA. Solo necesita un
     access_token obtenido desde https://afipsdk.com
@@ -42,11 +43,11 @@ class AfipSdkService:
 
     # Mapeo de condición IVA del receptor a tipo de documento
     IVA_CONDITION_TO_DOC_TIPO = {
-        "Responsable Inscripto": 80,   # CUIT
-        "IVA Sujeto Exento": 80,       # CUIT
-        "Consumidor Final": 99,         # Sin identificar
+        "Responsable Inscripto": 80,  # CUIT
+        "IVA Sujeto Exento": 80,  # CUIT
+        "Consumidor Final": 99,  # Sin identificar
         "Responsable Monotributo": 80,  # CUIT
-        "IVA Liberado": 80,            # CUIT
+        "IVA Liberado": 80,  # CUIT
     }
 
     # Mapeo de condición IVA del receptor a código AFIP (RG 5616)
@@ -70,12 +71,12 @@ class AfipSdkService:
 
     # Mapeo de alícuota IVA a código AFIP
     IVA_ALICUOTA_TO_ID = {
-        0: 3,       # IVA 0%
-        10.5: 4,    # IVA 10.5%
-        21: 5,      # IVA 21%
-        27: 6,      # IVA 27%
-        5: 8,       # IVA 5%
-        2.5: 9,     # IVA 2.5%
+        0: 3,  # IVA 0%
+        10.5: 4,  # IVA 10.5%
+        21: 5,  # IVA 21%
+        27: 6,  # IVA 27%
+        5: 8,  # IVA 5%
+        2.5: 9,  # IVA 2.5%
     }
 
     def __init__(self, business: Business):
@@ -148,6 +149,162 @@ class AfipSdkService:
         return self._afip
 
     # ================================================================
+    # Consultas al Padrón (Autocompletado de Clientes)
+    # ================================================================
+
+    async def get_taxpayer_details(self, cuit: str) -> Dict[str, Any]:
+        """
+        Obtiene los detalles de un contribuyente desde el padrón de AFIP.
+        Útil para autocompletar datos de clientes por CUIT.
+
+        Args:
+            cuit: CUIT a consultar (solo números)
+
+        Returns:
+            Detalles del contribuyente (nombre, domicilio, condición IVA)
+        """
+        afip = self._get_afip()
+        clean_cuit = "".join(filter(str.isdigit, cuit))
+
+        try:
+            # Razón social y domicilio: SOLO desde Constancia de Inscripción.
+            if not hasattr(afip, "RegisterInscriptionProof"):
+                return {
+                    "success": False,
+                    "error": "El servicio de constancia no está disponible en esta cuenta de AFIP.",
+                }
+
+            result = await asyncio.to_thread(
+                afip.RegisterInscriptionProof.getTaxpayerDetails,
+                int(clean_cuit),
+            )
+
+            if not result:
+                return {
+                    "success": False,
+                    "error": "No se encontraron datos para el CUIT",
+                }
+
+            result_dict = dict(result) if hasattr(result, "keys") else {}
+
+            # Si constancia trae error y no trae personaReturn, no hacer fallback
+            # para evitar razón social incorrecta.
+            if "errorConstancia" in result_dict and "personaReturn" not in result_dict:
+                err = result_dict.get("errorConstancia") or {}
+                errores = err.get("error") if isinstance(err, dict) else None
+                if errores:
+                    return {
+                        "success": False,
+                        "error": f"Error en padrón AFIP: {errores[0]}",
+                    }
+
+            persona_return = result_dict.get("personaReturn")
+            if not isinstance(persona_return, dict):
+                return {
+                    "success": False,
+                    "error": "No se pudo obtener la constancia del CUIT informado",
+                }
+
+            datos = persona_return.get("datosGenerales") or {}
+            if not isinstance(datos, dict):
+                datos = {}
+
+            id_persona = str(
+                datos.get("idPersona") or persona_return.get("idPersona") or ""
+            )
+            if id_persona and id_persona != clean_cuit:
+                return {
+                    "success": False,
+                    "error": "La respuesta del padrón no coincide con el CUIT consultado",
+                }
+
+            def get_val(d: Any, *keys: str) -> str:
+                if not isinstance(d, dict):
+                    return ""
+                lower_map = {str(k).lower(): v for k, v in d.items()}
+                for key in keys:
+                    value = d.get(key)
+                    if value is None:
+                        value = lower_map.get(key.lower())
+                    if value not in (None, ""):
+                        return str(value)
+                return ""
+
+            name = (
+                get_val(datos, "razonSocial", "denominacion")
+                or f"{get_val(datos, 'apellido')} {get_val(datos, 'nombre')}".strip()
+            )
+
+            domicilio = datos.get("domicilioFiscal") or {}
+            if isinstance(domicilio, list):
+                fiscal = next(
+                    (
+                        d
+                        for d in domicilio
+                        if isinstance(d, dict)
+                        and "fiscal" in get_val(d, "tipodomicilio").lower()
+                    ),
+                    None,
+                )
+                domicilio = fiscal or (domicilio[0] if domicilio else {})
+            if not isinstance(domicilio, dict):
+                domicilio = {}
+
+            full_address = get_val(domicilio, "direccion", "direccionCompleta")
+            city = get_val(domicilio, "localidad")
+            province = get_val(domicilio, "descripcionProvincia", "provincia")
+            postal_code = get_val(domicilio, "codPostal", "codigoPostal")
+
+            tax_condition = "Consumidor Final"
+
+            impuestos = []
+            datos_rg = persona_return.get("datosRegimenGeneral")
+            if isinstance(datos_rg, dict):
+                impuestos = datos_rg.get("impuesto") or []
+            if not impuestos:
+                impuestos = datos.get("impuesto") or datos.get("impuestos") or []
+
+            tax_ids: List[int] = []
+            if isinstance(impuestos, list):
+                for item in impuestos:
+                    raw = item.get("idImpuesto") if isinstance(item, dict) else item
+                    try:
+                        if raw is not None:
+                            tax_ids.append(int(raw))
+                    except Exception:
+                        continue
+
+            categoria = get_val(
+                datos, "categoria", "categoriaInscripcion", "categoriaIVA"
+            ).lower()
+
+            if 30 in tax_ids or "inscripto" in categoria:
+                tax_condition = "Responsable Inscripto"
+            elif 20 in tax_ids or "monotributo" in categoria:
+                tax_condition = "Responsable Monotributo"
+            elif 32 in tax_ids or "exento" in categoria:
+                tax_condition = "IVA Sujeto Exento"
+
+            return {
+                "success": True,
+                "data": {
+                    "name": name or "",
+                    "tax_condition": tax_condition,
+                    "address": full_address or "",
+                    "city": city or "",
+                    "province": province or "",
+                    "postal_code": postal_code or "",
+                },
+            }
+
+        except Exception as e:
+            logger.error(f"Error al consultar padrón AFIP para CUIT {cuit}: {e}")
+            return {
+                "success": False,
+                "error": f"Error de AFIP: {str(e)}",
+            }
+
+    # ================================================================
     # Estado del servidor ARCA
     # ================================================================
 
@@ -160,9 +317,7 @@ class AfipSdkService:
         """
         afip = self._get_afip()
         try:
-            result = await asyncio.to_thread(
-                afip.ElectronicBilling.getServerStatus
-            )
+            result = await asyncio.to_thread(afip.ElectronicBilling.getServerStatus)
             return {
                 "success": True,
                 "status": result,
@@ -382,11 +537,13 @@ class AfipSdkService:
         result = []
         for alicuota, valores in iva_by_alicuota.items():
             iva_id = self.IVA_ALICUOTA_TO_ID.get(alicuota, 5)
-            result.append({
-                "Id": iva_id,
-                "BaseImp": round(valores["base"], 2),
-                "Importe": round(valores["importe"], 2),
-            })
+            result.append(
+                {
+                    "Id": iva_id,
+                    "BaseImp": round(valores["base"], 2),
+                    "Importe": round(valores["importe"], 2),
+                }
+            )
 
         return result
 
@@ -437,7 +594,9 @@ class AfipSdkService:
             doc_nro = 0
 
         # Condición IVA del receptor (obligatorio por RG 5616)
-        iva_condition = str(client.tax_condition) if client.tax_condition else "Consumidor Final"
+        iva_condition = (
+            str(client.tax_condition) if client.tax_condition else "Consumidor Final"
+        )
         condicion_iva_receptor_id = self.IVA_CONDITION_TO_ID.get(iva_condition, 5)
 
         # Desglose de IVA
@@ -482,17 +641,17 @@ class AfipSdkService:
     ) -> Dict[str, Any]:
         """
         Emite una Nota de Crédito electrónica a partir de un Voucher.
-        
+
         IMPORTANTE: Los montos de NC deben ser NEGATIVOS.
-        
+
         Args:
             credit_note: Voucher de tipo CREDIT_NOTE
             client: Cliente del comprobante
             original_voucher: Factura original que se está anulando/modificando
-            
+
         Returns:
             Diccionario con CAE, fecha vencimiento y número
-            
+
         Raises:
             ValueError: Si hay errores de validación
         """
@@ -502,22 +661,24 @@ class AfipSdkService:
             raise ValueError(
                 f"Tipo de comprobante no soportado: {credit_note.voucher_type}"
             )
-        
+
         # Obtener tipo de comprobante original
-        cbte_tipo_original = self.VOUCHER_TYPE_TO_CBTE_TIPO.get(original_voucher.voucher_type)
+        cbte_tipo_original = self.VOUCHER_TYPE_TO_CBTE_TIPO.get(
+            original_voucher.voucher_type
+        )
         if not cbte_tipo_original:
             raise ValueError(
                 f"Tipo de comprobante original no soportado: {original_voucher.voucher_type}"
             )
-        
+
         # Calcular totales (DEBEN SER NEGATIVOS para NC)
         imp_neto = abs(float(credit_note.subtotal))
         imp_iva = abs(float(credit_note.iva_amount))
         imp_total = abs(float(credit_note.total))
-        
+
         # Fecha del comprobante (formato YYYYMMDD)
         cbte_fch = credit_note.date.strftime("%Y%m%d")
-        
+
         # Obtener tipo de documento
         doc_tipo = self._get_doc_type(client)
         doc_nro = (
@@ -525,27 +686,31 @@ class AfipSdkService:
             if client.document_number
             else 0
         )
-        
+
         # Si es Consumidor Final, DocTipo = 99, DocNro = 0
         if doc_tipo == 99 or not client.document_number:
             doc_tipo = 99
             doc_nro = 0
-        
+
         # Condición IVA del receptor
-        iva_condition = str(client.tax_condition) if client.tax_condition else "Consumidor Final"
+        iva_condition = (
+            str(client.tax_condition) if client.tax_condition else "Consumidor Final"
+        )
         condicion_iva_receptor_id = self.IVA_CONDITION_TO_ID.get(iva_condition, 5)
-        
+
         # Desglose de IVA
         iva_breakdown = self._calculate_iva_breakdown(credit_note)
-        
+
         # IMPORTANTE: Comprobantes Asociados (CbtesAsoc)
         # Es OBLIGATORIO para Notas de Crédito referenciar la factura original
-        cbtes_asoc = [{
-            "Tipo": cbte_tipo_original,
-            "PtoVta": int(original_voucher.sale_point),
-            "Nro": int(original_voucher.number),
-        }]
-        
+        cbtes_asoc = [
+            {
+                "Tipo": cbte_tipo_original,
+                "PtoVta": int(original_voucher.sale_point),
+                "Nro": int(original_voucher.number),
+            }
+        ]
+
         # Construir datos del comprobante
         data = {
             "CantReg": 1,
@@ -567,16 +732,16 @@ class AfipSdkService:
             "Iva": iva_breakdown,
             "CbtesAsoc": cbtes_asoc,  # 🔑 CLAVE: Referencia a factura original
         }
-        
+
         logger.info(f"Emitiendo Nota de Crédito electrónica: {credit_note.full_number}")
         logger.info(f"Referencia a factura original: {original_voucher.full_number}")
         logger.info(f"Datos del comprobante: {data}")
-        
+
         result = await self.create_next_voucher(data)
-        
+
         if not result["success"]:
             raise ValueError(f"Error de ARCA/AFIP: {result['error']}")
-        
+
         return result
 
     # ================================================================
@@ -598,33 +763,41 @@ class AfipSdkService:
 
         # Check 1: Access Token configurado
         if self.business.afipsdk_access_token:
-            diagnosis["checks"].append({
-                "name": "Access Token Afip SDK",
-                "status": "ok",
-                "detail": f"Token configurado: {self.business.afipsdk_access_token[:15]}...",
-            })
+            diagnosis["checks"].append(
+                {
+                    "name": "Access Token Afip SDK",
+                    "status": "ok",
+                    "detail": f"Token configurado: {self.business.afipsdk_access_token[:15]}...",
+                }
+            )
         else:
-            diagnosis["checks"].append({
-                "name": "Access Token Afip SDK",
-                "status": "error",
-                "detail": "No hay access_token configurado. Obtené uno en https://afipsdk.com",
-            })
+            diagnosis["checks"].append(
+                {
+                    "name": "Access Token Afip SDK",
+                    "status": "error",
+                    "detail": "No hay access_token configurado. Obtené uno en https://afipsdk.com",
+                }
+            )
             diagnosis["overall_status"] = "error"
             return diagnosis
 
         # Check 2: CUIT configurado
         if self.business.cuit:
-            diagnosis["checks"].append({
-                "name": "CUIT del negocio",
-                "status": "ok",
-                "detail": f"CUIT: {self.business.cuit}",
-            })
+            diagnosis["checks"].append(
+                {
+                    "name": "CUIT del negocio",
+                    "status": "ok",
+                    "detail": f"CUIT: {self.business.cuit}",
+                }
+            )
         else:
-            diagnosis["checks"].append({
-                "name": "CUIT del negocio",
-                "status": "error",
-                "detail": "CUIT no configurado en el negocio.",
-            })
+            diagnosis["checks"].append(
+                {
+                    "name": "CUIT del negocio",
+                    "status": "error",
+                    "detail": "CUIT no configurado en el negocio.",
+                }
+            )
             diagnosis["overall_status"] = "error"
             return diagnosis
 
@@ -633,76 +806,96 @@ class AfipSdkService:
         is_production = str(self.business.arca_environment) == "production"
 
         if has_cert:
-            diagnosis["checks"].append({
-                "name": "Certificado y Clave AFIP",
-                "status": "ok",
-                "detail": f"Certificado y clave propios configurados. Se usa CUIT: {self.business.cuit}",
-            })
+            diagnosis["checks"].append(
+                {
+                    "name": "Certificado y Clave AFIP",
+                    "status": "ok",
+                    "detail": f"Certificado y clave propios configurados. Se usa CUIT: {self.business.cuit}",
+                }
+            )
         elif not is_production:
-            diagnosis["checks"].append({
-                "name": "Certificado y Clave AFIP",
-                "status": "ok",
-                "detail": f"No configurados — modo testing usa CUIT de prueba Afip SDK: {self.AFIP_SDK_TEST_CUIT}",
-            })
+            diagnosis["checks"].append(
+                {
+                    "name": "Certificado y Clave AFIP",
+                    "status": "ok",
+                    "detail": f"No configurados — modo testing usa CUIT de prueba Afip SDK: {self.AFIP_SDK_TEST_CUIT}",
+                }
+            )
         else:
-            diagnosis["checks"].append({
-                "name": "Certificado y Clave AFIP",
-                "status": "error",
-                "detail": "⚠️ En modo PRODUCCIÓN se requiere certificado y clave de AFIP para usar tu CUIT.",
-            })
+            diagnosis["checks"].append(
+                {
+                    "name": "Certificado y Clave AFIP",
+                    "status": "error",
+                    "detail": "⚠️ En modo PRODUCCIÓN se requiere certificado y clave de AFIP para usar tu CUIT.",
+                }
+            )
 
         # Check 4: Estado del servidor ARCA
         server_status = await self.get_server_status()
         if server_status["success"]:
-            diagnosis["checks"].append({
-                "name": "Servidor ARCA/AFIP",
-                "status": "ok",
-                "detail": f"Servidor disponible: {server_status['status']}",
-            })
+            diagnosis["checks"].append(
+                {
+                    "name": "Servidor ARCA/AFIP",
+                    "status": "ok",
+                    "detail": f"Servidor disponible: {server_status['status']}",
+                }
+            )
         else:
-            diagnosis["checks"].append({
-                "name": "Servidor ARCA/AFIP",
-                "status": "error",
-                "detail": f"Error de conexión: {server_status.get('error', 'desconocido')}",
-            })
+            diagnosis["checks"].append(
+                {
+                    "name": "Servidor ARCA/AFIP",
+                    "status": "error",
+                    "detail": f"Error de conexión: {server_status.get('error', 'desconocido')}",
+                }
+            )
 
         # Check 5: Autenticación — verificar obteniendo último comprobante
         sale_point = int(self.business.sale_point or "1")
         try:
             last_voucher = await self.get_last_voucher(sale_point, 6)  # Factura B
             if last_voucher["success"]:
-                diagnosis["checks"].append({
-                    "name": "Autenticación ARCA (último comprobante)",
-                    "status": "ok",
-                    "detail": f"Último comprobante Factura B Pto.Vta {sale_point}: N° {last_voucher['lastVoucher']}",
-                })
+                diagnosis["checks"].append(
+                    {
+                        "name": "Autenticación ARCA (último comprobante)",
+                        "status": "ok",
+                        "detail": f"Último comprobante Factura B Pto.Vta {sale_point}: N° {last_voucher['lastVoucher']}",
+                    }
+                )
             else:
-                diagnosis["checks"].append({
-                    "name": "Autenticación ARCA (último comprobante)",
-                    "status": "error",
-                    "detail": f"Error: {last_voucher.get('error', 'desconocido')}",
-                })
+                diagnosis["checks"].append(
+                    {
+                        "name": "Autenticación ARCA (último comprobante)",
+                        "status": "error",
+                        "detail": f"Error: {last_voucher.get('error', 'desconocido')}",
+                    }
+                )
         except Exception as e:
-            diagnosis["checks"].append({
-                "name": "Autenticación ARCA",
-                "status": "error",
-                "detail": f"Error al verificar autenticación: {str(e)}",
-            })
+            diagnosis["checks"].append(
+                {
+                    "name": "Autenticación ARCA",
+                    "status": "error",
+                    "detail": f"Error al verificar autenticación: {str(e)}",
+                }
+            )
 
         # Check 6: Entorno
         env = self.business.arca_environment or "testing"
-        diagnosis["checks"].append({
-            "name": "Entorno configurado",
-            "status": "ok" if env in ("testing", "production") else "warning",
-            "detail": f"Entorno: {'Homologación (Testing)' if env == 'testing' else 'Producción'}",
-        })
+        diagnosis["checks"].append(
+            {
+                "name": "Entorno configurado",
+                "status": "ok" if env in ("testing", "production") else "warning",
+                "detail": f"Entorno: {'Homologación (Testing)' if env == 'testing' else 'Producción'}",
+            }
+        )
 
         # Check 7: Punto de venta
-        diagnosis["checks"].append({
-            "name": "Punto de venta",
-            "status": "ok" if self.business.sale_point else "warning",
-            "detail": f"Punto de venta: {self.business.sale_point or 'no configurado'}",
-        })
+        diagnosis["checks"].append(
+            {
+                "name": "Punto de venta",
+                "status": "ok" if self.business.sale_point else "warning",
+                "detail": f"Punto de venta: {self.business.sale_point or 'no configurado'}",
+            }
+        )
 
         # Determinar estado general
         statuses = [c["status"] for c in diagnosis["checks"]]
@@ -714,4 +907,3 @@ class AfipSdkService:
             diagnosis["overall_status"] = "warning"
 
         return diagnosis
-

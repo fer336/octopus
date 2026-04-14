@@ -161,21 +161,21 @@ export default function CreditNoteModal({ isOpen, onClose, voucher, onSuccess }:
     <Modal isOpen={isOpen} onClose={onClose} title="Crear Nota de Crédito" size="xl">
       <div className="space-y-4">
         {/* Información de la factura original */}
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <FileText className="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" size={20} />
+            <FileText className="text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" size={20} />
             <div className="flex-1 space-y-1 text-sm">
-              <p className="font-semibold text-blue-900 dark:text-blue-100">
+              <p className="font-semibold text-primary-900 dark:text-primary-100">
                 Factura Original: {voucher.full_number}
               </p>
-              <p className="text-blue-700 dark:text-blue-300">
+              <p className="text-primary-700 dark:text-primary-300">
                 Fecha: {new Date(voucher.date).toLocaleDateString()}
               </p>
-              <p className="text-blue-700 dark:text-blue-300">
+              <p className="text-primary-700 dark:text-primary-300">
                 Total: ${voucher.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </p>
               {voucher.cae && (
-                <p className="text-blue-700 dark:text-blue-300 text-xs">CAE: {voucher.cae}</p>
+                <p className="text-primary-700 dark:text-primary-300 text-xs">CAE: {voucher.cae}</p>
               )}
             </div>
           </div>
@@ -226,7 +226,7 @@ export default function CreditNoteModal({ isOpen, onClose, voucher, onSuccess }:
                     <tr
                       key={item.id}
                       className={`${
-                        item.selected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                        item.selected ? 'bg-primary-50 dark:bg-primary-900/20' : ''
                       } hover:bg-gray-50 dark:hover:bg-gray-700`}
                     >
                       <td className="px-3 py-2">

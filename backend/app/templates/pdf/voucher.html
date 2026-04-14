@@ -267,10 +267,18 @@
     <!-- Items -->
     <table class="items-table">
         <thead>
+            {% set is_quotation = voucher.type_name == 'COTIZACIÓN' %}
+            {% if voucher.show_prices %}
+                {% set code_col_width = '12%' if is_quotation else '18%' %}
+                {% set description_col_width = '46%' if is_quotation else '40%' %}
+            {% else %}
+                {% set code_col_width = '12%' if is_quotation else '18%' %}
+                {% set description_col_width = '76%' if is_quotation else '70%' %}
+            {% endif %}
             <tr>
                 <th style="width: 12%">Cantidad</th>
-                <th style="width: 18%">Código</th>
-                <th style="width: {% if voucher.show_prices %}40%{% else %}70%{% endif %}">Producto / Servicio</th>
+                <th style="width: {{ code_col_width }}">Código</th>
+                <th style="width: {{ description_col_width }}">Producto / Servicio</th>
                 {% if voucher.show_prices %}
                 <th style="width: 10%">Precio Unit.</th>
                 <th style="width: 10%">% Bonif.</th>
@@ -313,11 +321,6 @@
     </table>
     {% endif %}
 
-    <!-- Footer -->
-    <div class="footer">
-        Sistema creado por <strong>Qeva AI</strong> · Contacto: +54 9 225 459-6618
-    </div>
-    
     {% if voucher.letter == 'R' %}
     <div class="signature-section">
         <p>Recibí conforme: ....................................................................</p>

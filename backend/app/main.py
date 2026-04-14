@@ -28,6 +28,7 @@ from app.routers import (
     ai,
     ai_config,
     admin,
+    feedback,
 )
 
 settings = get_settings()
@@ -96,7 +97,9 @@ app.include_router(cash.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(purchase_orders.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(ai.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(ai_config.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(feedback.tenant_router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(admin.router)  # /api/admin/* (prefijo interno)
+app.include_router(feedback.admin_router)
 
 
 @app.get("/health", tags=["Health"])

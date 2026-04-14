@@ -3,6 +3,10 @@ Utilidades de seguridad: JWT, autenticación y dependencies.
 """
 
 from datetime import datetime, timedelta
+import base64
+import hashlib
+import hmac
+import secrets
 from typing import Optional
 from uuid import UUID
 
@@ -18,6 +22,9 @@ from app.database import get_db
 
 settings = get_settings()
 security = HTTPBearer(auto_error=False)
+
+PASSWORD_SCHEME = "pbkdf2_sha256"
+PASSWORD_ITERATIONS = 390000
 
 
 def create_access_token(
@@ -63,6 +70,45 @@ def verify_token(token: str) -> dict:
             detail="Token inválido o expirado",
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
+
+
+def hash_password(password: str) -> str:
+    """Hashea contraseña usando PBKDF2-HMAC-SHA256 con salt aleatorio."""
+    salt = secrets.token_bytes(16)
+    derived = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt,
+        PASSWORD_ITERATIONS,
+    )
+    salt_b64 = base64.urlsafe_b64encode(salt).decode("utf-8")
+    hash_b64 = base64.urlsafe_b64encode(derived).decode("utf-8")
+    return f"{PASSWORD_SCHEME}${PASSWORD_ITERATIONS}${salt_b64}${hash_b64}"
+
+
+def verify_password(password: str, stored_hash: str | None) -> bool:
+    """Verifica contraseña contra hash PBKDF2 almacenado."""
+    if not stored_hash:
+        return False
+
+    try:
+        scheme, iterations_str, salt_b64, hash_b64 = stored_hash.split("$", 3)
+        if scheme != PASSWORD_SCHEME:
+            return False
+
+        iterations = int(iterations_str)
+        salt = base64.urlsafe_b64decode(salt_b64.encode("utf-8"))
+        expected = base64.urlsafe_b64decode(hash_b64.encode("utf-8"))
+
+        candidate = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            salt,
+            iterations,
+        )
+        return hmac.compare_digest(candidate, expected)
+    except Exception:
+        return False
 
 
 async def get_current_user(
@@ -245,6 +291,38 @@ async def get_current_business(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error obteniendo negocio: {str(e)}",
         )
+
+
+async def get_current_business_with_ai_enabled(
+    current_business: UUID = Depends(get_current_business),
+    db: AsyncSession = Depends(get_db),
+) -> UUID:
+    """
+    Dependency que exige feature flag del Agente IA activa para el tenant actual.
+    """
+    from app.models.business import Business
+
+    result = await db.execute(
+        select(Business).where(
+            Business.id == current_business,
+            Business.deleted_at.is_(None),
+        )
+    )
+    business = result.scalar_one_or_none()
+
+    if not business:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Negocio no encontrado",
+        )
+
+    if not business.ai_agent_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El Agente IA no está habilitado para este tenant",
+        )
+
+    return UUID(str(business.id))
 
 
 async def get_optional_user(

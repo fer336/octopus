@@ -68,14 +68,14 @@ export default function AIChatInput({ isThinking, onSend }: AIChatInputProps) {
   return (
     <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 space-y-2">
       {selectedFile && (
-        <div className="flex items-center gap-2 rounded-lg border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/20 px-2.5 py-1.5">
-          <span className="text-xs text-cyan-700 dark:text-cyan-300 truncate flex-1">
+        <div className="flex items-center gap-2 rounded-lg border border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20 px-2.5 py-1.5">
+          <span className="text-xs text-primary-700 dark:text-primary-300 truncate flex-1">
             {selectedFile.name}
           </span>
           <button
             type="button"
             onClick={() => setSelectedFile(null)}
-            className="text-cyan-600 hover:text-cyan-800 dark:hover:text-cyan-200 transition-colors"
+            className="text-primary-600 hover:text-primary-800 dark:hover:text-primary-200 transition-colors"
             aria-label="Quitar archivo"
           >
             <X size={14} />
@@ -97,14 +97,14 @@ export default function AIChatInput({ isThinking, onSend }: AIChatInputProps) {
           placeholder="Escribí tu mensaje..."
           aria-label="Mensaje para Luci"
           data-testid="luci-chat-input"
-          className="flex-1 resize-none rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+          className="flex-1 resize-none rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400"
         />
 
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => imageInputRef.current?.click()}
-            className="p-2 rounded-lg text-gray-500 hover:text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors"
+            className="p-2 rounded-lg text-gray-500 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
             aria-label="Adjuntar imagen"
           >
             <Camera size={16} />
@@ -113,7 +113,7 @@ export default function AIChatInput({ isThinking, onSend }: AIChatInputProps) {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 rounded-lg text-gray-500 hover:text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors"
+            className="p-2 rounded-lg text-gray-500 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
             aria-label="Adjuntar archivo"
           >
             <Paperclip size={16} />
@@ -125,7 +125,7 @@ export default function AIChatInput({ isThinking, onSend }: AIChatInputProps) {
             className={
               isRecording
                 ? 'p-2 rounded-lg text-red-500 bg-red-50 dark:bg-red-900/20 transition-colors'
-                : 'p-2 rounded-lg text-gray-500 hover:text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors'
+                : 'p-2 rounded-lg text-gray-500 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors'
             }
             aria-label={isRecording ? 'Detener grabacion' : 'Grabar audio'}
           >
@@ -137,7 +137,7 @@ export default function AIChatInput({ isThinking, onSend }: AIChatInputProps) {
             onClick={() => void handleSend()}
             disabled={!hasPayload || isThinking}
             data-testid="luci-send-button"
-            className="p-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:from-cyan-600 hover:to-blue-600 transition-all"
+            className="p-2 rounded-lg bg-gradient-to-r from-primary-600 to-primary-400 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:from-primary-700 hover:to-primary-500 transition-all"
             aria-label="Enviar mensaje a Luci"
           >
             <Send size={16} />

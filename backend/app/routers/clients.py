@@ -2,6 +2,7 @@
 Router de Clientes.
 Endpoints para gestión de clientes.
 """
+
 from typing import Optional
 from uuid import UUID
 
@@ -10,18 +11,54 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.schemas.base import MessageResponse, PaginatedResponse
-from app.schemas.client import ClientCreate, ClientListParams, ClientResponse, ClientUpdate
+from app.schemas.client import (
+    ClientCreate,
+    ClientListParams,
+    ClientResponse,
+    ClientUpdate,
+)
+from app.models.business import Business
 from app.services.client_service import ClientService
+from app.services.afip_sdk_service import AfipSdkService
 from app.utils.security import get_current_business
 
 router = APIRouter(prefix="/clients", tags=["Clientes"])
 
 
+@router.get("/lookup-cuit/{cuit}")
+async def lookup_cuit(
+    cuit: str,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """
+    Busca los datos de un contribuyente en el padrón de AFIP por CUIT.
+    Requiere que el negocio tenga configurado el Afip SDK.
+    """
+    business = await db.get(Business, business_id)
+    if not business:
+        raise HTTPException(status_code=404, detail="Negocio no encontrado")
+
+    afip_service = AfipSdkService(business)
+    result = await afip_service.get_taxpayer_details(cuit)
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"]
+        )
+
+    return result["data"]
+
+
 @router.get("", response_model=PaginatedResponse[ClientResponse])
 async def list_clients(
     search: Optional[str] = Query(None, description="Buscar por nombre o documento"),
-    tax_condition: Optional[str] = Query(None, description="Filtrar por condición fiscal"),
-    has_balance: Optional[bool] = Query(None, description="Filtrar por saldo pendiente"),
+    tax_condition: Optional[str] = Query(
+        None, description="Filtrar por condición fiscal"
+    ),
+    has_balance: Optional[bool] = Query(
+        None, description="Filtrar por saldo pendiente"
+    ),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),

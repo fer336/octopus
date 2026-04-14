@@ -60,17 +60,17 @@ export default function PricePreviewModal({
       <div className="space-y-4">
         {/* Resumen */}
         <div className="grid grid-cols-4 gap-4">
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-            <p className="text-xs text-blue-600 dark:text-blue-400">Total Productos</p>
-            <p className="text-3xl font-bold text-blue-700 dark:text-blue-300">{previewData.total_products}</p>
+          <div className="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-lg">
+            <p className="text-xs text-primary-600 dark:text-primary-400">Total Productos</p>
+            <p className="text-3xl font-bold text-primary-700 dark:text-primary-300">{previewData.total_products}</p>
           </div>
           <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
             <p className="text-xs text-orange-600 dark:text-orange-400">Campo a Modificar</p>
             <p className="text-lg font-bold text-orange-700 dark:text-orange-300">{previewData.field_name}</p>
           </div>
-          <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
-            <p className="text-xs text-purple-600 dark:text-purple-400">Tipo de Cambio</p>
-            <p className="text-sm font-bold text-purple-700 dark:text-purple-300">{previewData.update_description}</p>
+          <div className="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-lg">
+            <p className="text-xs text-primary-600 dark:text-primary-400">Tipo de Cambio</p>
+            <p className="text-sm font-bold text-primary-700 dark:text-primary-300">{previewData.update_description}</p>
           </div>
           <div className={`${avgChange >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'} p-4 rounded-lg`}>
             <p className={`text-xs ${avgChange >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>

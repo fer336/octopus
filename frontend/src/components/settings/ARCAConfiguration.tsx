@@ -108,8 +108,8 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
       {/* Configuración Afip SDK */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-            <Key className="text-blue-600" size={20} />
+          <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
+            <Key className="text-primary-600" size={20} />
           </div>
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -121,7 +121,7 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
                 href="https://afipsdk.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:underline inline-flex items-center gap-1"
+                className="text-primary-600 hover:underline inline-flex items-center gap-1"
               >
                 afipsdk.com <ExternalLink size={12} />
               </a>
@@ -193,7 +193,7 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Registrate gratis en{' '}
-              <a href="https://afipsdk.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+              <a href="https://afipsdk.com" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">
                 afipsdk.com
               </a>{' '}
               para obtener tu token. Incluye 10 facturas gratis de prueba.
@@ -283,8 +283,8 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
       {/* Panel de Diagnóstico y Testing */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-            <Stethoscope className="text-purple-600" size={20} />
+          <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
+            <Stethoscope className="text-primary-600" size={20} />
           </div>
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -300,7 +300,7 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
           <button
             onClick={handleDiagnose}
             disabled
-            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-50 transition-colors"
           >
             <Stethoscope size={16} />
             {diagnosing ? 'Diagnosticando...' : 'Diagnóstico gestionado por CMS'}
@@ -428,12 +428,12 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
       </div>
 
       {/* Info adicional */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+      <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-xl p-4">
         <div className="flex gap-3">
-          <Receipt className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
-          <div className="text-sm text-blue-900 dark:text-blue-200">
+          <Receipt className="text-primary-600 flex-shrink-0 mt-0.5" size={20} />
+          <div className="text-sm text-primary-900 dark:text-primary-200">
             <p className="font-medium mb-1">¿Cómo funciona?</p>
-            <ol className="list-decimal list-inside space-y-1 text-xs text-blue-800 dark:text-blue-300">
+            <ol className="list-decimal list-inside space-y-1 text-xs text-primary-800 dark:text-primary-300">
               <li>
                 Registrate en{' '}
                 <a href="https://afipsdk.com" target="_blank" rel="noopener noreferrer" className="underline">
@@ -446,7 +446,7 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
               <li>Ejecutá el diagnóstico para verificar que todo esté bien</li>
               <li>Probá con una factura de prueba</li>
             </ol>
-            <p className="mt-2 text-xs text-blue-700 dark:text-blue-400">
+            <p className="mt-2 text-xs text-primary-700 dark:text-primary-400">
               <strong>Nota:</strong> Solo necesitás el Access Token. El Afip SDK gestiona automáticamente
               la autenticación con ARCA/AFIP. El certificado y clave son opcionales.
             </p>

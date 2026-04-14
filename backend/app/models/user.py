@@ -1,6 +1,6 @@
 """
 Modelo de Usuario del sistema.
-Almacena información de usuarios autenticados con Google OAuth.
+Soporta autenticación local (email/contraseña) y Google OAuth.
 """
 
 from sqlalchemy import Boolean, Column, String
@@ -21,7 +21,7 @@ class PlatformRole:
 class User(BaseModel):
     """
     Usuario del sistema.
-    Se crea automáticamente en el primer login con Google.
+    Puede crearse desde CMS (con contraseña) o por primer login con Google.
     """
 
     __tablename__ = "users"
@@ -29,7 +29,8 @@ class User(BaseModel):
     email = Column(String(255), unique=True, nullable=False, index=True)
     name = Column(String(255), nullable=False)
     picture = Column(String(500), nullable=True)  # URL del avatar de Google
-    google_id = Column(String(255), unique=True, nullable=False, index=True)
+    google_id = Column(String(255), unique=True, nullable=True, index=True)
+    password_hash = Column(String(512), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
 
     # Rol a nivel de plataforma: superadmin o tenant_user
