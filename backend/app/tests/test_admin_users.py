@@ -92,6 +92,8 @@ async def test_superadmin_can_assign_user_to_tenant_by_email(
     assert payload["created"] is True
     assert payload["user"]["email"] == user_b.email
     assert payload["user"]["membership_role"] == "manager"
+    assert isinstance(payload["user"]["module_permissions"], dict)
+    assert payload["user"]["module_permissions"].get("sales") is True
 
 
 @pytest.mark.asyncio
@@ -205,6 +207,7 @@ async def test_superadmin_can_get_feature_flags(
     payload = response.json()
     assert payload["business_id"] == str(business_a.id)
     assert payload["ai_agent_enabled"] is False
+    assert payload["current_account_mode"] == "disabled"
 
 
 @pytest.mark.asyncio
@@ -225,6 +228,62 @@ async def test_superadmin_can_update_feature_flags(
     assert response.status_code == 200
     payload = response.json()
     assert payload["ai_agent_enabled"] is True
+    assert payload["current_account_mode"] == "disabled"
 
     await db.refresh(business_a)
     assert business_a.ai_agent_enabled is True
+
+
+@pytest.mark.asyncio
+async def test_superadmin_can_update_current_account_mode_feature_flag(
+    client: AsyncClient,
+    superadmin_user: User,
+    business_a: Business,
+    db: AsyncSession,
+):
+    headers = make_auth_header(superadmin_user)
+
+    response = await client.patch(
+        f"/api/admin/tenants/{business_a.id}/features",
+        headers=headers,
+        json={"current_account_mode": "manual"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["current_account_mode"] == "manual"
+
+    await db.refresh(business_a)
+    assert business_a.current_account_mode == "manual"
+
+
+@pytest.mark.asyncio
+async def test_superadmin_can_update_tenant_user_permissions(
+    client: AsyncClient,
+    superadmin_user: User,
+    user_a: User,
+    business_a: Business,
+    membership_a: TenantMembership,
+):
+    headers = make_auth_header(superadmin_user)
+
+    update_response = await client.patch(
+        f"/api/admin/tenants/{business_a.id}/users/{user_a.id}/permissions",
+        headers=headers,
+        json={
+            "module_permissions": {
+                "dashboard": True,
+                "sales": True,
+                "reports": False,
+                "inventory": False,
+            }
+        },
+    )
+
+    assert update_response.status_code == 200
+    payload = update_response.json()
+    assert payload["id"] == str(user_a.id)
+    assert payload["module_permissions"]["dashboard"] is True
+    assert payload["module_permissions"]["sales"] is True
+    assert payload["module_permissions"]["reports"] is False
+    assert payload["module_permissions"]["inventory"] is False

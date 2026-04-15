@@ -38,6 +38,8 @@ export interface User {
   name: string
   picture?: string
   platform_role?: string
+  membership_role?: 'owner' | 'manager' | 'seller' | null
+  module_permissions?: Record<string, boolean>
 }
 
 export interface AuthTokens {

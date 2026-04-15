@@ -8,14 +8,17 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.database import get_db
 from app.models.audit_log import AuditLog
 from app.services.auth_service import AuthService
+from app.models.tenant_membership import TenantMembership
 from app.utils.security import get_current_user
 from app.config import get_settings
+from app.utils.acl import parse_module_permissions
 
 settings = get_settings()
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
@@ -85,6 +88,8 @@ class UserResponse(BaseModel):
     name: str
     picture: str | None
     platform_role: str
+    membership_role: str | None = None
+    module_permissions: dict[str, bool] = Field(default_factory=dict)
 
 
 def _build_oauth_state(next_target: str) -> str:
@@ -330,17 +335,39 @@ async def refresh_token(
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
     current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Retorna información del usuario autenticado.
     Requiere un access token válido.
     """
+    membership_role = None
+    module_permissions: dict[str, bool] = {}
+
+    memberships_result = await db.execute(
+        select(TenantMembership).where(TenantMembership.user_id == current_user.id)
+    )
+    memberships = list(memberships_result.scalars().all())
+    if memberships:
+        role_priority = {"owner": 3, "manager": 2, "seller": 1}
+        selected_membership = max(
+            memberships,
+            key=lambda membership: role_priority.get(membership.role, 0),
+        )
+        membership_role = selected_membership.role
+        module_permissions = parse_module_permissions(
+            selected_membership.module_permissions,
+            selected_membership.role,
+        )
+
     return UserResponse(
         id=str(current_user.id),
         email=current_user.email,
         name=current_user.name,
         picture=current_user.picture,
         platform_role=current_user.platform_role,
+        membership_role=membership_role,
+        module_permissions=module_permissions,
     )
 
 

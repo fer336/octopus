@@ -326,31 +326,29 @@ const data = await clientsService.lookupCuit(cuit)
   const clients = clientsData?.items || []
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-primary-600 to-primary-600 rounded-2xl p-6 text-white shadow-lg">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-              <Users className="h-8 w-8 text-primary-200" />
-              Clientes
-            </h1>
-            <p className="text-primary-100 mt-2 text-lg">
-              Gestión de clientes y control de cuentas corrientes
-            </p>
-          </div>
-          <Button
-            onClick={() => handleOpenModal()}
-            className="bg-white text-primary-600 hover:bg-primary-50 border-none shadow-lg font-semibold"
-          >
-            <Plus size={18} className="mr-2" />
-            Nuevo Cliente
-          </Button>
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Header estilo Categorías */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 p-6 rounded-xl border border-primary-200 dark:border-primary-800">
+        <div>
+          <h1 className="text-2xl font-bold text-primary-900 dark:text-primary-100 flex items-center gap-2">
+            <Users className="h-7 w-7 text-primary-600 dark:text-primary-400" />
+            Clientes
+          </h1>
+          <p className="text-primary-700 dark:text-primary-300">
+            Gestión de clientes y control de cuentas corrientes
+          </p>
         </div>
+        <Button
+          onClick={() => handleOpenModal()}
+          className="bg-primary-600 hover:bg-primary-700 text-white border-none shadow-md"
+        >
+          <Plus size={18} className="mr-2" />
+          Nuevo Cliente
+        </Button>
       </div>
 
       {/* Filtros */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
           <input
@@ -364,9 +362,7 @@ const data = await clientsService.lookupCuit(cuit)
       </div>
 
       {/* Tabla */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <Table columns={columns} data={clients} />
-      </div>
+      <Table columns={columns} data={clients} />
 
       {/* Paginación */}
       <Pagination

@@ -17,6 +17,7 @@ import {
   ChevronUp,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import ConfirmModal from '../ui/ConfirmModal'
 import aiConfigService, {
   AIModelOption,
   AIProvider,
@@ -137,6 +138,7 @@ function ProviderCard({
   const [validating, setValidating] = useState(false)
   const [activating, setActivating] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   // Modelos cargados dinámicamente desde la API del proveedor
   const [fetchedModels, setFetchedModels] = useState<AIModelOption[] | null>(null)
   const [fetchingModels, setFetchingModels] = useState(false)
@@ -272,13 +274,17 @@ function ProviderCard({
     }
   }
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!isConfigured) return
-    if (!confirm(`¿Eliminar la configuración de ${meta.label}?`)) return
+    setShowDeleteConfirm(true)
+  }
+
+  const handleConfirmDelete = async () => {
     setDeleting(true)
     try {
       await aiConfigService.deleteProvider(provider)
       toast.success(`Configuración de ${meta.label} eliminada`)
+      setShowDeleteConfirm(false)
       onRefresh()
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Error al eliminar')
@@ -515,6 +521,18 @@ function ProviderCard({
           </form>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleConfirmDelete}
+        title="Eliminar configuración"
+        description={`¿Eliminar la configuración de ${meta.label}? Esta acción quitará la API key cifrada y el proveedor dejará de estar disponible.`}
+        confirmText="Sí, eliminar"
+        cancelText="Cancelar"
+        variant="danger"
+        isLoading={deleting}
+      />
     </div>
   )
 }

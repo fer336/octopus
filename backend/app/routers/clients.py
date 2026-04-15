@@ -20,9 +20,13 @@ from app.schemas.client import (
 from app.models.business import Business
 from app.services.client_service import ClientService
 from app.services.afip_sdk_service import AfipSdkService
-from app.utils.security import get_current_business
+from app.utils.security import get_current_business, require_module_access
 
-router = APIRouter(prefix="/clients", tags=["Clientes"])
+router = APIRouter(
+    prefix="/clients",
+    tags=["Clientes"],
+    dependencies=[Depends(require_module_access("clients"))],
+)
 
 
 @router.get("/lookup-cuit/{cuit}")

@@ -8,17 +8,20 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { ShoppingCart } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAIStore } from '../../stores/aiStore'
+import { useAuthStore } from '../../stores/authStore'
 import businessService from '../../api/businessService'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import AIAssistantPanel from '../ai/AIAssistantPanel'
 import Button from '../ui/Button'
-import { getActiveNavigationItem } from './navigationItems'
+import { getActiveNavigationItem, navigationItems } from './navigationItems'
+import { hasPathAccess } from '../../utils/acl'
 
 export default function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
+  const user = useAuthStore((state) => state.user)
 
   // Hook para cargar usuario en refresh
   useAuth()
@@ -38,6 +41,18 @@ export default function MainLayout() {
       closeAI()
     }
   }, [aiEnabled, closeAI])
+
+  useEffect(() => {
+    if (location.pathname === '/current-account' && business?.current_account_mode === 'disabled') {
+      navigate('/', { replace: true })
+      return
+    }
+
+    if (!hasPathAccess(user, location.pathname)) {
+      const fallbackPath = navigationItems.find((item) => hasPathAccess(user, item.path))?.path ?? '/'
+      navigate(fallbackPath, { replace: true })
+    }
+  }, [business?.current_account_mode, location.pathname, navigate, user])
 
   const toggleSidebar = () => {
     setSidebarCollapsed((prev) => !prev)
@@ -65,7 +80,11 @@ export default function MainLayout() {
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--color-bg-primary)]">
       {/* Sidebar */}
-      <Sidebar isCollapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+      <Sidebar
+        isCollapsed={sidebarCollapsed}
+        onToggle={toggleSidebar}
+        currentAccountMode={business?.current_account_mode}
+      />
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">

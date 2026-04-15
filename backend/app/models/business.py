@@ -54,6 +54,7 @@ class Business(BaseModel):
     # Feature flags por tenant (CMS superadmin)
     ai_agent_enabled = Column(Boolean, nullable=False, default=False)
     linear_sync_enabled = Column(Boolean, nullable=False, default=False)
+    current_account_mode = Column(String(20), nullable=False, default="disabled")
 
     # Configuración ARCA/AFIP
     arca_token = Column(Text, nullable=True)  # Token del WSAA

@@ -1,13 +1,31 @@
 /**
  * Detalle de un tenant — muestra info general, branding y acceso a config ARCA.
  */
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
+import { Ban, Clock3, ShieldCheck, UserRoundCog } from 'lucide-react'
 import adminAPI, { type BrandingUpdate } from '../../api/adminService'
 
 type Tab = 'general' | 'branding' | 'features' | 'users'
+
+const permissionModules: Array<{ key: string; label: string }> = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'sales', label: 'Ventas' },
+  { key: 'vouchers', label: 'Comprobantes' },
+  { key: 'payment_methods', label: 'Métodos de Pago' },
+  { key: 'cash', label: 'Caja' },
+  { key: 'products', label: 'Productos' },
+  { key: 'price_update', label: 'Actualizar Precios' },
+  { key: 'inventory', label: 'Inventario' },
+  { key: 'clients', label: 'Clientes' },
+  { key: 'suppliers', label: 'Proveedores' },
+  { key: 'categories', label: 'Categorías' },
+  { key: 'reports', label: 'Reportes' },
+  { key: 'feedback', label: 'Feedback' },
+  { key: 'current_account', label: 'Cuenta Corriente' },
+]
 
 function InfoField({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -173,7 +191,11 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
   })
 
   const updateMutation = useMutation({
-    mutationFn: (payload: { ai_agent_enabled?: boolean; linear_sync_enabled?: boolean }) =>
+    mutationFn: (payload: {
+      ai_agent_enabled?: boolean
+      linear_sync_enabled?: boolean
+      current_account_mode?: 'disabled' | 'automatic' | 'manual'
+    }) =>
       adminAPI.updateFeatureFlags(tenantId, payload),
     onSuccess: (_, payload) => {
       if (typeof payload.ai_agent_enabled === 'boolean') {
@@ -185,6 +207,15 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
             ? 'Sync con Linear habilitada'
             : 'Sync con Linear deshabilitada',
         )
+      }
+      if (payload.current_account_mode) {
+        const modeLabel =
+          payload.current_account_mode === 'disabled'
+            ? 'deshabilitada'
+            : payload.current_account_mode === 'automatic'
+              ? 'modo automático'
+              : 'modo manual'
+        toast.success(`Cuenta Corriente ${modeLabel}`)
       }
       queryClient.invalidateQueries({ queryKey: ['admin-feature-flags', tenantId] })
     },
@@ -212,6 +243,8 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
 
   const currentEnabled = flagsQuery.data?.ai_agent_enabled ?? false
   const linearSyncEnabled = flagsQuery.data?.linear_sync_enabled ?? false
+  const currentAccountMode = flagsQuery.data?.current_account_mode ?? 'disabled'
+  const currentAccountEnabled = currentAccountMode !== 'disabled'
   const linearConfigured = Boolean(linearSecretsQuery.data?.secrets?.linear_api_key?.configured)
   const linearLast4 = linearSecretsQuery.data?.secrets?.linear_api_key?.last4
 
@@ -259,6 +292,79 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
             {currentEnabled ? 'Habilitado' : 'Deshabilitado'}
           </span>
         </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Cuenta Corriente</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Define si el tenant puede usar el módulo y en qué modalidad opera.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={currentAccountEnabled}
+            onClick={() =>
+              updateMutation.mutate({
+                current_account_mode: currentAccountEnabled ? 'disabled' : 'automatic',
+              })
+            }
+            disabled={updateMutation.isPending}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+              currentAccountEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                currentAccountEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex px-2 py-1 text-xs rounded-full ${
+              currentAccountEnabled
+                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+            }`}
+          >
+            {currentAccountEnabled ? `Habilitada (${currentAccountMode === 'automatic' ? 'Automático' : 'Manual'})` : 'Deshabilitada'}
+          </span>
+        </div>
+
+        {currentAccountEnabled && (
+          <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => updateMutation.mutate({ current_account_mode: 'automatic' })}
+              disabled={updateMutation.isPending}
+              className={`px-3 py-1.5 text-sm transition-colors ${
+                currentAccountMode === 'automatic'
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-primary-900/20'
+              }`}
+            >
+              Modo automático
+            </button>
+            <button
+              type="button"
+              onClick={() => updateMutation.mutate({ current_account_mode: 'manual' })}
+              disabled={updateMutation.isPending}
+              className={`px-3 py-1.5 text-sm transition-colors border-l border-gray-200 dark:border-gray-700 ${
+                currentAccountMode === 'manual'
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-primary-900/20'
+              }`}
+            >
+              Modo manual
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
@@ -336,6 +442,7 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
 function UsersTab({ tenantId }: { tenantId: string }) {
   const queryClient = useQueryClient()
   const [email, setEmail] = useState('')
+  const [permissionsEditorUserId, setPermissionsEditorUserId] = useState<string | null>(null)
 
   const formatDate = (value?: string | null) => {
     if (!value) return '-'
@@ -354,6 +461,16 @@ function UsersTab({ tenantId }: { tenantId: string }) {
     queryKey: ['admin-tenant-users', tenantId],
     queryFn: () => adminAPI.listTenantUsers(tenantId),
   })
+
+  const flagsQuery = useQuery({
+    queryKey: ['admin-feature-flags', tenantId],
+    queryFn: () => adminAPI.getFeatureFlags(tenantId),
+  })
+
+  const currentAccountEnabled = (flagsQuery.data?.current_account_mode ?? 'disabled') !== 'disabled'
+  const visiblePermissionModules = permissionModules.filter(
+    (module) => module.key !== 'current_account' || currentAccountEnabled,
+  )
 
   const assignMutation = useMutation({
     mutationFn: () => adminAPI.assignUserToTenant(tenantId, { email: email.trim() }),
@@ -393,6 +510,21 @@ function UsersTab({ tenantId }: { tenantId: string }) {
     onError: (error: any) => {
       const detail = error?.response?.data?.detail
       toast.error(typeof detail === 'string' ? detail : 'No se pudo actualizar el acceso')
+    },
+  })
+
+  const permissionsMutation = useMutation({
+    mutationFn: ({ userId, modulePermissions }: { userId: string; modulePermissions: Record<string, boolean> }) =>
+      adminAPI.updateTenantUserPermissions(tenantId, userId, {
+        module_permissions: modulePermissions,
+      }),
+    onSuccess: () => {
+      toast.success('Permisos actualizados')
+      queryClient.invalidateQueries({ queryKey: ['admin-tenant-users', tenantId] })
+    },
+    onError: (error: any) => {
+      const detail = error?.response?.data?.detail
+      toast.error(typeof detail === 'string' ? detail : 'No se pudieron actualizar los permisos')
     },
   })
 
@@ -486,59 +618,133 @@ function UsersTab({ tenantId }: { tenantId: string }) {
               </tbody>
             ) : (
               <tbody>
-                {users.map((user) => (
-                  <tr key={user.id} className="border-t border-gray-100 dark:border-gray-700">
-                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{user.email}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{user.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{user.membership_role}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                      {user.is_active ? 'Activo' : 'Inactivo'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                      {accessStatusLabel[user.access_status] ?? user.access_status}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                      {formatDate(user.access_starts_at)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                      {formatDate(user.access_ends_at)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                      {user.days_remaining ?? '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => trialMutation.mutate(user.id)}
-                          disabled={trialMutation.isPending || accessMutation.isPending}
-                          className="px-2 py-1 text-xs rounded border border-primary-500 text-primary-600 hover:bg-primary-50 disabled:opacity-50"
-                        >
-                          Dar trial 30 días
-                        </button>
-                        {user.access_status === 'suspended' ? (
-                          <button
-                            type="button"
-                            onClick={() => accessMutation.mutate({ userId: user.id, accessStatus: 'active' })}
-                            disabled={trialMutation.isPending || accessMutation.isPending}
-                            className="px-2 py-1 text-xs rounded border border-primary-500 text-primary-600 hover:bg-primary-50 disabled:opacity-50"
-                          >
-                            Reactivar
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => accessMutation.mutate({ userId: user.id, accessStatus: 'suspended' })}
-                            disabled={trialMutation.isPending || accessMutation.isPending}
-                            className="px-2 py-1 text-xs rounded border border-amber-500 text-amber-600 hover:bg-amber-50 disabled:opacity-50"
-                          >
-                            Suspender
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {users.map((user) => {
+                  const isPermissionsEditorOpen = permissionsEditorUserId === user.id
+
+                  return (
+                    <Fragment key={user.id}>
+                      <tr className="border-t border-gray-100 dark:border-gray-700">
+                        <td className="px-4 py-2.5 text-sm text-gray-900 dark:text-white">{user.email}</td>
+                        <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">{user.name}</td>
+                        <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">{user.membership_role}</td>
+                        <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
+                          {user.is_active ? 'Activo' : 'Inactivo'}
+                        </td>
+                        <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
+                          {accessStatusLabel[user.access_status] ?? user.access_status}
+                        </td>
+                        <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
+                          {formatDate(user.access_starts_at)}
+                        </td>
+                        <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
+                          {formatDate(user.access_ends_at)}
+                        </td>
+                        <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
+                          {user.days_remaining ?? '-'}
+                        </td>
+                        <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
+                          <div className="flex items-center gap-1.5 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => trialMutation.mutate(user.id)}
+                              disabled={trialMutation.isPending || accessMutation.isPending}
+                              title="Dar trial 30 días"
+                              aria-label="Dar trial 30 días"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-primary-500 text-primary-600 hover:bg-primary-50 disabled:opacity-50"
+                            >
+                              <Clock3 size={15} />
+                            </button>
+                            {user.access_status === 'suspended' ? (
+                              <button
+                                type="button"
+                                onClick={() => accessMutation.mutate({ userId: user.id, accessStatus: 'active' })}
+                                disabled={trialMutation.isPending || accessMutation.isPending}
+                                title="Reactivar acceso"
+                                aria-label="Reactivar acceso"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-primary-500 text-primary-600 hover:bg-primary-50 disabled:opacity-50"
+                              >
+                                <ShieldCheck size={15} />
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => accessMutation.mutate({ userId: user.id, accessStatus: 'suspended' })}
+                                disabled={trialMutation.isPending || accessMutation.isPending}
+                                title="Suspender acceso"
+                                aria-label="Suspender acceso"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-amber-500 text-amber-600 hover:bg-amber-50 disabled:opacity-50"
+                              >
+                                <Ban size={15} />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPermissionsEditorUserId((prev) => (prev === user.id ? null : user.id))
+                              }
+                              title="Editar permisos"
+                              aria-label="Editar permisos"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-400 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                              <UserRoundCog size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {isPermissionsEditorOpen && (
+                        <tr className="border-t border-gray-100 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/40">
+                          <td colSpan={9} className="px-3 py-3">
+                            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">
+                                  Permisos por módulo · {user.email}
+                                </h4>
+                                <button
+                                  type="button"
+                                  onClick={() => setPermissionsEditorUserId(null)}
+                                  className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                >
+                                  Cerrar
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-1.5">
+                                {visiblePermissionModules.map((module) => {
+                                  const checked = Boolean(user.module_permissions?.[module.key])
+                                  return (
+                                    <label
+                                      key={module.key}
+                                      className="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 leading-tight"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={(e) => {
+                                          const next = {
+                                            ...(user.module_permissions || {}),
+                                            [module.key]: e.target.checked,
+                                          }
+                                          permissionsMutation.mutate({
+                                            userId: user.id,
+                                            modulePermissions: next,
+                                          })
+                                        }}
+                                        disabled={permissionsMutation.isPending}
+                                        className="h-3.5 w-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                      />
+                                      <span className="truncate">{module.label}</span>
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
               </tbody>
             )}
           </table>

@@ -141,6 +141,7 @@
 		.items-table {
 			width: 100%;
 			border-collapse: collapse;
+			table-layout: fixed;
 		}
 		.items-table th {
 			background: #c0c0c0;
@@ -168,6 +169,15 @@
         }
 		.items-table td:nth-child(3) {
 			text-align: left;
+			word-break: break-word;
+		}
+		.items-table th:nth-child(1),
+		.items-table th:nth-child(2),
+		.items-table td:nth-child(1),
+		.items-table td:nth-child(2) {
+			padding-left: 2px;
+			padding-right: 2px;
+			white-space: nowrap;
 		}
 
 		/* === TOTALES === */
@@ -298,13 +308,18 @@
     <!-- Items -->
     <table class="items-table">
         <thead>
+            {% set qty_col_width = '54px' %}
+            {% set code_col_width = '54px' %}
+            {% set unit_col_width = '84px' %}
+            {% set discount_col_width = '60px' %}
+            {% set subtotal_col_width = '90px' %}
             <tr>
-                <th style="width: 10%">Cantidad</th>
-                <th style="width: 15%">Código</th>
-                <th style="width: 45%">Producto / Servicio</th>
-                <th style="width: 10%">Precio Unit.</th>
-                <th style="width: 10%">% Bonif.</th>
-                <th style="width: 10%">Subtotal</th>
+                <th style="width: {{ qty_col_width }}">Cantidad</th>
+                <th style="width: {{ code_col_width }}">Código</th>
+                <th>Producto / Servicio</th>
+                <th style="width: {{ unit_col_width }}">Precio Unit.</th>
+                <th style="width: {{ discount_col_width }}">% Bonif.</th>
+                <th style="width: {{ subtotal_col_width }}">Subtotal</th>
             </tr>
         </thead>
         <tbody>

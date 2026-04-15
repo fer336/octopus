@@ -6,7 +6,7 @@ Todos los endpoints están protegidos con require_superadmin().
 import logging
 from datetime import datetime, timedelta
 from uuid import UUID
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field, model_validator
@@ -29,6 +29,13 @@ from app.middleware.tenant_resolver import require_superadmin, AdminContext
 from app.services.afip_sdk_service import AfipSdkService
 from app.utils.crypto import encrypt_api_key, get_last4
 from app.utils.security import hash_password
+from app.utils.acl import (
+    MODULE_KEYS,
+    default_module_permissions,
+    dump_module_permissions,
+    normalize_module_permissions,
+    parse_module_permissions,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +150,7 @@ class FeatureFlagsResponse(BaseModel):
     business_id: str
     ai_agent_enabled: bool
     linear_sync_enabled: bool
+    current_account_mode: Literal["disabled", "automatic", "manual"]
 
 
 class FeatureFlagsUpdate(BaseModel):
@@ -150,6 +158,7 @@ class FeatureFlagsUpdate(BaseModel):
 
     ai_agent_enabled: Optional[bool] = None
     linear_sync_enabled: Optional[bool] = None
+    current_account_mode: Optional[Literal["disabled", "automatic", "manual"]] = None
 
 
 class TenantResponse(BaseModel):
@@ -226,6 +235,7 @@ class TenantUserResponse(UserResponse):
     access_status: str
     blocked_reason: Optional[str] = None
     days_remaining: Optional[int] = None
+    module_permissions: dict[str, bool] = Field(default_factory=dict)
 
 
 class TenantUserListResponse(BaseModel):
@@ -283,6 +293,21 @@ class MembershipAccessUpdateRequest(BaseModel):
         if self.access_status not in allowed_statuses:
             raise ValueError(
                 "access_status inválido. Valores permitidos: active, suspended, trial"
+            )
+        return self
+
+
+class MembershipPermissionsUpdateRequest(BaseModel):
+    """Actualiza permisos granulares por módulo de una membresía."""
+
+    module_permissions: dict[str, bool]
+
+    @model_validator(mode="after")
+    def validate_module_permissions(self):
+        unknown = sorted(set(self.module_permissions.keys()) - set(MODULE_KEYS))
+        if unknown:
+            raise ValueError(
+                f"Módulos inválidos: {', '.join(unknown)}. Permitidos: {', '.join(MODULE_KEYS)}"
             )
         return self
 
@@ -441,6 +466,10 @@ def _serialize_tenant_user(
         access_status=access_status,
         blocked_reason=membership.blocked_reason,
         days_remaining=_calculate_days_remaining(membership.access_ends_at),
+        module_permissions=parse_module_permissions(
+            membership.module_permissions,
+            membership.role,
+        ),
     )
 
 
@@ -700,6 +729,10 @@ async def assign_user_to_tenant(
         user_id=user.id,
         business_id=tenant_id,
         role=data.role,
+        module_permissions=dump_module_permissions(
+            default_module_permissions(data.role),
+            data.role,
+        ),
     )
     db.add(membership)
     await db.commit()
@@ -766,6 +799,36 @@ async def update_tenant_user_access(
     if data.access_ends_at is not None:
         membership.access_ends_at = data.access_ends_at
 
+    await db.commit()
+
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado",
+        )
+
+    return _serialize_tenant_user(user, membership)
+
+
+@router.patch(
+    "/tenants/{tenant_id}/users/{user_id}/permissions",
+    response_model=TenantUserResponse,
+)
+async def update_tenant_user_permissions(
+    tenant_id: UUID,
+    user_id: UUID,
+    data: MembershipPermissionsUpdateRequest,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualiza permisos granulares por módulo para una membresía."""
+    await get_business_or_404(tenant_id, db)
+    membership = await _get_membership_or_404(db, tenant_id, user_id)
+
+    normalized = normalize_module_permissions(data.module_permissions, membership.role)
+    membership.module_permissions = dump_module_permissions(normalized, membership.role)
     await db.commit()
 
     user_result = await db.execute(select(User).where(User.id == user_id))
@@ -1045,6 +1108,7 @@ async def get_feature_flags(
         business_id=str(business.id),
         ai_agent_enabled=bool(business.ai_agent_enabled),
         linear_sync_enabled=bool(business.linear_sync_enabled),
+        current_account_mode=business.current_account_mode or "disabled",
     )
 
 
@@ -1085,6 +1149,7 @@ async def update_feature_flags(
         business_id=str(business.id),
         ai_agent_enabled=bool(business.ai_agent_enabled),
         linear_sync_enabled=bool(business.linear_sync_enabled),
+        current_account_mode=business.current_account_mode or "disabled",
     )
 
 

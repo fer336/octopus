@@ -2,6 +2,7 @@
 Router de Proveedores.
 Endpoints para gestión de proveedores.
 """
+
 from typing import Optional
 from uuid import UUID
 
@@ -10,11 +11,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.schemas.base import MessageResponse, PaginatedResponse
-from app.schemas.supplier import CategoryDiscountItem, SupplierCreate, SupplierListParams, SupplierResponse, SupplierUpdate
+from app.schemas.supplier import (
+    CategoryDiscountItem,
+    SupplierCreate,
+    SupplierListParams,
+    SupplierResponse,
+    SupplierUpdate,
+)
 from app.services.supplier_service import SupplierService
-from app.utils.security import get_current_business
+from app.utils.security import get_current_business, require_module_access
 
-router = APIRouter(prefix="/suppliers", tags=["Proveedores"])
+router = APIRouter(
+    prefix="/suppliers",
+    tags=["Proveedores"],
+    dependencies=[Depends(require_module_access("suppliers"))],
+)
 
 
 @router.get("", response_model=PaginatedResponse[SupplierResponse])
@@ -23,7 +34,7 @@ async def list_suppliers(
     page: int = Query(1, ge=1),
     per_page: int = Query(100, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    business_id = Depends(get_current_business),
+    business_id=Depends(get_current_business),
 ):
     """
     Lista proveedores con paginación y búsqueda.
@@ -59,7 +70,7 @@ async def list_suppliers(
 async def create_supplier(
     data: SupplierCreate,
     db: AsyncSession = Depends(get_db),
-    business_id = Depends(get_current_business),
+    business_id=Depends(get_current_business),
 ):
     """Crea un nuevo proveedor."""
     service = SupplierService(db)
@@ -72,7 +83,7 @@ async def create_supplier(
 async def get_supplier(
     supplier_id: UUID,
     db: AsyncSession = Depends(get_db),
-    business_id = Depends(get_current_business),
+    business_id=Depends(get_current_business),
 ):
     """Obtiene un proveedor por ID."""
     service = SupplierService(db)
@@ -92,7 +103,7 @@ async def update_supplier(
     supplier_id: UUID,
     data: SupplierUpdate,
     db: AsyncSession = Depends(get_db),
-    business_id = Depends(get_current_business),
+    business_id=Depends(get_current_business),
 ):
     """Actualiza un proveedor existente."""
     service = SupplierService(db)
@@ -111,7 +122,7 @@ async def update_supplier(
 async def delete_supplier(
     supplier_id: UUID,
     db: AsyncSession = Depends(get_db),
-    business_id = Depends(get_current_business),
+    business_id=Depends(get_current_business),
 ):
     """Elimina un proveedor (soft delete)."""
     service = SupplierService(db)
@@ -126,11 +137,13 @@ async def delete_supplier(
     return MessageResponse(message="Proveedor eliminado correctamente")
 
 
-@router.get("/{supplier_id}/category-discounts", response_model=list[CategoryDiscountItem])
+@router.get(
+    "/{supplier_id}/category-discounts", response_model=list[CategoryDiscountItem]
+)
 async def get_supplier_category_discounts(
     supplier_id: UUID,
     db: AsyncSession = Depends(get_db),
-    business_id = Depends(get_current_business),
+    business_id=Depends(get_current_business),
 ):
     """
     Obtiene los descuentos específicos por categoría de un proveedor.
@@ -140,16 +153,16 @@ async def get_supplier_category_discounts(
     from app.models.category import Category
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
-    
+
     query = (
         select(SupplierCategoryDiscount)
         .options(selectinload(SupplierCategoryDiscount.category))
         .where(SupplierCategoryDiscount.supplier_id == supplier_id)
     )
-    
+
     result = await db.execute(query)
     discounts = result.scalars().all()
-    
+
     return [
         CategoryDiscountItem(
             category_id=d.category_id,

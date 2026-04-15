@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    @page { size: A4 portrait; margin: 1.2cm; }
+    body { font-family: Arial, sans-serif; color: #1f2937; font-size: 11px; }
+    h1 { margin: 0; font-size: 18px; color: #1d4ed8; }
+    .meta { margin: 4px 0 10px 0; color: #4b5563; }
+    .summary { margin: 12px 0; padding: 10px; background: #eff6ff; border: 1px solid #bfdbfe; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #d1d5db; padding: 6px; }
+    th { background: #1d4ed8; color: white; text-align: left; }
+    td.right { text-align: right; }
+    .debt { color: #b91c1c; font-weight: bold; }
+    .favor { color: #047857; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>{{ report.title }}</h1>
+  <div class="meta">
+    {{ business.name }} · CUIT {{ business.cuit }} · Generado: {{ report.generated_at }}
+  </div>
+
+  <div class="summary">
+    Clientes: <strong>{{ summary.clients_count }}</strong> ·
+    Deuda total: <strong>${{ "%.2f"|format(summary.debt_total) }}</strong> ·
+    Saldo a favor clientes: <strong>${{ "%.2f"|format(summary.favor_total) }}</strong>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Cliente</th>
+        <th>Documento</th>
+        <th>Condición IVA</th>
+        <th>Estado</th>
+        <th>Saldo</th>
+        <th>Límite crédito</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.name }}</td>
+        <td>{{ row.document }}</td>
+        <td>{{ row.tax_condition }}</td>
+        <td>{{ row.status }}</td>
+        <td class="right {% if row.balance > 0 %}debt{% elif row.balance < 0 %}favor{% endif %}">${{ "%.2f"|format(row.balance) }}</td>
+        <td class="right">${{ "%.2f"|format(row.credit_limit) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 
 import adminAPI from '../../api/adminService'
+import { ConfirmModal } from '../../components/ui'
 
 function UserTableSkeleton() {
   return (
@@ -31,6 +32,11 @@ export default function UsersPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    userId: string
+    nextStatus: boolean
+    actionLabel: string
+  } | null>(null)
   const perPage = 20
 
   useEffect(() => {
@@ -102,11 +108,17 @@ export default function UsersPage() {
   const handleToggleStatus = (userId: string, currentStatus: boolean) => {
     const nextStatus = !currentStatus
     const actionLabel = nextStatus ? 'desbloquear' : 'bloquear'
-    const confirmed = window.confirm(`¿Seguro que querés ${actionLabel} este usuario?`)
-    if (!confirmed) {
-      return
-    }
-    statusMutation.mutate({ userId, isActive: nextStatus })
+    setPendingStatusChange({ userId, nextStatus, actionLabel })
+  }
+
+  const handleConfirmToggleStatus = () => {
+    if (!pendingStatusChange) return
+
+    statusMutation.mutate({
+      userId: pendingStatusChange.userId,
+      isActive: pendingStatusChange.nextStatus,
+    })
+    setPendingStatusChange(null)
   }
 
   return (
@@ -267,6 +279,22 @@ export default function UsersPage() {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={Boolean(pendingStatusChange)}
+        onClose={() => setPendingStatusChange(null)}
+        onConfirm={handleConfirmToggleStatus}
+        title="Confirmar cambio de estado"
+        description={
+          pendingStatusChange
+            ? `¿Seguro que querés ${pendingStatusChange.actionLabel} este usuario?`
+            : ''
+        }
+        confirmText="Confirmar"
+        cancelText="Cancelar"
+        variant="warning"
+        isLoading={statusMutation.isPending}
+      />
     </div>
   )
 }

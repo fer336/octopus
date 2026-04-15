@@ -1,0 +1,149 @@
+"""
+Servicio de reporte de stock en PDF.
+"""
+
+from datetime import datetime
+from decimal import Decimal
+from uuid import UUID
+
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.models.business import Business
+from app.models.product import Product
+from app.schemas.report_schemas import StockReportFilters
+from app.services.reporting.report_pdf_service import report_pdf_service
+
+
+class StockReportService:
+    """Genera el reporte PDF de estado de stock."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def generate_pdf(
+        self,
+        business_id: UUID,
+        filters: StockReportFilters,
+        generated_by: str | None = None,
+    ) -> bytes:
+        business = await self._get_business(business_id)
+        products = await self._get_products(business_id, filters)
+
+        rows: list[dict] = []
+        total_stock_units = 0
+        total_stock_value = Decimal("0")
+        low_stock_items = 0
+
+        for product in products:
+            current_stock = int(product.current_stock or 0)
+            sale_price = Decimal(str(product.sale_price or 0))
+            row_stock_value = sale_price * Decimal(current_stock)
+            is_low_stock = current_stock <= int(product.minimum_stock or 0)
+
+            if is_low_stock:
+                low_stock_items += 1
+
+            total_stock_units += current_stock
+            total_stock_value += row_stock_value
+
+            rows.append(
+                {
+                    "code": product.code,
+                    "supplier_code": product.supplier_code or "—",
+                    "description": product.description,
+                    "category_name": product.category.name if product.category else "—",
+                    "supplier_name": product.supplier.name if product.supplier else "—",
+                    "current_stock": current_stock,
+                    "minimum_stock": int(product.minimum_stock or 0),
+                    "sale_price": float(sale_price),
+                    "stock_value": float(row_stock_value),
+                    "is_low_stock": is_low_stock,
+                    "is_active": bool(product.is_active),
+                }
+            )
+
+        context = {
+            "business": {
+                "name": business.name,
+                "cuit": business.cuit,
+                "address": business.address,
+                "city": business.city,
+                "province": business.province,
+                "phone": business.phone,
+                "email": business.email,
+            },
+            "report": {
+                "title": "Reporte de Stock",
+                "generated_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                "generated_by": generated_by or "Sistema",
+            },
+            "filters": {
+                "search": filters.search or "—",
+                "low_stock_only": filters.low_stock_only,
+                "include_inactive": filters.include_inactive,
+            },
+            "summary": {
+                "total_items": len(rows),
+                "low_stock_items": low_stock_items,
+                "total_stock_units": total_stock_units,
+                "total_stock_value": float(total_stock_value),
+            },
+            "rows": rows,
+        }
+
+        return report_pdf_service.render("stock_report.html", context)
+
+    async def _get_business(self, business_id: UUID) -> Business:
+        result = await self.db.execute(
+            select(Business).where(
+                Business.id == business_id,
+                Business.deleted_at.is_(None),
+            )
+        )
+        business = result.scalar_one_or_none()
+        if not business:
+            raise ValueError("Negocio no encontrado")
+        return business
+
+    async def _get_products(
+        self, business_id: UUID, filters: StockReportFilters
+    ) -> list[Product]:
+        query = (
+            select(Product)
+            .options(
+                selectinload(Product.category),
+                selectinload(Product.supplier),
+            )
+            .where(
+                Product.business_id == business_id,
+                Product.deleted_at.is_(None),
+            )
+        )
+
+        if not filters.include_inactive:
+            query = query.where(Product.is_active.is_(True))
+
+        if filters.search:
+            search = f"%{filters.search}%"
+            query = query.where(
+                or_(
+                    Product.code.ilike(search),
+                    Product.supplier_code.ilike(search),
+                    Product.description.ilike(search),
+                )
+            )
+
+        if filters.category_id:
+            query = query.where(Product.category_id == filters.category_id)
+
+        if filters.supplier_id:
+            query = query.where(Product.supplier_id == filters.supplier_id)
+
+        if filters.low_stock_only:
+            query = query.where(Product.current_stock <= Product.minimum_stock)
+
+        query = query.order_by(Product.description.asc())
+        result = await self.db.execute(query)
+        return list(result.scalars().all())

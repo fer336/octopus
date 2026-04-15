@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    @page { size: A4 portrait; margin: 1.2cm; }
+    body { font-family: Arial, sans-serif; color: #1f2937; font-size: 11px; }
+    h1 { margin: 0; font-size: 18px; color: #1d4ed8; }
+    .meta { margin: 4px 0 10px 0; color: #4b5563; }
+    .summary { margin: 12px 0; padding: 10px; background: #eff6ff; border: 1px solid #bfdbfe; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #d1d5db; padding: 6px; }
+    th { background: #1d4ed8; color: white; text-align: left; }
+    td.right { text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>{{ report.title }}</h1>
+  <div class="meta">
+    {{ business.name }} · CUIT {{ business.cuit }} · Período {{ filters.date_from }} a {{ filters.date_to }} · Generado: {{ report.generated_at }}
+  </div>
+
+  <div class="summary">
+    Productos listados: <strong>{{ summary.rows }}</strong> ·
+    Cantidad vendida: <strong>{{ "%.2f"|format(summary.total_qty) }}</strong> ·
+    Monto total: <strong>${{ "%.2f"|format(summary.total_amount) }}</strong>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Código</th>
+        <th>Descripción</th>
+        <th>Comprobantes</th>
+        <th>Cantidad</th>
+        <th>Monto</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.code }}</td>
+        <td>{{ row.description }}</td>
+        <td class="right">{{ row.vouchers_count }}</td>
+        <td class="right">{{ "%.2f"|format(row.quantity) }}</td>
+        <td class="right">${{ "%.2f"|format(row.amount) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

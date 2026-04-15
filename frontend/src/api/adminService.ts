@@ -97,11 +97,13 @@ export interface FeatureFlagsResponse {
   business_id: string
   ai_agent_enabled: boolean
   linear_sync_enabled: boolean
+  current_account_mode: 'disabled' | 'automatic' | 'manual'
 }
 
 export interface FeatureFlagsUpdate {
   ai_agent_enabled?: boolean
   linear_sync_enabled?: boolean
+  current_account_mode?: 'disabled' | 'automatic' | 'manual'
 }
 
 export type FeedbackType = 'bug' | 'feature'
@@ -168,6 +170,7 @@ export interface UpdateAdminUserStatusPayload {
 
 export interface TenantUser extends AdminUser {
   membership_role: string
+  module_permissions: Record<string, boolean>
   access_starts_at: string | null
   access_ends_at: string | null
   access_status: 'active' | 'trial' | 'suspended' | 'expired'
@@ -199,6 +202,10 @@ export interface UpdateTenantUserAccessPayload {
   access_status: 'active' | 'suspended' | 'trial'
   blocked_reason?: string
   access_ends_at?: string
+}
+
+export interface UpdateTenantUserPermissionsPayload {
+  module_permissions: Record<string, boolean>
 }
 
 // ============================================================================
@@ -328,6 +335,18 @@ const adminAPI = {
   ): Promise<TenantUser> {
     const response = await adminHttpClient.patch(
       `/tenants/${businessId}/users/${userId}/access`,
+      data,
+    )
+    return response.data
+  },
+
+  async updateTenantUserPermissions(
+    businessId: string,
+    userId: string,
+    data: UpdateTenantUserPermissionsPayload,
+  ): Promise<TenantUser> {
+    const response = await adminHttpClient.patch(
+      `/tenants/${businessId}/users/${userId}/permissions`,
       data,
     )
     return response.data

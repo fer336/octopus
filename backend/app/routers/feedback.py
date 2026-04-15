@@ -18,9 +18,17 @@ from app.models.tenant_secret import TenantSecret
 from app.models.user import User
 from app.schemas.base import PaginatedResponse
 from app.utils.crypto import decrypt_api_key
-from app.utils.security import get_current_business, get_current_user
+from app.utils.security import (
+    get_current_business,
+    get_current_user,
+    require_module_access,
+)
 
-tenant_router = APIRouter(prefix="/feedback", tags=["Feedback"])
+tenant_router = APIRouter(
+    prefix="/feedback",
+    tags=["Feedback"],
+    dependencies=[Depends(require_module_access("feedback"))],
+)
 admin_router = APIRouter(prefix="/api/admin/feedback", tags=["Admin Feedback"])
 
 logger = logging.getLogger(__name__)

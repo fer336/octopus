@@ -2,6 +2,7 @@
 Router de Caja.
 Endpoints para apertura, cierre y movimientos de la caja diaria.
 """
+
 from typing import List, Optional
 from uuid import UUID
 
@@ -21,9 +22,17 @@ from app.schemas.cash_register import (
     CashSummaryResponse,
 )
 from app.services import cash_register_service as service
-from app.utils.security import get_current_business, get_current_user
+from app.utils.security import (
+    get_current_business,
+    get_current_user,
+    require_module_access,
+)
 
-router = APIRouter(prefix="/cash", tags=["Caja"])
+router = APIRouter(
+    prefix="/cash",
+    tags=["Caja"],
+    dependencies=[Depends(require_module_access("cash"))],
+)
 
 
 @router.get("/current", response_model=Optional[CashRegisterResponse])
@@ -39,7 +48,9 @@ async def get_current_cash(
     return await service.get_current(db, business_id)
 
 
-@router.post("/open", response_model=CashRegisterResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/open", response_model=CashRegisterResponse, status_code=status.HTTP_201_CREATED
+)
 async def open_cash(
     data: CashOpenRequest,
     db: AsyncSession = Depends(get_db),
@@ -138,7 +149,11 @@ async def list_movements(
     ]
 
 
-@router.post("/{cash_register_id}/movements", response_model=CashMovementResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{cash_register_id}/movements",
+    response_model=CashMovementResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_movement(
     cash_register_id: UUID,
     data: CashMovementCreateRequest,

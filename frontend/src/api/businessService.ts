@@ -18,6 +18,7 @@ export interface Business {
   header_text?: string
   sale_point: string
   ai_agent_enabled: boolean
+  current_account_mode: 'disabled' | 'automatic' | 'manual'
   arca_environment?: string
 }
 

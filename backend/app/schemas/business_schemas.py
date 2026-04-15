@@ -2,7 +2,7 @@
 Schemas para Business (Negocio).
 """
 
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -63,6 +63,7 @@ class BusinessResponse(BaseModel):
     header_text: Optional[str]
     sale_point: str
     ai_agent_enabled: bool
+    current_account_mode: Literal["disabled", "automatic", "manual"]
 
     # Configuración ARCA (solo lectura, se edita en /arca)
     arca_environment: Optional[str]

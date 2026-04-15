@@ -3,7 +3,7 @@
  * Permite crear cotizaciones, remitos y facturas.
  */
 import { useState, useEffect, useRef } from 'react'
-import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, ZoomIn, ZoomOut, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle } from 'lucide-react'
+import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, DollarSign, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button, Modal, Select, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import productsService from '../api/productsService'
@@ -16,11 +16,19 @@ import { formatErrorMessage } from '../utils/errorHelpers'
 import { useSalesStore } from '../stores/salesStore'
 
 type VoucherType = 'quotation' | 'receipt' | 'invoice'
+type SalesMenuMode = VoucherType | 'current_account'
 
 const voucherTypes = [
   { value: 'quotation', label: 'Cotización', icon: FileText },
   { value: 'receipt', label: 'Remito', icon: Truck },
   { value: 'invoice', label: 'Factura', icon: Receipt },
+]
+
+const salesMenuModes: Array<{ value: SalesMenuMode; label: string; icon: any; comingSoon?: boolean }> = [
+  { value: 'quotation', label: 'Cotización', icon: FileText },
+  { value: 'receipt', label: 'Remito', icon: Truck },
+  { value: 'invoice', label: 'Factura', icon: Receipt },
+  { value: 'current_account', label: 'Cta Cte', icon: ClipboardList, comingSoon: true },
 ]
 
 interface Product {
@@ -257,7 +265,7 @@ export default function Sales() {
   const productListRef = useRef<HTMLDivElement>(null)
   const selectedRowRef = useRef<HTMLTableRowElement>(null)
   const [drafts, setDrafts] = useState<Draft[]>([])
-  const [zoomLevel, setZoomLevel] = useState(1) // 1 = 100% (normal)
+  const [zoomLevel, setZoomLevel] = useState(1)
   const [isGenerating, setIsGenerating] = useState(false)
   const [paymentSelections, setPaymentSelections] = useState<Record<string, PaymentSelectionState>>({})
   
@@ -446,6 +454,7 @@ export default function Sales() {
   const [showClientSelectorModal, setShowClientSelectorModal] = useState(false)
   const [showDraftsModal, setShowDraftsModal] = useState(false)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState(false)
   const [showSaveDraftSuccessModal, setShowSaveDraftSuccessModal] = useState(false)
   const [showDeleteDraftModal, setShowDeleteDraftModal] = useState(false)
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null)
@@ -856,23 +865,34 @@ export default function Sales() {
     setShowPrices(true)
   }
 
+  const clearSalesScreen = () => {
+    setItems([])
+    setSelectedClient(null)
+    setClientSearch('')
+    setProductSearch('')
+    setVoucherType('quotation')
+    setShowPrices(true)
+    setEditingVoucherId(null)
+    setEditingVoucherDate(null)
+    setEditingVoucherNotes(undefined)
+    setGeneralDiscount(0)
+    sessionStorage.removeItem('sales-edit-voucher')
+    resetPaymentSelections()
+  }
+
   const handleClear = () => {
     if (items.length > 0 || selectedClient) {
-      if (window.confirm('¿Está seguro de que desea limpiar la pantalla?')) {
-        setItems([])
-        setSelectedClient(null)
-        setClientSearch('')
-        setProductSearch('')
-        setVoucherType('quotation')
-        setShowPrices(true)
-        setEditingVoucherId(null)
-        setEditingVoucherDate(null)
-        setEditingVoucherNotes(undefined)
-        setGeneralDiscount(0)
-        sessionStorage.removeItem('sales-edit-voucher')
-        resetPaymentSelections()
-      }
+      setShowClearConfirmModal(true)
+      return
     }
+
+    clearSalesScreen()
+  }
+
+  const handleConfirmClear = () => {
+    clearSalesScreen()
+    setShowClearConfirmModal(false)
+    toast.success('Pantalla de ventas limpiada')
   }
 
   const handleGenerateClick = () => {
@@ -1494,12 +1514,12 @@ export default function Sales() {
     <div className="-mt-4 space-y-2.5">
       {/* Header compacto */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-2.5 shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowClientModal(true)} title="Nuevo cliente" className="px-2 py-1">
-              <Plus size={16} />
+              <Plus size={18} />
             </Button>
-            <div className="relative min-w-[220px] flex-1">
+
+            <div className="relative w-[280px]">
               <input
                 type="text"
                 value={selectedClient ? selectedClient.name : clientSearch}
@@ -1529,6 +1549,7 @@ export default function Sales() {
                 </div>
               )}
             </div>
+
             <Button
               variant="outline"
               size="sm"
@@ -1536,94 +1557,121 @@ export default function Sales() {
               title="Seleccionar cliente"
               className="px-2 py-1"
             >
-              <Search size={16} />
+              <Search size={18} />
             </Button>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 self-start sm:self-auto">
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={handleClear} className="text-xs px-2.5 py-1">
-                <RotateCcw size={14} />
-                Limpiar
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowDraftsModal(true)} className="relative text-xs px-2.5 py-1">
-                <FileText size={14} />
-                Borradores
-                {drafts.length > 0 && (
-                  <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-600 px-1 text-[10px] font-bold leading-none text-white">
-                    {drafts.length}
-                  </span>
-                )}
-              </Button>
-              {voucherTypes.map((type) => (
-                <button
-                  key={type.value}
-                  onClick={() => handleVoucherTypeChange(type.value as VoucherType)}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
-                    voucherType === type.value
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300'
-                  }`}
-                >
-                  {type.label}
-                </button>
-              ))}
-              {voucherType === 'receipt' && (
-                <label className="inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2.5 py-1 text-xs font-medium text-gray-700 dark:text-gray-200">
-                  <input
-                    type="checkbox"
-                    checked={showPrices}
-                    onChange={(e) => setShowPrices(e.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  />
-                  Incluir precios en impresión
-                </label>
+
+            <Button variant="outline" size="sm" onClick={handleClear} className="text-xs px-2.5 py-1" title="Limpiar">
+              <RotateCcw size={16} />
+              Limpiar
+            </Button>
+
+            <Button variant="outline" size="sm" onClick={() => setShowDraftsModal(true)} className="relative text-xs px-2.5 py-1" title="Borradores">
+              <FileText size={16} />
+              Borradores
+              {drafts.length > 0 && (
+                <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-600 px-1 text-[10px] font-bold leading-none text-white">
+                  {drafts.length}
+                </span>
               )}
+            </Button>
+
+            <div className="flex items-center rounded-lg border border-primary-200 bg-primary-50/40 p-0.5 dark:border-primary-800 dark:bg-primary-900/20">
+              {salesMenuModes.map((mode) => {
+                const Icon = mode.icon
+                const isActive = voucherType === mode.value
+                const isComingSoon = !!mode.comingSoon
+
+                return (
+                  <button
+                    key={mode.value}
+                    onClick={() => {
+                      if (isComingSoon) {
+                        toast('Cuenta Corriente: próximamente', { icon: '🛠️' })
+                        return
+                      }
+                      handleVoucherTypeChange(mode.value as VoucherType)
+                    }}
+                    className={`relative inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                      isActive
+                        ? 'bg-primary-600 text-white'
+                        : isComingSoon
+                          ? 'text-primary-700 dark:text-primary-300 hover:bg-primary-100/70 dark:hover:bg-primary-900/40'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-primary-100/70 dark:hover:bg-primary-900/40'
+                    }`}
+                    title={isComingSoon ? 'Próximamente' : mode.label}
+                  >
+                    <Icon size={16} />
+                    {mode.label}
+                    {isComingSoon && (
+                      <span className="ml-1 rounded-full bg-primary-200 px-1.5 py-[1px] text-[9px] font-bold uppercase text-primary-900 dark:bg-primary-800 dark:text-primary-100">
+                        Prox
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
             </div>
-            {/* Controles de Zoom */}
-            <div className="flex items-center rounded-lg border border-gray-200 bg-gray-100 p-0.5 dark:border-gray-600 dark:bg-gray-700">
+
+            {voucherType === 'receipt' && (
               <button
-                onClick={() => setZoomLevel(prev => Math.max(prev - 0.1, 0.8))}
-                className="rounded-md p-1 hover:bg-white text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-gray-200"
-                title="Reducir tamaño"
+                onClick={() => setShowPrices((prev) => !prev)}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  showPrices
+                    ? 'border-primary-300 bg-primary-100 text-primary-800 dark:border-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
+                    : 'border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                }`}
+                title="Incluir precios en impresión"
               >
-                <ZoomOut size={14} />
+                <DollarSign size={16} />
+                {showPrices ? 'Precios ON' : 'Precios OFF'}
               </button>
-              <span className="w-8 select-none text-center text-[10px] font-medium text-gray-500">
-                {Math.round(zoomLevel * 100)}%
-              </span>
-              <button
-                onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 1.5))}
-                className="rounded-md p-1 hover:bg-white text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-gray-200"
-                title="Aumentar tamaño"
-              >
-                <ZoomIn size={14} />
-              </button>
-            </div>
-          </div>
+            )}
+
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_288px] gap-3">
         {/* Panel principal - Tablas */}
-        <div className="lg:col-span-3 space-y-3">
+        <div className="space-y-3 min-w-0">
           {/* TABLA SUPERIOR - Carrito */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
             <div className="p-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                Productos seleccionados ({items.length})
-              </h3>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                  Productos seleccionados ({items.length})
+                </h3>
+                <div className="inline-flex items-center rounded-md border border-gray-200 bg-white p-0.5 dark:border-gray-600 dark:bg-gray-800">
+                  <button
+                    onClick={() => setZoomLevel(prev => Math.max(prev - 0.1, 0.8))}
+                    className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                    title="Achicar tabla"
+                  >
+                    <ZoomOut size={13} />
+                  </button>
+                  <span className="w-9 text-center text-[10px] font-medium text-gray-500 select-none">
+                    {Math.round(zoomLevel * 100)}%
+                  </span>
+                  <button
+                    onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 1.4))}
+                    className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                    title="Agrandar tabla"
+                  >
+                    <ZoomIn size={13} />
+                  </button>
+                </div>
+              </div>
             </div>
             <div className="overflow-x-auto max-h-[35vh] overflow-y-auto">
               <table className="w-full transition-all duration-200" style={{ fontSize: `${0.875 * zoomLevel}rem` }}>
                 <thead className="bg-gray-100 dark:bg-gray-900 sticky top-0">
                   <tr>
-                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Descripción</th>
-                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: `${5 * zoomLevel}rem` }}>Cant.</th>
-                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Precio</th>
-                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: `${5 * zoomLevel}rem` }}>Desc%</th>
-                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Total</th>
-                    <th className="px-3 py-2 w-10"></th>
+                    <th className="px-3 py-[5px] text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
+                    <th className="px-3 py-[5px] text-left font-medium text-gray-600 dark:text-gray-400">Descripción</th>
+                    <th className="px-3 py-[5px] text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: `${5 * zoomLevel}rem` }}>Cant.</th>
+                    <th className="px-3 py-[5px] text-right font-medium text-gray-600 dark:text-gray-400">Precio</th>
+                    <th className="px-3 py-[5px] text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: `${5 * zoomLevel}rem` }}>Desc%</th>
+                    <th className="px-3 py-[5px] text-right font-medium text-gray-600 dark:text-gray-400">Total</th>
+                    <th className="px-3 py-[5px] w-10"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -1635,11 +1683,11 @@ export default function Sales() {
                       </td>
                     </tr>
                   ) : (
-                    items.map((item) => (
-                      <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="px-3 py-2 font-medium">{item.code}</td>
-                        <td className="px-3 py-2">{item.description}</td>
-                        <td className="px-3 py-2 text-right">
+                    items.map((item, rowIndex) => (
+                      <tr key={item.id} className={`hover:bg-primary-50 dark:hover:bg-primary-900/20 ${rowIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-primary-50/30 dark:bg-primary-900/10'}`}>
+                        <td className="px-3 py-[3px] font-medium text-gray-800 dark:text-gray-100">{item.code}</td>
+                        <td className="px-3 py-[3px] text-gray-700 dark:text-gray-200">{item.description}</td>
+                        <td className="px-3 py-[3px] text-right">
                           <input
                             type="number"
                             value={item.quantity}
@@ -1647,13 +1695,13 @@ export default function Sales() {
                             className="w-full text-right border rounded dark:bg-gray-700 dark:border-gray-600"
                             style={{ 
                               fontSize: `${0.875 * zoomLevel}rem`,
-                              padding: `${0.25 * zoomLevel}rem ${0.375 * zoomLevel}rem`
+                              padding: `${0.09 * zoomLevel}rem ${0.28 * zoomLevel}rem`
                             }}
                             min={1}
                           />
                         </td>
-                        <td className="px-3 py-2 text-right">${formatNumber(item.sale_price)}</td>
-                        <td className="px-3 py-2 text-right">
+                        <td className="px-3 py-[3px] text-right">${formatNumber(item.sale_price)}</td>
+                        <td className="px-3 py-[3px] text-right">
                           <input
                             type="number"
                             value={item.discount}
@@ -1661,17 +1709,17 @@ export default function Sales() {
                             className="w-full text-right border rounded dark:bg-gray-700 dark:border-gray-600"
                             style={{ 
                               fontSize: `${0.875 * zoomLevel}rem`,
-                              padding: `${0.25 * zoomLevel}rem ${0.375 * zoomLevel}rem`
+                              padding: `${0.09 * zoomLevel}rem ${0.28 * zoomLevel}rem`
                             }}
                             min={0}
                             max={100}
                             step={0.1}
                           />
                         </td>
-                        <td className="px-3 py-2 text-right font-medium">
+                        <td className="px-3 py-[3px] text-right font-medium">
                           ${formatNumber(calculateItemTotal(item))}
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-[3px]">
                           <button onClick={() => removeItem(item.id)} className="text-red-500 hover:text-red-700">
                             <Trash2 size={16 * zoomLevel} />
                           </button>
@@ -1796,8 +1844,8 @@ export default function Sales() {
         </div>
 
         {/* Panel lateral - Resumen */}
-        <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-200 dark:border-gray-700 sticky top-3">
+        <div className="w-full self-stretch">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-200 dark:border-gray-700 h-full flex flex-col">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
               Resumen
             </h3>
@@ -1851,7 +1899,7 @@ export default function Sales() {
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 mt-auto">
               <Button 
                 variant="primary" 
                 size="sm" 
@@ -2556,6 +2604,49 @@ export default function Sales() {
         </div>
       </Modal>
 
+      {/* Modal de confirmación para limpiar pantalla */}
+      <Modal
+        isOpen={showClearConfirmModal}
+        onClose={() => setShowClearConfirmModal(false)}
+        title="Limpiar venta actual"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg border border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20 p-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 rounded-full bg-primary-100 dark:bg-primary-800/40 p-2">
+                <AlertCircle className="text-primary-600 dark:text-primary-300" size={18} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  ¿Querés limpiar la pantalla de ventas?
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  Se van a borrar los productos cargados, el cliente seleccionado y los datos de edición del comprobante actual.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <Button
+              variant="outline"
+              onClick={() => setShowClearConfirmModal(false)}
+              className="flex-1"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleConfirmClear}
+              className="flex-1"
+            >
+              Sí, limpiar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Modal de confirmación de borrador guardado */}
       <Modal 
         isOpen={showSaveDraftSuccessModal} 
@@ -2659,7 +2750,7 @@ export default function Sales() {
                   onClick={() => setQuotationTypeFilter(opt.value as 'all' | 'quotation' | 'receipt')}
                   className={`flex-1 py-2 transition-colors ${
                     quotationTypeFilter === opt.value
-                      ? 'bg-amber-500 text-white'
+                      ? 'bg-primary-600 text-white'
                       : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
@@ -2677,7 +2768,7 @@ export default function Sales() {
                 type="date"
                 value={quotationDateFrom}
                 onChange={(e) => setQuotationDateFrom(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 focus:outline-none"
               />
             </div>
 
@@ -2690,7 +2781,7 @@ export default function Sales() {
                 type="date"
                 value={quotationDateTo}
                 onChange={(e) => setQuotationDateTo(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 focus:outline-none"
               />
             </div>
           </div>
@@ -2703,7 +2794,7 @@ export default function Sales() {
               value={quotationSearch}
               onChange={(e) => setQuotationSearch(e.target.value)}
               placeholder="Buscar por número, cliente o notas..."
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-amber-400 focus:outline-none"
+              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 focus:outline-none"
               autoFocus
             />
           </div>
@@ -2721,7 +2812,7 @@ export default function Sales() {
             <div className="max-h-[45vh] overflow-y-auto">
               {!pendingQuotationsData ? (
                 <div className="text-center py-10 text-gray-400">
-                  <div className="inline-block w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mb-2" />
+                  <div className="inline-block w-5 h-5 border-2 border-primary-400 border-t-transparent rounded-full animate-spin mb-2" />
                   <p className="text-sm">Cargando...</p>
                 </div>
               ) : pendingQuotationsData.items.length === 0 ? (
@@ -2742,7 +2833,7 @@ export default function Sales() {
                       <button
                         key={voucher.id}
                         onClick={() => handleSelectQuotationToConvert(voucher)}
-                        className="w-full grid grid-cols-[auto_1fr_auto_auto] gap-2 items-center px-3 py-2.5 text-left hover:bg-amber-50 dark:hover:bg-amber-900/15 transition-colors group"
+                        className="w-full grid grid-cols-[auto_1fr_auto_auto] gap-2 items-center px-3 py-2.5 text-left hover:bg-primary-50 dark:hover:bg-primary-900/15 transition-colors group"
                       >
                         {/* Badge tipo */}
                         <div className="shrink-0">
@@ -2788,7 +2879,7 @@ export default function Sales() {
                           <p className="text-sm font-bold text-gray-900 dark:text-white tabular-nums">
                             ${formatNumber(voucher.total, 'es-AR', { minimumFractionDigits: 2 })}
                           </p>
-                          <span className="text-[10px] text-amber-500 dark:text-amber-400 group-hover:underline font-medium">
+                          <span className="text-[10px] text-primary-500 dark:text-primary-400 group-hover:underline font-medium">
                             Facturar →
                           </span>
                         </div>
@@ -2833,7 +2924,7 @@ export default function Sales() {
                 <span className={`text-xs font-bold px-2 py-1 rounded ${
                   selectedQuotation.voucher_type === 'receipt'
                     ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                    : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                    : 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
                 }`}>
                   {selectedQuotation.voucher_type === 'receipt' ? 'REM' : 'COT'} {selectedQuotation.sale_point}-{selectedQuotation.number}
                 </span>

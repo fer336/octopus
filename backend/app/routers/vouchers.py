@@ -27,7 +27,11 @@ from app.schemas.credit_note import CreditNoteCreate
 from app.services.voucher_service import VoucherService
 from app.services.afip_sdk_service import AfipSdkService
 from app.services.cash_register_service import get_open_cash_register
-from app.utils.security import get_current_business, get_current_user
+from app.utils.security import (
+    get_current_business,
+    get_current_user,
+    require_module_access,
+)
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -36,7 +40,11 @@ logger = logging.getLogger(__name__)
 # Tipos de comprobante que requieren caja abierta para emitirse
 INVOICE_TYPES = {VoucherType.INVOICE_A, VoucherType.INVOICE_B, VoucherType.INVOICE_C}
 
-router = APIRouter(prefix="/vouchers", tags=["Ventas"])
+router = APIRouter(
+    prefix="/vouchers",
+    tags=["Ventas"],
+    dependencies=[Depends(require_module_access("vouchers"))],
+)
 
 
 async def _log_audit(

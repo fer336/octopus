@@ -22,9 +22,17 @@ from app.schemas.purchase_order import (
 from app.models.business import Business
 from app.services.purchase_order_service import PurchaseOrderService
 from app.services.pdf_service import pdf_service
-from app.utils.security import get_current_business, get_current_user
+from app.utils.security import (
+    get_current_business,
+    get_current_user,
+    require_module_access,
+)
 
-router = APIRouter(prefix="/purchase-orders", tags=["Órdenes de Pedido"])
+router = APIRouter(
+    prefix="/purchase-orders",
+    tags=["Órdenes de Pedido"],
+    dependencies=[Depends(require_module_access("inventory"))],
+)
 
 
 # ---------------------------------------------------------------------------

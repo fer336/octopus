@@ -3,7 +3,7 @@ Modelo de membresías de tenant.
 Conecta usuarios con negocios y define su rol dentro de cada tenant.
 """
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Column, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -68,6 +68,7 @@ class TenantMembership(BaseModel):
         default=MembershipAccessStatus.ACTIVE,
     )
     blocked_reason = Column(String(255), nullable=True)
+    module_permissions = Column(Text, nullable=True)
 
     # Relaciones
     user = relationship("User", back_populates="memberships")

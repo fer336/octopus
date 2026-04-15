@@ -16,9 +16,13 @@ from app.schemas.payment_method import (
     PaymentMethodUpdate,
 )
 from app.services.payment_method_service import PaymentMethodService
-from app.utils.security import get_current_business
+from app.utils.security import get_current_business, require_module_access
 
-router = APIRouter(prefix="/payment-methods", tags=["Payment Methods"])
+router = APIRouter(
+    prefix="/payment-methods",
+    tags=["Payment Methods"],
+    dependencies=[Depends(require_module_access("payment_methods"))],
+)
 
 
 @router.get("", response_model=List[PaymentMethodResponse])

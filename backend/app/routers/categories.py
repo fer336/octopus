@@ -2,6 +2,7 @@
 Router de Categorías.
 Endpoints para gestión de categorías jerárquicas.
 """
+
 from typing import Optional
 from uuid import UUID
 
@@ -18,9 +19,13 @@ from app.schemas.category import (
     CategoryWithChildren,
 )
 from app.services.category_service import CategoryService
-from app.utils.security import get_current_business
+from app.utils.security import get_current_business, require_module_access
 
-router = APIRouter(prefix="/categories", tags=["Categorías"])
+router = APIRouter(
+    prefix="/categories",
+    tags=["Categorías"],
+    dependencies=[Depends(require_module_access("categories"))],
+)
 
 
 @router.get("", response_model=PaginatedResponse[CategoryResponse])
@@ -31,7 +36,7 @@ async def list_categories(
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    business_id = Depends(get_current_business),
+    business_id=Depends(get_current_business),
 ):
     """
     Lista categorías con paginación y filtros.
@@ -61,7 +66,7 @@ async def list_categories(
 @router.get("/tree", response_model=list[CategoryWithChildren])
 async def get_category_tree(
     db: AsyncSession = Depends(get_db),
-    business_id = Depends(get_current_business),
+    business_id=Depends(get_current_business),
 ):
     """
     Obtiene el árbol completo de categorías.
@@ -78,7 +83,9 @@ async def get_category_tree(
             name=category.name,
             description=category.description,
             parent_id=category.parent_id,
-            subcategories=[build_tree(sub) for sub in category.subcategories if not sub.deleted_at],
+            subcategories=[
+                build_tree(sub) for sub in category.subcategories if not sub.deleted_at
+            ],
         )
 
     return [build_tree(c) for c in categories]
@@ -88,7 +95,7 @@ async def get_category_tree(
 async def create_category(
     data: CategoryCreate,
     db: AsyncSession = Depends(get_db),
-    business_id = Depends(get_current_business),
+    business_id=Depends(get_current_business),
 ):
     """Crea una nueva categoría."""
     service = CategoryService(db)
@@ -107,7 +114,7 @@ async def create_category(
 async def get_category(
     category_id: UUID,
     db: AsyncSession = Depends(get_db),
-    business_id = Depends(get_current_business),
+    business_id=Depends(get_current_business),
 ):
     """Obtiene una categoría por ID."""
     service = CategoryService(db)
@@ -127,7 +134,7 @@ async def update_category(
     category_id: UUID,
     data: CategoryUpdate,
     db: AsyncSession = Depends(get_db),
-    business_id = Depends(get_current_business),
+    business_id=Depends(get_current_business),
 ):
     """Actualiza una categoría existente."""
     service = CategoryService(db)
@@ -151,7 +158,7 @@ async def update_category(
 async def delete_category(
     category_id: UUID,
     db: AsyncSession = Depends(get_db),
-    business_id = Depends(get_current_business),
+    business_id=Depends(get_current_business),
 ):
     """
     Elimina una categoría (soft delete).

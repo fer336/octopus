@@ -1,6 +1,7 @@
 """
 Router para borradores de actualización masiva de precios.
 """
+
 import json
 from typing import List, Optional
 from uuid import UUID
@@ -12,12 +13,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.price_update_draft import PriceUpdateDraft
-from app.utils.security import get_current_business, get_current_user
+from app.utils.security import (
+    get_current_business,
+    get_current_user,
+    require_module_access,
+)
 
-router = APIRouter(prefix="/price-update-drafts", tags=["Price Update Drafts"])
+router = APIRouter(
+    prefix="/price-update-drafts",
+    tags=["Price Update Drafts"],
+    dependencies=[Depends(require_module_access("price_update"))],
+)
 
 
 # ── Schemas ────────────────────────────────────────────────────────────────────
+
 
 class DraftFilters(BaseModel):
     category_id: Optional[str] = None
@@ -52,6 +62,7 @@ class DraftDetailResponse(DraftResponse):
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
+
 
 @router.get("", response_model=List[DraftResponse])
 async def list_drafts(
@@ -96,18 +107,26 @@ async def save_draft(
     Almacena el estado completo de los productos editados para retomar después.
     """
     if not data.name.strip():
-        raise HTTPException(status_code=400, detail="El nombre del borrador no puede estar vacío")
+        raise HTTPException(
+            status_code=400, detail="El nombre del borrador no puede estar vacío"
+        )
 
     if not data.products:
-        raise HTTPException(status_code=400, detail="El borrador debe contener al menos un producto")
+        raise HTTPException(
+            status_code=400, detail="El borrador debe contener al menos un producto"
+        )
 
     draft = PriceUpdateDraft(
         business_id=business_id,
         created_by=current_user.id,
         name=data.name.strip(),
-        filter_category_id=UUID(data.filters.category_id) if data.filters and data.filters.category_id else None,
+        filter_category_id=UUID(data.filters.category_id)
+        if data.filters and data.filters.category_id
+        else None,
         filter_category_name=data.filters.category_name if data.filters else None,
-        filter_supplier_id=UUID(data.filters.supplier_id) if data.filters and data.filters.supplier_id else None,
+        filter_supplier_id=UUID(data.filters.supplier_id)
+        if data.filters and data.filters.supplier_id
+        else None,
         filter_supplier_name=data.filters.supplier_name if data.filters else None,
         filter_search=data.filters.search if data.filters else None,
         products_data=json.dumps(data.products),
@@ -183,9 +202,13 @@ async def update_draft(
 
     draft.name = data.name.strip() or draft.name
     if data.filters:
-        draft.filter_category_id = UUID(data.filters.category_id) if data.filters.category_id else None
+        draft.filter_category_id = (
+            UUID(data.filters.category_id) if data.filters.category_id else None
+        )
         draft.filter_category_name = data.filters.category_name
-        draft.filter_supplier_id = UUID(data.filters.supplier_id) if data.filters.supplier_id else None
+        draft.filter_supplier_id = (
+            UUID(data.filters.supplier_id) if data.filters.supplier_id else None
+        )
         draft.filter_supplier_name = data.filters.supplier_name
         draft.filter_search = data.filters.search
     draft.products_data = json.dumps(data.products)

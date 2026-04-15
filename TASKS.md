@@ -3,12 +3,10 @@
 ## 🔴 Pendiente
 - [ ] [OPS-01] Replicar migraciones pendientes en entorno de deploy (`f1a2b3c4d5e6`, `a9b8c7d6e5f4`)
 - [ ] [FB-07] Validar flujo E2E feedback + sync a Linear con API key real (crear ticket tenant y verificar issue)
-- [ ] [AUTH-ACL-01] CMS/Sesiones: jerarquía de administración por negocio (admin crea sub-empleados y gestiona permisos granulares por módulo)
 - [ ] [CC-01] Cuenta Corriente: crear nueva sección con tabla de clientes y remitos retirados para edición/control previo al cierre
-- [ ] [CMS-CC-01] CMS: agregar feature flag de Cuenta Corriente (modo automático / modo manual) por tenant
 - [ ] [VOU-02] Ventas: permitir cargar comprobante por código de presupuesto y autocompletar tabla de productos
 - [ ] [CC-02] Cuenta Corriente: permitir descuento global al cierre/liquidación de cuenta antes de emitir comprobante final
-- [ ] [CMS-CC-02] CMS/UI: mostrar/ocultar ítem de sidebar "Cuenta Corriente" según toggle de feature flag
+- [ ] [CMS-CC-03] CMS/UI/Ventas: al activar/desactivar Cuenta Corriente en CMS, mostrar/ocultar en tiempo real tanto el ítem del Sidebar como la opción "Cta Cte" del menú de Ventas
 - [ ] [SALES-CC-01] Ventas: agregar tipo de comprobante/flujo "Cuenta Corriente" con impresión con/sin precios y con/sin descuento
 - [ ] [PREM-CC-01] Premium: compilar múltiples presupuestos por código en un comprobante unificado
 - [ ] [PREM-CC-02] Premium: bloquear edición de presupuestos origen una vez compilados y marcarlos como "compilados"
@@ -21,9 +19,50 @@
 - [x] [DATA-02] Productos: implementar descarga de backup SQL completo del tenant (incluyendo precios, bonificaciones y relaciones) ✅ 2026-04-12
 
 ## 🟡 En progreso
-- [/] [REP-02] Reportes: implementar primera versión funcional de exportación PDF por reporte
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## 🟢 Hecho
+- [x] [BIZ-EXCEL-03] Diseñar Cotizador Excel con numeración automática, historial y guía completa de macros VBA ✅ 2026-04-14
+- [x] [AUTH-ACL-01] CMS/Sesiones: jerarquía de administración por negocio (admin crea sub-empleados y gestiona permisos granulares por módulo) ✅ 2026-04-15
+- [x] [AUTH-ACL-02] ACL backend: aplicar enforcement server-side por módulo para endurecer seguridad (además del bloqueo de UI) ✅ 2026-04-15
+- [x] [AUTH-ACL-BUG-01] 🐛 CMS usuarios: corregir error `tenant_memberships.module_permissions does not exist` aplicando migración pendiente a `head` ✅ 2026-04-15
+- [x] [AUTH-ACL-UI-01] CMS usuarios: compactar tabla/permisos y dejar acciones en una sola fila con iconos ✅ 2026-04-15
+- [x] [AUTH-ACL-BUG-02] 🐛 Tenant frontend en blanco: corregir `useAuthStore is not defined` en MainLayout ✅ 2026-04-15
+- [x] [PWA-META-01] Frontend: reemplazar meta tag deprecated `apple-mobile-web-app-capable` por `mobile-web-app-capable` ✅ 2026-04-15
+- [x] [UI-SALES-ALERT-01] Ventas: reemplazar `window.confirm` de "Limpiar" por modal UI con paleta del sistema ✅ 2026-04-15
+- [x] [UI-CONFIRM-01] Frontend: reemplazar `window.confirm/confirm` restantes por modales UI consistentes ✅ 2026-04-15
+- [x] [CMS-CC-01] CMS: agregar feature flag de Cuenta Corriente (modo automático / modo manual) por tenant ✅ 2026-04-15
+- [x] [CMS-CC-02] CMS/UI: mostrar/ocultar ítem de sidebar "Cuenta Corriente" según toggle de feature flag ✅ 2026-04-15
+- [x] [CMS-CC-04] CMS usuarios: mostrar permiso "Cuenta Corriente" solo cuando el módulo esté habilitado en el tenant ✅ 2026-04-15
+- [x] [BIZ-EXCEL-02] Documentar en `prompt.md` los 5 prompts maestros para crear los productos digitales en Excel ✅ 2026-04-14
+- [x] [BIZ-EXCEL-01] Estrategia comercial: crear 5 prompts detallados para construir productos digitales en Excel basados en módulos del sistema ✅ 2026-04-14
+- [x] [UI-CLIENTS-SUP-02] UI: unificar tamaño/layout general de Categorías, Clientes y Proveedores (contenedor + tabla + spacing) ✅ 2026-04-14
+- [x] [BRAND-03-ADJ-8] Sidebar: aplicar tono violeta claro al wordmark "Octopus Track" y footer ✅ 2026-04-14
+- [x] [UI-CLIENTS-SUP-01] UI: unificar diseño de header en Clientes y Proveedores al estilo de Categorías con paleta primary ✅ 2026-04-14
+- [x] [UI-SALES-07-ADJ-10] Ventas: restaurar visibilidad de acciones "Limpiar" y "Borradores" con icono + texto en toolbar ✅ 2026-04-14
+- [x] [UI-SALES-07-ADJ-9] Ventas: ajustar ancho del panel Resumen a 288px ✅ 2026-04-14
+- [x] [UI-SALES-07-ADJ-8] Ventas: angostar panel Resumen y estirarlo hasta el final visual de la segunda tabla ✅ 2026-04-14
+- [x] [UI-SALES-07-ADJ-7] Ventas: reducir 3px filas de tabla superior, mejorar distinción visual y reubicar zoom dentro de la tabla ✅ 2026-04-14
+- [x] [UI-SALES-07-ADJ-6] Ventas: compactar filas de tabla superior para igualar densidad visual con tabla inferior y angostar resumen 3px ✅ 2026-04-14
+- [x] [UI-SALES-07-ADJ-5] Ventas: priorizar ocupación horizontal (ancho) y revertir expansión vertical excesiva ✅ 2026-04-14
+- [x] [UI-SALES-07-ADJ-4] Ventas: expandir layout principal para ocupar alto disponible (tablas + panel resumen) ✅ 2026-04-14
+- [x] [UI-SALES-07-BUG-02] 🐛 Ventas: restaurar paleta `primary` en modal "Comprobantes Pendientes de Facturar" (tabs, focus, hover, CTA) ✅ 2026-04-14
+- [x] [UI-SALES-07-BUG-01] 🐛 Ventas: corregir error JSX por cierre extra de `div` en toolbar compacta (`Adjacent JSX elements`) ✅ 2026-04-14
+- [x] [UI-SALES-07-ADJ-3] Ventas: quitar control de porcentaje (zoom) y evitar barra horizontal del toolbar usando layout wrap ✅ 2026-04-14
+- [x] [UI-SALES-07-ADJ-2] Ventas: agrandar iconos de toolbar compacta (acciones + tipos + toggle precios) ✅ 2026-04-14
+- [x] [UI-SALES-07-ADJ] Ventas: dejar botones Limpiar y Borradores solo con icono en toolbar compacta ✅ 2026-04-14
+- [x] [UI-SALES-07] Ventas: compactar barra superior en una sola fila con botones por tipo (4) e iconografía mejorada (incluye toggle simple de precios en remito) ✅ 2026-04-14
 - [x] [BRAND-03-ADJ-7] Sidebar: achicar más el wordmark y aplicar tono morado (`#5c3a8c`) ✅ 2026-04-14
 - [x] [BRAND-03-ADJ-6] Sidebar: agrandar icono principal y achicar wordmark 2px ✅ 2026-04-14
 - [x] [BRAND-03-ADJ-5] Sidebar: usar `logo-tenculo-finalpng` como icono principal ✅ 2026-04-14
@@ -39,6 +78,9 @@
 - [x] [VOU-01] Ventas/Remitos: exponer en UI de impresión la opción incluir/quitar precios para Remitos (backend ya soporta `show_prices`) ✅ 2026-04-14
 - [x] [VOU-01-FIX] 🐛 Corregir alcance de toggle de precios: NO aplica a cotización (solo remito; Cuenta Corriente queda para su flujo específico) ✅ 2026-04-14
 - [x] [PDF-04] Cotización PDF: achicar el ancho de la columna "Código" ✅ 2026-04-14
+- [x] [PDF-05] Comprobantes PDF (Remito + Factura): igualar ancho en px de la columna "Código" con la columna "Cantidad" ✅ 2026-04-15
+- [x] [PDF-06] Comprobantes PDF (Cotización + Remito + Factura): fijar columnas "Cantidad" y "Código" en 65px ✅ 2026-04-15
+- [x] [PDF-07] Ajustar ancho de columnas en comprobantes PDF para maximizar "Producto / Servicio" (Cantidad/Código más angostas) ✅ 2026-04-15
 - [x] [PDF-03] PDFs (cotización/remito/factura): quitar footer con firma comercial "Sistema creado por Qeva AI · Contacto: +54 9 225 459-6618" ✅ 2026-04-13
 - [x] [PLAN-03] Definir estrategia "Opción B" para Cuenta Corriente (CMS + modos + premium por tenant) ✅ 2026-04-13
 - [x] [INV-01] Inventario: permitir eliminar órdenes con UX clara (confirmación + feedback) ✅ 2026-04-12
@@ -47,6 +89,7 @@
 - [x] [INT-01] Clientes: investigar integración ARCA/AFIP para autocompletar datos por CUIT (Factura A) ✅ 2026-04-12
 - [x] [INT-02] Clientes: implementar lookup CUIT y autocompletar campos con fallback manual ✅ 2026-04-12
 - [x] [PLAN-02] Revisar y ajustar el plan con feedback del usuario, implementado backup SQL y CMS purga ✅ 2026-04-12
+- [x] [REP-02] Reportes: implementar primera versión funcional de exportación PDF por reporte ✅ 2026-04-15
 
 ## 🟢 Hecho
 - [x] Implementar control de funcionalidades premium desde CMS (fase 1: Agente IA) ✅ 2026-04-12

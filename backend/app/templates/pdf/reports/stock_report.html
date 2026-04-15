@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    @page { size: A4 landscape; margin: 1cm; }
+    body { font-family: Arial, sans-serif; color: #1f2937; font-size: 11px; }
+    h1 { margin: 0; font-size: 18px; color: #1d4ed8; }
+    .meta { margin: 4px 0 10px 0; color: #4b5563; }
+    .summary { margin: 12px 0; padding: 10px; background: #eff6ff; border: 1px solid #bfdbfe; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #d1d5db; padding: 6px; }
+    th { background: #1d4ed8; color: white; text-align: left; }
+    td.right { text-align: right; }
+    .low-stock { background: #fef3c7; }
+  </style>
+</head>
+<body>
+  <h1>{{ report.title }}</h1>
+  <div class="meta">
+    {{ business.name }} · CUIT {{ business.cuit }} · Generado: {{ report.generated_at }} · Usuario: {{ report.generated_by }}
+  </div>
+
+  <div class="summary">
+    Ítems: <strong>{{ summary.total_items }}</strong> ·
+    Stock bajo: <strong>{{ summary.low_stock_items }}</strong> ·
+    Unidades: <strong>{{ summary.total_stock_units }}</strong> ·
+    Valor stock: <strong>${{ "%.2f"|format(summary.total_stock_value) }}</strong>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Código</th>
+        <th>Cód. Proveedor</th>
+        <th>Descripción</th>
+        <th>Categoría</th>
+        <th>Proveedor</th>
+        <th>Stock</th>
+        <th>Mínimo</th>
+        <th>Precio Venta</th>
+        <th>Valor Stock</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr class="{% if row.is_low_stock %}low-stock{% endif %}">
+        <td>{{ row.code }}</td>
+        <td>{{ row.supplier_code }}</td>
+        <td>{{ row.description }}</td>
+        <td>{{ row.category_name }}</td>
+        <td>{{ row.supplier_name }}</td>
+        <td class="right">{{ row.current_stock }}</td>
+        <td class="right">{{ row.minimum_stock }}</td>
+        <td class="right">${{ "%.2f"|format(row.sale_price) }}</td>
+        <td class="right">${{ "%.2f"|format(row.stock_value) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

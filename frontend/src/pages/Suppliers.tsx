@@ -300,40 +300,30 @@ export default function Suppliers() {
   ]
 
   return (
-    <div className="space-y-4 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-primary-700 to-primary-600 rounded-2xl p-4 sm:p-5 text-white shadow-lg">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2.5">
-              <Truck className="h-7 w-7 text-primary-200" />
-              Proveedores
-            </h1>
-            <p className="text-primary-100 mt-1 text-sm sm:text-base">
-              Gestión compacta de proveedores, contactos y categorías
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="rounded-lg bg-white/15 border border-white/30 px-3 py-1.5 text-xs font-medium">
-              Total: <span className="font-bold">{totalSuppliers}</span>
-            </div>
-            <div className="rounded-lg bg-white/15 border border-white/30 px-3 py-1.5 text-xs font-medium">
-              Página: <span className="font-bold">{page}/{totalPages}</span>
-            </div>
-            <Button
-              onClick={() => handleOpenModal()}
-              className="bg-white text-primary-700 hover:bg-primary-50 border-none shadow font-semibold"
-            >
-              <Plus size={16} className="mr-2" />
-              Nuevo Proveedor
-            </Button>
-          </div>
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Header estilo Categorías */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 p-6 rounded-xl border border-primary-200 dark:border-primary-800">
+        <div>
+          <h1 className="text-2xl font-bold text-primary-900 dark:text-primary-100 flex items-center gap-2">
+            <Truck className="h-7 w-7 text-primary-600 dark:text-primary-400" />
+            Proveedores
+          </h1>
+          <p className="text-primary-700 dark:text-primary-300">
+            Gestión compacta de proveedores, contactos y categorías
+          </p>
         </div>
+
+        <Button
+          onClick={() => handleOpenModal()}
+          className="bg-primary-600 hover:bg-primary-700 text-white border-none shadow-md"
+        >
+          <Plus size={18} className="mr-2" />
+          Nuevo Proveedor
+        </Button>
       </div>
 
       {/* Filtros */}
-      <div className="bg-white dark:bg-gray-800 p-3 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2.5">
           <div className="relative w-full md:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -355,14 +345,11 @@ export default function Suppliers() {
       </div>
 
       {/* Tabla */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <Table
-          columns={columns}
-          data={suppliers}
-          density="compact"
-          emptyMessage="No hay proveedores para los filtros actuales"
-        />
-      </div>
+      <Table
+        columns={columns}
+        data={suppliers}
+        emptyMessage="No hay proveedores para los filtros actuales"
+      />
 
       {/* Paginación */}
       <Pagination

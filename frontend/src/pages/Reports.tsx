@@ -2,8 +2,11 @@
  * Página de Reportes.
  * Informes de ventas, stock y cuentas corrientes.
  */
+import { useState } from 'react'
 import { BarChart3, TrendingUp, Package, Users, Calendar, Download } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { Button, Select } from '../components/ui'
+import reportsService, { ReportPeriod, ReportType } from '../api/reportsService'
 
 const reportTypes = [
   {
@@ -37,6 +40,23 @@ const reportTypes = [
 ]
 
 export default function Reports() {
+  const [period, setPeriod] = useState<ReportPeriod>('month')
+  const [exportingType, setExportingType] = useState<ReportType | null>(null)
+
+  const handleExport = async (reportId: string) => {
+    const type = reportId as ReportType
+    setExportingType(type)
+    try {
+      await reportsService.downloadPdf(type, period)
+      toast.success('Reporte exportado correctamente', { icon: '✅' })
+    } catch (error) {
+      toast.error('No se pudo exportar el reporte PDF')
+      console.error(error)
+    } finally {
+      setExportingType(null)
+    }
+  }
+
   return (
     <div className="space-y-3 -mt-1">
 
@@ -48,6 +68,8 @@ export default function Reports() {
             <span>Período:</span>
           </div>
           <Select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as ReportPeriod)}
             options={[
               { value: 'today', label: 'Hoy' },
               { value: 'week', label: 'Esta semana' },
@@ -83,7 +105,12 @@ export default function Reports() {
                   <Button size="sm">
                     Ver reporte
                   </Button>
-                  <Button size="sm" variant="outline">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleExport(report.id)}
+                    isLoading={exportingType === report.id}
+                  >
                     <Download size={16} />
                     Exportar
                   </Button>

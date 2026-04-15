@@ -7,6 +7,8 @@ import { clsx } from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { useCurrentCash } from '../../hooks/useCash'
+import { useAuthStore } from '../../stores/authStore'
+import { hasPathAccess } from '../../utils/acl'
 import {
   getActiveNavigationItem,
   navigationItems,
@@ -38,10 +40,24 @@ function CajaBadge() {
 interface SidebarProps {
   isCollapsed?: boolean
   onToggle?: () => void
+  currentAccountMode?: 'disabled' | 'automatic' | 'manual'
 }
 
-export default function Sidebar({ isCollapsed = false }: SidebarProps) {
+export default function Sidebar({ isCollapsed = false, currentAccountMode = 'disabled' }: SidebarProps) {
   const location = useLocation()
+  const user = useAuthStore((state) => state.user)
+  const currentAccountEnabled = currentAccountMode !== 'disabled'
+
+  const visibleItems = useMemo(
+    () =>
+      navigationItems.filter((item) => {
+        if (item.path === '/current-account' && !currentAccountEnabled) {
+          return false
+        }
+        return hasPathAccess(user, item.path)
+      }),
+    [currentAccountEnabled, user],
+  )
 
   const getActiveSection = (pathname: string) =>
     getActiveNavigationItem(pathname)?.section
@@ -49,9 +65,9 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
   const groupedItems = useMemo(() => {
     return navigationSections.map((section) => ({
       section,
-      items: navigationItems.filter((item) => item.section === section.key),
+      items: visibleItems.filter((item) => item.section === section.key),
     }))
-  }, [])
+  }, [visibleItems])
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
     const activeSection = getActiveSection(location.pathname)
@@ -115,7 +131,7 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
             src="/texto-solo-octopus.png"
             alt="Octopus"
             className="ml-3 h-[20px] w-auto object-contain"
-            style={{ filter: 'brightness(0) saturate(100%) invert(24%) sepia(26%) saturate(1308%) hue-rotate(230deg) brightness(93%) contrast(92%)' }}
+            style={{ filter: 'brightness(0) saturate(100%) invert(67%) sepia(12%) saturate(1228%) hue-rotate(225deg) brightness(95%) contrast(88%)' }}
           />
         )}
       </div>
@@ -123,7 +139,7 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
       {/* Navigation */}
       <nav className="flex-1 py-2.5 overflow-y-auto px-2">
         {isCollapsed
-          ? navigationItems.map((item) => renderNavItem(item))
+          ? visibleItems.map((item) => renderNavItem(item))
             : groupedItems.map(({ section, items }) => (
               <div key={section.key} className="mb-3 last:mb-0">
                 <button
@@ -160,7 +176,7 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
       {/* Footer */}
       <div className="p-2.5 border-t border-[#2b2340]">
         {!isCollapsed && (
-          <p className="text-[10px] text-primary-400 text-center">
+          <p className="text-[10px] text-[#9d84bf] text-center">
             OctopusTrack v1.0
           </p>
         )}

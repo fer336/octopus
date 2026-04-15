@@ -37,9 +37,17 @@ from app.schemas.price_update import (
 from app.services.product_service import ProductService
 from app.services.excel_service import ExcelService
 from app.services.backup_service import BackupService
-from app.utils.security import get_current_business, get_current_user
+from app.utils.security import (
+    get_current_business,
+    get_current_user,
+    require_module_access,
+)
 
-router = APIRouter(prefix="/products", tags=["Productos"])
+router = APIRouter(
+    prefix="/products",
+    tags=["Productos"],
+    dependencies=[Depends(require_module_access("products"))],
+)
 
 
 @router.delete("/test-delete")

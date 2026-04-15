@@ -30,6 +30,7 @@ const Reports    = lazy(() => import('../pages/Reports'))
 const Cash       = lazy(() => import('../pages/Cash'))
 const Inventory  = lazy(() => import('../pages/Inventory'))
 const Feedback   = lazy(() => import('../pages/Feedback'))
+const CurrentAccount = lazy(() => import('../pages/CurrentAccount'))
 
 // Skeleton de carga entre navegaciones
 function PageLoader() {
@@ -153,6 +154,9 @@ export default function App() {
               } />
               <Route path="inventory" element={
                 <Suspense fallback={<PageLoader />}><Inventory /></Suspense>
+              }/>
+              <Route path="current-account" element={
+                <Suspense fallback={<PageLoader />}><CurrentAccount /></Suspense>
               }/>
               <Route path="feedback" element={
                 <Suspense fallback={<PageLoader />}><Feedback /></Suspense>

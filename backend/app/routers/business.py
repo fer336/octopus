@@ -77,6 +77,7 @@ async def get_my_business(
         header_text=business.header_text,
         sale_point=business.sale_point,
         ai_agent_enabled=bool(business.ai_agent_enabled),
+        current_account_mode=business.current_account_mode or "disabled",
         arca_environment=business.arca_environment,
     )
 
@@ -139,5 +140,6 @@ async def update_my_business(
         header_text=business.header_text,
         sale_point=business.sale_point,
         ai_agent_enabled=bool(business.ai_agent_enabled),
+        current_account_mode=business.current_account_mode or "disabled",
         arca_environment=business.arca_environment,
     )

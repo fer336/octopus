@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import get_db
+from app.utils.acl import parse_module_permissions
 
 settings = get_settings()
 security = HTTPBearer(auto_error=False)
@@ -323,6 +324,54 @@ async def get_current_business_with_ai_enabled(
         )
 
     return UUID(str(business.id))
+
+
+def require_module_access(module_key: str):
+    """
+    Dependency factory para enforcement ACL por módulo.
+    Valida permisos en backend (no solo ocultar UI).
+    """
+
+    async def _dependency(
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_user),
+        current_business: UUID = Depends(get_current_business),
+    ) -> UUID:
+        # Superadmin siempre tiene acceso total
+        if getattr(current_user, "platform_role", None) == "superadmin":
+            return current_business
+
+        from app.models.tenant_membership import TenantMembership
+
+        result = await db.execute(
+            select(TenantMembership).where(
+                TenantMembership.user_id == current_user.id,
+                TenantMembership.business_id == current_business,
+                TenantMembership.deleted_at.is_(None),
+            )
+        )
+        membership = result.scalar_one_or_none()
+
+        if not membership:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tenés membresía activa para este negocio.",
+            )
+
+        module_permissions = parse_module_permissions(
+            membership.module_permissions,
+            membership.role,
+        )
+
+        if not module_permissions.get(module_key, False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"No tenés permiso para acceder al módulo '{module_key}'.",
+            )
+
+        return current_business
+
+    return _dependency
 
 
 async def get_optional_user(
