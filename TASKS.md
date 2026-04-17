@@ -5,7 +5,6 @@
 - [ ] [DATA-05] 🐛 Backup SQL: corregir importación SQL real de productos/categorías/proveedores (parser robusto + mapeo de campos + manejo NULL/boolean)
 - [ ] [OPS-01] Replicar migraciones pendientes en entorno de deploy (`f1a2b3c4d5e6`, `a9b8c7d6e5f4`)
 - [ ] [FB-07] Validar flujo E2E feedback + sync a Linear con API key real (crear ticket tenant y verificar issue)
-- [ ] [DEVOPS-01] CI/CD Release: publicar imágenes Docker (backend/frontend) en Docker Hub desde GitHub Releases/Tags (semver + latest + sha) y documentar secrets requeridos
 - [ ] [VOU-02] Ventas: permitir cargar comprobante por código de presupuesto y autocompletar tabla de productos
 - [ ] [CC-02] Cuenta Corriente: permitir descuento global al cierre/liquidación de cuenta antes de emitir comprobante final
 - [x] [CC-03] Cuenta Corriente: modelar relación pagador/retiro (cliente titular + subcliente autorizado existente) con validación de alta obligatoria en padrón de clientes ✅ 2026-04-15
@@ -29,6 +28,7 @@
 - [ ] [PREM-CC-02] Premium: bloquear edición de presupuestos origen una vez compilados y marcarlos como "compilados"
 
 ## 🟢 Hecho
+- [x] [DEVOPS-01] CI/CD Release: publicar imágenes Docker (backend/frontend) en Docker Hub desde GitHub Releases/Tags (semver + latest + sha) y documentar secrets requeridos ✅ 2026-04-17
 - [x] [UX-IMP-01] Productos: mostrar modal de loading/progreso durante importación SQL para feedback en tiempo real al usuario ✅ 2026-04-17
 - [x] [DATA-05-BUG-01] 🐛 Import SQL: corregir compatibilidad con dumps viejos que incluyen `barcode` (el modelo Product actual no tiene ese campo) ✅ 2026-04-17
 - [x] [CC-PLAN-01] Analizar estado actual (backend/frontend/PDF) de cierre de Cuenta Corriente y preparar plan técnico + tareas accionables ✅ 2026-04-16

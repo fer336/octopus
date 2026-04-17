@@ -227,6 +227,48 @@ npm run lint
 npm run preview
 ```
 
+## CI/CD de versiones (Docker Hub)
+
+El repositorio incluye workflows de GitHub Actions para CI y publicación versionada de imágenes Docker.
+
+### Workflows
+
+- `.github/workflows/ci.yml`
+  - Se ejecuta en `pull_request` y en `push` a `main/master`.
+  - Valida que los Dockerfiles de backend y frontend construyan correctamente (sin push).
+
+- `.github/workflows/docker-release.yml`
+  - Se ejecuta al pushear tags semver `v*.*.*` (ej: `v1.4.0`).
+  - Publica imágenes en Docker Hub para backend y frontend.
+
+### Secrets requeridos (GitHub Repository Settings → Secrets and variables → Actions)
+
+- `DOCKERHUB_USERNAME`: usuario/organización de Docker Hub
+- `DOCKERHUB_TOKEN`: access token de Docker Hub (no usar password de cuenta)
+
+### Convención de tags publicadas
+
+Para cada release `vX.Y.Z` se publican:
+
+- `X.Y.Z`
+- `X.Y`
+- `sha-<commit>`
+- `latest` (solo para tags estables, sin sufijo pre-release)
+
+Imágenes:
+
+- `${DOCKERHUB_USERNAME}/octopustrack-backend`
+- `${DOCKERHUB_USERNAME}/octopustrack-frontend`
+
+### Cómo disparar una release
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Con eso, GitHub Actions construye y publica ambas imágenes automáticamente.
+
 ## Estructura del proyecto
 
 ```text
