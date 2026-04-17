@@ -28,6 +28,7 @@
 - [ ] [PREM-CC-02] Premium: bloquear edición de presupuestos origen una vez compilados y marcarlos como "compilados"
 
 ## 🟢 Hecho
+- [x] [DEVOPS-01-BUG-01] 🐛 CI backend: resolver conflicto `pytest==9.0.2` vs `pytest-asyncio==0.24.0` (requiere pytest < 9) ✅ 2026-04-17
 - [x] [DEVOPS-01] CI/CD Release: publicar imágenes Docker (backend/frontend) en Docker Hub desde GitHub Releases/Tags (semver + latest + sha) y documentar secrets requeridos ✅ 2026-04-17
 - [x] [UX-IMP-01] Productos: mostrar modal de loading/progreso durante importación SQL para feedback en tiempo real al usuario ✅ 2026-04-17
 - [x] [DATA-05-BUG-01] 🐛 Import SQL: corregir compatibilidad con dumps viejos que incluyen `barcode` (el modelo Product actual no tiene ese campo) ✅ 2026-04-17
