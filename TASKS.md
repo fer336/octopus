@@ -1,17 +1,45 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
+- [ ] [UX-IMP-01] Productos: mostrar modal de loading/progreso durante importación SQL para feedback en tiempo real al usuario
+- [ ] [DATA-05] 🐛 Backup SQL: corregir importación SQL real de productos/categorías/proveedores (parser robusto + mapeo de campos + manejo NULL/boolean)
 - [ ] [OPS-01] Replicar migraciones pendientes en entorno de deploy (`f1a2b3c4d5e6`, `a9b8c7d6e5f4`)
 - [ ] [FB-07] Validar flujo E2E feedback + sync a Linear con API key real (crear ticket tenant y verificar issue)
-- [ ] [CC-01] Cuenta Corriente: crear nueva sección con tabla de clientes y remitos retirados para edición/control previo al cierre
+- [ ] [DEVOPS-01] CI/CD Release: publicar imágenes Docker (backend/frontend) en Docker Hub desde GitHub Releases/Tags (semver + latest + sha) y documentar secrets requeridos
 - [ ] [VOU-02] Ventas: permitir cargar comprobante por código de presupuesto y autocompletar tabla de productos
 - [ ] [CC-02] Cuenta Corriente: permitir descuento global al cierre/liquidación de cuenta antes de emitir comprobante final
+- [x] [CC-03] Cuenta Corriente: modelar relación pagador/retiro (cliente titular + subcliente autorizado existente) con validación de alta obligatoria en padrón de clientes ✅ 2026-04-15
+- [x] [CC-07] Clientes: agregar "Tipo de Cliente" (catálogo administrable por tenant) en alta/edición/filtros + flag `is_subclient_eligible` para habilitar retiro por terceros ✅ 2026-04-15
+- [x] [CC-04] Cuenta Corriente: al cerrar cuenta generar comprobante pendiente de facturación en Ventas con bandera "Cta Cte cerrada" ✅ 2026-04-15
+- [x] [CC-05] Cuenta Corriente: bloquear edición/eliminación de remitos incluidos en cierre y auditar diff before/after + motivo ✅ 2026-04-15
+- [ ] [CC-06] Cuenta Corriente: evaluar e implementar opción de interés por mora configurable
+- [ ] [CC-10] Cuenta Corriente: crear "Concepto de Retiro / Obra" (catálogo por titular) para etiquetar remitos (ej: CALIOPE 1234, FERLU 2334)
+- [ ] [CC-11] Cuenta Corriente: permitir autorizaciones titular→subcliente restringidas por Concepto/Obra y validar en emisión de remito
+- [ ] [CC-12-BE] Cuenta Corriente: diseñar/implementar endpoints de cierre detallado (`preview` sin persistencia + `confirm` con persistencia) manteniendo compatibilidad con CC-03/04/05/08/09
+- [ ] [CC-12-PDF] Cuenta Corriente: crear template PDF compacto de cierre (densidad tipo Orden de Pedido) con desglose por remito, productos, descuento por ítem y descuento general por remito
+- [ ] [CC-12-LINK] Cuenta Corriente: persistir vínculo explícito cierre↔remitos↔ítems para trazabilidad histórica (evitar depender de parseo de descripción)
+- [ ] [CC-13-FE] Cuenta Corriente UI: agregar botón "Vista preliminar" del cierre (abre PDF preliminar sin bloquear/afectar remitos)
+- [ ] [CC-13-UX] Cuenta Corriente UI: flujo de confirmación en dos pasos (Previsualizar → Confirmar cierre) con mensajes claros de impacto
+- [ ] [CC-14-BE] Cuenta Corriente: endpoint de histórico de cierres por cliente titular con detalle de remitos incluidos por cierre
+- [ ] [CC-14-FE] Cuenta Corriente UI: sección "Histórico de cierres" por titular, expandible por cierre y acceso a PDF final
+- [ ] [CC-14-QA] Testing: cubrir cierre preview/final + bloqueo CC-05 + visibilidad CC-04 en pendientes de facturar
 - [ ] [CMS-CC-03] CMS/UI/Ventas: al activar/desactivar Cuenta Corriente en CMS, mostrar/ocultar en tiempo real tanto el ítem del Sidebar como la opción "Cta Cte" del menú de Ventas
-- [ ] [SALES-CC-01] Ventas: agregar tipo de comprobante/flujo "Cuenta Corriente" con impresión con/sin precios y con/sin descuento
+- [x] [SALES-CC-01] Ventas: agregar tipo de comprobante/flujo "Cuenta Corriente" con impresión con/sin precios y con/sin descuento ✅ 2026-04-15
 - [ ] [PREM-CC-01] Premium: compilar múltiples presupuestos por código en un comprobante unificado
 - [ ] [PREM-CC-02] Premium: bloquear edición de presupuestos origen una vez compilados y marcarlos como "compilados"
 
 ## 🟢 Hecho
+- [x] [UX-IMP-01] Productos: mostrar modal de loading/progreso durante importación SQL para feedback en tiempo real al usuario ✅ 2026-04-17
+- [x] [DATA-05-BUG-01] 🐛 Import SQL: corregir compatibilidad con dumps viejos que incluyen `barcode` (el modelo Product actual no tiene ese campo) ✅ 2026-04-17
+- [x] [CC-PLAN-01] Analizar estado actual (backend/frontend/PDF) de cierre de Cuenta Corriente y preparar plan técnico + tareas accionables ✅ 2026-04-16
+- [x] [CC-BUG-04] 🐛 Ventas Cta Cte: corregir selector titular/subcliente (autorizaciones + fallback a titular + payload `operating_client`) ✅ 2026-04-16
+- [x] [CC-09-BUG-02] 🐛 Remito PDF CC: ubicar "Retira" debajo de domicilio y mostrar fallback TITULAR cuando no hay subcliente ✅ 2026-04-16
+- [x] [CC-09] Remitos Cuenta Corriente: agregar campo/indicador "Autorizado" (sí/no) y mostrar nombre del subcliente retirador en listado/detalle/PDF según corresponda ✅ 2026-04-16
+- [x] [CC-08] Cuenta Corriente UI: en "Subcliente autorizado" ocultar al cliente titular seleccionado para evitar autovínculo (titular ≠ subcliente) ✅ 2026-04-16
+- [x] [CC-BUG-03] 🐛 Cuenta Corriente: evitar select de titular vacío cuando todos los clientes tienen `current_account_mode=disabled`; agregar explicación + CTA + opción para incluir deshabilitados ✅ 2026-04-16
+- [x] [CC-BUG-02] 🐛 Cuenta Corriente: corregir carga de clientes en `CurrentAccount` (frontend enviaba `per_page=200` y API de clientes limita a 100, devolviendo 422 silencioso) ✅ 2026-04-16
+- [x] [CC-01] Cuenta Corriente: crear nueva sección con tabla de clientes y remitos retirados para edición/control previo al cierre ✅ 2026-04-15
+- [x] [CC-03-BUG-01] 🐛 SQLAlchemy: resolver AmbiguousForeignKeys entre `clients` y `vouchers` al agregar `billing_client_id`/`operating_client_id` (fix en `foreign_keys` explícitos) ✅ 2026-04-15
 - [x] [BRAND-02] Rebranding UI: migrar TODO EL SISTEMA a la nueva paleta de colores (botones, tablas, inputs, modales, etc.) garantizando soporte perfecto para versión Light y Dark. ✅ 2026-04-14
 - [x] [DATA-01] Productos: definir estrategia de backup SQL por tenant (dump lógico aislado, no export parcial Excel) ✅ 2026-04-12
 
@@ -20,6 +48,10 @@
 
 ## 🟡 En progreso
 
+- [/] [DATA-05] 🐛 Backup SQL: corregir importación SQL real de productos/categorías/proveedores (parser robusto + mapeo de campos + manejo NULL/boolean)
+
+
+
 
 
 
@@ -33,6 +65,7 @@
 
 
 ## 🟢 Hecho
+- [x] [CMS-ACL-04] CMS/ACL: agregar toggles por tenant para Facturación, Remitos, Actualización de precios y Reportes (backend + CMS + UI tenant) ✅ 2026-04-16
 - [x] [BIZ-EXCEL-03] Diseñar Cotizador Excel con numeración automática, historial y guía completa de macros VBA ✅ 2026-04-14
 - [x] [AUTH-ACL-01] CMS/Sesiones: jerarquía de administración por negocio (admin crea sub-empleados y gestiona permisos granulares por módulo) ✅ 2026-04-15
 - [x] [AUTH-ACL-02] ACL backend: aplicar enforcement server-side por módulo para endurecer seguridad (además del bloqueo de UI) ✅ 2026-04-15

@@ -41,9 +41,16 @@ interface SidebarProps {
   isCollapsed?: boolean
   onToggle?: () => void
   currentAccountMode?: 'disabled' | 'automatic' | 'manual'
+  priceUpdateEnabled?: boolean
+  reportsEnabled?: boolean
 }
 
-export default function Sidebar({ isCollapsed = false, currentAccountMode = 'disabled' }: SidebarProps) {
+export default function Sidebar({
+  isCollapsed = false,
+  currentAccountMode = 'disabled',
+  priceUpdateEnabled = true,
+  reportsEnabled = true,
+}: SidebarProps) {
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
   const currentAccountEnabled = currentAccountMode !== 'disabled'
@@ -54,9 +61,15 @@ export default function Sidebar({ isCollapsed = false, currentAccountMode = 'dis
         if (item.path === '/current-account' && !currentAccountEnabled) {
           return false
         }
+        if (item.path === '/price-update' && !priceUpdateEnabled) {
+          return false
+        }
+        if (item.path === '/reports' && !reportsEnabled) {
+          return false
+        }
         return hasPathAccess(user, item.path)
       }),
-    [currentAccountEnabled, user],
+    [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, user],
   )
 
   const getActiveSection = (pathname: string) =>

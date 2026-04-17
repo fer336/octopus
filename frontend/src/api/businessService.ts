@@ -19,6 +19,10 @@ export interface Business {
   sale_point: string
   ai_agent_enabled: boolean
   current_account_mode: 'disabled' | 'automatic' | 'manual'
+  invoicing_enabled: boolean
+  receipts_enabled: boolean
+  price_update_enabled: boolean
+  reports_enabled: boolean
   arca_environment?: string
 }
 

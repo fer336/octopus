@@ -3,7 +3,7 @@
  * Lista, búsqueda y gestión de productos con cálculo de precio final.
  */
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Edit, Trash2, Calculator, Upload, Download, Search, Database, AlertTriangle } from 'lucide-react'
+import { Plus, Edit, Trash2, Calculator, Upload, Download, Search, AlertTriangle, FileCode, RotateCcw } from 'lucide-react'
 import { Button, Table, Pagination, Modal, Select } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import toast from 'react-hot-toast'
@@ -33,6 +33,7 @@ export default function Products() {
   const [importStatus, setImportStatus] = useState<'importing' | 'success' | 'error'>('importing')
   const [importTotal, setImportTotal] = useState(0)
   const [importMessage, setImportMessage] = useState('')
+  const [isSqlImporting, setIsSqlImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // React Query para productos con filtros
@@ -259,7 +260,7 @@ export default function Products() {
     }
   }
 
-  // Manejo de backup completo
+  // Manejo de backup completo (Excel)
   const handleBackup = async () => {
     try {
       const blob = await productsService.exportBackup()
@@ -275,6 +276,98 @@ export default function Products() {
     } catch (error) {
       toast.error('Error al generar backup')
     }
+  }
+
+  // Manejo de export SQL
+  const handleExportSQL = async () => {
+    try {
+      toast.loading('Generando backup SQL...', { id: 'sql-backup' })
+      const blob = await productsService.exportSQL()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `backup-sql-${new Date().toISOString().split('T')[0]}.sql`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      toast.success('Backup SQL descargado', { id: 'sql-backup' })
+    } catch (error) {
+      toast.error('Error al generar backup SQL', { id: 'sql-backup' })
+    }
+  }
+
+  // Manejo de import SQL
+  const handleImportSQL = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.sql'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      
+      let progressInterval: ReturnType<typeof setInterval> | null = null
+
+      try {
+        setIsSqlImporting(true)
+        setShowImportProgress(true)
+        setImportStatus('importing')
+        setImportTotal(100)
+        setImportProgress(10)
+        setImportMessage('Cargando archivo SQL...')
+        toast.loading('Importando SQL...', { id: 'sql-import' })
+
+        const text = await file.text()
+        setImportProgress(25)
+        setImportMessage('Validando estructura del backup...')
+
+        progressInterval = setInterval(() => {
+          setImportProgress((prev) => (prev < 90 ? prev + 5 : prev))
+        }, 250)
+
+        setImportMessage('Importando productos, categorías y proveedores...')
+        const result = await productsService.importSQL(text)
+
+        if (progressInterval) clearInterval(progressInterval)
+        setImportProgress(100)
+        
+        // Mostrar resultado detallado
+        const details = [
+          `${result.imported} productos`,
+          `${result.imported_categories || 0} categorías`,
+          `${result.imported_suppliers || 0} proveedores`
+        ].join(', ')
+        
+        if (result.errors && result.errors.length > 0) {
+          setImportStatus('error')
+          setImportMessage(`Finalizado con errores (${result.total_errors || result.errors.length})`)
+          // Mostrar los primeros errores
+          const errorMsg = result.errors.slice(0, 3).join('\n')
+          const totalErrors = result.total_errors || result.errors.length
+          toast.error(`${details}\nErrores (${totalErrors}):\n${errorMsg}`, { id: 'sql-import', duration: 8000 })
+          setTimeout(() => setShowImportProgress(false), 2600)
+        } else {
+          setImportStatus('success')
+          setImportMessage(`Importación completada: ${details}`)
+          toast.success(`Importación SQL completada: ${details}`, { id: 'sql-import' })
+          setTimeout(() => setShowImportProgress(false), 1200)
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['products'] })
+      } catch (error: any) {
+        if (progressInterval) clearInterval(progressInterval)
+        setImportStatus('error')
+        setImportProgress(100)
+        setImportMessage('Error durante la importación SQL')
+        console.error('SQL Import error:', error)
+        const errorMsg = error.response?.data?.detail || error.message || JSON.stringify(error)
+        toast.error('Error al importar SQL: ' + errorMsg, { id: 'sql-import', duration: 8000 })
+        setTimeout(() => setShowImportProgress(false), 2600)
+      } finally {
+        setIsSqlImporting(false)
+      }
+    }
+    input.click()
   }
 
   // Manejo de borrado total
@@ -549,24 +642,30 @@ export default function Products() {
     },
     {
       key: 'list_price',
-      header: 'P. Lista',
+      header: 'Lista',
       render: (item: Product) => (
         <span className="text-xs">${item.list_price.toLocaleString()}</span>
       ),
     },
     {
       key: 'sale_price',
-      header: 'P. Venta',
+      header: 'Venta',
       render: (item: Product) => (
-        <div className="flex flex-col">
-          <span className="font-medium">${item.sale_price.toLocaleString()}</span>
-          {item.discount_display && (
-            <span className="text-[10px] text-green-600">Bonif: {item.discount_display}%</span>
-          )}
-          {item.extra_cost > 0 && (
-            <span className="text-[10px] text-orange-600">Extra: {item.extra_cost}%</span>
-          )}
-        </div>
+        <span className="font-medium text-xs">${item.sale_price.toLocaleString()}</span>
+      ),
+    },
+    {
+      key: 'bonif',
+      header: 'Bonif',
+      render: (item: Product) => (
+        <span className="text-xs text-green-600">{item.discount_display ? `${item.discount_display}%` : '-'}</span>
+      ),
+    },
+    {
+      key: 'extra',
+      header: 'Extra',
+      render: (item: Product) => (
+        <span className="text-xs text-orange-600">{item.extra_cost > 0 ? `${item.extra_cost}%` : '-'}</span>
       ),
     },
     {
@@ -652,7 +751,7 @@ export default function Products() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isImporting}
-            title={isImporting ? 'Importando...' : 'Importar Excel'}
+            title="Importar Excel"
             className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
           >
             <Upload size={17} />
@@ -665,22 +764,30 @@ export default function Products() {
             <Download size={17} />
           </button>
           <button
-            onClick={handleBackup}
-            title="Backup Completo"
-            className="p-2 rounded-lg border border-primary-200 dark:border-primary-700 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+            onClick={handleImportSQL}
+            disabled={isSqlImporting || isImporting}
+            title="Importar SQL"
+            className="p-2 rounded-lg border border-green-200 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50 transition-colors"
           >
-            <Database size={17} />
+            <RotateCcw size={17} />
+          </button>
+          <button
+            onClick={handleExportSQL}
+            title="Exportar SQL"
+            className="p-2 rounded-lg border border-green-200 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+          >
+            <FileCode size={17} />
           </button>
           <button
             onClick={() => setShowBulkDeleteModal(true)}
-            title="Borrar Todos los Productos"
+            title="Borrar Productos"
             className="p-2 rounded-lg border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
             <AlertTriangle size={17} />
           </button>
           <Button onClick={() => handleOpenModal()} className="ml-1">
             <Plus size={17} className="mr-1.5" />
-            Nuevo Producto
+            Nuevo
           </Button>
         </div>
       </div>

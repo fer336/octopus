@@ -4,9 +4,13 @@ Genera dumps SQL lógicos aislados para un tenant específico.
 """
 
 import json
+import logging
+from decimal import Decimal
 from datetime import datetime
 from typing import List
 from uuid import UUID
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -457,3 +461,351 @@ class BackupService:
         sql_parts.append("-- =======================================================")
 
         return "\n".join(sql_parts)
+
+    async def import_products_from_sql(
+        self, business_id: UUID, sql_content: str
+    ) -> dict:
+        """
+        Importa productos desde SQL.
+        Ejecuta los INSERT statements encontrados en el contenido.
+        Solo importa productos, categorías y proveedores relacionados.
+        """
+        import re
+
+        errors = []
+        imported_products = 0
+        imported_categories = 0
+        imported_suppliers = 0
+
+        # Patrón más robusto para parsear INSERT statements completos
+        insert_pattern = re.compile(
+            r"INSERT\s+INTO\s+(products|categories|suppliers)\s*\((.*?)\)\s*VALUES\s*\((.*?)\)\s*;",
+            re.IGNORECASE | re.DOTALL,
+        )
+
+        # Extraer todos los INSERTs del SQL
+        inserts = [m.groups() for m in insert_pattern.finditer(sql_content)]
+
+        logger.info(f"Found {len(inserts)} INSERT statements for SQL import")
+
+        # Log sample de SQL para debug
+        sample_sql = sql_content[:500] if sql_content else "empty"
+        logger.info(f"SQL sample: {sample_sql}")
+
+        # Ver primeras para debug
+        for i, (table, cols, vals) in enumerate(inserts[:3]):
+            logger.info(f"  {i}: table={table}, columns={cols[:50]}...")
+
+        if not inserts:
+            return {
+                "imported": 0,
+                "imported_categories": 0,
+                "imported_suppliers": 0,
+                "errors": [
+                    "No se encontraron INSERT válidos para products/categories/suppliers"
+                ],
+                "total_errors": 1,
+            }
+
+        # Crear mappings de datos
+        category_map = {}  # old_id -> new_id
+        supplier_map = {}  # old_id -> new_id
+        # Primera pasada: importar categorías y suppliers (necesarios para productos)
+        for table_name, columns_str, values_str in inserts:
+            columns = [c.strip() for c in columns_str.split(",")]
+
+            # Parsear valores
+            values = self._parse_sql_values(values_str)
+
+            # Crear diccionario de datos
+            data = dict(zip(columns, values))
+
+            logger.debug(f"Processing {table_name}: {list(data.keys())}")
+
+            if table_name.lower() == "categories":
+                try:
+                    async with self.db.begin_nested():
+                        # Crear nueva categoría
+                        new_category = Category(
+                            name=(
+                                self._sql_to_text(data.get("name"))
+                                or self._sql_to_text(data.get("description"))
+                                or "Sin categoría"
+                            ),
+                            description=self._sql_to_text(data.get("description")),
+                            business_id=business_id,
+                            created_at=datetime.utcnow(),
+                            updated_at=datetime.utcnow(),
+                            deleted_at=None,
+                        )
+                        self.db.add(new_category)
+                        await self.db.flush()
+
+                        # Mapear IDs
+                        if "id" in data and self._sql_to_uuid_str(data["id"]):
+                            category_map[self._sql_to_uuid_str(data["id"])] = (
+                                new_category.id
+                            )
+
+                    imported_categories += 1
+                except Exception as e:
+                    errors.append(f"Error importando categoría: {str(e)}")
+
+            elif table_name.lower() == "suppliers":
+                try:
+                    async with self.db.begin_nested():
+                        # Crear nuevo supplier
+                        new_supplier = Supplier(
+                            name=self._sql_to_text(data.get("name")) or "Sin proveedor",
+                            cuit=self._sql_to_text(data.get("cuit")),
+                            contact_name=self._sql_to_text(data.get("contact_name")),
+                            phone=self._sql_to_text(data.get("phone")),
+                            email=self._sql_to_text(data.get("email")),
+                            address=self._sql_to_text(data.get("address")),
+                            city=self._sql_to_text(data.get("city")),
+                            province=self._sql_to_text(data.get("province")),
+                            notes=self._sql_to_text(data.get("notes")),
+                            default_discount_1=self._sql_to_decimal(
+                                data.get("default_discount_1"), Decimal("0")
+                            ),
+                            default_discount_2=self._sql_to_decimal(
+                                data.get("default_discount_2"), Decimal("0")
+                            ),
+                            default_discount_3=self._sql_to_decimal(
+                                data.get("default_discount_3"), Decimal("0")
+                            ),
+                            business_id=business_id,
+                            created_at=datetime.utcnow(),
+                            updated_at=datetime.utcnow(),
+                            deleted_at=None,
+                        )
+                        self.db.add(new_supplier)
+                        await self.db.flush()
+
+                        # Mapear IDs
+                        if "id" in data and self._sql_to_uuid_str(data["id"]):
+                            supplier_map[self._sql_to_uuid_str(data["id"])] = (
+                                new_supplier.id
+                            )
+
+                    imported_suppliers += 1
+                except Exception as e:
+                    errors.append(f"Error importando supplier: {str(e)}")
+
+        # Segunda pasada: importar productos
+        for table_name, columns_str, values_str in inserts:
+            if table_name.lower() != "products":
+                continue
+
+            columns = [c.strip() for c in columns_str.split(",")]
+            values = self._parse_sql_values(values_str)
+            data = dict(zip(columns, values))
+
+            try:
+                # Mapear category_id y supplier_id a los nuevos IDs
+                old_category_id = self._sql_to_uuid_str(data.get("category_id"))
+                old_supplier_id = self._sql_to_uuid_str(data.get("supplier_id"))
+
+                new_category_id = None
+                new_supplier_id = None
+
+                if old_category_id and old_category_id in category_map:
+                    new_category_id = category_map[old_category_id]
+
+                if old_supplier_id and old_supplier_id in supplier_map:
+                    new_supplier_id = supplier_map[old_supplier_id]
+
+                # Mapear campos del SQL al modelo de Producto
+                # El SQL puede tener: description, unit_price, cost_price, stock,
+                # min_stock, max_stock, location, image_url, is_active
+                # El modelo espera: description, list_price, cost_price, current_stock,
+                # minimum_stock, unit, is_active, etc.
+
+                list_price = self._sql_to_decimal(
+                    data.get("list_price") or data.get("unit_price"), Decimal("0")
+                )
+                cost_price = self._sql_to_decimal(data.get("cost_price"), Decimal("0"))
+
+                # Obtener valores numéricos
+                stock_val = self._sql_to_int(
+                    data.get("current_stock") or data.get("stock"), 0
+                )
+                min_stock_val = self._sql_to_int(
+                    data.get("minimum_stock") or data.get("min_stock"), 0
+                )
+
+                # Crear nuevo producto
+                async with self.db.begin_nested():
+                    new_product = Product(
+                        code=self._sql_to_text(data.get("code"))
+                        or f"IMP-{imported_products + 1}",
+                        # Compatibilidad: dumps viejos traen `barcode` pero el modelo actual no tiene esa columna.
+                        # Lo mapeamos a supplier_code si supplier_code no viene informado.
+                        supplier_code=(
+                            self._sql_to_text(data.get("supplier_code"))
+                            or self._sql_to_text(data.get("barcode"))
+                        ),
+                        description=self._sql_to_text(data.get("description"))
+                        or self._sql_to_text(data.get("name"))
+                        or "Sin descripción",
+                        details=self._sql_to_text(data.get("details")),
+                        brand=self._sql_to_text(data.get("brand")),
+                        line=self._sql_to_text(data.get("line")),
+                        application_area=self._sql_to_text(
+                            data.get("application_area")
+                        ),
+                        finish=self._sql_to_text(data.get("finish")),
+                        quality_tier=self._sql_to_text(data.get("quality_tier")),
+                        attributes_json=self._sql_to_text(data.get("attributes_json")),
+                        customer_terms=self._sql_to_text(data.get("customer_terms")),
+                        list_price=list_price,
+                        cost_price=cost_price,
+                        discount_1=self._sql_to_decimal(
+                            data.get("discount_1"), Decimal("0")
+                        ),
+                        discount_2=self._sql_to_decimal(
+                            data.get("discount_2"), Decimal("0")
+                        ),
+                        discount_3=self._sql_to_decimal(
+                            data.get("discount_3"), Decimal("0")
+                        ),
+                        discount_display=self._sql_to_text(
+                            data.get("discount_display")
+                        ),
+                        extra_cost=self._sql_to_decimal(
+                            data.get("extra_cost"), Decimal("0")
+                        ),
+                        profit_margin=self._sql_to_decimal(
+                            data.get("profit_margin"), Decimal("0")
+                        ),
+                        net_price=self._sql_to_decimal(
+                            data.get("net_price"), list_price
+                        ),
+                        sale_price=self._sql_to_decimal(
+                            data.get("sale_price"), list_price
+                        ),
+                        iva_rate=self._sql_to_decimal(
+                            data.get("iva_rate"), Decimal("21")
+                        ),
+                        current_stock=stock_val,
+                        minimum_stock=min_stock_val,
+                        unit=self._sql_to_text(data.get("unit")) or "unidad",
+                        is_active=self._sql_to_bool(data.get("is_active"), True),
+                        business_id=business_id,
+                        category_id=new_category_id,
+                        supplier_id=new_supplier_id,
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow(),
+                        deleted_at=None,
+                    )
+                    # Recalcular para mantener consistencia con reglas del dominio
+                    new_product.calculate_prices()
+
+                    self.db.add(new_product)
+                    await self.db.flush()
+                imported_products += 1
+
+            except Exception as e:
+                errors.append(
+                    f"Error importando producto {data.get('code', data.get('name', 'unknown'))}: {str(e)}"
+                )
+
+        # Commit final
+        await self.db.commit()
+
+        return {
+            "imported": imported_products,
+            "imported_categories": imported_categories,
+            "imported_suppliers": imported_suppliers,
+            "errors": errors[:20]
+            if len(errors) > 20
+            else errors,  # limitar a 20 errores
+            "total_errors": len(errors),
+        }
+
+    def _sql_to_text(self, value):
+        if value is None:
+            return None
+        v = str(value).strip()
+        if not v or v.upper() == "NULL":
+            return None
+        return v
+
+    def _sql_to_uuid_str(self, value):
+        text_value = self._sql_to_text(value)
+        return text_value
+
+    def _sql_to_bool(self, value, default: bool = False) -> bool:
+        if value is None:
+            return default
+        v = str(value).strip().upper()
+        if v in {"TRUE", "T", "1", "YES", "Y"}:
+            return True
+        if v in {"FALSE", "F", "0", "NO", "N", "NULL", ""}:
+            return False
+        return default
+
+    def _sql_to_int(self, value, default: int = 0) -> int:
+        text_value = self._sql_to_text(value)
+        if text_value is None:
+            return default
+        try:
+            return int(float(text_value))
+        except Exception:
+            return default
+
+    def _sql_to_decimal(self, value, default: Decimal = Decimal("0")) -> Decimal:
+        text_value = self._sql_to_text(value)
+        if text_value is None:
+            return default
+        try:
+            return Decimal(str(text_value))
+        except Exception:
+            return default
+
+    def _parse_sql_values(self, values_str: str) -> list:
+        """Parsea los valores de un SQL INSERT."""
+        import re
+
+        values = []
+        current = ""
+        in_string = False
+        escape_next = False
+
+        for char in values_str:
+            if escape_next:
+                current += char
+                escape_next = False
+                continue
+
+            if char == "\\":
+                escape_next = True
+                continue
+
+            if char == "'":
+                in_string = not in_string
+                current += char
+            elif char == "," and not in_string:
+                values.append(current.strip())
+                current = ""
+            else:
+                current += char
+
+        if current.strip():
+            values.append(current.strip())
+
+        # Limpiar valores
+        cleaned = []
+        for v in values:
+            v = v.strip()
+            # Remover comillas externas si es string
+            if len(v) >= 2:
+                if (v.startswith("'") and v.endswith("'")) or (
+                    v.startswith('"') and v.endswith('"')
+                ):
+                    v = v[1:-1]
+            # Reemplazar escapes de comillas
+            v = v.replace("''", "'")
+            cleaned.append(v)
+
+        return cleaned

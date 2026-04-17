@@ -35,6 +35,9 @@ export default function MainLayout() {
   })
 
   const aiEnabled = business?.ai_agent_enabled ?? false
+  const currentAccountEnabled = (business?.current_account_mode ?? 'disabled') !== 'disabled'
+  const priceUpdateEnabled = business?.price_update_enabled ?? true
+  const reportsEnabled = business?.reports_enabled ?? true
 
   useEffect(() => {
     if (!aiEnabled) {
@@ -43,7 +46,17 @@ export default function MainLayout() {
   }, [aiEnabled, closeAI])
 
   useEffect(() => {
-    if (location.pathname === '/current-account' && business?.current_account_mode === 'disabled') {
+    if (location.pathname === '/current-account' && !currentAccountEnabled) {
+      navigate('/', { replace: true })
+      return
+    }
+
+    if (location.pathname.startsWith('/price-update') && !priceUpdateEnabled) {
+      navigate('/', { replace: true })
+      return
+    }
+
+    if (location.pathname.startsWith('/reports') && !reportsEnabled) {
       navigate('/', { replace: true })
       return
     }
@@ -52,7 +65,7 @@ export default function MainLayout() {
       const fallbackPath = navigationItems.find((item) => hasPathAccess(user, item.path))?.path ?? '/'
       navigate(fallbackPath, { replace: true })
     }
-  }, [business?.current_account_mode, location.pathname, navigate, user])
+  }, [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, location.pathname, navigate, user])
 
   const toggleSidebar = () => {
     setSidebarCollapsed((prev) => !prev)
@@ -84,6 +97,8 @@ export default function MainLayout() {
         isCollapsed={sidebarCollapsed}
         onToggle={toggleSidebar}
         currentAccountMode={business?.current_account_mode}
+        priceUpdateEnabled={priceUpdateEnabled}
+        reportsEnabled={reportsEnabled}
       />
 
       {/* Main content */}

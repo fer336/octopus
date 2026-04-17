@@ -2,33 +2,36 @@
  * Página de Ventas unificada.
  * Permite crear cotizaciones, remitos y facturas.
  */
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, DollarSign, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button, Modal, Select, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import productsService from '../api/productsService'
 import clientsService from '../api/clientsService'
+import clientAuthorizationsService from '../api/clientAuthorizationsService'
 import vouchersService, { VoucherCreate, VoucherUpdate, VoucherPayment, Voucher as VoucherType2 } from '../api/vouchersService'
 import arcaService from '../api/arcaService'
 import paymentMethodsService from '../api/paymentMethodsService'
+import businessService from '../api/businessService'
 import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { useSalesStore } from '../stores/salesStore'
 
-type VoucherType = 'quotation' | 'receipt' | 'invoice'
-type SalesMenuMode = VoucherType | 'current_account'
+type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'current_account'
+type SalesMenuMode = VoucherType
 
-const voucherTypes = [
+const baseVoucherTypes = [
   { value: 'quotation', label: 'Cotización', icon: FileText },
   { value: 'receipt', label: 'Remito', icon: Truck },
   { value: 'invoice', label: 'Factura', icon: Receipt },
+  { value: 'current_account', label: 'Cta Cte', icon: ClipboardList },
 ]
 
-const salesMenuModes: Array<{ value: SalesMenuMode; label: string; icon: any; comingSoon?: boolean }> = [
+const baseSalesMenuModes: Array<{ value: SalesMenuMode; label: string; icon: any; comingSoon?: boolean }> = [
   { value: 'quotation', label: 'Cotización', icon: FileText },
   { value: 'receipt', label: 'Remito', icon: Truck },
   { value: 'invoice', label: 'Factura', icon: Receipt },
-  { value: 'current_account', label: 'Cta Cte', icon: ClipboardList, comingSoon: true },
+  { value: 'current_account', label: 'Cta Cte', icon: ClipboardList },
 ]
 
 interface Product {
@@ -59,17 +62,22 @@ interface Client {
   phone?: string
   email?: string
   notes?: string
+  client_type_id?: string
+  current_account_mode?: 'disabled' | 'limited' | 'unlimited'
+  credit_limit?: number
 }
 
 interface Draft {
   id: string
   voucherType: VoucherType
   client: Client
+  selectedOperatingClientId?: string
   items: CartItem[]
   subtotal: number
   iva: number
   total: number
   generalDiscount: number
+  showPrices?: boolean
   createdAt: string
 }
 
@@ -229,6 +237,34 @@ export default function Sales() {
   const aiPreloadedFromAI = useSalesStore((s) => s.preloadedFromAI)
   const clearAIPreload = useSalesStore((s) => s.clear)
 
+  const { data: business } = useQuery({
+    queryKey: ['business-me-sales'],
+    queryFn: () => businessService.getMyBusiness(),
+    staleTime: 60_000,
+  })
+  const invoicingEnabled = business?.invoicing_enabled ?? true
+  const receiptsEnabled = business?.receipts_enabled ?? true
+
+  const voucherTypes = useMemo(
+    () =>
+      baseVoucherTypes.filter((item) => {
+        if (item.value === 'invoice') return invoicingEnabled
+        if (item.value === 'receipt') return receiptsEnabled
+        return true
+      }),
+    [invoicingEnabled, receiptsEnabled],
+  )
+
+  const salesMenuModes = useMemo(
+    () =>
+      baseSalesMenuModes.filter((item) => {
+        if (item.value === 'invoice') return invoicingEnabled
+        if (item.value === 'receipt') return receiptsEnabled
+        return true
+      }),
+    [invoicingEnabled, receiptsEnabled],
+  )
+
   // React Query para productos
   const { data: productsData } = useQuery({
     queryKey: ['products-for-sales'],
@@ -252,6 +288,7 @@ export default function Sales() {
 
   const allProducts = Array.isArray(productsData?.items) ? productsData.items : []
   const allClients = Array.isArray(clientsData?.items) ? clientsData.items : []
+  const billingClients = allClients.filter((client) => (client.current_account_mode || 'disabled') !== 'disabled')
   const [voucherType, setVoucherType] = useState<VoucherType>('quotation')
   const [showPrices, setShowPrices] = useState(true)
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null)
@@ -259,6 +296,7 @@ export default function Sales() {
   const [editingVoucherNotes, setEditingVoucherNotes] = useState<string | undefined>(undefined)
   const [clientSearch, setClientSearch] = useState('')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [selectedOperatingClientId, setSelectedOperatingClientId] = useState<string>('')
   const [productSearch, setProductSearch] = useState('')
   const [items, setItems] = useState<CartItem[]>([])
   const [selectedProductIndex, setSelectedProductIndex] = useState(0)
@@ -268,9 +306,81 @@ export default function Sales() {
   const [zoomLevel, setZoomLevel] = useState(1)
   const [isGenerating, setIsGenerating] = useState(false)
   const [paymentSelections, setPaymentSelections] = useState<Record<string, PaymentSelectionState>>({})
+
+  const {
+    data: authorizationsData,
+    isError: authorizationsLoadError,
+    error: authorizationsError,
+  } = useQuery({
+    queryKey: ['client-authorizations-for-sales', selectedClient?.id],
+    queryFn: () =>
+      clientAuthorizationsService.getAll({
+        billing_client_id: selectedClient?.id,
+        is_active: true,
+        per_page: 100,
+      }),
+    enabled: voucherType === 'current_account' && !!selectedClient?.id,
+    retry: false,
+  })
+
+  const authorizedOperatingClients = useMemo(() => {
+    if (!selectedClient) return []
+
+    const clientsById = new Map(allClients.map((client) => [client.id, client]))
+    const auths = Array.isArray(authorizationsData?.items) ? authorizationsData.items : []
+    const unique = new Map<string, Client>()
+
+    // Siempre permitir que retire el titular
+    unique.set(selectedClient.id, selectedClient)
+
+    auths.forEach((auth) => {
+      const client = clientsById.get(auth.operating_client_id)
+      if (client) {
+        unique.set(client.id, client)
+      }
+    })
+
+    return Array.from(unique.values())
+  }, [selectedClient, allClients, authorizationsData])
+
+  const hasAuthorizedSubclient = useMemo(() => {
+    if (!selectedClient) return false
+    return authorizedOperatingClients.some((client) => client.id !== selectedClient.id)
+  }, [authorizedOperatingClients, selectedClient])
   
   // Descuento general
   const [generalDiscount, setGeneralDiscount] = useState(0) // Descuento % sobre subtotal
+
+  const formatCurrentAccountErrorMessage = (error: unknown): string => {
+    const defaultMessage = formatErrorMessage(error)
+    const normalized = defaultMessage.toLowerCase()
+
+    if (normalized.includes('no existe autorización activa')) {
+      return 'El subcliente no está autorizado para retirar por este titular. Revisalo en Cuenta Corriente → Autorizaciones.'
+    }
+
+    if (normalized.includes('excede el límite de crédito del cliente titular')) {
+      return 'El remito supera el límite de crédito del titular. Ajustá montos/productos o actualizá el límite del cliente.'
+    }
+
+    if (normalized.includes('excede el límite del subcliente autorizado')) {
+      return 'El remito supera el límite de crédito del subcliente autorizado. Ajustá la operación o su límite.'
+    }
+
+    if (normalized.includes('excede el sublímite configurado')) {
+      return 'El remito supera el sublímite definido para este vínculo titular/subcliente.'
+    }
+
+    if (normalized.includes('cliente titular no tiene cuenta corriente habilitada')) {
+      return 'El cliente titular no tiene Cuenta Corriente habilitada. Activala desde Clientes para continuar.'
+    }
+
+    if (normalized.includes('no tienes permiso') || normalized.includes('no autorizado')) {
+      return 'No tenés permisos para emitir remitos de Cuenta Corriente. Pedile acceso a un administrador.'
+    }
+
+    return defaultMessage
+  }
 
   // Mutation para convertir cotización en factura
   const convertQuotationMutation = useMutation({
@@ -322,7 +432,10 @@ export default function Sales() {
       refetchPendingQuotations()
     },
     onError: (error: any) => {
-      toast.error(formatErrorMessage(error))
+      const message = voucherType === 'current_account'
+        ? formatCurrentAccountErrorMessage(error)
+        : formatErrorMessage(error)
+      toast.error(message)
     },
     onSettled: () => {
       setIsConvertingQuotation(false)
@@ -404,9 +517,10 @@ export default function Sales() {
       // Limpiar
       setItems([])
       setSelectedClient(null)
+      setSelectedOperatingClientId('')
       setClientSearch('')
       setGeneralDiscount(0)
-      setShowPrices(voucherType === 'receipt' ? false : true)
+      setShowPrices(voucherType === 'receipt' || voucherType === 'current_account' ? false : true)
       setProductSearch('')
       resetPaymentSelections()
     },
@@ -432,9 +546,10 @@ export default function Sales() {
 
       setItems([])
       setSelectedClient(null)
+      setSelectedOperatingClientId('')
       setClientSearch('')
       setGeneralDiscount(0)
-      setShowPrices(voucherType === 'receipt' ? false : true)
+      setShowPrices(voucherType === 'receipt' || voucherType === 'current_account' ? false : true)
       setProductSearch('')
       resetPaymentSelections()
 
@@ -493,6 +608,17 @@ export default function Sales() {
     retry: false,
   })
 
+  const pendingQuotations = useMemo(
+    () =>
+      (pendingQuotationsData?.items || []).filter((voucher) => {
+        if (voucher.voucher_type === 'receipt' && !receiptsEnabled) {
+          return false
+        }
+        return true
+      }),
+    [pendingQuotationsData?.items, receiptsEnabled],
+  )
+
   // Panel de preview de productos seleccionados temporalmente con cantidad y descuento
   interface TempProduct extends Product {
     tempQuantity: number
@@ -534,7 +660,9 @@ export default function Sales() {
     )
 
   // Filtrar clientes según búsqueda
-  const filteredClients = allClients.filter(c =>
+  const clientsForSelection = voucherType === 'current_account' ? billingClients : allClients
+
+  const filteredClients = clientsForSelection.filter(c =>
     safeText(c.name).toLowerCase().includes(normalizedClientSearch) ||
     safeText(c.document_number).includes(safeText(clientSearch))
   )
@@ -560,6 +688,7 @@ export default function Sales() {
         setEditingVoucherDate(parsed.date)
         setEditingVoucherNotes(parsed.notes)
         setSelectedClient(parsed.client)
+        setSelectedOperatingClientId('')
         setClientSearch(parsed.client.name)
         setItems(normalizedItems)
         setGeneralDiscount(parsed.general_discount || 0)
@@ -620,6 +749,37 @@ export default function Sales() {
   }, [aiPreloadedFromAI, aiPreloadedItems, clearAIPreload])
 
   useEffect(() => {
+    if (voucherType === 'invoice' && !invoicingEnabled) {
+      setVoucherType('quotation')
+      setShowPrices(true)
+    }
+
+    if (voucherType === 'receipt' && !receiptsEnabled) {
+      setVoucherType('quotation')
+      setShowPrices(true)
+    }
+  }, [voucherType, invoicingEnabled, receiptsEnabled])
+
+  useEffect(() => {
+    if (voucherType !== 'current_account') {
+      return
+    }
+
+    if (!selectedClient) {
+      setSelectedOperatingClientId('')
+      return
+    }
+
+    const selectedIsAvailable = authorizedOperatingClients.some(
+      (client) => client.id === selectedOperatingClientId,
+    )
+
+    if (!selectedOperatingClientId || !selectedIsAvailable) {
+      setSelectedOperatingClientId(selectedClient.id)
+    }
+  }, [voucherType, selectedClient, selectedOperatingClientId, authorizedOperatingClients])
+
+  useEffect(() => {
     if (!paymentMethodsData || paymentMethodsData.length === 0) return
 
     setPaymentSelections((prev) => {
@@ -642,7 +802,14 @@ export default function Sales() {
   // Manejar eventos de teclado
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Bloquear eventos si están bloqueados temporalmente o hay modales abiertos
+      // Cerrar modal de productos con F1
+      if (showQuantityModal && e.key === 'F1') {
+        e.preventDefault()
+        setShowQuantityModal(false)
+        return
+      }
+
+      // Bloquear eventos si están bloqueados temporalmente o hay modales abiertas
       if (blockKeyboardEventsRef.current || showQuantityModal || showClientModal || showDraftsModal) return
 
       if (e.key === 'Escape') {
@@ -813,18 +980,16 @@ export default function Sales() {
     // 2. Cerrar modal
     setShowQuantityModal(false)
     
-    // 3. Limpiar estados inmediatamente
+    // 3. Limpiar estados sin perder posición del cursor
     setTempSelectedProducts([])
-    setProductSearch('')
-    setSelectedProductIndex(0)
+    // Mantener productSearch y selectedProductIndex para no perder posición
     
     // 4. Mostrar confirmación
     toast.success(`${count} producto(s) agregados al carrito`)
     
-    // 5. Focus en el buscador y desbloquear eventos después de un delay
+    // 5. Focus y desbloquear eventos después de un delay (sin limpiar search)
     setTimeout(() => {
       if (searchInputRef.current) {
-        searchInputRef.current.value = '' // Forzar limpieza del DOM
         searchInputRef.current.focus()
       }
       // Desbloquear eventos después de que todo se haya procesado
@@ -843,6 +1008,7 @@ export default function Sales() {
   }
 
   const calculateItemTotal = (item: CartItem) => {
+    // Precio normal con IVA incluido
     const subtotal = item.sale_price * item.quantity
     const discountAmount = subtotal * (item.discount / 100)
     return subtotal - discountAmount
@@ -850,6 +1016,9 @@ export default function Sales() {
 
   const handleVoucherTypeChange = (nextType: VoucherType) => {
     setVoucherType(nextType)
+    if (nextType !== 'current_account') {
+      setSelectedOperatingClientId('')
+    }
 
     // Defaults por tipo (el usuario puede ajustar en cotización/remito)
     if (nextType === 'invoice') {
@@ -862,12 +1031,21 @@ export default function Sales() {
       return
     }
 
+    if (nextType === 'current_account') {
+      if (selectedClient?.id) {
+        setSelectedOperatingClientId(selectedClient.id)
+      }
+      setShowPrices(false)
+      return
+    }
+
     setShowPrices(true)
   }
 
   const clearSalesScreen = () => {
     setItems([])
     setSelectedClient(null)
+    setSelectedOperatingClientId('')
     setClientSearch('')
     setProductSearch('')
     setVoucherType('quotation')
@@ -906,6 +1084,15 @@ export default function Sales() {
       return
     }
 
+    if (voucherType === 'current_account' && selectedClient.current_account_mode === 'disabled') {
+      toast.error('El cliente titular no tiene Cuenta Corriente habilitada. Activala desde Clientes antes de emitir.')
+      return
+    }
+
+    if (voucherType === 'current_account' && !selectedOperatingClientId && selectedClient.id) {
+      setSelectedOperatingClientId(selectedClient.id)
+    }
+
     // Mostrar modal de confirmación
     setShowConfirmModal(true)
   }
@@ -913,6 +1100,11 @@ export default function Sales() {
   const handleConfirmGenerate = () => {
     if (!selectedClient) {
       toast.error('Debe seleccionar un cliente')
+      return
+    }
+
+    if (voucherType === 'current_account' && selectedClient.current_account_mode === 'disabled') {
+      toast.error('El cliente titular no tiene Cuenta Corriente habilitada')
       return
     }
 
@@ -925,10 +1117,23 @@ export default function Sales() {
     setShowConfirmModal(false)
     
     setIsGenerating(true)
+
+    if (voucherType === 'invoice' && !invoicingEnabled) {
+      toast.error('Facturación deshabilitada para este tenant')
+      setIsGenerating(false)
+      return
+    }
+
+    if (voucherType === 'receipt' && !receiptsEnabled) {
+      toast.error('Remitos deshabilitados para este tenant')
+      setIsGenerating(false)
+      return
+    }
     
     // Mapear tipo de comprobante (simplificado para MVP)
     let backendType = 'quotation'
     if (voucherType === 'receipt') backendType = 'receipt'
+    if (voucherType === 'current_account') backendType = 'receipt'
     if (voucherType === 'invoice') {
       // Lógica simple: Si es RI -> A, sino B
       backendType = selectedClient.tax_condition === 'RI' ? 'invoice_a' : 'invoice_b'
@@ -945,11 +1150,19 @@ export default function Sales() {
       return
     }
 
+    const operatingClientIdForPayload =
+      voucherType === 'current_account'
+        ? selectedOperatingClientId || selectedClient.id
+        : undefined
+
     const voucherData: VoucherCreate = {
       client_id: selectedClient.id,
       voucher_type: backendType as any,
       date: localDate,
       show_prices: voucherType === 'invoice' || voucherType === 'quotation' ? true : showPrices,
+      is_current_account: voucherType === 'current_account',
+      billing_client_id: voucherType === 'current_account' ? selectedClient.id : undefined,
+      operating_client_id: operatingClientIdForPayload,
       general_discount: generalDiscount,
       items: normalizedItems.map(item => ({
         product_id: item.id,
@@ -998,11 +1211,13 @@ export default function Sales() {
       id: Date.now().toString(),
       voucherType,
       client: selectedClient,
+      selectedOperatingClientId: voucherType === 'current_account' ? selectedOperatingClientId : undefined,
       items,
       subtotal: subtotalAfterDiscount,
       iva: iva,
       total: total,
       generalDiscount,
+      showPrices,
       createdAt: new Date().toISOString(),
     }
 
@@ -1016,9 +1231,10 @@ export default function Sales() {
     // Limpiar después de guardar
     setItems([])
     setSelectedClient(null)
+    setSelectedOperatingClientId('')
     setClientSearch('')
     setProductSearch('')
-    setShowPrices(voucherType === 'receipt' ? false : true)
+    setShowPrices(voucherType === 'receipt' || voucherType === 'current_account' ? false : true)
   }
 
   const loadDraft = (draft: Draft) => {
@@ -1027,8 +1243,13 @@ export default function Sales() {
     setEditingVoucherNotes(undefined)
     sessionStorage.removeItem('sales-edit-voucher')
     setVoucherType(draft.voucherType)
-    setShowPrices(draft.voucherType === 'receipt' ? false : true)
+    setShowPrices(draft.showPrices ?? (draft.voucherType === 'receipt' || draft.voucherType === 'current_account' ? false : true))
     setSelectedClient(draft.client)
+    setSelectedOperatingClientId(
+      draft.voucherType === 'current_account'
+        ? draft.selectedOperatingClientId || draft.client.id
+        : '',
+    )
     setClientSearch(draft.client.name)
     setItems(draft.items)
     setGeneralDiscount(draft.generalDiscount || 0)
@@ -1107,6 +1328,7 @@ export default function Sales() {
     }
 
     setSelectedClient(client)
+    setSelectedOperatingClientId(voucherType === 'current_account' ? client.id : '')
     setClientSearch(client.name)
     setShowClientModal(false)
     setNewClient({
@@ -1492,12 +1714,14 @@ export default function Sales() {
     return { valid: true }
   }
 
-  // Cálculos de totales con descuento general
-  const subtotalItems = items.reduce((acc, item) => acc + calculateItemTotal(item), 0)
-  const discountAmount = subtotalItems * (generalDiscount / 100)
-  const subtotalAfterDiscount = subtotalItems - discountAmount
+  // Cálculos de totales - discriminando IVA
+  const subtotalWithIva = items.reduce((acc, item) => acc + calculateItemTotal(item), 0)
+  const subtotalWithoutIva = subtotalWithIva / 1.21
+  const discountAmount = subtotalWithoutIva * (generalDiscount / 100)
+  const subtotalAfterDiscount = subtotalWithoutIva - discountAmount
   const iva = subtotalAfterDiscount * 0.21
   const total = subtotalAfterDiscount + iva
+  const discountedItemsCount = items.filter((item) => item.discount > 0).length
 
   const assignedPaymentsTotal = paymentMethods.reduce((acc, method) => {
     const selection = paymentSelections[method.id]
@@ -1525,7 +1749,10 @@ export default function Sales() {
                 value={selectedClient ? selectedClient.name : clientSearch}
                 onChange={(e) => {
                   setClientSearch(e.target.value)
-                  if (!e.target.value) setSelectedClient(null)
+                  if (!e.target.value) {
+                    setSelectedClient(null)
+                    setSelectedOperatingClientId('')
+                  }
                 }}
                 placeholder="Cliente (buscar o seleccionar)"
                 className="w-full rounded-lg border px-3 py-1.5 text-sm dark:bg-gray-700 dark:border-gray-600"
@@ -1540,6 +1767,7 @@ export default function Sales() {
                     onClick={() => {
                       setSelectedClient(null)
                       setClientSearch('')
+                      setSelectedOperatingClientId('')
                     }}
                     className="text-gray-400 hover:text-red-600"
                     title="Quitar cliente"
@@ -1559,6 +1787,34 @@ export default function Sales() {
             >
               <Search size={18} />
             </Button>
+
+            {voucherType === 'current_account' && (
+              <div className="w-[280px]">
+                <select
+                  value={selectedOperatingClientId}
+                  onChange={(e) => setSelectedOperatingClientId(e.target.value)}
+                  className="w-full rounded-lg border px-3 py-1.5 text-sm dark:bg-gray-700 dark:border-gray-600"
+                >
+                  <option value="">Seleccionar retirador (titular o subcliente)</option>
+                  {authorizedOperatingClients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.id === selectedClient?.id
+                        ? `Titular (retira): ${client.name}`
+                        : `${client.name} · ${client.document_number}`}
+                    </option>
+                  ))}
+                </select>
+                {selectedClient && authorizationsLoadError ? (
+                  <p className="mt-1 text-[11px] text-red-700 dark:text-red-300">
+                    No pudimos cargar autorizaciones de subclientes para este titular. Se usará retiro por titular hasta resolverlo. {formatErrorMessage(authorizationsError)}
+                  </p>
+                ) : selectedClient && !hasAuthorizedSubclient ? (
+                  <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                    No hay subclientes autorizados para este titular. El remito saldrá como retiro por titular. Para habilitar terceros: asigná un Tipo de Cliente con retiro por terceros y creá la autorización en Cuenta Corriente.
+                  </p>
+                ) : null}
+              </div>
+            )}
 
             <Button variant="outline" size="sm" onClick={handleClear} className="text-xs px-2.5 py-1" title="Limpiar">
               <RotateCcw size={16} />
@@ -1612,7 +1868,7 @@ export default function Sales() {
               })}
             </div>
 
-            {voucherType === 'receipt' && (
+            {(voucherType === 'receipt' || voucherType === 'current_account') && (
               <button
                 onClick={() => setShowPrices((prev) => !prev)}
                 className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
@@ -1871,11 +2127,6 @@ export default function Sales() {
             </div>
 
             <div className="space-y-2 mb-4 text-xs">
-              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
-                <span>Subtotal items</span>
-                <span className="font-medium">${formatNumber(subtotalItems, undefined, { minimumFractionDigits: 2 })}</span>
-              </div>
-              
               {generalDiscount > 0 && (
                 <div className="flex justify-between text-sm text-red-600 dark:text-red-400">
                   <span>Descuento ({generalDiscount}%)</span>
@@ -1883,9 +2134,9 @@ export default function Sales() {
                 </div>
               )}
               
-              <div className="flex justify-between text-sm text-gray-700 dark:text-gray-300 pt-1 border-t border-gray-200 dark:border-gray-700">
-                <span className="font-medium">Subtotal</span>
-                <span className="font-semibold">${formatNumber(subtotalAfterDiscount, undefined, { minimumFractionDigits: 2 })}</span>
+              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
+                <span>Subtotal (sin IVA)</span>
+                <span className="font-medium">${formatNumber(subtotalAfterDiscount, undefined, { minimumFractionDigits: 2 })}</span>
               </div>
               
               <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
@@ -1921,18 +2172,24 @@ export default function Sales() {
                 Guardar borrador
               </Button>
               {/* Botón Facturar Cotización/Remito */}
-              <button
-                onClick={() => setShowPendingQuotationsModal(true)}
-                className="relative w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
-              >
-                <ClipboardList size={14} />
-                Facturar Cotización / Remito
-                {pendingQuotationsData && pendingQuotationsData.total > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] rounded-full min-w-[16px] h-4 px-0.5 flex items-center justify-center leading-none">
-                    {pendingQuotationsData.total > 99 ? '99+' : pendingQuotationsData.total}
-                  </span>
-                )}
-              </button>
+              {invoicingEnabled ? (
+                <button
+                  onClick={() => setShowPendingQuotationsModal(true)}
+                  className="relative w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                >
+                  <ClipboardList size={14} />
+                  Facturar Cotización / Remito
+                  {pendingQuotations.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] rounded-full min-w-[16px] h-4 px-0.5 flex items-center justify-center leading-none">
+                      {pendingQuotations.length > 99 ? '99+' : pendingQuotations.length}
+                    </span>
+                  )}
+                </button>
+              ) : (
+                <div className="w-full text-center px-3 py-2 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800">
+                  Facturación deshabilitada desde CMS
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -2033,8 +2290,7 @@ export default function Sales() {
                       <td className="px-3 py-2 text-right font-bold text-lg text-gray-900 dark:text-white">
                         ${formatNumber(tempSelectedProducts.reduce((acc, p) => {
                           const subtotal = p.sale_price * p.tempQuantity
-                          const discountAmount = subtotal * (p.tempDiscount / 100)
-                          return acc + (subtotal - discountAmount)
+                          return acc + subtotal
                         }, 0), undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td></td>
@@ -2336,6 +2592,7 @@ export default function Sales() {
                     key={client.id}
                     onClick={() => {
                       setSelectedClient(client)
+                      setSelectedOperatingClientId(voucherType === 'current_account' ? client.id : '')
                       setClientSearch('')
                       setShowClientSelectorModal(false)
                     }}
@@ -2391,13 +2648,39 @@ export default function Sales() {
                   <span className="text-gray-600 dark:text-gray-400">Productos:</span>
                   <span className="font-medium text-gray-900 dark:text-white">{items.length}</span>
                 </div>
-                {voucherType === 'receipt' && (
+                {(voucherType === 'receipt' || voucherType === 'current_account') && (
                   <div className="flex justify-between">
                     <span className="text-gray-600 dark:text-gray-400">Impresión:</span>
                     <span className="font-medium text-gray-900 dark:text-white">
                       {showPrices ? 'Con precios' : 'Sin precios'}
                     </span>
                   </div>
+                )}
+
+                {discountedItemsCount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Desc. por ítem:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {discountedItemsCount} con descuento
+                    </span>
+                  </div>
+                )}
+
+                {voucherType === 'current_account' && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Titular:</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{selectedClient?.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Subcliente:</span>
+                      <span className="font-medium text-gray-900 dark:text-white">
+                        {(selectedOperatingClientId || selectedClient?.id) === selectedClient?.id
+                          ? `${selectedClient?.name} (retira titular)`
+                          : allClients.find((c) => c.id === (selectedOperatingClientId || selectedClient?.id))?.name || 'No seleccionado'}
+                      </span>
+                    </div>
+                  </>
                 )}
 
                 {/* Descuento General Editable */}
@@ -2425,8 +2708,8 @@ export default function Sales() {
                 {/* Desglose de totales */}
                 <div className="space-y-2 pt-2 border-t border-primary-200 dark:border-primary-700">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Subtotal items:</span>
-                    <span className="font-medium">${formatNumber(subtotalItems, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="text-gray-600 dark:text-gray-400">Subtotal (sin IVA):</span>
+                    <span className="font-medium">${formatNumber(subtotalAfterDiscount, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
 
                   {generalDiscount > 0 && (
@@ -2435,11 +2718,6 @@ export default function Sales() {
                       <span className="font-medium">-${formatNumber(discountAmount, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                   )}
-
-                  <div className="flex justify-between text-sm font-medium pt-2 border-t border-gray-200 dark:border-gray-700">
-                    <span className="text-gray-700 dark:text-gray-300">Subtotal:</span>
-                    <span>${formatNumber(subtotalAfterDiscount, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
 
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">IVA (21%):</span>
@@ -2743,7 +3021,7 @@ export default function Sales() {
               {[
                 { value: 'all', label: 'Todos' },
                 { value: 'quotation', label: 'Cotizaciones' },
-                { value: 'receipt', label: 'Remitos' },
+                ...(receiptsEnabled ? [{ value: 'receipt', label: 'Remitos' }] : []),
               ].map((opt) => (
                 <button
                   key={opt.value}
@@ -2815,7 +3093,7 @@ export default function Sales() {
                   <div className="inline-block w-5 h-5 border-2 border-primary-400 border-t-transparent rounded-full animate-spin mb-2" />
                   <p className="text-sm">Cargando...</p>
                 </div>
-              ) : pendingQuotationsData.items.length === 0 ? (
+              ) : pendingQuotations.length === 0 ? (
                 <div className="text-center py-10 text-gray-500 dark:text-gray-400">
                   <ClipboardList className="mx-auto mb-3 opacity-30" size={36} />
                   <p className="font-medium text-sm">Sin resultados</p>
@@ -2827,8 +3105,9 @@ export default function Sales() {
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
-                  {pendingQuotationsData.items.map((voucher) => {
+                  {pendingQuotations.map((voucher) => {
                     const isQuotation = voucher.voucher_type === 'quotation'
+                    const isCCClosure = !!voucher.is_current_account_closure
                     return (
                       <button
                         key={voucher.id}
@@ -2854,6 +3133,11 @@ export default function Sales() {
                           <p className="text-sm font-medium text-gray-900 dark:text-white truncate leading-tight">
                             {voucher.client?.name || '—'}
                           </p>
+                          {isCCClosure && (
+                            <p className="text-[10px] font-semibold text-violet-700 dark:text-violet-300">
+                              Cta Cte cerrada
+                            </p>
+                          )}
                           <p className="text-[11px] text-gray-400 truncate leading-tight">
                             {voucher.client?.document_type}: {voucher.client?.document_number}
                             {voucher.client?.tax_condition && (
@@ -2894,7 +3178,7 @@ export default function Sales() {
           {/* Footer con conteo */}
           {pendingQuotationsData && (
             <p className="text-xs text-gray-400 text-right">
-              {pendingQuotationsData.total} comprobante(s) pendiente(s)
+              {pendingQuotations.length} comprobante(s) pendiente(s)
             </p>
           )}
         </div>

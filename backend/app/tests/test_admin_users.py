@@ -208,6 +208,10 @@ async def test_superadmin_can_get_feature_flags(
     assert payload["business_id"] == str(business_a.id)
     assert payload["ai_agent_enabled"] is False
     assert payload["current_account_mode"] == "disabled"
+    assert payload["invoicing_enabled"] is True
+    assert payload["receipts_enabled"] is True
+    assert payload["price_update_enabled"] is True
+    assert payload["reports_enabled"] is True
 
 
 @pytest.mark.asyncio
@@ -229,6 +233,10 @@ async def test_superadmin_can_update_feature_flags(
     payload = response.json()
     assert payload["ai_agent_enabled"] is True
     assert payload["current_account_mode"] == "disabled"
+    assert payload["invoicing_enabled"] is True
+    assert payload["receipts_enabled"] is True
+    assert payload["price_update_enabled"] is True
+    assert payload["reports_enabled"] is True
 
     await db.refresh(business_a)
     assert business_a.ai_agent_enabled is True
@@ -252,9 +260,45 @@ async def test_superadmin_can_update_current_account_mode_feature_flag(
     assert response.status_code == 200
     payload = response.json()
     assert payload["current_account_mode"] == "manual"
+    assert payload["invoicing_enabled"] is True
+    assert payload["receipts_enabled"] is True
 
     await db.refresh(business_a)
     assert business_a.current_account_mode == "manual"
+
+
+@pytest.mark.asyncio
+async def test_superadmin_can_update_new_module_feature_flags(
+    client: AsyncClient,
+    superadmin_user: User,
+    business_a: Business,
+    db: AsyncSession,
+):
+    headers = make_auth_header(superadmin_user)
+
+    response = await client.patch(
+        f"/api/admin/tenants/{business_a.id}/features",
+        headers=headers,
+        json={
+            "invoicing_enabled": False,
+            "receipts_enabled": False,
+            "price_update_enabled": False,
+            "reports_enabled": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["invoicing_enabled"] is False
+    assert payload["receipts_enabled"] is False
+    assert payload["price_update_enabled"] is False
+    assert payload["reports_enabled"] is False
+
+    await db.refresh(business_a)
+    assert business_a.invoicing_enabled is False
+    assert business_a.receipts_enabled is False
+    assert business_a.price_update_enabled is False
+    assert business_a.reports_enabled is False
 
 
 @pytest.mark.asyncio

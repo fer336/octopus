@@ -3,6 +3,7 @@ Schemas para Business (Negocio).
 """
 
 from typing import Literal, Optional
+from uuid import UUID
 from pydantic import BaseModel, Field
 
 
@@ -49,7 +50,7 @@ class BusinessUpdate(BaseModel):
 class BusinessResponse(BaseModel):
     """Schema de respuesta para Business."""
 
-    id: str
+    id: str | UUID
     name: str
     cuit: str
     tax_condition: str
@@ -64,6 +65,10 @@ class BusinessResponse(BaseModel):
     sale_point: str
     ai_agent_enabled: bool
     current_account_mode: Literal["disabled", "automatic", "manual"]
+    invoicing_enabled: bool
+    receipts_enabled: bool
+    price_update_enabled: bool
+    reports_enabled: bool
 
     # Configuración ARCA (solo lectura, se edita en /arca)
     arca_environment: Optional[str]

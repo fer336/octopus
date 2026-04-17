@@ -369,6 +369,34 @@ def require_module_access(module_key: str):
                 detail=f"No tenés permiso para acceder al módulo '{module_key}'.",
             )
 
+        feature_by_module = {
+            "reports": "reports_enabled",
+            "price_update": "price_update_enabled",
+            "sql_backup": "sql_backup_enabled",
+        }
+        feature_field = feature_by_module.get(module_key)
+        if feature_field:
+            from app.models.business import Business
+
+            business_result = await db.execute(
+                select(Business).where(
+                    Business.id == current_business,
+                    Business.deleted_at.is_(None),
+                )
+            )
+            business = business_result.scalar_one_or_none()
+            if not business:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Negocio no encontrado",
+                )
+
+            if not bool(getattr(business, feature_field, True)):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Funcionalidad deshabilitada para este tenant desde CMS.",
+                )
+
         return current_business
 
     return _dependency

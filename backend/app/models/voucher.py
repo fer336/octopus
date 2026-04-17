@@ -5,7 +5,7 @@ Representa cotizaciones, remitos y facturas.
 
 import enum
 
-from sqlalchemy import Column, Date, Enum, ForeignKey, Numeric, String, Text
+from sqlalchemy import Boolean, Column, Date, Enum, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -56,6 +56,18 @@ class Voucher(BaseModel):
         nullable=False,
         index=True,
     )
+    billing_client_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("clients.id"),
+        nullable=True,
+        index=True,
+    )
+    operating_client_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("clients.id"),
+        nullable=True,
+        index=True,
+    )
     created_by = Column(
         UUID(as_uuid=True),
         ForeignKey("users.id"),
@@ -95,6 +107,8 @@ class Voucher(BaseModel):
 
     # Para remitos
     show_prices = Column(String(1), default="S")  # S/N - Mostrar precios en remito
+    is_current_account = Column(Boolean, nullable=False, default=False)
+    is_current_account_closure = Column(Boolean, nullable=False, default=False)
 
     # Auditoría de eliminación
     deleted_by = Column(
@@ -104,7 +118,13 @@ class Voucher(BaseModel):
 
     # Relaciones
     business = relationship("Business")
-    client = relationship("Client", back_populates="vouchers")
+    client = relationship(
+        "Client",
+        back_populates="vouchers",
+        foreign_keys=[client_id],
+    )
+    billing_client = relationship("Client", foreign_keys=[billing_client_id])
+    operating_client = relationship("Client", foreign_keys=[operating_client_id])
     deleted_by_user = relationship("User", foreign_keys=[deleted_by])
     items = relationship(
         "VoucherItem",
@@ -163,6 +183,39 @@ class Voucher(BaseModel):
         return any(
             "credit_note" in str(child.voucher_type) for child in self.credit_notes
         )
+
+    @property
+    def is_withdrawal_authorized(self) -> bool:
+        """Indica si el retiro del remito en CC quedó autorizado en su contexto."""
+        if self.voucher_type != VoucherType.RECEIPT:
+            return False
+        if not self.is_current_account:
+            return False
+        if not self.billing_client_id or not self.operating_client_id:
+            return False
+        if self.billing_client_id == self.operating_client_id:
+            return True
+
+        # Para remitos CC históricos, la autorización quedó validada al momento
+        # de crear el remito (vínculo activo requerido en ese instante).
+        return True
+
+    @property
+    def withdrawal_client_name(self) -> str | None:
+        """Nombre del cliente/subcliente que retira mercadería."""
+        if self.voucher_type != VoucherType.RECEIPT:
+            return None
+        if not self.is_current_account:
+            return None
+
+        if self.operating_client and self.operating_client.name:
+            return self.operating_client.name
+        if self.billing_client and self.billing_client.name:
+            return self.billing_client.name
+        if self.client and self.client.name:
+            return self.client.name
+
+        return None
 
     def __repr__(self) -> str:
         return f"<Voucher {self.voucher_type.value} {self.full_number}>"

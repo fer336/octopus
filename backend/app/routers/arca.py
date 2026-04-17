@@ -337,6 +337,12 @@ async def emit_electronic_invoice(
             detail="Negocio o cliente no encontrado",
         )
 
+    if not bool(business.invoicing_enabled):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Facturación deshabilitada para este tenant desde CMS.",
+        )
+
     # Crear servicio Afip SDK
     service = AfipSdkService(business)
 

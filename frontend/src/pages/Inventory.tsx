@@ -164,72 +164,38 @@ export default function Inventory() {
   const suppliers = suppliersData?.items ?? []
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="h-[calc(100vh-4rem)] flex flex-col">
 
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary-100 dark:bg-primary-900/30">
-            <ClipboardList className="w-6 h-6 text-primary-600 dark:text-primary-400" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Control de Inventario
-            </h1>
-          </div>
+      {/* Header compacto sin título */}
+      <div className="flex items-center justify-between px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+        <div className="flex items-center gap-2">
+          <ClipboardList className="w-5 h-5 text-primary-600" />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Inventario</span>
         </div>
-        <Button
-          onClick={() => setShowNewOrderModal(true)}
-          className="flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Nueva Orden de Pedido
+        <Button size="sm" onClick={() => setShowNewOrderModal(true)}>
+          <Plus className="w-3.5 h-3.5 mr-1" />Nueva
         </Button>
       </div>
 
-      {/* ── Filtros ── */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <div className="flex flex-wrap gap-3">
-          <select
-            value={filterSupplier}
-            onChange={(e) => setFilterSupplier(e.target.value)}
-            className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="">Todos los proveedores</option>
-            {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="">Todas las categorías</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as PurchaseOrderStatus | '')}
-            className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="">Todos los estados</option>
-            <option value="draft">Borrador</option>
-            <option value="confirmed">Confirmada</option>
-          </select>
-        </div>
+      {/* Filtros compactos */}
+      <div className="flex flex-wrap gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 shrink-0">
+        <select value={filterSupplier} onChange={(e) => setFilterSupplier(e.target.value)} className="px-2 py-1 text-sm rounded border">
+          <option value="">Proveedor</option>
+          {suppliers.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+        </select>
+        <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="px-2 py-1 text-sm rounded border">
+          <option value="">Categoría</option>
+          {categories.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+        </select>
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} className="px-2 py-1 text-sm rounded border">
+          <option value="">Estado</option>
+          <option value="draft">Borrador</option>
+          <option value="confirmed">Confirmada</option>
+        </select>
       </div>
 
-      {/* ── Tabla de órdenes ── */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+      {/* Tabla - ocupa espacio restante */}
+      <div className="flex-1 overflow-auto bg-white dark:bg-gray-800 border-x border-b border-gray-200 dark:border-gray-700">
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
@@ -261,12 +227,6 @@ export default function Inventory() {
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Ítems
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Subtotal
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    IVA
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Total
@@ -306,12 +266,6 @@ export default function Inventory() {
                         <Package className="w-3.5 h-3.5" />
                         {order.items_count}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-gray-700 dark:text-gray-300">
-                      {formatCurrency(order.subtotal)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-gray-500 dark:text-gray-400">
-                      {formatCurrency(order.total_iva)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900 dark:text-white">
                       {formatCurrency(order.total)}

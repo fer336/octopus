@@ -3,6 +3,7 @@ Servicio de generación de PDF.
 Utiliza Jinja2 y WeasyPrint para generar comprobantes.
 Genera QR de AFIP para facturas electrónicas.
 """
+
 import base64
 import io
 import json
@@ -29,7 +30,7 @@ class PdfService:
     def generate_voucher_pdf(self, context: Dict[str, Any]) -> bytes:
         """
         Genera un PDF de comprobante (Cotización, Remito).
-        
+
         Args:
             context: Diccionario con todos los datos necesarios para la plantilla:
                 - business: {name, address, cuit, ...}
@@ -37,7 +38,7 @@ class PdfService:
                 - voucher: {letter, type_name, number, date, ...}
                 - items: list[{code, description, quantity, price, ...}]
                 - totals: {subtotal, discount, total, ...}
-        
+
         Returns:
             bytes: El contenido del archivo PDF.
         """
@@ -49,6 +50,7 @@ class PdfService:
         except Exception as e:
             print(f"Error al generar PDF: {str(e)}")
             import traceback
+
             traceback.print_exc()
             raise
 
@@ -56,7 +58,7 @@ class PdfService:
         """
         Genera un PDF de factura electrónica ARCA/AFIP.
         Usa el template específico con CAE, QR y formato fiscal.
-        
+
         Args:
             context: Diccionario con:
                 - business: {name, address, cuit, tax_condition, iibb, start_date}
@@ -64,7 +66,7 @@ class PdfService:
                 - voucher: {letter, sale_point, comp_number, date, cae, cae_expiration, qr_data, ...}
                 - items: list[{code, description, quantity, unit, unit_price, discount, discount_amount, subtotal}]
                 - totals: {subtotal, total}
-        
+
         Returns:
             bytes: El contenido del archivo PDF.
         """
@@ -76,6 +78,7 @@ class PdfService:
         except Exception as e:
             print(f"Error al generar PDF factura ARCA: {str(e)}")
             import traceback
+
             traceback.print_exc()
             raise
 
@@ -97,7 +100,7 @@ class PdfService:
         """
         Genera el QR de AFIP para facturas electrónicas.
         Formato oficial: https://www.afip.gob.ar/fe/qr/?p={base64_json}
-        
+
         Args:
             fecha: Fecha del comprobante (YYYY-MM-DD)
             cuit: CUIT del emisor (sin guiones)
@@ -111,7 +114,7 @@ class PdfService:
             nro_doc_rec: Número de documento del receptor
             tipo_cod_aut: Tipo de código de autorización (E = CAE)
             cod_aut: Código de autorización (CAE)
-        
+
         Returns:
             str: Imagen QR como data URI (data:image/png;base64,...)
         """
@@ -183,13 +186,15 @@ class PdfService:
             # Armar contexto para el template
             products_ctx = []
             for p in products:
-                products_ctx.append({
-                    "code": p.code,
-                    "description": p.description,
-                    "current_stock": p.current_stock,
-                    "category_name": p.category.name if p.category else None,
-                    "supplier_name": p.supplier.name if p.supplier else None,
-                })
+                products_ctx.append(
+                    {
+                        "code": p.code,
+                        "description": p.description,
+                        "current_stock": p.current_stock,
+                        "category_name": p.category.name if p.category else None,
+                        "supplier_name": p.supplier.name if p.supplier else None,
+                    }
+                )
 
             filter_label = ""
             if supplier_name:
@@ -214,6 +219,21 @@ class PdfService:
         except Exception as e:
             print(f"Error al generar planilla de conteo: {e}")
             import traceback
+
+            traceback.print_exc()
+            raise
+
+    def generate_closure_pdf(self, context: Dict[str, Any]) -> bytes:
+        """Genera PDF compacto de cierre de cuenta corriente."""
+        try:
+            template = env.get_template("current_account_closure.html")
+            html_content = template.render(**context)
+            pdf_bytes = HTML(string=html_content).write_pdf()
+            return pdf_bytes
+        except Exception as e:
+            print(f"Error al generar PDF de cierre: {e}")
+            import traceback
+
             traceback.print_exc()
             raise
 
@@ -257,8 +277,12 @@ class PdfService:
                 "business": business,
                 "order": order,
                 "order_number": order_number,
-                "order_date": order.created_at.strftime("%d/%m/%Y") if order.created_at else "—",
-                "confirmed_at": order.confirmed_at.strftime("%d/%m/%Y %H:%M") if order.confirmed_at else None,
+                "order_date": order.created_at.strftime("%d/%m/%Y")
+                if order.created_at
+                else "—",
+                "confirmed_at": order.confirmed_at.strftime("%d/%m/%Y %H:%M")
+                if order.confirmed_at
+                else None,
                 "iva_breakdown": iva_breakdown,
                 "generated_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
             }
@@ -269,11 +293,13 @@ class PdfService:
         except Exception as e:
             print(f"Error al generar PDF orden de pedido: {e}")
             import traceback
+
             traceback.print_exc()
             raise
 
     def _format_currency(self, value: float) -> str:
         return f"{value:,.2f}"
+
 
 # Instancia global
 pdf_service = PdfService()

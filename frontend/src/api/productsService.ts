@@ -255,6 +255,30 @@ export const productsService = {
   },
 
   /**
+   * Exporta productos en formato SQL (INSERT statements).
+   */
+  exportSQL: async (): Promise<Blob> => {
+    const response = await httpClient.get('/products/export/sql', {
+      responseType: 'blob',
+    })
+    return response.data
+  },
+
+  /**
+   * Importa productos desde SQL (INSERT statements).
+   */
+  importSQL: async (sqlContent: string): Promise<{
+    imported: number
+    imported_categories?: number
+    imported_suppliers?: number
+    errors: string[]
+    total_errors?: number
+  }> => {
+    const response = await httpClient.post('/products/import/sql', { sql: sqlContent })
+    return response.data
+  },
+
+  /**
    * Elimina TODOS los productos (soft delete).
    */
   bulkDelete: async (): Promise<{ deleted_count: number; message: string }> => {

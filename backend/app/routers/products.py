@@ -419,6 +419,123 @@ async def export_full_backup(
     )
 
 
+@router.get("/export/sql")
+async def export_products_sql(
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """
+    Exporta los productos en formato SQL (INSERT statements).
+    Solo disponible si el tenant tiene la feature flag habilitada.
+    Requiere permiso 'sql_backup' y feature flag activada.
+    """
+    import logging
+    import traceback
+    from sqlalchemy import select
+    from app.services.backup_service import BackupService
+    from app.models.business import Business
+
+    logger = logging.getLogger("uvicorn")
+
+    # 1. Verificar feature flag sql_backup_enabled en Business
+    business_query = select(Business).where(Business.id == business_id)
+    business_result = await db.execute(business_query)
+    business = business_result.scalar_one_or_none()
+
+    if not business or not business.sql_backup_enabled:
+        logger.warning(
+            f"[export_products_sql] Feature flag not enabled for business {business_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Funcionalidad de backup SQL no habilitada para este plan",
+        )
+
+    service = BackupService(db)
+
+    try:
+        logger.info(
+            f"[export_products_sql] Starting SQL export for business {business_id}"
+        )
+        sql_content = await service.generate_tenant_backup_sql(business_id)
+        logger.info(
+            f"[export_products_sql] SQL export completed, length: {len(sql_content)}"
+        )
+    except ValueError as e:
+        logger.error(f"[export_products_sql] ValueError: {e}")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"[export_products_sql] Exception: {e}")
+        logger.error(f"[export_products_sql] Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al generar backup SQL: {str(e)}",
+        )
+
+    from datetime import datetime
+
+    filename = f"backup-productos-{datetime.now().strftime('%Y%m%d')}.sql"
+
+    return StreamingResponse(
+        io.StringIO(sql_content),
+        media_type="application/sql",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.post("/import/sql")
+async def import_products_sql(
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    data: dict = ...,
+):
+    """
+    Importa productos desde SQL (INSERT statements).
+    Solo disponible si el tenant tiene la feature flag habilitada.
+    """
+    from app.services.backup_service import BackupService
+    from app.models.business import Business
+    from sqlalchemy import select
+
+    # Verificar feature flag
+    business_query = select(Business).where(Business.id == business_id)
+    business_result = await db.execute(business_query)
+    business = business_result.scalar_one_or_none()
+
+    if not business or not business.sql_backup_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Funcionalidad de backup SQL no habilitada para este plan",
+        )
+
+    service = BackupService(db)
+    sql_content = data.get("sql", "")
+
+    try:
+        # Log para debug
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.info(f"Received SQL content: {sql_content[:200]}...")
+
+        result = await service.import_products_from_sql(business_id, sql_content)
+
+        # Incluir debug info en respuesta
+        result["debug"] = {
+            "sql_length": len(sql_content),
+            "sql_sample": sql_content[:100],
+        }
+
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al importar SQL: {str(e)}",
+        )
+
+
 @router.delete("/bulk-delete")
 async def bulk_delete_products(
     current_user=Depends(get_current_user),

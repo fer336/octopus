@@ -12,6 +12,8 @@ export interface Client {
   document_type: string
   document_number: string
   tax_condition: string
+  client_type_id: string
+  current_account_mode?: 'disabled' | 'limited' | 'unlimited'
   street?: string
   street_number?: string
   floor?: string
@@ -33,6 +35,8 @@ export interface ClientCreate {
   document_type: string
   document_number: string
   tax_condition: string
+  client_type_id?: string
+  current_account_mode?: 'disabled' | 'limited' | 'unlimited'
   street?: string
   street_number?: string
   floor?: string
@@ -56,6 +60,7 @@ export const clientsService = {
     page?: number
     per_page?: number
     search?: string
+    client_type_id?: string
   }): Promise<PaginatedResponse<Client>> => {
     const response = await httpClient.get('/clients', { params })
     return response.data

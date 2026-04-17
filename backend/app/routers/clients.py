@@ -3,7 +3,7 @@ Router de Clientes.
 Endpoints para gestión de clientes.
 """
 
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -60,6 +60,13 @@ async def list_clients(
     tax_condition: Optional[str] = Query(
         None, description="Filtrar por condición fiscal"
     ),
+    client_type_id: Optional[UUID] = Query(
+        None, description="Filtrar por tipo de cliente"
+    ),
+    current_account_mode: Optional[Literal["disabled", "limited", "unlimited"]] = Query(
+        None,
+        description="Filtrar por modo de cuenta corriente del cliente",
+    ),
     has_balance: Optional[bool] = Query(
         None, description="Filtrar por saldo pendiente"
     ),
@@ -76,6 +83,8 @@ async def list_clients(
     params = ClientListParams(
         search=search,
         tax_condition=tax_condition,
+        client_type_id=client_type_id,
+        current_account_mode=current_account_mode,
         has_balance=has_balance,
         page=page,
         per_page=per_page,
@@ -110,8 +119,14 @@ async def create_client(
             detail=f"Ya existe un cliente con el documento '{data.document_number}'",
         )
 
-    client = await service.create(business_id, data)
-    return ClientResponse.model_validate(client)
+    try:
+        client = await service.create(business_id, data)
+        return ClientResponse.model_validate(client)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
 
 
 @router.get("/{client_id}", response_model=ClientResponse)

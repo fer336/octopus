@@ -1,8 +1,9 @@
 """
 Schemas para Clientes.
 """
+
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import EmailStr, Field
@@ -17,6 +18,10 @@ class ClientCreate(BaseSchema):
     document_type: str = Field(..., max_length=10, description="CUIT, CUIL o DNI")
     document_number: str = Field(..., max_length=20, description="Número de documento")
     tax_condition: str = Field(..., max_length=50, description="Condición ante IVA")
+    client_type_id: Optional[UUID] = Field(
+        None,
+        description="Tipo de cliente (si no se envía, se asigna el tipo por defecto)",
+    )
 
     # Dirección
     street: Optional[str] = Field(None, max_length=255)
@@ -33,6 +38,7 @@ class ClientCreate(BaseSchema):
     notes: Optional[str] = None
 
     credit_limit: Optional[Decimal] = Field(None, ge=0)
+    current_account_mode: Literal["disabled", "limited", "unlimited"] = "disabled"
 
 
 class ClientUpdate(BaseSchema):
@@ -42,6 +48,7 @@ class ClientUpdate(BaseSchema):
     document_type: Optional[str] = Field(None, max_length=10)
     document_number: Optional[str] = Field(None, max_length=20)
     tax_condition: Optional[str] = Field(None, max_length=50)
+    client_type_id: Optional[UUID] = None
 
     street: Optional[str] = Field(None, max_length=255)
     street_number: Optional[str] = Field(None, max_length=20)
@@ -56,6 +63,7 @@ class ClientUpdate(BaseSchema):
     notes: Optional[str] = None
 
     credit_limit: Optional[Decimal] = Field(None, ge=0)
+    current_account_mode: Optional[Literal["disabled", "limited", "unlimited"]] = None
 
 
 class ClientResponse(BaseResponse):
@@ -65,6 +73,7 @@ class ClientResponse(BaseResponse):
     document_type: str
     document_number: str
     tax_condition: str
+    client_type_id: UUID
 
     street: Optional[str]
     street_number: Optional[str]
@@ -80,6 +89,7 @@ class ClientResponse(BaseResponse):
 
     current_balance: Decimal
     credit_limit: Optional[Decimal]
+    current_account_mode: Literal["disabled", "limited", "unlimited"]
 
 
 class ClientListParams(BaseSchema):
@@ -87,6 +97,8 @@ class ClientListParams(BaseSchema):
 
     search: Optional[str] = Field(None, description="Buscar por nombre o documento")
     tax_condition: Optional[str] = None
+    client_type_id: Optional[UUID] = None
+    current_account_mode: Optional[Literal["disabled", "limited", "unlimited"]] = None
     has_balance: Optional[bool] = Field(None, description="Filtrar clientes con saldo")
     page: int = Field(default=1, ge=1)
     per_page: int = Field(default=20, ge=1, le=100)

@@ -14,6 +14,8 @@ from app.routers import (
     auth,
     categories,
     clients,
+    client_authorizations,
+    client_types,
     products,
     suppliers,
     dashboard,
@@ -85,6 +87,8 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(products.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(clients.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(client_authorizations.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(client_types.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(suppliers.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(categories.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(dashboard.router, prefix=settings.API_TENANT_PREFIX)

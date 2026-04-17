@@ -157,6 +157,8 @@ export interface AIQuoteCartItem {
 // Cliente
 export interface Client extends BaseEntity {
   name: string
+  client_type_id?: string
+  current_account_mode?: 'disabled' | 'limited' | 'unlimited'
   document_type: string
   document_number: string
   tax_condition: string

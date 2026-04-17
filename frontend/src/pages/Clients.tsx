@@ -2,13 +2,14 @@
  * Página de Clientes.
  * Lista y gestión de clientes con base de datos.
  */
-import { useState } from 'react'
-import { Plus, Edit, Trash2, Users, Search, Phone, Mail, MapPin, CreditCard, FileText } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Plus, Edit, Trash2, Users, Search, Phone, Mail, MapPin, FileText, Settings2, UserRoundCheck } from 'lucide-react'
 import { Button, Table, Pagination, Modal, Input, Select, ConfirmModal } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { TAX_CONDITIONS, DOCUMENT_TYPES } from '../types'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import clientsService, { ClientCreate, ClientUpdate, Client } from '../api/clientsService'
+import clientTypesService, { ClientType } from '../api/clientTypesService'
 import toast from 'react-hot-toast'
 
 export default function Clients() {
@@ -21,6 +22,11 @@ export default function Clients() {
   const [activeTab, setActiveTab] = useState<'general' | 'address' | 'notes'>('general')
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
   const [isLookingUpCuit, setIsLookingUpCuit] = useState(false)
+  const [showTypesModal, setShowTypesModal] = useState(false)
+  const [typeName, setTypeName] = useState('')
+  const [typeEligible, setTypeEligible] = useState(false)
+  const [editingType, setEditingType] = useState<ClientType | null>(null)
+  const [typeToDelete, setTypeToDelete] = useState<ClientType | null>(null)
 
   // Query para clientes
   const { data: clientsData, isLoading, error } = useQuery({
@@ -28,6 +34,23 @@ export default function Clients() {
     queryFn: () => clientsService.getAll({ page, per_page: 20, search }),
     retry: false,
   })
+
+  const { data: clientTypesData } = useQuery({
+    queryKey: ['client-types'],
+    queryFn: () => clientTypesService.getAll(),
+    retry: false,
+  })
+
+  const clientTypes = clientTypesData || []
+  const clientTypeOptions = clientTypes.map((item) => ({
+    value: item.id,
+    label: `${item.name}${item.is_subclient_eligible ? ' · Retira por terceros' : ''}`,
+  }))
+
+  const clientTypeById = useMemo(
+    () => new Map(clientTypes.map((item) => [item.id, item])),
+    [clientTypes]
+  )
 
   // Mutation para crear cliente
   const createMutation = useMutation({
@@ -77,12 +100,62 @@ export default function Clients() {
     },
   })
 
+  const createTypeMutation = useMutation({
+    mutationFn: () =>
+      clientTypesService.create({
+        name: typeName.trim(),
+        is_subclient_eligible: typeEligible,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client-types'] })
+      toast.success('Tipo de cliente creado')
+      setTypeName('')
+      setTypeEligible(false)
+    },
+    onError: (error: any) => {
+      toast.error(formatErrorMessage(error))
+    },
+  })
+
+  const updateTypeMutation = useMutation({
+    mutationFn: (payload: { id: string; name: string; is_subclient_eligible: boolean }) =>
+      clientTypesService.update(payload.id, {
+        name: payload.name,
+        is_subclient_eligible: payload.is_subclient_eligible,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client-types'] })
+      toast.success('Tipo de cliente actualizado')
+      setEditingType(null)
+      setTypeName('')
+      setTypeEligible(false)
+    },
+    onError: (error: any) => {
+      toast.error(formatErrorMessage(error))
+    },
+  })
+
+  const deleteTypeMutation = useMutation({
+    mutationFn: (id: string) => clientTypesService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client-types'] })
+      toast.success('Tipo de cliente eliminado')
+      setTypeToDelete(null)
+    },
+    onError: (error: any) => {
+      toast.error(formatErrorMessage(error))
+    },
+  })
+
   // Formulario
   const [formData, setFormData] = useState<Partial<Client>>({
     name: '',
+    client_type_id: '',
     document_type: 'DNI',
     document_number: '',
     tax_condition: 'Consumidor Final',
+    current_account_mode: 'disabled',
+    credit_limit: undefined,
     phone: '',
     email: '',
     street: '',
@@ -99,9 +172,12 @@ export default function Clients() {
     setActiveTab('general')
     setFormData({
       name: '',
+      client_type_id: '',
       document_type: 'DNI',
       document_number: '',
       tax_condition: 'Consumidor Final',
+      current_account_mode: 'disabled',
+      credit_limit: undefined,
       phone: '',
       email: '',
       street: '',
@@ -120,6 +196,9 @@ export default function Clients() {
       setFormData(client)
     } else {
       resetForm()
+      if (clientTypes.length > 0) {
+        setFormData((prev) => ({ ...prev, client_type_id: clientTypes[0].id }))
+      }
     }
     setShowModal(true)
   }
@@ -138,11 +217,27 @@ export default function Clients() {
       return
     }
 
+    if (!formData.client_type_id) {
+      toast.error('Debés seleccionar un tipo de cliente')
+      return
+    }
+
+    if (formData.current_account_mode === 'limited' && formData.credit_limit == null) {
+      toast.error('Para Cuenta Corriente con límite debés informar el límite de crédito')
+      return
+    }
+
     const dataToSend: ClientCreate = {
       name: formData.name!.trim(),
+      client_type_id: formData.client_type_id,
       document_type: formData.document_type!,
       document_number: formData.document_number!.trim(),
       tax_condition: formData.tax_condition!,
+      current_account_mode: formData.current_account_mode || 'disabled',
+      credit_limit:
+        formData.current_account_mode === 'limited' && formData.credit_limit != null
+          ? Number(formData.credit_limit)
+          : undefined,
       phone: formData.phone?.trim() || undefined,
       email: formData.email?.trim() || undefined,
       street: formData.street?.trim() || undefined,
@@ -206,6 +301,37 @@ const data = await clientsService.lookupCuit(cuit)
     }
   }
 
+  const handleSubmitClientType = () => {
+    const normalized = typeName.trim()
+    if (!normalized) {
+      toast.error('El nombre del tipo es obligatorio')
+      return
+    }
+
+    if (editingType) {
+      updateTypeMutation.mutate({
+        id: editingType.id,
+        name: normalized,
+        is_subclient_eligible: typeEligible,
+      })
+      return
+    }
+
+    createTypeMutation.mutate()
+  }
+
+  const handleStartEditType = (item: ClientType) => {
+    setEditingType(item)
+    setTypeName(item.name)
+    setTypeEligible(item.is_subclient_eligible)
+  }
+
+  const resetClientTypeForm = () => {
+    setEditingType(null)
+    setTypeName('')
+    setTypeEligible(false)
+  }
+
   const columns = [
     {
       key: 'name',
@@ -227,6 +353,27 @@ const data = await clientsService.lookupCuit(cuit)
           {item.tax_condition}
         </span>
       ),
+    },
+    {
+      key: 'client_type',
+      header: 'Tipo Cliente',
+      render: (item: Client) => {
+        const type = clientTypeById.get(item.client_type_id)
+        if (!type) {
+          return (
+            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600">
+              Sin clasificar
+            </span>
+          )
+        }
+
+        return (
+          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-300 border border-violet-100 dark:border-violet-800">
+            <span>{type.name}</span>
+            {type.is_subclient_eligible && <UserRoundCheck size={12} />}
+          </div>
+        )
+      },
     },
     {
       key: 'contact',
@@ -338,13 +485,26 @@ const data = await clientsService.lookupCuit(cuit)
             Gestión de clientes y control de cuentas corrientes
           </p>
         </div>
-        <Button
-          onClick={() => handleOpenModal()}
-          className="bg-primary-600 hover:bg-primary-700 text-white border-none shadow-md"
-        >
-          <Plus size={18} className="mr-2" />
-          Nuevo Cliente
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              resetClientTypeForm()
+              setShowTypesModal(true)
+            }}
+            className="border-primary-300 text-primary-700 hover:bg-primary-100 dark:border-primary-700 dark:text-primary-300"
+          >
+            <Settings2 size={18} className="mr-2" />
+            Tipos de Cliente
+          </Button>
+          <Button
+            onClick={() => handleOpenModal()}
+            className="bg-primary-600 hover:bg-primary-700 text-white border-none shadow-md"
+          >
+            <Plus size={18} className="mr-2" />
+            Nuevo Cliente
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -446,6 +606,21 @@ const data = await clientsService.lookupCuit(cuit)
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Tipo de Cliente *
+                  </label>
+                  <Select
+                    value={formData.client_type_id || ''}
+                    onChange={(e) => setFormData({ ...formData, client_type_id: e.target.value })}
+                    options={
+                      clientTypeOptions.length > 0
+                        ? clientTypeOptions
+                        : [{ value: '', label: 'Sin tipos disponibles' }]
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Tipo de Documento *
                   </label>
                   <Select
@@ -490,6 +665,52 @@ const data = await clientsService.lookupCuit(cuit)
                     value={formData.tax_condition}
                     onChange={(e) => setFormData({ ...formData, tax_condition: e.target.value })}
                     options={TAX_CONDITIONS.map((t) => ({ value: t.value, label: t.label }))}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Modo Cuenta Corriente
+                  </label>
+                  <Select
+                    value={formData.current_account_mode || 'disabled'}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        current_account_mode: e.target.value as 'disabled' | 'limited' | 'unlimited',
+                        credit_limit:
+                          e.target.value === 'limited' ? formData.credit_limit : undefined,
+                      })
+                    }
+                    options={[
+                      { value: 'disabled', label: 'Deshabilitada' },
+                      { value: 'limited', label: 'Con límite' },
+                      { value: 'unlimited', label: 'Sin límite' },
+                    ]}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Límite de crédito
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.credit_limit ?? ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        credit_limit: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                    placeholder={
+                      formData.current_account_mode === 'limited'
+                        ? 'Obligatorio para modo con límite'
+                        : 'Opcional'
+                    }
+                    disabled={formData.current_account_mode !== 'limited'}
                   />
                 </div>
 
@@ -644,6 +865,117 @@ const data = await clientsService.lookupCuit(cuit)
         </form>
       </Modal>
 
+      <Modal
+        isOpen={showTypesModal}
+        onClose={() => {
+          setShowTypesModal(false)
+          resetClientTypeForm()
+        }}
+        title="Tipos de Cliente"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl border border-primary-200 dark:border-primary-800 bg-primary-50/70 dark:bg-primary-900/20 p-4">
+            <p className="text-sm text-primary-900 dark:text-primary-200">
+              Definí cómo clasificar clientes (Arquitecto, Instalador, Particular, etc.) y marcá si
+              pueden retirar mercadería por terceros.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Nombre del tipo
+              </label>
+              <Input
+                value={typeName}
+                onChange={(e) => setTypeName(e.target.value)}
+                placeholder="Ej: Instalador"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                onClick={handleSubmitClientType}
+                isLoading={createTypeMutation.isPending || updateTypeMutation.isPending}
+              >
+                {editingType ? 'Actualizar' : 'Agregar'}
+              </Button>
+              {editingType && (
+                <Button type="button" variant="outline" onClick={resetClientTypeForm}>
+                  Cancelar edición
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={typeEligible}
+              onChange={(e) => setTypeEligible(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            Habilitar este tipo para retiro por terceros (subcliente)
+          </label>
+
+          <div className="max-h-72 overflow-auto rounded-xl border border-gray-200 dark:border-gray-700">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-800/60">
+                <tr>
+                  <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Nombre</th>
+                  <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Subcliente</th>
+                  <th className="text-right px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clientTypes.map((item) => (
+                  <tr key={item.id} className="border-t border-gray-100 dark:border-gray-700">
+                    <td className="px-3 py-2 text-gray-900 dark:text-white">{item.name}</td>
+                    <td className="px-3 py-2">
+                      {item.is_subclient_eligible ? (
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                          Sí
+                        </span>
+                      ) : (
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                          No
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
+                          onClick={() => handleStartEditType(item)}
+                          title="Editar"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                          onClick={() => setTypeToDelete(item)}
+                          title="Eliminar"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {clientTypes.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">
+                      No hay tipos de cliente cargados.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Modal>
+
       {/* Modal de confirmación de eliminación */}
       <ConfirmModal
         isOpen={!!clientToDelete}
@@ -653,6 +985,16 @@ const data = await clientsService.lookupCuit(cuit)
         description={`¿Estás seguro que deseas eliminar a "${clientToDelete?.name}"? Esta acción no se puede deshacer.`}
         confirmText="Eliminar"
         isLoading={deleteMutation.isPending}
+      />
+
+      <ConfirmModal
+        isOpen={!!typeToDelete}
+        onClose={() => setTypeToDelete(null)}
+        onConfirm={() => typeToDelete && deleteTypeMutation.mutate(typeToDelete.id)}
+        title="¿Eliminar tipo de cliente?"
+        description={`¿Eliminar "${typeToDelete?.name}"? Si tiene clientes asociados, el sistema lo bloqueará.`}
+        confirmText="Eliminar"
+        isLoading={deleteTypeMutation.isPending}
       />
     </div>
   )

@@ -4,6 +4,7 @@ Maneja la creación de ventas, cálculo de totales y generación de PDF.
 """
 
 from decimal import Decimal
+from datetime import date as date_type
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
@@ -13,19 +14,168 @@ from sqlalchemy.orm import selectinload
 
 from app.models.business import Business
 from app.models.client import Client
+from app.models.client_authorization import ClientAuthorization
 from app.models.payment_method import PaymentMethodCatalog
 from app.models.product import Product
 from app.models.user import User
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
 from app.models.voucher_payment import VoucherPayment
-from app.schemas.voucher import VoucherCreate, VoucherUpdate
+from app.schemas.voucher import (
+    CurrentAccountClosePreviewResponse,
+    CurrentAccountCloseItemPreview,
+    CurrentAccountCloseHistoryResponse,
+    CurrentAccountClosureHistoryItem,
+    CurrentAccountClosureReceiptSummary,
+    VoucherCreate,
+    VoucherUpdate,
+)
 from app.services.pdf_service import pdf_service
 
 
 class VoucherService:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def _get_client_or_raise(self, client_id: UUID, business_id: UUID) -> Client:
+        """Obtiene cliente válido del tenant o lanza error."""
+        query = select(Client).where(
+            Client.id == client_id,
+            Client.business_id == business_id,
+            Client.deleted_at.is_(None),
+        )
+        result = await self.db.execute(query)
+        client = result.scalar_one_or_none()
+        if not client:
+            raise ValueError("Cliente no encontrado")
+        return client
+
+    async def _get_open_current_account_total(
+        self,
+        business_id: UUID,
+        billing_client_id: UUID,
+        operating_client_id: Optional[UUID] = None,
+    ) -> Decimal:
+        """Suma deuda abierta de remitos en cuenta corriente no facturados."""
+        conditions = [
+            Voucher.business_id == business_id,
+            Voucher.voucher_type == VoucherType.RECEIPT,
+            Voucher.is_current_account.is_(True),
+            Voucher.billing_client_id == billing_client_id,
+            Voucher.deleted_at.is_(None),
+            Voucher.invoiced_voucher_id.is_(None),
+        ]
+        if operating_client_id:
+            conditions.append(Voucher.operating_client_id == operating_client_id)
+
+        query = select(func.coalesce(func.sum(Voucher.total), 0)).where(*conditions)
+        result = await self.db.execute(query)
+        total = result.scalar() or Decimal("0")
+        return Decimal(str(total))
+
+    async def _validate_current_account_for_receipt(
+        self,
+        business_id: UUID,
+        data: VoucherCreate,
+        total_final: Decimal,
+    ) -> dict[str, Optional[UUID]]:
+        """Valida reglas CC para remitos y retorna IDs normalizados."""
+        if data.voucher_type != VoucherType.RECEIPT and data.is_current_account:
+            raise ValueError("Cuenta corriente solo aplica a remitos")
+
+        if not data.is_current_account:
+            return {
+                "billing_client_id": None,
+                "operating_client_id": None,
+            }
+
+        if not data.billing_client_id:
+            raise ValueError(
+                "Debe indicar el cliente titular para remitos en cuenta corriente"
+            )
+
+        billing_client = await self._get_client_or_raise(
+            data.billing_client_id, business_id
+        )
+        operating_client_id = data.operating_client_id or data.billing_client_id
+        operating_client = await self._get_client_or_raise(
+            operating_client_id, business_id
+        )
+
+        if billing_client.current_account_mode == "disabled":
+            raise ValueError("El cliente titular no tiene cuenta corriente habilitada")
+
+        projected_billing_debt = (
+            await self._get_open_current_account_total(
+                business_id=business_id,
+                billing_client_id=billing_client.id,
+            )
+        ) + total_final
+
+        if (
+            billing_client.current_account_mode == "limited"
+            and billing_client.credit_limit is not None
+            and projected_billing_debt > Decimal(str(billing_client.credit_limit))
+        ):
+            raise ValueError(
+                "El remito excede el límite de crédito del cliente titular"
+            )
+
+        authorization: Optional[ClientAuthorization] = None
+        if operating_client.id != billing_client.id:
+            auth_query = select(ClientAuthorization).where(
+                ClientAuthorization.business_id == business_id,
+                ClientAuthorization.billing_client_id == billing_client.id,
+                ClientAuthorization.operating_client_id == operating_client.id,
+                ClientAuthorization.is_active.is_(True),
+                ClientAuthorization.deleted_at.is_(None),
+            )
+            auth_result = await self.db.execute(auth_query)
+            authorization = auth_result.scalar_one_or_none()
+            if not authorization:
+                raise ValueError(
+                    "No existe autorización activa para que este subcliente retire por el titular"
+                )
+
+        projected_operating_debt = (
+            await self._get_open_current_account_total(
+                business_id=business_id,
+                billing_client_id=billing_client.id,
+                operating_client_id=operating_client.id,
+            )
+        ) + total_final
+
+        if (
+            operating_client.current_account_mode == "limited"
+            and operating_client.credit_limit is not None
+            and projected_operating_debt > Decimal(str(operating_client.credit_limit))
+        ):
+            raise ValueError("El remito excede el límite del subcliente autorizado")
+
+        if (
+            authorization
+            and authorization.operating_credit_limit is not None
+            and projected_operating_debt
+            > Decimal(str(authorization.operating_credit_limit))
+        ):
+            raise ValueError(
+                "El remito excede el sublímite configurado para este subcliente"
+            )
+
+        return {
+            "billing_client_id": billing_client.id,
+            "operating_client_id": operating_client.id,
+        }
+
+    async def _is_receipt_linked_to_closure(self, voucher: Voucher) -> bool:
+        """Indica si un remito ya fue incluido en un cierre de cuenta corriente."""
+        if voucher.voucher_type != VoucherType.RECEIPT:
+            return False
+        if not voucher.invoiced_voucher_id:
+            return False
+
+        closure_voucher = await self.db.get(Voucher, voucher.invoiced_voucher_id)
+        return bool(closure_voucher and closure_voucher.is_current_account_closure)
 
     async def _create_voucher_payments(
         self,
@@ -145,10 +295,8 @@ class VoucherService:
     ) -> Voucher:
         """Crea un nuevo comprobante."""
 
-        # 1. Obtener cliente
-        client = await self.db.get(Client, data.client_id)
-        if not client or client.business_id != business_id:
-            raise ValueError("Cliente no encontrado")
+        # 1. Obtener cliente principal de comprobante
+        await self._get_client_or_raise(data.client_id, business_id)
 
         # 2. Obtener business para numeración correlativa
         business = await self.db.get(Business, business_id)
@@ -216,6 +364,17 @@ class VoucherService:
         voucher.iva_amount = total_iva
         voucher.total = total_final
 
+        cc_context = await self._validate_current_account_for_receipt(
+            business_id=business_id,
+            data=data,
+            total_final=total_final,
+        )
+        voucher.is_current_account = bool(data.is_current_account)
+        voucher.billing_client_id = cc_context["billing_client_id"]
+        voucher.operating_client_id = cc_context["operating_client_id"]
+        if cc_context["billing_client_id"]:
+            voucher.client_id = cc_context["billing_client_id"]
+
         # Guardar todo
         self.db.add(voucher)
         await self.db.flush()  # Para obtener ID del voucher
@@ -269,6 +428,11 @@ class VoucherService:
         if voucher.invoiced_voucher_id is not None:
             raise ValueError("No se puede editar una cotización ya facturada")
 
+        if voucher.is_current_account_closure:
+            raise ValueError(
+                "No se puede editar un comprobante de cierre de cuenta corriente"
+            )
+
         client = await self.db.get(Client, data.client_id)
         if not client or client.business_id != business_id:
             raise ValueError("Cliente no encontrado")
@@ -316,6 +480,8 @@ class VoucherService:
             .options(
                 selectinload(Voucher.items),
                 selectinload(Voucher.client),
+                selectinload(Voucher.billing_client),
+                selectinload(Voucher.operating_client),
                 selectinload(Voucher.business),
                 selectinload(Voucher.credit_notes),  # Requerido por has_credit_note
             )
@@ -374,6 +540,8 @@ class VoucherService:
             select(Voucher)
             .options(
                 selectinload(Voucher.client),
+                selectinload(Voucher.billing_client),
+                selectinload(Voucher.operating_client),
                 selectinload(Voucher.items),
                 selectinload(Voucher.credit_notes),  # Requerido por has_credit_note
             )
@@ -400,9 +568,22 @@ class VoucherService:
         if not voucher:
             return False
 
+        if not reason or not reason.strip():
+            raise ValueError("Debe indicar un motivo de eliminación")
+
+        if voucher.is_current_account_closure:
+            raise ValueError(
+                "No se puede eliminar un comprobante de cierre de cuenta corriente"
+            )
+
+        if await self._is_receipt_linked_to_closure(voucher):
+            raise ValueError(
+                "No se puede eliminar un remito incluido en un cierre de cuenta corriente"
+            )
+
         voucher.soft_delete()
         voucher.deleted_by = deleted_by_user_id
-        voucher.deletion_reason = reason or "Eliminado por el usuario"
+        voucher.deletion_reason = reason.strip()
 
         await self.db.commit()
         return True
@@ -441,6 +622,8 @@ class VoucherService:
 
         if is_arca_document:
             return self._generate_arca_pdf(voucher, letter)
+        elif voucher.is_current_account_closure:
+            return self._generate_closure_pdf(voucher, letter)
         else:
             return self._generate_voucher_pdf(voucher, letter)
 
@@ -592,6 +775,92 @@ class VoucherService:
 
         return pdf_service.generate_invoice_arca_pdf(context)
 
+    def _generate_closure_pdf(self, voucher, letter: str) -> bytes:
+        """Genera PDF compacto de cierre de cuenta corriente (densidad tipo Orden de Pedido)."""
+        # Obtener los receipts originales vinculados a este cierre
+        # Un receipt tiene invoiced_voucher_id = voucher.id
+
+        # Agrupar items por receipt
+        receipts_data: List[Dict[str, Any]] = []
+        # Items vienen con formato: "[001-00000001] Descripción"
+        # Parseamos para mostrar agrupados por receipt
+
+        # Por cada item, extraer el número de receipt del prefijo
+        items_by_receipt: Dict[str, List[Any]] = {}
+
+        for item in voucher.items:
+            # Formato: "[001-00000001] Descripción"
+            desc = item.description
+            receipt_num = desc[:12] if desc.startswith("[") else ""
+            key = receipt_num if receipt_num else "OTROS"
+
+            if key not in items_by_receipt:
+                items_by_receipt[key] = []
+
+            items_by_receipt[key].append(
+                {
+                    "description": desc[13:] if desc.startswith("[") else desc,
+                    "quantity": item.quantity,
+                    "unit": item.unit,
+                    "unit_price": item.unit_price,
+                    "discount_percent": item.discount_percent,
+                    "iva_rate": item.iva_rate,
+                    "subtotal": item.subtotal,
+                    "total": item.total,
+                }
+            )
+
+        # Ahora build items grouped por receipt
+        flat_items = []
+        for receipt_num, receipt_items in items_by_receipt.items():
+            for item in receipt_items:
+                flat_items.append(
+                    {
+                        "receipt_number": receipt_num.strip("[]")
+                        if receipt_num
+                        else "",
+                        **item,
+                    }
+                )
+
+        context = {
+            "business": {
+                "name": voucher.business.name,
+                "address": voucher.business.address or "",
+                "city": voucher.business.city or "",
+                "province": voucher.business.province or "",
+                "phone": voucher.business.phone or "",
+                "email": voucher.business.email or "",
+                "cuit": voucher.business.cuit,
+                "tax_condition": voucher.business.tax_condition,
+                "logo_url": voucher.business.logo_url,
+            },
+            "client": {
+                "name": voucher.billing_client.name
+                if voucher.billing_client
+                else (voucher.client.name if voucher.client else ""),
+                "document_number": voucher.billing_client.document_number
+                if voucher.billing_client
+                else (voucher.client.document_number if voucher.client else ""),
+            },
+            "voucher": {
+                "letter": "X",
+                "type_name": "CIERRE CUENTA CORRIENTE",
+                "number": f"{voucher.sale_point}-{voucher.number}",
+                "date": voucher.date.strftime("%d/%m/%Y"),
+                "notes": voucher.notes or "",
+            },
+            "items": flat_items,
+            "totals": {
+                "subtotal": f"{voucher.subtotal:,.2f}",
+                "iva": f"{voucher.iva_amount:,.2f}",
+                "total": f"{voucher.total:,.2f}",
+            },
+            "generated_at": date_type.today().strftime("%d/%m/%Y"),
+        }
+
+        return pdf_service.generate_closure_pdf(context)
+
     def _generate_voucher_pdf(self, voucher, letter: str) -> bytes:
         """Genera PDF de comprobante genérico (cotización, remito)."""
         # Nombre del tipo
@@ -600,6 +869,15 @@ class VoucherService:
             type_name = "FACTURA"
         elif "receipt" in voucher.voucher_type.value:
             type_name = "REMITO"
+
+        is_subclient_withdrawal = bool(
+            voucher.billing_client_id
+            and voucher.operating_client_id
+            and voucher.billing_client_id != voucher.operating_client_id
+        )
+        withdrawal_client_display_name = (
+            voucher.withdrawal_client_name if is_subclient_withdrawal else "TITULAR"
+        )
 
         context = {
             "business": {
@@ -631,6 +909,11 @@ class VoucherService:
                 "number": f"{voucher.sale_point}-{voucher.number}",
                 "date": voucher.date.strftime("%d/%m/%Y"),
                 "show_prices": voucher.show_prices == "S",
+                "is_current_account": bool(voucher.is_current_account),
+                "is_withdrawal_authorized": bool(voucher.is_withdrawal_authorized),
+                "withdrawal_client_name": voucher.withdrawal_client_name,
+                "withdrawal_client_display_name": withdrawal_client_display_name,
+                "is_subclient_withdrawal": is_subclient_withdrawal,
                 "cae": voucher.cae,
                 "cae_due_date": voucher.cae_expiration.strftime("%d/%m/%Y")
                 if voucher.cae_expiration
@@ -737,6 +1020,8 @@ class VoucherService:
             select(Voucher)
             .options(
                 selectinload(Voucher.client),
+                selectinload(Voucher.billing_client),
+                selectinload(Voucher.operating_client),
                 selectinload(Voucher.items),
                 selectinload(
                     Voucher.credit_notes
@@ -752,6 +1037,356 @@ class VoucherService:
         vouchers = list(result.scalars().all())
 
         return vouchers, total
+
+    async def list_current_account_receipts(
+        self,
+        business_id: UUID,
+        page: int = 1,
+        per_page: int = 100,
+        billing_client_id: Optional[UUID] = None,
+        pending_only: Optional[bool] = None,
+        search: Optional[str] = None,
+    ) -> Tuple[List[Voucher], int]:
+        """Lista remitos de cuenta corriente para control/cierre."""
+        base_conditions = [
+            Voucher.business_id == business_id,
+            Voucher.voucher_type == VoucherType.RECEIPT,
+            Voucher.is_current_account.is_(True),
+            Voucher.deleted_at.is_(None),
+        ]
+
+        if billing_client_id:
+            base_conditions.append(Voucher.billing_client_id == billing_client_id)
+
+        if pending_only is True:
+            base_conditions.append(Voucher.invoiced_voucher_id.is_(None))
+        elif pending_only is False:
+            base_conditions.append(Voucher.invoiced_voucher_id.is_not(None))
+
+        if search:
+            search_pattern = f"%{search}%"
+            base_conditions.append(
+                or_(
+                    Voucher.number.ilike(search_pattern),
+                    Voucher.notes.ilike(search_pattern),
+                    Voucher.sale_point.ilike(search_pattern),
+                )
+            )
+
+        count_query = select(func.count(Voucher.id)).where(*base_conditions)
+        total_result = await self.db.execute(count_query)
+        total = total_result.scalar() or 0
+
+        offset = (page - 1) * per_page
+        query = (
+            select(Voucher)
+            .options(
+                selectinload(Voucher.client),
+                selectinload(Voucher.billing_client),
+                selectinload(Voucher.operating_client),
+                selectinload(Voucher.items),
+                selectinload(Voucher.credit_notes),
+            )
+            .where(*base_conditions)
+            .order_by(desc(Voucher.date), desc(Voucher.created_at))
+            .offset(offset)
+            .limit(per_page)
+        )
+
+        result = await self.db.execute(query)
+        vouchers = list(result.scalars().all())
+        return vouchers, total
+
+    async def preview_current_account_close(
+        self,
+        business_id: UUID,
+        billing_client_id: UUID,
+        receipt_ids: Optional[List[UUID]],
+        close_all: bool,
+        notes: Optional[str],
+    ) -> CurrentAccountClosePreviewResponse:
+        """
+        Previsualiza un cierre de cuenta corriente SIN persistir nada.
+        Calcula totales y items que tendría el comprobante de cierre.
+        """
+        billing_client = await self._get_client_or_raise(billing_client_id, business_id)
+
+        base_conditions = [
+            Voucher.business_id == business_id,
+            Voucher.voucher_type == VoucherType.RECEIPT,
+            Voucher.is_current_account.is_(True),
+            Voucher.billing_client_id == billing_client_id,
+            Voucher.invoiced_voucher_id.is_(None),
+            Voucher.deleted_at.is_(None),
+        ]
+
+        if not close_all:
+            if not receipt_ids:
+                raise ValueError("Debe indicar remitos a cerrar o usar close_all=true")
+            base_conditions.append(Voucher.id.in_(receipt_ids))
+
+        query = (
+            select(Voucher)
+            .options(
+                selectinload(Voucher.operating_client),
+                selectinload(Voucher.items),
+            )
+            .where(*base_conditions)
+            .order_by(Voucher.date.asc(), Voucher.created_at.asc())
+        )
+        result = await self.db.execute(query)
+        source_receipts = list(result.scalars().all())
+
+        if not source_receipts:
+            raise ValueError("No hay remitos de cuenta corriente para cerrar")
+
+        if receipt_ids:
+            found_ids = {voucher.id for voucher in source_receipts}
+            missing = [rid for rid in receipt_ids if rid not in found_ids]
+            if missing:
+                raise ValueError("Uno o más remitos seleccionados no están disponibles")
+
+        # Construir items del preview
+        items: List[CurrentAccountCloseItemPreview] = []
+        total_subtotal = Decimal("0")
+        total_iva = Decimal("0")
+        total_final = Decimal("0")
+
+        for receipt in source_receipts:
+            # Obtener descuento general del remito
+            general_discount = receipt.general_discount or Decimal("0")
+
+            for item in receipt.items:
+                # Agregar prefijo con número de remito origen
+                desc_with_prefix = f"[{receipt.full_number}] {item.description}"
+
+                preview_item = CurrentAccountCloseItemPreview(
+                    receipt_id=receipt.id,
+                    receipt_number=receipt.full_number,
+                    receipt_date=receipt.date,
+                    operating_client_name=receipt.withdrawal_client_name,
+                    is_withdrawal_authorized=receipt.is_withdrawal_authorized,
+                    general_discount=general_discount,
+                    code=item.code,
+                    description=desc_with_prefix,
+                    quantity=item.quantity,
+                    unit_price=item.unit_price,
+                    discount_percent=item.discount_percent,
+                    iva_rate=item.iva_rate,
+                    subtotal=item.subtotal,
+                    total=item.total,
+                )
+                items.append(preview_item)
+                total_subtotal += Decimal(str(item.subtotal))
+                total_iva += Decimal(str(item.iva_amount))
+                total_final += Decimal(str(item.total))
+
+        return CurrentAccountClosePreviewResponse(
+            billing_client_name=billing_client.name,
+            items=items,
+            total_receipts=len(source_receipts),
+            total_items=len(items),
+            subtotal=total_subtotal,
+            iva_amount=total_iva,
+            total=total_final,
+        )
+
+    async def close_current_account(
+        self,
+        business_id: UUID,
+        billing_client_id: UUID,
+        receipt_ids: Optional[List[UUID]],
+        close_all: bool,
+        notes: Optional[str],
+        user_id: UUID,
+    ) -> Voucher:
+        """Cierra una cuenta corriente creando cotización consolidada pendiente de facturar."""
+        billing_client = await self._get_client_or_raise(billing_client_id, business_id)
+
+        base_conditions = [
+            Voucher.business_id == business_id,
+            Voucher.voucher_type == VoucherType.RECEIPT,
+            Voucher.is_current_account.is_(True),
+            Voucher.billing_client_id == billing_client_id,
+            Voucher.invoiced_voucher_id.is_(None),
+            Voucher.deleted_at.is_(None),
+        ]
+
+        if not close_all:
+            if not receipt_ids:
+                raise ValueError("Debe indicar remitos a cerrar o usar close_all=true")
+            base_conditions.append(Voucher.id.in_(receipt_ids))
+
+        query = (
+            select(Voucher)
+            .options(selectinload(Voucher.items))
+            .where(*base_conditions)
+            .order_by(Voucher.date.asc(), Voucher.created_at.asc())
+        )
+        result = await self.db.execute(query)
+        source_receipts = list(result.scalars().all())
+
+        if not source_receipts:
+            raise ValueError("No hay remitos de cuenta corriente para cerrar")
+
+        if receipt_ids:
+            found_ids = {voucher.id for voucher in source_receipts}
+            missing = [rid for rid in receipt_ids if rid not in found_ids]
+            if missing:
+                raise ValueError("Uno o más remitos seleccionados no están disponibles")
+
+        business = await self.db.get(Business, business_id)
+        if not business:
+            raise ValueError("Negocio no encontrado")
+
+        last_number = int(business.last_quotation_number or "0")
+        next_number = last_number + 1
+        business.last_quotation_number = str(next_number).zfill(8)
+
+        closure_notes = notes or (
+            f"Cierre Cuenta Corriente - {billing_client.name} - {len(source_receipts)} remito(s)"
+        )
+
+        closure_voucher = Voucher(
+            business_id=business_id,
+            client_id=billing_client_id,
+            billing_client_id=billing_client_id,
+            operating_client_id=None,
+            is_current_account=True,
+            is_current_account_closure=True,
+            created_by=user_id,
+            voucher_type=VoucherType.QUOTATION,
+            status=VoucherStatus.CONFIRMED,
+            sale_point=business.sale_point or "0001",
+            number=str(next_number).zfill(8),
+            date=date_type.today(),
+            notes=closure_notes,
+            show_prices="S",
+            general_discount=Decimal("0"),
+        )
+        self.db.add(closure_voucher)
+        await self.db.flush()
+
+        line_number = 1
+        total_subtotal = Decimal("0")
+        total_iva = Decimal("0")
+        total_final = Decimal("0")
+
+        for receipt in source_receipts:
+            for item in receipt.items:
+                closure_item = VoucherItem(
+                    voucher_id=closure_voucher.id,
+                    product_id=item.product_id,
+                    code=item.code,
+                    description=f"[{receipt.full_number}] {item.description}",
+                    quantity=item.quantity,
+                    unit=item.unit,
+                    unit_price=item.unit_price,
+                    discount_percent=item.discount_percent,
+                    iva_rate=item.iva_rate,
+                    iva_amount=item.iva_amount,
+                    subtotal=item.subtotal,
+                    total=item.total,
+                    line_number=line_number,
+                )
+                self.db.add(closure_item)
+                line_number += 1
+                total_subtotal += Decimal(str(item.subtotal))
+                total_iva += Decimal(str(item.iva_amount))
+                total_final += Decimal(str(item.total))
+
+            receipt.invoiced_voucher_id = closure_voucher.id
+
+        closure_voucher.subtotal = total_subtotal
+        closure_voucher.iva_amount = total_iva
+        closure_voucher.total = total_final
+
+        await self.db.commit()
+        await self.db.refresh(closure_voucher)
+
+        return await self.get_by_id(closure_voucher.id, business_id)
+
+    async def get_current_account_closure_history(
+        self,
+        business_id: UUID,
+        billing_client_id: UUID,
+    ) -> CurrentAccountCloseHistoryResponse:
+        """
+        Obtiene el historial de cierres de cuenta corriente por cliente titular.
+        Incluye los receipts que fueron marcados en cada cierre.
+        """
+        # Buscar todos los closures de CC para este cliente
+        closures_query = (
+            select(Voucher)
+            .options(
+                selectinload(Voucher.items),
+            )
+            .where(
+                Voucher.business_id == business_id,
+                Voucher.is_current_account_closure.is_(True),
+                Voucher.billing_client_id == billing_client_id,
+                Voucher.deleted_at.is_(None),
+            )
+            .order_by(Voucher.date.desc(), Voucher.created_at.desc())
+        )
+        result = await self.db.execute(closures_query)
+        closures = list(result.scalars().all())
+
+        if not closures:
+            return CurrentAccountCloseHistoryResponse(closures=[], total=0)
+
+        # Para cada closure, buscar los receipts vinculados
+        # Un receipt tiene invoiced_voucher_id = closure.id
+        closure_items: List[CurrentAccountClosureHistoryItem] = []
+
+        for closure in closures:
+            # Buscar receipts que apuntan a este closure
+            receipts_query = (
+                select(Voucher)
+                .options(selectinload(Voucher.operating_client))
+                .where(
+                    Voucher.business_id == business_id,
+                    Voucher.voucher_type == VoucherType.RECEIPT,
+                    Voucher.is_current_account.is_(True),
+                    Voucher.invoiced_voucher_id == closure.id,
+                    Voucher.deleted_at.is_(None),
+                )
+                .order_by(Voucher.date.asc())
+            )
+            receipts_result = await self.db.execute(receipts_query)
+            receipts = list(receipts_result.scalars().all())
+
+            receipt_summaries: List[CurrentAccountClosureReceiptSummary] = []
+            for receipt in receipts:
+                receipt_summaries.append(
+                    CurrentAccountClosureReceiptSummary(
+                        receipt_id=receipt.id,
+                        receipt_number=receipt.full_number,
+                        receipt_date=receipt.date,
+                        operating_client_name=receipt.withdrawal_client_name,
+                        total=receipt.total,
+                    )
+                )
+
+            closure_items.append(
+                CurrentAccountClosureHistoryItem(
+                    closure_voucher_id=closure.id,
+                    closure_number=closure.full_number,
+                    closure_date=closure.date,
+                    notes=closure.notes,
+                    total_receipts=len(receipts),
+                    total_items=len(closure.items) if closure.items else 0,
+                    subtotal=closure.subtotal or Decimal("0"),
+                    iva_amount=closure.iva_amount or Decimal("0"),
+                    total=closure.total or Decimal("0"),
+                    receipts=receipt_summaries,
+                )
+            )
+
+        return CurrentAccountCloseHistoryResponse(
+            closures=closure_items,
+            total=len(closure_items),
+        )
 
     async def convert_quotation_to_invoice(
         self,
@@ -834,8 +1469,6 @@ class VoucherService:
             business.last_invoice_b_number = str(next_number).zfill(8)
 
         # 5. Crear la factura
-        from datetime import date as date_type
-
         # Heredar el descuento general de la cotización original
         quotation_general_discount = quotation.general_discount or Decimal(0)
 

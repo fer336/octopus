@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Cierre Cuenta Corriente</title>
+    <style type="text/css">
+        @page {
+            size: A4 landscape;
+            margin: 10mm 10mm;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: "Courier New", Courier, monospace;
+            font-size: 11px;
+            color: #000;
+            background: #fff;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            width: 100%;
+            border-bottom: 2px solid #000;
+            padding-bottom: 5px;
+            margin-bottom: 8px;
+        }
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .header-table td {
+            vertical-align: top;
+            padding: 0;
+        }
+        .business-name {
+            font-size: 15px;
+            font-weight: bold;
+            color: #000;
+            text-transform: uppercase;
+        }
+        .business-info {
+            font-size: 10px;
+            color: #000;
+            margin-top: 1px;
+        }
+        .closure-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #000;
+            text-align: right;
+            text-transform: uppercase;
+        }
+        .closure-number {
+            font-size: 11px;
+            font-weight: bold;
+            color: #000;
+            text-align: right;
+            margin-top: 2px;
+        }
+        .closure-meta {
+            font-size: 10px;
+            color: #000;
+            text-align: right;
+        }
+
+        /* ===== CLIENTE ===== */
+        .client-bar {
+            border: 1px solid #000;
+            padding: 4px 8px;
+            margin-bottom: 8px;
+        }
+        .client-bar table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .client-bar td {
+            font-size: 11px;
+            padding: 0;
+        }
+        .client-label {
+            font-weight: bold;
+            width: 80px;
+        }
+        .client-value {
+            color: #000;
+        }
+
+        /* ===== TABLA DE ÍTEMS ===== */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 8px;
+        }
+        .items-table th {
+            background: #eee;
+            border: 1px solid #000;
+            padding: 3px 4px;
+            font-size: 10px;
+            font-weight: bold;
+            text-align: center;
+            text-transform: uppercase;
+        }
+        .items-table td {
+            border: 1px solid #000;
+            padding: 2px 4px;
+            font-size: 10px;
+        }
+        .items-table .col-receipt { width: 70px; text-align: center; }
+        .items-table .col-qty { width: 50px; text-align: right; }
+        .items-table .col-unit { width: 40px; text-align: center; }
+        .items-table .col-unit-price { width: 70px; text-align: right; }
+        .items-table .col-subtotal { width: 75px; text-align: right; }
+        .items-table .col-desc { text-align: left; }
+        
+        .receipt-separator td {
+            border-bottom: 2px solid #000;
+            height: 3px;
+        }
+        
+        .discount-badge {
+            font-size: 9px;
+            background: #ff9800;
+            color: #000;
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-weight: bold;
+        }
+        
+        .receipt-header {
+            background: #f5f5f5;
+            font-weight: bold;
+        }
+
+        /* ===== TOTALES ===== */
+        .totals-inline {
+            width: 100%;
+            margin-top: 8px;
+            padding: 6px;
+            border: 1px solid #000;
+            font-size: 11px;
+            display: flex;
+            justify-content: space-around;
+            font-weight: bold;
+        }
+        .totals-inline .sep {
+            font-weight: bold;
+        }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            margin-top: 15px;
+            font-size: 9px;
+            color: #666;
+            border-top: 1px solid #ccc;
+            padding-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <table class="header-table">
+            <tr>
+                <td>
+                    <div class="business-name">{{ business.name }}</div>
+                    {% if business.address %}<div class="business-info">{{ business.address }}</div>{% endif %}
+                    {% if business.city %}<div class="business-info">{{ business.city }} {% if business.province %}, {{ business.province }}{% endif %}</div>{% endif %}
+                    {% if business.phone %}<div class="business-info">Tel: {{ business.phone }}</div>{% endif %}
+                </td>
+                <td>
+                    <div class="closure-title">CIERRE CUENTA CORRIENTE</div>
+                    <div class="closure-number">{{ voucher.number }}</div>
+                    <div class="closure-meta">Fecha: {{ voucher.date }}</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Cliente -->
+    <div class="client-bar">
+        <table>
+            <tr>
+                <td class="client-label">Cliente:</td>
+                <td class="client-value">{{ client.name }}</td>
+                <td class="client-label">CUIT:</td>
+                <td class="client-value">{{ client.document_number or '-' }}</td>
+                <td class="client-label">Emitido:</td>
+                <td class="client-value">{{ generated_at }}</td>
+                <td class="client-label">Remitos:</td>
+                <td class="client-value">{{ total_receipts }}</td>
+            </tr>
+        </table>
+        {% if voucher.notes %}
+        <table style="margin-top: 3px;">
+            <tr>
+                <td class="client-label">Observaciones:</td>
+                <td class="client-value">{{ voucher.notes }}</td>
+            </tr>
+        </table>
+        {% endif %}
+    </div>
+
+    <!-- Items -->
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th class="col-receipt">Remito</th>
+                <th class="col-desc">Descripción</th>
+                <th class="col-qty">Cant</th>
+                <th class="col-unit-price">P.Unit</th>
+                <th class="col-unit">Desc</th>
+                <th class="col-subtotal">Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% set last_receipt = {'value': ''} %}
+            {% for i in range(items|length) %}
+            {% set item = items[i] %}
+            {% set is_last_item = (i == items|length - 1) %}
+            {% set next_is_other = (i < items|length - 1 and items[i+1].receipt_number != item.receipt_number) %}
+            {% if last_receipt.value and last_receipt.value != item.receipt_number %}
+            <tr class="receipt-separator">
+                <td colspan="6"></td>
+            </tr>
+            {% endif %}
+            <tr>
+                <td class="col-receipt">{{ item.receipt_number }}</td>
+                <td class="col-desc">
+                    {{ item.description }}
+                    {% if (is_last_item or next_is_other) and item.general_discount and item.general_discount > 0 %}
+                    <br/><span class="discount-badge">Desc: {{ "%.1f"|format(item.general_discount) }}%</span>
+                    {% endif %}
+                </td>
+                <td class="col-qty">{{ "%.2f"|format(item.quantity) }}</td>
+                <td class="col-unit-price">{{ "%.2f"|format(item.unit_price) }}</td>
+                <td class="col-unit">{{ "%.1f"|format(item.discount_percent) }}%</td>
+                <td class="col-subtotal">{{ "%.2f"|format(item.subtotal) }}</td>
+            </tr>
+            {% set _ = last_receipt.update({'value': item.receipt_number}) %}
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Totales en una sola fila -->
+    <div class="totals-inline">
+        <span><strong>Subtotal:</strong> {{ totals.subtotal }}</span>
+        <span class="sep">|</span>
+        <span><strong>IVA:</strong> {{ totals.iva }}</span>
+        <span class="sep">|</span>
+        <span><strong>Total:</strong> {{ totals.total }}</span>
+        <span class="sep">|</span>
+        <span><strong>Total C/Descuento:</strong> {{ totals.total }}</span>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        Documento generado por OctopusTrack - {{ generated_at }}
+    </div>
+</body>
+</html>

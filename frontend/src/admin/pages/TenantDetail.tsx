@@ -195,6 +195,11 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
       ai_agent_enabled?: boolean
       linear_sync_enabled?: boolean
       current_account_mode?: 'disabled' | 'automatic' | 'manual'
+      invoicing_enabled?: boolean
+      receipts_enabled?: boolean
+      price_update_enabled?: boolean
+      reports_enabled?: boolean
+      sql_backup_enabled?: boolean
     }) =>
       adminAPI.updateFeatureFlags(tenantId, payload),
     onSuccess: (_, payload) => {
@@ -216,6 +221,25 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
               ? 'modo automático'
               : 'modo manual'
         toast.success(`Cuenta Corriente ${modeLabel}`)
+      }
+      if (typeof payload.invoicing_enabled === 'boolean') {
+        toast.success(payload.invoicing_enabled ? 'Facturación habilitada' : 'Facturación deshabilitada')
+      }
+      if (typeof payload.receipts_enabled === 'boolean') {
+        toast.success(payload.receipts_enabled ? 'Remitos habilitados' : 'Remitos deshabilitados')
+      }
+      if (typeof payload.price_update_enabled === 'boolean') {
+        toast.success(
+          payload.price_update_enabled
+            ? 'Actualización de precios habilitada'
+            : 'Actualización de precios deshabilitada',
+        )
+      }
+      if (typeof payload.reports_enabled === 'boolean') {
+        toast.success(payload.reports_enabled ? 'Reportes habilitados' : 'Reportes deshabilitados')
+      }
+      if (typeof payload.sql_backup_enabled === 'boolean') {
+        toast.success(payload.sql_backup_enabled ? 'Backup SQL habilitado' : 'Backup SQL deshabilitado')
       }
       queryClient.invalidateQueries({ queryKey: ['admin-feature-flags', tenantId] })
     },
@@ -245,6 +269,11 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
   const linearSyncEnabled = flagsQuery.data?.linear_sync_enabled ?? false
   const currentAccountMode = flagsQuery.data?.current_account_mode ?? 'disabled'
   const currentAccountEnabled = currentAccountMode !== 'disabled'
+  const invoicingEnabled = flagsQuery.data?.invoicing_enabled ?? true
+  const receiptsEnabled = flagsQuery.data?.receipts_enabled ?? true
+  const priceUpdateEnabled = flagsQuery.data?.price_update_enabled ?? true
+  const reportsEnabled = flagsQuery.data?.reports_enabled ?? true
+  const sqlBackupEnabled = flagsQuery.data?.sql_backup_enabled ?? false
   const linearConfigured = Boolean(linearSecretsQuery.data?.secrets?.linear_api_key?.configured)
   const linearLast4 = linearSecretsQuery.data?.secrets?.linear_api_key?.last4
 
@@ -290,6 +319,168 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
             }`}
           >
             {currentEnabled ? 'Habilitado' : 'Deshabilitado'}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Facturación</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Habilita emisión de facturas y operaciones fiscales.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={invoicingEnabled}
+              onClick={() => updateMutation.mutate({ invoicing_enabled: !invoicingEnabled })}
+              disabled={updateMutation.isPending}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                invoicingEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                  invoicingEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Remitos</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Permite generar y operar remitos desde Ventas.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={receiptsEnabled}
+              onClick={() => updateMutation.mutate({ receipts_enabled: !receiptsEnabled })}
+              disabled={updateMutation.isPending}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                receiptsEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                  receiptsEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Actualización de precios</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Activa el módulo de edición masiva de precios.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={priceUpdateEnabled}
+              onClick={() => updateMutation.mutate({ price_update_enabled: !priceUpdateEnabled })}
+              disabled={updateMutation.isPending}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                priceUpdateEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                  priceUpdateEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Reportes</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Habilita la sección de reportes y exportaciones.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={reportsEnabled}
+              onClick={() => updateMutation.mutate({ reports_enabled: !reportsEnabled })}
+              disabled={updateMutation.isPending}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                reportsEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                  reportsEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <span
+            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              sqlBackupEnabled
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+            }`}
+          >
+            {sqlBackupEnabled ? 'Habilitado' : 'Deshabilitado'}
+          </span>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Backup SQL</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Permite exportar e importar la base de datos completa del tenant en formato SQL.
+              Funcionalidad premium.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={sqlBackupEnabled}
+            onClick={() => updateMutation.mutate({ sql_backup_enabled: !sqlBackupEnabled })}
+            disabled={updateMutation.isPending}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+              sqlBackupEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                sqlBackupEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="mt-3">
+          <span
+            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              sqlBackupEnabled
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+            }`}
+          >
+            {sqlBackupEnabled ? 'Habilitado (Premium)' : 'Deshabilitado'}
           </span>
         </div>
       </div>
@@ -468,9 +659,20 @@ function UsersTab({ tenantId }: { tenantId: string }) {
   })
 
   const currentAccountEnabled = (flagsQuery.data?.current_account_mode ?? 'disabled') !== 'disabled'
-  const visiblePermissionModules = permissionModules.filter(
-    (module) => module.key !== 'current_account' || currentAccountEnabled,
-  )
+  const reportsEnabled = flagsQuery.data?.reports_enabled ?? true
+  const priceUpdateEnabled = flagsQuery.data?.price_update_enabled ?? true
+  const visiblePermissionModules = permissionModules.filter((module) => {
+    if (module.key === 'current_account') {
+      return currentAccountEnabled
+    }
+    if (module.key === 'reports') {
+      return reportsEnabled
+    }
+    if (module.key === 'price_update') {
+      return priceUpdateEnabled
+    }
+    return true
+  })
 
   const assignMutation = useMutation({
     mutationFn: () => adminAPI.assignUserToTenant(tenantId, { email: email.trim() }),

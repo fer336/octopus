@@ -4,7 +4,7 @@ Schemas para Comprobantes (Ventas).
 
 from datetime import date
 from decimal import Decimal
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from pydantic import Field
@@ -36,6 +36,9 @@ class VoucherCreate(BaseSchema):
     date: date
     notes: Optional[str] = None
     show_prices: bool = True  # Para remitos
+    is_current_account: bool = False
+    billing_client_id: Optional[UUID] = None
+    operating_client_id: Optional[UUID] = None
     general_discount: Decimal = Field(
         default=Decimal("0"),
         ge=0,
@@ -67,6 +70,87 @@ class VoucherUpdate(BaseSchema):
     items: List[VoucherItemCreate]
 
 
+class CurrentAccountCloseRequest(BaseSchema):
+    """Request para cierre de cuenta corriente por titular."""
+
+    billing_client_id: UUID
+    receipt_ids: Optional[List[UUID]] = None
+    close_all: bool = False
+    notes: Optional[str] = None
+
+
+class CurrentAccountClosePreviewRequest(BaseSchema):
+    """Request para preview de cierre de cuenta corriente (sin persistir)."""
+
+    billing_client_id: UUID
+    receipt_ids: Optional[List[UUID]] = None
+    close_all: bool = False
+    notes: Optional[str] = None
+
+
+class CurrentAccountCloseItemPreview(BaseSchema):
+    """Ítem en el preview del cierre."""
+
+    receipt_id: UUID
+    receipt_number: str
+    receipt_date: date
+    operating_client_name: Optional[str] = None
+    is_withdrawal_authorized: bool = False
+    general_discount: Optional[Decimal] = None
+    code: str
+    description: str
+    quantity: Decimal
+    unit_price: Decimal
+    discount_percent: Decimal
+    iva_rate: Decimal
+    subtotal: Decimal
+    total: Decimal
+
+
+class CurrentAccountClosePreviewResponse(BaseSchema):
+    """Response del preview de cierre."""
+
+    billing_client_name: str
+    items: List[CurrentAccountCloseItemPreview]
+    total_receipts: int
+    total_items: int
+    subtotal: Decimal
+    iva_amount: Decimal
+    total: Decimal
+
+
+class CurrentAccountClosureReceiptSummary(BaseSchema):
+    """Resumen de receipt incluido en un cierre."""
+
+    receipt_id: UUID
+    receipt_number: str
+    receipt_date: date
+    operating_client_name: Optional[str] = None
+    total: Decimal
+
+
+class CurrentAccountClosureHistoryItem(BaseSchema):
+    """Un cierre histórico."""
+
+    closure_voucher_id: UUID
+    closure_number: str
+    closure_date: date
+    notes: Optional[str] = None
+    total_receipts: int
+    total_items: int
+    subtotal: Decimal
+    iva_amount: Decimal
+    total: Decimal
+    receipts: List[CurrentAccountClosureReceiptSummary]
+
+
+class CurrentAccountCloseHistoryResponse(BaseSchema):
+    """Lista de cierres históricos."""
+
+    closures: List[CurrentAccountClosureHistoryItem]
+    total: int
+
+
 class VoucherItemResponse(BaseResponse):
     """Schema de respuesta para ítem."""
 
@@ -80,6 +164,13 @@ class VoucherItemResponse(BaseResponse):
     iva_rate: Decimal
     subtotal: Decimal
     total: Decimal
+
+
+class VoucherPartySummary(BaseSchema):
+    """Datos mínimos de cliente para contexto de remitos CC."""
+
+    id: UUID
+    name: str
 
 
 class ConvertQuotationToInvoice(BaseSchema):
@@ -103,6 +194,14 @@ class VoucherResponse(BaseResponse):
     date: date
     due_date: Optional[date]
     notes: Optional[str] = None
+    is_current_account: bool = False
+    is_current_account_closure: bool = False
+    billing_client_id: Optional[UUID] = None
+    operating_client_id: Optional[UUID] = None
+    billing_client: Optional[VoucherPartySummary] = None
+    operating_client: Optional[VoucherPartySummary] = None
+    is_withdrawal_authorized: bool = False
+    withdrawal_client_name: Optional[str] = None
     general_discount: Decimal
 
     subtotal: Decimal
@@ -120,3 +219,13 @@ class VoucherResponse(BaseResponse):
     invoiced_voucher_id: Optional[UUID] = None
 
     items: List[VoucherItemResponse]
+
+
+class VoucherAuditLogResponse(BaseResponse):
+    """Schema de respuesta para auditoría de comprobantes."""
+
+    user_id: Optional[UUID] = None
+    action: str
+    resource_type: str
+    resource_id: Optional[UUID] = None
+    details: Optional[dict[str, Any]] = None

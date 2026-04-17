@@ -7,11 +7,44 @@ import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle,
 import { Button, Table, Pagination, Select, Modal, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import vouchersService from '../api/vouchersService'
+import vouchersService, { type Voucher } from '../api/vouchersService'
+import businessService from '../api/businessService'
 import { usePaymentMethods } from '../hooks/usePaymentMethods'
 import CreditNoteModal from '../components/vouchers/CreditNoteModal'
 import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
+
+type VoucherListItem = Voucher
+
+const getCurrentAccountClosureLockInfo = (voucher: VoucherListItem): { isLocked: boolean; reason: string } => {
+  const isClosureVoucher = !!voucher.is_current_account_closure
+  const isLinkedReceiptByBackendFlag = !!voucher.is_receipt_linked_to_current_account_closure
+  const isLinkedReceiptByClosureId = !!voucher.current_account_closure_voucher_id
+  const isLinkedReceiptByLegacyHeuristic =
+    voucher.voucher_type === 'receipt' && voucher.is_current_account === true && !!voucher.invoiced_voucher_id
+
+  const isLocked =
+    isClosureVoucher ||
+    isLinkedReceiptByBackendFlag ||
+    isLinkedReceiptByClosureId ||
+    isLinkedReceiptByLegacyHeuristic
+
+  if (!isLocked) {
+    return { isLocked: false, reason: '' }
+  }
+
+  if (isClosureVoucher) {
+    return {
+      isLocked: true,
+      reason: 'Bloqueado: comprobante de cierre de Cuenta Corriente',
+    }
+  }
+
+  return {
+    isLocked: true,
+    reason: 'Bloqueado: remito incluido en un cierre de Cuenta Corriente',
+  }
+}
 
 const voucherTypeLabels: Record<string, { label: string; textClass: string; icon: any }> = {
   quotation:      { label: 'Cotización',      textClass: 'text-primary-600 dark:text-primary-400',   icon: FileText  },
@@ -36,14 +69,22 @@ const statusLabels: Record<string, { label: string; className: string }> = {
 export default function Vouchers() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { data: business } = useQuery({
+    queryKey: ['business-me-vouchers'],
+    queryFn: () => businessService.getMyBusiness(),
+    staleTime: 60_000,
+  })
+  const invoicingEnabled = business?.invoicing_enabled ?? true
+  const receiptsEnabled = business?.receipts_enabled ?? true
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [voucherToDelete, setVoucherToDelete] = useState<any>(null)
+  const [voucherToDelete, setVoucherToDelete] = useState<VoucherListItem | null>(null)
   const [deleteReason, setDeleteReason] = useState('')
+  const [deleteReasonError, setDeleteReasonError] = useState('')
   const [showCreditNoteModal, setShowCreditNoteModal] = useState(false)
   const [selectedVoucherForNC, setSelectedVoucherForNC] = useState<any>(null)
 
@@ -65,7 +106,7 @@ export default function Vouchers() {
 
   // Mutation para eliminar comprobante
   const deleteMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason?: string }) => 
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       vouchersService.delete(id, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vouchers'] })
@@ -73,11 +114,30 @@ export default function Vouchers() {
       setShowDeleteModal(false)
       setVoucherToDelete(null)
       setDeleteReason('')
+      setDeleteReasonError('')
     },
     onError: (error: any) => {
       toast.error(formatErrorMessage(error))
     },
   })
+
+  const handleConfirmDelete = () => {
+    if (!voucherToDelete) {
+      return
+    }
+
+    const trimmedReason = deleteReason.trim()
+    if (!trimmedReason) {
+      setDeleteReasonError('El motivo de eliminación es obligatorio.')
+      return
+    }
+
+    setDeleteReasonError('')
+    deleteMutation.mutate({
+      id: voucherToDelete.id,
+      reason: trimmedReason,
+    })
+  }
 
   const handleViewPdf = async (voucherId: string) => {
     try {
@@ -134,7 +194,7 @@ export default function Vouchers() {
   const handleEditQuotation = (voucher: any) => {
     const isQuotation = voucher.voucher_type === 'quotation'
     const isInvoiced = !!voucher.invoiced_voucher_id
-    if (!isQuotation || isInvoiced) {
+    if (!isQuotation || isInvoiced || voucher.is_current_account_closure) {
       toast.error('Solo podés editar cotizaciones pendientes de facturar')
       return
     }
@@ -170,10 +230,12 @@ export default function Vouchers() {
     {
       key: 'type',
       header: 'Tipo',
-      render: (item: any) => {
+       render: (item: VoucherListItem) => {
         const typeInfo = voucherTypeLabels[item.voucher_type] || { label: item.voucher_type, textClass: 'text-gray-600 dark:text-gray-400', icon: FileText }
         const Icon = typeInfo.icon
         const isInvoiced = (item.voucher_type === 'quotation' || item.voucher_type === 'receipt') && item.invoiced_voucher_id
+        const isCCClosure = !!item.is_current_account_closure
+        const closureLockInfo = getCurrentAccountClosureLockInfo(item)
         const hasCreditNote = item.voucher_type?.startsWith('invoice_') && item.has_credit_note
         const isCreditNote = item.voucher_type?.startsWith('credit_note_')
         return (
@@ -188,6 +250,23 @@ export default function Vouchers() {
                 className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-600 text-white text-[10px] font-bold leading-none shrink-0"
               >
                 F
+              </span>
+            )}
+            {isCCClosure && (
+              <span
+                title="Cierre de Cuenta Corriente"
+                className="inline-flex items-center px-1.5 h-5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700 text-[9px] font-bold leading-none shrink-0"
+              >
+                Cierre CC
+              </span>
+            )}
+            {closureLockInfo.isLocked && (
+              <span
+                title={closureLockInfo.reason}
+                className="inline-flex items-center gap-1 px-1.5 h-5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700 text-[9px] font-bold leading-none shrink-0"
+              >
+                <AlertTriangle size={10} />
+                Bloq. CC
               </span>
             )}
             {hasCreditNote && (
@@ -278,6 +357,44 @@ export default function Vouchers() {
       ),
     },
     {
+      key: 'authorized',
+      header: 'Autorizado',
+      render: (item: VoucherListItem) => {
+        const applies = item.voucher_type === 'receipt' && item.is_current_account
+        if (!applies) {
+          return <span className="text-xs text-gray-400">—</span>
+        }
+
+        const isAuthorized = !!item.is_withdrawal_authorized
+        return (
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+              isAuthorized
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+            }`}
+          >
+            {isAuthorized ? 'Sí' : 'No'}
+          </span>
+        )
+      },
+    },
+    {
+      key: 'withdrawalClient',
+      header: 'Retira',
+      render: (item: VoucherListItem) => {
+        const applies = item.voucher_type === 'receipt' && item.is_current_account
+        if (!applies) {
+          return <span className="text-xs text-gray-400">—</span>
+        }
+
+        const withdrawalName =
+          item.withdrawal_client_name || item.operating_client?.name || item.billing_client?.name
+
+        return <span className="text-sm text-gray-900 dark:text-gray-100">{withdrawalName || '—'}</span>
+      },
+    },
+    {
       key: 'status',
       header: 'Estado',
       render: (item: any) => {
@@ -302,8 +419,10 @@ export default function Vouchers() {
       key: 'actions',
       header: 'Acciones',
       className: 'text-center',
-      render: (item: any) => {
-        const isDeleted = !!item.deleted_at
+       render: (item: VoucherListItem) => {
+         const isDeleted = !!item.deleted_at
+         const closureLockInfo = getCurrentAccountClosureLockInfo(item)
+         const isLockedByClosure = closureLockInfo.isLocked
         return (
           <div className="flex gap-2 justify-center">
             {!isDeleted && (
@@ -333,7 +452,7 @@ export default function Vouchers() {
                 </button>
                 
                 {/* Botón Nota de Crédito - SOLO para facturas con CAE y SIN NC previa */}
-                {item.voucher_type.startsWith('invoice_') && item.cae && !item.has_credit_note && (
+                {invoicingEnabled && item.voucher_type.startsWith('invoice_') && item.cae && !item.has_credit_note && (
                   <button
                     onClick={() => {
                       setSelectedVoucherForNC(item)
@@ -347,7 +466,7 @@ export default function Vouchers() {
                 )}
 
                 {/* Indicador de NC emitida */}
-                {item.has_credit_note && (
+                {invoicingEnabled && item.has_credit_note && (
                   <span 
                     className="p-1.5 text-orange-500 cursor-help" 
                     title="Esta factura ya tiene una Nota de Crédito asociada"
@@ -358,11 +477,25 @@ export default function Vouchers() {
                 
                 <button
                   onClick={() => {
+                    if (isLockedByClosure) {
+                      toast.error(closureLockInfo.reason)
+                      return
+                    }
                     setVoucherToDelete(item)
+                    setDeleteReasonError('')
                     setShowDeleteModal(true)
                   }}
-                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                  title="Eliminar"
+                  disabled={isLockedByClosure}
+                  className={`p-1.5 rounded-lg transition-colors ${
+                    isLockedByClosure
+                      ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                      : 'text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30'
+                  }`}
+                  title={
+                    isLockedByClosure
+                      ? closureLockInfo.reason
+                      : 'Eliminar'
+                  }
                 >
                   <Trash2 size={18} />
                 </button>
@@ -435,13 +568,17 @@ export default function Vouchers() {
             options={[
               { value: '', label: 'Todos los Tipos' },
               { value: 'quotation',     label: 'Cotizaciones' },
-              { value: 'receipt',       label: 'Remitos' },
-              { value: 'invoice_a',     label: 'Facturas A' },
-              { value: 'invoice_b',     label: 'Facturas B' },
-              { value: 'invoice_c',     label: 'Facturas C' },
-              { value: 'credit_note_a', label: 'Notas de Crédito A' },
-              { value: 'credit_note_b', label: 'Notas de Crédito B' },
-              { value: 'credit_note_c', label: 'Notas de Crédito C' },
+              ...(receiptsEnabled ? [{ value: 'receipt', label: 'Remitos' }] : []),
+              ...(invoicingEnabled
+                ? [
+                    { value: 'invoice_a', label: 'Facturas A' },
+                    { value: 'invoice_b', label: 'Facturas B' },
+                    { value: 'invoice_c', label: 'Facturas C' },
+                    { value: 'credit_note_a', label: 'Notas de Crédito A' },
+                    { value: 'credit_note_b', label: 'Notas de Crédito B' },
+                    { value: 'credit_note_c', label: 'Notas de Crédito C' },
+                  ]
+                : []),
             ]}
           />
           
@@ -494,6 +631,7 @@ export default function Vouchers() {
           setShowDeleteModal(false)
           setVoucherToDelete(null)
           setDeleteReason('')
+          setDeleteReasonError('')
         }}
         title="Eliminar Comprobante"
       >
@@ -514,12 +652,19 @@ export default function Vouchers() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Motivo de eliminación (opcional)
+                Motivo de eliminación <span className="text-red-600 dark:text-red-400">*</span>
               </label>
               <Input
                 value={deleteReason}
-                onChange={(e) => setDeleteReason(e.target.value)}
+                onChange={(e) => {
+                  setDeleteReason(e.target.value)
+                  if (deleteReasonError) {
+                    setDeleteReasonError('')
+                  }
+                }}
                 placeholder="Ej: Error en los datos, duplicado, etc."
+                error={deleteReasonError}
+                required
               />
             </div>
 
@@ -530,6 +675,7 @@ export default function Vouchers() {
                   setShowDeleteModal(false)
                   setVoucherToDelete(null)
                   setDeleteReason('')
+                  setDeleteReasonError('')
                 }}
                 className="flex-1"
               >
@@ -537,11 +683,8 @@ export default function Vouchers() {
               </Button>
               <Button 
                 variant="danger" 
-                onClick={() => deleteMutation.mutate({ 
-                  id: voucherToDelete.id, 
-                  reason: deleteReason 
-                })}
-                disabled={deleteMutation.isPending}
+                onClick={handleConfirmDelete}
+                disabled={deleteMutation.isPending || !deleteReason.trim()}
                 className="flex-1"
               >
                 {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}

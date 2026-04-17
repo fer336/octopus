@@ -7,6 +7,8 @@ from app.models.base import BaseModel
 from app.models.business import Business
 from app.models.category import Category
 from app.models.client import Client
+from app.models.client_authorization import ClientAuthorization
+from app.models.client_type import ClientType
 from app.models.client_account import ClientAccount, MovementType
 from app.models.payment import Payment, PaymentMethod
 from app.models.payment_method import PaymentMethodCatalog
@@ -60,6 +62,8 @@ __all__ = [
     "supplier_category",
     "SupplierCategoryDiscount",
     "Client",
+    "ClientAuthorization",
+    "ClientType",
     "Product",
     # Historial
     "PriceHistory",

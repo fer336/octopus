@@ -55,6 +55,11 @@ class Business(BaseModel):
     ai_agent_enabled = Column(Boolean, nullable=False, default=False)
     linear_sync_enabled = Column(Boolean, nullable=False, default=False)
     current_account_mode = Column(String(20), nullable=False, default="disabled")
+    invoicing_enabled = Column(Boolean, nullable=False, default=True)
+    receipts_enabled = Column(Boolean, nullable=False, default=True)
+    price_update_enabled = Column(Boolean, nullable=False, default=True)
+    reports_enabled = Column(Boolean, nullable=False, default=True)
+    sql_backup_enabled = Column(Boolean, nullable=False, default=False)
 
     # Configuración ARCA/AFIP
     arca_token = Column(Text, nullable=True)  # Token del WSAA
@@ -72,6 +77,7 @@ class Business(BaseModel):
     owner = relationship("User", back_populates="businesses")
     products = relationship("Product", back_populates="business", lazy="dynamic")
     clients = relationship("Client", back_populates="business", lazy="dynamic")
+    client_types = relationship("ClientType", back_populates="business", lazy="dynamic")
     suppliers = relationship("Supplier", back_populates="business", lazy="dynamic")
     categories = relationship("Category", back_populates="business", lazy="dynamic")
     payment_methods_catalog = relationship(

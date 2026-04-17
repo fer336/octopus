@@ -25,6 +25,7 @@ MODULE_KEYS = [
     "reports",
     "feedback",
     "current_account",
+    "sql_backup",
 ]
 
 
@@ -46,6 +47,7 @@ DEFAULT_MODULE_PERMISSIONS_BY_ROLE: dict[str, dict[str, bool]] = {
         "reports": False,
         "feedback": True,
         "current_account": False,
+        "sql_backup": False,
     },
 }
 

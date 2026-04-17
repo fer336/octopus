@@ -151,6 +151,11 @@ class FeatureFlagsResponse(BaseModel):
     ai_agent_enabled: bool
     linear_sync_enabled: bool
     current_account_mode: Literal["disabled", "automatic", "manual"]
+    invoicing_enabled: bool
+    receipts_enabled: bool
+    price_update_enabled: bool
+    reports_enabled: bool
+    sql_backup_enabled: bool = False
 
 
 class FeatureFlagsUpdate(BaseModel):
@@ -159,6 +164,11 @@ class FeatureFlagsUpdate(BaseModel):
     ai_agent_enabled: Optional[bool] = None
     linear_sync_enabled: Optional[bool] = None
     current_account_mode: Optional[Literal["disabled", "automatic", "manual"]] = None
+    invoicing_enabled: Optional[bool] = None
+    receipts_enabled: Optional[bool] = None
+    price_update_enabled: Optional[bool] = None
+    reports_enabled: Optional[bool] = None
+    sql_backup_enabled: Optional[bool] = None
 
 
 class TenantResponse(BaseModel):
@@ -1109,6 +1119,11 @@ async def get_feature_flags(
         ai_agent_enabled=bool(business.ai_agent_enabled),
         linear_sync_enabled=bool(business.linear_sync_enabled),
         current_account_mode=business.current_account_mode or "disabled",
+        invoicing_enabled=bool(business.invoicing_enabled),
+        receipts_enabled=bool(business.receipts_enabled),
+        price_update_enabled=bool(business.price_update_enabled),
+        reports_enabled=bool(business.reports_enabled),
+        sql_backup_enabled=bool(business.sql_backup_enabled),
     )
 
 
@@ -1150,6 +1165,10 @@ async def update_feature_flags(
         ai_agent_enabled=bool(business.ai_agent_enabled),
         linear_sync_enabled=bool(business.linear_sync_enabled),
         current_account_mode=business.current_account_mode or "disabled",
+        invoicing_enabled=bool(business.invoicing_enabled),
+        receipts_enabled=bool(business.receipts_enabled),
+        price_update_enabled=bool(business.price_update_enabled),
+        reports_enabled=bool(business.reports_enabled),
     )
 
 

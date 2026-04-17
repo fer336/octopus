@@ -98,12 +98,20 @@ export interface FeatureFlagsResponse {
   ai_agent_enabled: boolean
   linear_sync_enabled: boolean
   current_account_mode: 'disabled' | 'automatic' | 'manual'
+  invoicing_enabled: boolean
+  receipts_enabled: boolean
+  price_update_enabled: boolean
+  reports_enabled: boolean
 }
 
 export interface FeatureFlagsUpdate {
   ai_agent_enabled?: boolean
   linear_sync_enabled?: boolean
   current_account_mode?: 'disabled' | 'automatic' | 'manual'
+  invoicing_enabled?: boolean
+  receipts_enabled?: boolean
+  price_update_enabled?: boolean
+  reports_enabled?: boolean
 }
 
 export type FeedbackType = 'bug' | 'feature'

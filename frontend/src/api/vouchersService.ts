@@ -22,6 +22,9 @@ export interface VoucherCreate {
   date: string
   notes?: string
   show_prices: boolean
+  is_current_account?: boolean
+  billing_client_id?: string
+  operating_client_id?: string
   general_discount: number
   items: VoucherItemCreate[]
   payments?: VoucherPayment[]
@@ -58,6 +61,11 @@ export interface VoucherClient {
   tax_condition: string
 }
 
+export interface VoucherPartySummary {
+  id: string
+  name: string
+}
+
 export interface Voucher {
   id: string
   client_id: string
@@ -69,6 +77,16 @@ export interface Voucher {
   date: string
   notes?: string
   show_prices?: boolean
+  is_current_account?: boolean
+  is_current_account_closure?: boolean
+  current_account_closure_voucher_id?: string | null
+  is_receipt_linked_to_current_account_closure?: boolean
+  billing_client_id?: string
+  operating_client_id?: string
+  billing_client?: VoucherPartySummary | null
+  operating_client?: VoucherPartySummary | null
+  is_withdrawal_authorized?: boolean
+  withdrawal_client_name?: string | null
   general_discount?: number
   subtotal: number
   iva_amount: number
@@ -78,6 +96,10 @@ export interface Voucher {
   has_credit_note: boolean
   /** ID de la factura generada (solo en cotizaciones). Si existe, la cotización ya fue facturada. */
   invoiced_voucher_id?: string | null
+  /** ID del comprobante relacionado (ej: factura origen de una nota de crédito). */
+  related_voucher_id?: string | null
+  deleted_at?: string | null
+  deletion_reason?: string | null
   items: VoucherItem[]
 }
 
@@ -129,7 +151,7 @@ const vouchersService = {
   /**
    * Elimina un comprobante (soft delete).
    */
-  delete: async (id: string, reason?: string): Promise<void> => {
+  delete: async (id: string, reason: string): Promise<void> => {
     await httpClient.delete(`/vouchers/${id}/delete`, {
       params: { reason }
     })
@@ -162,6 +184,99 @@ const vouchersService = {
     const response = await httpClient.post(`/vouchers/${quotationId}/convert-to-invoice`, {
       payments: payments ?? null,
     })
+    return response.data
+  },
+
+  closeCurrentAccount: async (data: {
+    billing_client_id: string
+    receipt_ids?: string[]
+    close_all: boolean
+    notes?: string
+  }): Promise<Voucher> => {
+    const response = await httpClient.post('/vouchers/current-account/close', data)
+    return response.data
+  },
+
+  getCurrentAccountReceipts: async (params?: {
+    page?: number
+    per_page?: number
+    billing_client_id?: string
+    pending_only?: boolean
+    search?: string
+  }): Promise<PaginatedVouchers> => {
+    const response = await httpClient.get('/vouchers/current-account/receipts', { params })
+    return response.data
+  },
+
+  // Preview de cierre sin persistir (datos)
+  previewCurrentAccountClose: async (data: {
+    billing_client_id: string
+    receipt_ids?: string[]
+    close_all?: boolean
+    notes?: string
+  }): Promise<{
+    billing_client_name: string
+    items: Array<{
+      receipt_id: string
+      receipt_number: string
+      receipt_date: string
+      operating_client_name?: string
+      is_withdrawal_authorized: boolean
+      code: string
+      description: string
+      quantity: number
+      unit_price: number
+      discount_percent: number
+      iva_rate: number
+      subtotal: number
+      total: number
+    }>
+    total_receipts: number
+    total_items: number
+    subtotal: number
+    iva_amount: number
+    total: number
+  }> => {
+    const response = await httpClient.post('/vouchers/current-account/preview', data)
+    return response.data
+  },
+
+  // Preview PDF de cierre (descarga directo)
+  previewCurrentAccountClosePdf: async (data: {
+    billing_client_id: string
+    receipt_ids?: string[]
+    close_all?: boolean
+    notes?: string
+  }): Promise<Blob> => {
+    const response = await httpClient.post('/vouchers/current-account/preview-pdf', data, {
+      responseType: 'blob',
+    })
+    return response.data
+  },
+
+  // Histórico de cierres por cliente titular
+  getCurrentAccountHistory: async (billingClientId: string): Promise<{
+    closures: Array<{
+      closure_voucher_id: string
+      closure_number: string
+      closure_date: string
+      notes?: string
+      total_receipts: number
+      total_items: number
+      subtotal: number
+      iva_amount: number
+      total: number
+      receipts: Array<{
+        receipt_id: string
+        receipt_number: string
+        receipt_date: string
+        operating_client_name?: string
+        total: number
+      }>
+    }>
+    total: number
+  }> => {
+    const response = await httpClient.get(`/vouchers/current-account/history/${billingClientId}`)
     return response.data
   },
 }

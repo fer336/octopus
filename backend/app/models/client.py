@@ -2,6 +2,7 @@
 Modelo de Cliente.
 Almacena información de clientes y su cuenta corriente.
 """
+
 from sqlalchemy import Column, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -20,6 +21,12 @@ class Client(BaseModel):
     business_id = Column(
         UUID(as_uuid=True),
         ForeignKey("businesses.id"),
+        nullable=False,
+        index=True,
+    )
+    client_type_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("client_types.id"),
         nullable=False,
         index=True,
     )
@@ -46,13 +53,32 @@ class Client(BaseModel):
 
     # Cuenta corriente (saldo cacheado, se actualiza con movimientos)
     current_balance = Column(Numeric(12, 2), default=0, nullable=False)
+    current_account_mode = Column(String(20), default="disabled", nullable=False)
     credit_limit = Column(Numeric(12, 2), default=0, nullable=True)
 
     # Relaciones
     business = relationship("Business", back_populates="clients")
-    vouchers = relationship("Voucher", back_populates="client", lazy="dynamic")
-    account_movements = relationship("ClientAccount", back_populates="client", lazy="dynamic")
+    client_type = relationship("ClientType", back_populates="clients")
+    vouchers = relationship(
+        "Voucher",
+        back_populates="client",
+        foreign_keys="Voucher.client_id",
+        lazy="dynamic",
+    )
+    account_movements = relationship(
+        "ClientAccount", back_populates="client", lazy="dynamic"
+    )
     payments = relationship("Payment", back_populates="client", lazy="dynamic")
+    authorizations_as_billing = relationship(
+        "ClientAuthorization",
+        foreign_keys="ClientAuthorization.billing_client_id",
+        lazy="dynamic",
+    )
+    authorizations_as_operating = relationship(
+        "ClientAuthorization",
+        foreign_keys="ClientAuthorization.operating_client_id",
+        lazy="dynamic",
+    )
 
     @property
     def full_address(self) -> str:
