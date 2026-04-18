@@ -179,6 +179,7 @@ export default function PriceUpdate() {
           checked={selectedProducts.size === products.length && products.length > 0}
           onChange={toggleSelectAll}
           className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          data-tour-price-select-all
         />
       ),
       render: (item: Product) => (
@@ -268,7 +269,7 @@ export default function PriceUpdate() {
     <div className="space-y-5 max-w-7xl mx-auto">
 
       {/* PASO 1: Filtros */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5 animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '100ms' }}>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5 animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '100ms' }} data-tour-price-filters-panel>
         <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
           <div className="flex items-center gap-2">
             <Filter className="h-[18px] w-[18px] text-orange-600" />
@@ -280,6 +281,7 @@ export default function PriceUpdate() {
             <button
               onClick={() => setShowDrafts(v => !v)}
               className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 text-gray-500 hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-400 transition-colors"
+              data-tour-price-drafts
             >
               <FolderOpen size={18} className="shrink-0" />
               <span className="text-xs font-medium">Borradores</span>
@@ -307,6 +309,7 @@ export default function PriceUpdate() {
               disabled={products.length === 0}
               size="sm"
               className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white disabled:opacity-50"
+              data-tour-price-update-top
             >
               <TrendingUp size={14} className="mr-1.5" />
               Actualizar Precios
@@ -433,6 +436,7 @@ export default function PriceUpdate() {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Código o nombre..."
                 className="w-full pl-9 pr-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm text-gray-900 dark:text-white"
+                data-tour-price-search
               />
             </div>
           </div>
@@ -469,7 +473,7 @@ export default function PriceUpdate() {
       </div>
 
       {/* PASO 2: Tabla */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5 animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '200ms' }}>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5 animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '200ms' }} data-tour-price-table-panel>
         <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
           <div className="flex items-center gap-2">
             <DollarSign className="h-[18px] w-[18px] text-orange-600" />
@@ -481,7 +485,7 @@ export default function PriceUpdate() {
             {products.length} productos encontrados
           </span>
         </div>
-        <div className="max-h-[58vh] overflow-y-auto rounded-lg">
+        <div className="max-h-[58vh] overflow-y-auto rounded-lg" data-tour-price-table>
           <Table columns={columns} data={products} density="compact" emptyMessage="No se encontraron productos con los filtros seleccionados" />
         </div>
       </div>
@@ -500,6 +504,7 @@ export default function PriceUpdate() {
               onClick={() => setShowBulkEditModal(true)}
               className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white shadow-lg"
               size="md"
+              data-tour-price-update-floating
             >
               <TrendingUp size={16} className="mr-2" />
               Actualizar Precios

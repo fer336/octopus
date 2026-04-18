@@ -16,6 +16,14 @@
   --color-text-muted: #7b6b95;
   --color-border: #d9caeb;
   --color-border-focus: var(--color-brand-purple);
+
+  /* Driver.js (Product Tour) */
+  --driver-popover-bg-color: #ffffff;
+  --driver-popover-title-color: #121325;
+  --driver-popover-description-color: #3b3b52;
+  --driver-popover-border-color: #d9caeb;
+  --driver-overlay-color: rgba(10, 11, 24, 0.72);
+  --driver-popover-border-radius: 12px;
 }
 
 .dark {
@@ -27,6 +35,13 @@
   --color-text-muted: #b2a6c6;
   --color-border: #3b305a;
   --color-border-focus: var(--color-brand-lilac);
+
+  /* Driver.js (Product Tour) */
+  --driver-popover-bg-color: #1b1b32;
+  --driver-popover-title-color: #f0f0f2;
+  --driver-popover-description-color: #d4c8e7;
+  --driver-popover-border-color: #3b305a;
+  --driver-overlay-color: rgba(0, 0, 0, 0.78);
 }
 
 * {

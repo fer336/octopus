@@ -167,18 +167,18 @@ export default function Inventory() {
     <div className="h-[calc(100vh-4rem)] flex flex-col">
 
       {/* Header compacto sin título */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+      <div className="flex items-center justify-between px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0" data-tour-inventory-header>
         <div className="flex items-center gap-2">
           <ClipboardList className="w-5 h-5 text-primary-600" />
           <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Inventario</span>
         </div>
-        <Button size="sm" onClick={() => setShowNewOrderModal(true)}>
+        <Button size="sm" onClick={() => setShowNewOrderModal(true)} data-tour-inventory-new-order>
           <Plus className="w-3.5 h-3.5 mr-1" />Nueva
         </Button>
       </div>
 
       {/* Filtros compactos */}
-      <div className="flex flex-wrap gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 shrink-0">
+      <div className="flex flex-wrap gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 shrink-0" data-tour-inventory-filters>
         <select value={filterSupplier} onChange={(e) => setFilterSupplier(e.target.value)} className="px-2 py-1 text-sm rounded border">
           <option value="">Proveedor</option>
           {suppliers.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
@@ -195,7 +195,7 @@ export default function Inventory() {
       </div>
 
       {/* Tabla - ocupa espacio restante */}
-      <div className="flex-1 overflow-auto bg-white dark:bg-gray-800 border-x border-b border-gray-200 dark:border-gray-700">
+      <div className="flex-1 overflow-auto bg-white dark:bg-gray-800 border-x border-b border-gray-200 dark:border-gray-700" data-tour-inventory-table>
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
@@ -276,29 +276,32 @@ export default function Inventory() {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
                         {/* Ver detalle */}
-                        <button
-                          onClick={() => setSelectedOrderId(order.id)}
-                          title="Ver detalle"
-                          className="p-1.5 rounded-lg text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/30 transition-colors"
-                        >
+                         <button
+                           onClick={() => setSelectedOrderId(order.id)}
+                           title="Ver detalle"
+                           className="p-1.5 rounded-lg text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/30 transition-colors"
+                           data-tour-inventory-action-view
+                         >
                           <Eye className="w-4 h-4" />
                         </button>
 
                         {/* Visualizar PDF en el navegador */}
-                        <button
-                          onClick={() => handlePreviewPdf(order)}
-                          title="Ver PDF"
-                          className="p-1.5 rounded-lg text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/30 transition-colors"
-                        >
+                         <button
+                           onClick={() => handlePreviewPdf(order)}
+                           title="Ver PDF"
+                           className="p-1.5 rounded-lg text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/30 transition-colors"
+                           data-tour-inventory-action-preview-pdf
+                         >
                           <FileText className="w-4 h-4" />
                         </button>
 
                         {/* Descargar PDF */}
-                        <button
-                          onClick={() => handleDownloadPdf(order)}
-                          title="Descargar PDF"
-                          className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors"
-                        >
+                         <button
+                           onClick={() => handleDownloadPdf(order)}
+                           title="Descargar PDF"
+                           className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors"
+                           data-tour-inventory-action-download-pdf
+                         >
                           <FileDown className="w-4 h-4" />
                         </button>
 
@@ -309,6 +312,7 @@ export default function Inventory() {
                             disabled={confirmMutation.isPending}
                             title="Confirmar orden"
                             className="p-1.5 rounded-lg text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors disabled:opacity-50"
+                            data-tour-inventory-action-confirm
                           >
                             <CheckCircle className="w-4 h-4" />
                           </button>
@@ -321,6 +325,7 @@ export default function Inventory() {
                             disabled={deleteMutation.isPending}
                             title="Eliminar"
                             className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50"
+                            data-tour-inventory-action-delete
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

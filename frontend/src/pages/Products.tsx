@@ -739,7 +739,7 @@ export default function Products() {
     <div className="space-y-3">
       {/* Header */}
       <div className="flex justify-end -mt-1">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5" data-tour-products-actions>
           {/* Botones de acción — solo iconos con tooltip */}
           <input
             type="file"
@@ -768,6 +768,7 @@ export default function Products() {
             disabled={isSqlImporting || isImporting}
             title="Importar SQL"
             className="p-2 rounded-lg border border-green-200 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50 transition-colors"
+            data-tour-products-import-sql
           >
             <RotateCcw size={17} />
           </button>
@@ -785,7 +786,7 @@ export default function Products() {
           >
             <AlertTriangle size={17} />
           </button>
-          <Button onClick={() => handleOpenModal()} className="ml-1">
+          <Button onClick={() => handleOpenModal()} className="ml-1" data-tour-products-new>
             <Plus size={17} className="mr-1.5" />
             Nuevo
           </Button>
@@ -802,6 +803,7 @@ export default function Products() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por código o descripción..."
             className="w-full pl-9 pr-4 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+            data-tour-products-search
           />
         </div>
         
@@ -825,12 +827,14 @@ export default function Products() {
       </div>
 
       {/* Tabla */}
-      <Table
-        columns={columns}
-        data={products}
-        keyExtractor={(item) => item.id}
-        emptyMessage="No se encontraron productos con estos filtros."
-      />
+      <div data-tour-products-table>
+        <Table
+          columns={columns}
+          data={products}
+          keyExtractor={(item) => item.id}
+          emptyMessage="No se encontraron productos con estos filtros."
+        />
+      </div>
 
       {/* Paginación */}
       <Pagination

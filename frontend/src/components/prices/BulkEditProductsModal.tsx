@@ -324,33 +324,49 @@ export default function BulkEditProductsModal({
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 min-h-0">
 
           {/* Acciones Rápidas */}
-          <div className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border border-orange-200 dark:border-orange-700 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <Zap className="w-5 h-5 text-orange-600" />
-              <h3 className="font-bold text-gray-900 dark:text-white">Acciones Rápidas - Aplicar a Todos</h3>
+          <div
+            className="rounded-xl border border-primary-200 dark:border-primary-800 bg-gradient-to-r from-primary-50/80 to-primary-100/70 dark:from-primary-900/20 dark:to-primary-800/20 p-3 md:p-3.5 space-y-3"
+            data-tour-price-modal-quick-actions
+          >
+            <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-primary-600" />
+                <h3 className="font-semibold text-[15px] text-gray-900 dark:text-white">Acciones rápidas · aplicar en bloque</h3>
+              </div>
+              <span
+                className="inline-flex items-center rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 px-2 py-0.5 text-[10px] font-semibold"
+                data-tour-price-modal-scope
+              >
+                Impacta sobre los {products.length} productos cargados en este modal
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <p className="text-[11px] text-primary-800/90 dark:text-primary-200/90 leading-snug">
+              Si filtraste por <strong>categoría</strong> o <strong>proveedor</strong> antes de abrir este modal, estos cambios se van a aplicar sobre ese conjunto filtrado.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
               {/* Precios */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">Precios</label>
+              <div className="rounded-lg border border-primary-200/80 dark:border-primary-700 bg-white/85 dark:bg-gray-900/35 p-2.5 space-y-1.5" data-tour-price-modal-price-actions>
+                <label className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Precios %</label>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">Aumentar, disminuir o deshacer aumento sobre P. Lista.</p>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
                     value={quickPercentage}
                     onChange={(e) => setQuickPercentage(e.target.value)}
                     placeholder="%"
-                    className="w-16 px-2 py-1.5 text-center font-bold border-2 border-orange-300 dark:border-orange-600 rounded dark:bg-gray-700 text-sm"
+                    className="w-14 px-2 py-1 text-center font-bold border border-primary-300 dark:border-primary-700 rounded-lg dark:bg-gray-700 text-sm"
                     step="0.1"
                   />
                   <div className="flex gap-1">
-                    <button onClick={() => applyPriceChange('increase')} className="px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-xs font-medium" title="Aumentar">
+                    <button onClick={() => applyPriceChange('increase')} className="px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-md text-xs font-medium" title="Aumentar">
                       <TrendingUp size={14} />
                     </button>
-                    <button onClick={() => applyPriceChange('decrease')} className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium" title="Disminuir">
+                    <button onClick={() => applyPriceChange('decrease')} className="px-2 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-md text-xs font-medium" title="Disminuir">
                       <TrendingDown size={14} />
                     </button>
-                    <button onClick={() => applyPriceChange('remove_increase')} className="px-2 py-1 bg-primary-500 hover:bg-primary-600 text-white rounded text-xs font-medium" title="Quitar Aumento">
+                    <button onClick={() => applyPriceChange('remove_increase')} className="px-2 py-1 bg-primary-600 hover:bg-primary-700 text-white rounded-md text-xs font-medium" title="Quitar Aumento">
                       <RotateCcw size={14} />
                     </button>
                   </div>
@@ -358,69 +374,75 @@ export default function BulkEditProductsModal({
               </div>
 
               {/* Categoría */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">Categoría</label>
+              <div className="rounded-lg border border-primary-200/80 dark:border-primary-700 bg-white/85 dark:bg-gray-900/35 p-2.5 space-y-1.5" data-tour-price-modal-category>
+                <label className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Categoría</label>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">Reasigna la categoría a todos los productos del modal.</p>
                 <div className="flex gap-2">
-                  <select value={quickCategory} onChange={(e) => setQuickCategory(e.target.value)} className="flex-1 px-2 py-1.5 text-xs border rounded dark:bg-gray-700 dark:border-gray-600">
+                  <select value={quickCategory} onChange={(e) => setQuickCategory(e.target.value)} className="flex-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600">
                     <option value="">Seleccionar...</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                  <button onClick={applyBulkCategory} disabled={!quickCategory} className="px-3 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-400 text-white rounded text-xs font-medium">Aplicar</button>
+                  <button onClick={applyBulkCategory} disabled={!quickCategory} className="px-3 py-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-lg text-xs font-semibold">Aplicar</button>
                 </div>
               </div>
 
               {/* Proveedor */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">Proveedor</label>
+              <div className="rounded-lg border border-primary-200/80 dark:border-primary-700 bg-white/85 dark:bg-gray-900/35 p-2.5 space-y-1.5" data-tour-price-modal-supplier>
+                <label className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Proveedor</label>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">Reasigna el proveedor para todos los productos editados.</p>
                 <div className="flex gap-2">
-                  <select value={quickSupplier} onChange={(e) => setQuickSupplier(e.target.value)} className="flex-1 px-2 py-1.5 text-xs border rounded dark:bg-gray-700 dark:border-gray-600">
+                  <select value={quickSupplier} onChange={(e) => setQuickSupplier(e.target.value)} className="flex-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600">
                     <option value="">Seleccionar...</option>
                     {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
-                  <button onClick={applyBulkSupplier} disabled={!quickSupplier} className="px-3 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-400 text-white rounded text-xs font-medium">Aplicar</button>
+                  <button onClick={applyBulkSupplier} disabled={!quickSupplier} className="px-3 py-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-lg text-xs font-semibold">Aplicar</button>
                 </div>
               </div>
 
               {/* Bonificaciones */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">Bonificaciones</label>
+              <div className="rounded-lg border border-primary-200/80 dark:border-primary-700 bg-white/85 dark:bg-gray-900/35 p-2.5 space-y-1.5" data-tour-price-modal-discount>
+                <label className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Bonificaciones</label>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">Formato en cadena: <strong>10+5+2</strong>.</p>
                 <div className="flex gap-2">
-                  <input type="text" value={quickDiscount} onChange={(e) => setQuickDiscount(e.target.value)} placeholder="10+5+2" className="flex-1 px-2 py-1.5 text-xs text-center border rounded dark:bg-gray-700 dark:border-gray-600" />
-                  <button onClick={applyBulkDiscount} disabled={!quickDiscount} className="px-3 py-1.5 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white rounded text-xs font-medium">Aplicar</button>
+                  <input type="text" value={quickDiscount} onChange={(e) => setQuickDiscount(e.target.value)} placeholder="10+5+2" className="flex-1 px-2.5 py-1 text-xs text-center border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600" />
+                  <button onClick={applyBulkDiscount} disabled={!quickDiscount} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white rounded-lg text-xs font-semibold">Aplicar</button>
                 </div>
               </div>
 
               {/* Cargo Extra */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">Cargo Extra %</label>
+              <div className="rounded-lg border border-primary-200/80 dark:border-primary-700 bg-white/85 dark:bg-gray-900/35 p-2.5 space-y-1.5" data-tour-price-modal-extra-cost>
+                <label className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Cargo extra %</label>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">Suma costo antes de ganancia e IVA.</p>
                 <div className="flex gap-2">
-                  <input type="number" value={quickCargo} onChange={(e) => setQuickCargo(e.target.value)} placeholder="5" className="flex-1 px-2 py-1.5 text-xs text-center border rounded dark:bg-gray-700 dark:border-gray-600" step="0.1" />
-                  <button onClick={applyBulkCargo} disabled={!quickCargo && quickCargo !== '0'} className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white rounded text-xs font-medium">Aplicar</button>
+                  <input type="number" value={quickCargo} onChange={(e) => setQuickCargo(e.target.value)} placeholder="5" className="flex-1 px-2.5 py-1 text-xs text-center border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600" step="0.1" />
+                  <button onClick={applyBulkCargo} disabled={!quickCargo && quickCargo !== '0'} className="px-3 py-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-lg text-xs font-semibold">Aplicar</button>
                 </div>
               </div>
 
               {/* Ganancia */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">Ganancia %</label>
+              <div className="rounded-lg border border-primary-200/80 dark:border-primary-700 bg-white/85 dark:bg-gray-900/35 p-2.5 space-y-1.5" data-tour-price-modal-profit>
+                <label className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Ganancia %</label>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">Margen comercial agregado al neto.</p>
                 <div className="flex gap-2">
-                  <input type="number" value={quickProfit} onChange={(e) => setQuickProfit(e.target.value)} placeholder="30" className="flex-1 px-2 py-1.5 text-xs text-center border rounded dark:bg-gray-700 dark:border-gray-600" step="0.1" />
-                  <button onClick={applyBulkProfit} disabled={!quickProfit && quickProfit !== '0'} className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-400 text-white rounded text-xs font-medium">Aplicar</button>
+                  <input type="number" value={quickProfit} onChange={(e) => setQuickProfit(e.target.value)} placeholder="30" className="flex-1 px-2.5 py-1 text-xs text-center border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600" step="0.1" />
+                  <button onClick={applyBulkProfit} disabled={!quickProfit && quickProfit !== '0'} className="px-3 py-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-lg text-xs font-semibold">Aplicar</button>
                 </div>
               </div>
 
               {/* Stock */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">Stock</label>
+              <div className="rounded-lg border border-primary-200/80 dark:border-primary-700 bg-white/85 dark:bg-gray-900/35 p-2.5 space-y-1.5" data-tour-price-modal-stock>
+                <label className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Stock</label>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">Actualiza stock base para todos los productos cargados.</p>
                 <div className="flex gap-2">
-                  <input type="number" value={quickStock} onChange={(e) => setQuickStock(e.target.value)} placeholder="100" className="flex-1 px-2 py-1.5 text-xs text-center border rounded dark:bg-gray-700 dark:border-gray-600" />
-                  <button onClick={applyBulkStock} disabled={!quickStock && quickStock !== '0'} className="px-3 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-400 text-white rounded text-xs font-medium">Aplicar</button>
+                  <input type="number" value={quickStock} onChange={(e) => setQuickStock(e.target.value)} placeholder="100" className="flex-1 px-2.5 py-1 text-xs text-center border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600" />
+                  <button onClick={applyBulkStock} disabled={!quickStock && quickStock !== '0'} className="px-3 py-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-lg text-xs font-semibold">Aplicar</button>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Tabla Editable */}
-          <div className="overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+          <div className="overflow-auto border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm" data-tour-price-modal-table>
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-20">
                 <tr>
@@ -482,10 +504,10 @@ export default function BulkEditProductsModal({
           </div>
 
           {/* Info */}
-          <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 rounded-lg p-3">
+          <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 rounded-xl p-3" data-tour-price-modal-formula>
             <p className="text-xs text-primary-800 dark:text-primary-300">
-              💡 Usa las <span className="font-bold">Acciones Rápidas</span> para modificar todos los precios a la vez,
-              o editá cada campo manualmente en la tabla.
+              💡 Fórmula de precio final: <span className="font-bold">Lista → Bonificaciones en cadena → Cargo Extra → Ganancia → IVA 21%</span>.
+              Las Acciones Rápidas aplican sobre el conjunto abierto en este modal.
             </p>
           </div>
         </div>
@@ -522,6 +544,7 @@ export default function BulkEditProductsModal({
             onClick={handleSave}
             disabled={isSaving}
             className="flex-[2] bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white"
+            data-tour-price-modal-save
           >
             {isSaving ? (
               <>

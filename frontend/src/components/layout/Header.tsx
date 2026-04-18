@@ -4,7 +4,7 @@
  * y el botón para abrir/cerrar el Asistente IA.
  */
 import type { ReactNode } from 'react'
-import { Sun, Moon, LogOut, Menu, ChevronLeft, Sparkles } from 'lucide-react'
+import { Sun, Moon, LogOut, Menu, ChevronLeft, Sparkles, LifeBuoy } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useAuthStore } from '../../stores/authStore'
 import { useAIStore } from '../../stores/aiStore'
@@ -16,6 +16,8 @@ interface HeaderProps {
   currentRouteLabel: string
   contextualAction?: ReactNode
   aiEnabled?: boolean
+  onTourClick?: () => void
+  hasTourForCurrentPage?: boolean
 }
 
 export default function Header({
@@ -24,6 +26,8 @@ export default function Header({
   currentRouteLabel,
   contextualAction,
   aiEnabled = false,
+  onTourClick,
+  hasTourForCurrentPage = false,
 }: HeaderProps) {
   const { theme, toggleTheme } = useTheme()
   const { user, logout } = useAuthStore()
@@ -56,6 +60,19 @@ export default function Header({
         {/* Right side */}
         <div className="flex items-center gap-2 sm:gap-3">
           {contextualAction}
+
+          {hasTourForCurrentPage && (
+            <button
+              type="button"
+              onClick={onTourClick}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 dark:border-primary-700 px-2.5 py-1.5 text-xs font-medium text-primary-700 dark:text-primary-200 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors"
+              title="Ver tutorial de esta pantalla"
+              data-tour-header-launch
+            >
+              <LifeBuoy size={15} />
+              <span className="hidden sm:inline">Tutorial</span>
+            </button>
+          )}
 
           {/* ── Botón Agente IA ─────────────────────────────────── */}
           {aiEnabled && (

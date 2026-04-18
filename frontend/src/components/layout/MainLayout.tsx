@@ -16,6 +16,7 @@ import AIAssistantPanel from '../ai/AIAssistantPanel'
 import Button from '../ui/Button'
 import { getActiveNavigationItem, navigationItems } from './navigationItems'
 import { hasPathAccess } from '../../utils/acl'
+import { useProductTour } from '../../hooks/useProductTour'
 
 export default function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -27,6 +28,7 @@ export default function MainLayout() {
   useAuth()
 
   const closeAI = useAIStore((s) => s.close)
+  const { hasTourForCurrentPage, launchCurrentTour } = useProductTour()
 
   const { data: business } = useQuery({
     queryKey: ['business-me-layout'],
@@ -109,6 +111,8 @@ export default function MainLayout() {
           currentRouteLabel={currentRouteLabel}
           contextualAction={contextualAction}
           aiEnabled={aiEnabled}
+          onTourClick={launchCurrentTour}
+          hasTourForCurrentPage={hasTourForCurrentPage}
         />
 
         <main className="flex-1 overflow-auto p-6">

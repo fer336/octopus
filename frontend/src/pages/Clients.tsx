@@ -500,6 +500,7 @@ const data = await clientsService.lookupCuit(cuit)
           <Button
             onClick={() => handleOpenModal()}
             className="bg-primary-600 hover:bg-primary-700 text-white border-none shadow-md"
+            data-tour-clients-new
           >
             <Plus size={18} className="mr-2" />
             Nuevo Cliente
@@ -517,6 +518,7 @@ const data = await clientsService.lookupCuit(cuit)
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre, documento..."
             className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
+            data-tour-clients-search
           />
         </div>
       </div>

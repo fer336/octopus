@@ -372,7 +372,7 @@ export default function CurrentAccount() {
         ))}
       </div>
 
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-4">
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-4" data-tour-current-account-auth-section>
         <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold">
           <Plus size={16} className="text-primary-600" />
           Nueva autorización de retiro
@@ -423,6 +423,7 @@ export default function CurrentAccount() {
               value={billingClientId}
               onChange={(e) => setBillingClientId(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 dark:text-white"
+              data-tour-current-account-billing-select
             >
               <option value="">{billingClients.length > 0 ? 'Seleccionar titular...' : 'Sin titulares disponibles'}</option>
               {billingClients.map((client) => {
@@ -451,6 +452,7 @@ export default function CurrentAccount() {
               onChange={(e) => setOperatingClientId(e.target.value)}
               disabled={availableOperatingClients.length === 0}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 dark:text-white"
+              data-tour-current-account-operating-select
             >
               <option value="">
                 {availableOperatingClients.length > 0
@@ -659,7 +661,7 @@ export default function CurrentAccount() {
         )}
       </div>
 
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-4">
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-4" data-tour-current-account-close-section>
         <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold">
           <ClipboardList size={16} className="text-primary-600" />
           Control previo al cierre y selección de remitos
@@ -862,6 +864,7 @@ export default function CurrentAccount() {
             variant="outline"
             onClick={() => handlePreview(false)}
             disabled={selectedReceiptIds.length === 0}
+            data-tour-current-account-preview
           >
             Vista previa
           </Button>
@@ -881,6 +884,7 @@ export default function CurrentAccount() {
           <Button
             onClick={() => handleCloseCurrentAccount(true)}
             isLoading={closeCurrentAccountMutation.isPending}
+            data-tour-current-account-close-all
           >
             Cerrar toda la cuenta
           </Button>

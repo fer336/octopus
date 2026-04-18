@@ -108,10 +108,18 @@ export default function Sidebar({
   }, [location.pathname])
 
   const renderNavItem = (item: NavigationItem) => (
+    // Selectores estables para Product Tour por módulo
     <NavLink
       key={item.path}
       to={item.path}
       end={item.path === '/'}
+      data-tour-nav={item.path}
+      data-tour-nav-sales={item.path === '/sales' ? 'true' : undefined}
+      data-tour-nav-products={item.path === '/products' ? 'true' : undefined}
+      data-tour-nav-price-update={item.path === '/price-update' ? 'true' : undefined}
+      data-tour-nav-inventory={item.path === '/inventory' ? 'true' : undefined}
+      data-tour-nav-clients={item.path === '/clients' ? 'true' : undefined}
+      data-tour-nav-current-account={item.path === '/current-account' ? 'true' : undefined}
       className={({ isActive }) =>
         clsx(
           'flex items-center rounded-md px-2.5 py-1.5 text-[13px] text-primary-300 hover:bg-[#2b2340] hover:text-white transition-colors',

@@ -1735,11 +1735,11 @@ export default function Sales() {
   const isPaymentBalanced = shouldShowPaymentDifference ? Math.abs(Number(total.toFixed(2)) - Number(assignedPaymentsTotal.toFixed(2))) <= 0.01 : true
 
   return (
-    <div className="-mt-4 space-y-2.5">
+    <div className="-mt-4 space-y-2.5" data-tour-sales-root data-tour-sales-mode={voucherType}>
       {/* Header compacto */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-2.5 shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowClientModal(true)} title="Nuevo cliente" className="px-2 py-1">
+            <Button variant="outline" size="sm" onClick={() => setShowClientModal(true)} title="Nuevo cliente" className="px-2 py-1" data-tour-sales-new-client>
               <Plus size={18} />
             </Button>
 
@@ -1784,6 +1784,7 @@ export default function Sales() {
               onClick={() => setShowClientSelectorModal(true)}
               title="Seleccionar cliente"
               className="px-2 py-1"
+              data-tour-sales-client-selector
             >
               <Search size={18} />
             </Button>
@@ -1831,7 +1832,7 @@ export default function Sales() {
               )}
             </Button>
 
-            <div className="flex items-center rounded-lg border border-primary-200 bg-primary-50/40 p-0.5 dark:border-primary-800 dark:bg-primary-900/20">
+            <div className="flex items-center rounded-lg border border-primary-200 bg-primary-50/40 p-0.5 dark:border-primary-800 dark:bg-primary-900/20" data-tour-sales-voucher-types>
               {salesMenuModes.map((mode) => {
                 const Icon = mode.icon
                 const isActive = voucherType === mode.value
@@ -1855,6 +1856,8 @@ export default function Sales() {
                           : 'text-gray-700 dark:text-gray-300 hover:bg-primary-100/70 dark:hover:bg-primary-900/40'
                     }`}
                     title={isComingSoon ? 'Próximamente' : mode.label}
+                    data-tour-sales-mode-receipt={mode.value === 'receipt' ? 'true' : undefined}
+                    data-tour-sales-mode-current-account={mode.value === 'current_account' ? 'true' : undefined}
                   >
                     <Icon size={16} />
                     {mode.label}
@@ -1877,6 +1880,7 @@ export default function Sales() {
                     : 'border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'
                 }`}
                 title="Incluir precios en impresión"
+                data-tour-sales-price-toggle
               >
                 <DollarSign size={16} />
                 {showPrices ? 'Precios ON' : 'Precios OFF'}
@@ -1890,7 +1894,7 @@ export default function Sales() {
         {/* Panel principal - Tablas */}
         <div className="space-y-3 min-w-0">
           {/* TABLA SUPERIOR - Carrito */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700" data-tour-sales-cart-table>
             <div className="p-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
@@ -2000,13 +2004,14 @@ export default function Sales() {
                   onChange={(e) => setProductSearch(e.target.value)}
                   placeholder="Buscar - Enter/Doble Click: Seleccionar | ESC: Configurar y Cargar"
                   className="flex-1 text-xs bg-transparent border-none outline-none text-gray-700 dark:text-gray-300"
+                  data-tour-sales-product-search
                 />
               </div>
             </div>
             
             {/* Panel de preview de productos seleccionados temporalmente */}
             {tempSelectedProducts.length > 0 && (
-              <div className="p-2 bg-green-50 dark:bg-green-900/20 border-b border-green-200 dark:border-green-800">
+              <div className="p-2 bg-green-50 dark:bg-green-900/20 border-b border-green-200 dark:border-green-800" data-tour-sales-temp-selection>
                 <div className="flex items-start justify-between mb-1">
                   <p className="text-xs font-semibold text-green-700 dark:text-green-300">
                     Productos seleccionados ({tempSelectedProducts.length})
@@ -2061,6 +2066,7 @@ export default function Sales() {
                         <tr
                           key={product.id}
                           ref={index === selectedProductIndex ? selectedRowRef : null}
+                          data-tour-sales-product-row={index === selectedProductIndex ? 'true' : undefined}
                           className={`cursor-pointer ${
                             isInTemp 
                               ? 'bg-green-100 dark:bg-green-900' 
@@ -2086,7 +2092,7 @@ export default function Sales() {
             </div>
             <div className="p-2 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500" data-tour-sales-esc-hint>
                   ↑↓ Navegar | Enter o Doble Click Seleccionar/Deseleccionar | ESC Configurar
                 </p>
                 {tempSelectedProducts.length > 0 && (
@@ -2157,6 +2163,7 @@ export default function Sales() {
                 className="w-full text-xs" 
                 onClick={handleGenerateClick}
                 disabled={isGenerating}
+                data-tour-sales-generate
               >
                 {isGenerating 
                   ? 'Procesando...' 
@@ -2176,6 +2183,7 @@ export default function Sales() {
                 <button
                   onClick={() => setShowPendingQuotationsModal(true)}
                   className="relative w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                  data-tour-sales-bill-pending
                 >
                   <ClipboardList size={14} />
                   Facturar Cotización / Remito
@@ -2205,7 +2213,7 @@ export default function Sales() {
         title="Configurar productos seleccionados"
         size="xl"
       >
-        <div className="space-y-4">
+        <div className="space-y-4" data-tour-sales-configure-modal>
           {tempSelectedProducts.length > 0 ? (
             <>
               <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3">
@@ -2317,7 +2325,7 @@ export default function Sales() {
                 >
                   Cancelar Todo
                 </Button>
-                <Button variant="primary" onClick={confirmTempProducts} className="flex-1">
+                <Button variant="primary" onClick={confirmTempProducts} className="flex-1" data-tour-sales-add-to-table>
                   Agregar al Carrito
                 </Button>
               </div>
