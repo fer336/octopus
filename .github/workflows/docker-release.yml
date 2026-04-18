@@ -77,3 +77,8 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
+          append_body: true
+          body: |
+            ## Upgrade
+            - En Portainer, actualizá el stack a `${{ github.ref_name }}` y redeploy.
+            - Si hay cambios de esquema, corré migraciones en backend: `alembic upgrade head`.

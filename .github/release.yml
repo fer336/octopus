@@ -1,0 +1,39 @@
+changelog:
+  categories:
+    - title: "🚀 Features"
+      labels:
+        - "feat"
+        - "feature"
+        - "enhancement"
+    - title: "🐛 Fixes"
+      labels:
+        - "fix"
+        - "bug"
+        - "bugfix"
+    - title: "📝 Documentation"
+      labels:
+        - "docs"
+        - "documentation"
+    - title: "⚙️ CI/CD"
+      labels:
+        - "ci"
+        - "devops"
+    - title: "📦 Other Changes"
+      labels:
+        - "*"
+  exclude:
+    labels:
+      - "skip-changelog"
+
+change-template: "- $TITLE (#$NUMBER) por @$AUTHOR"
+
+template: |
+  ## What's New
+  $CHANGES
+
+  ## Upgrade
+  - Actualizá imágenes en Portainer a la versión del tag publicado.
+  - Si el release incluye cambios de base de datos, ejecutá migraciones: `alembic upgrade head`.
+
+  ## Notes
+  - Este resumen se genera automáticamente desde Pull Requests y labels.
