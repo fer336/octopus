@@ -269,6 +269,53 @@ git push origin v1.0.0
 
 Con eso, GitHub Actions construye y publica ambas imágenes automáticamente.
 
+## Deploy en Hetzner + Portainer + Traefik (con Secrets)
+
+Se incluye una plantilla de stack para Docker Swarm/Portainer:
+
+- `deploy/portainer-stack-traefik.yml`
+
+Y un entrypoint backend compatible con secretos:
+
+- `backend/docker/entrypoint-secrets.sh`
+
+### Patrón de secretos soportado
+
+1. **Secret tipo `.env` (recomendado para Portainer):**
+   - Definí `BACKEND_ENV_FILE=/run/secrets/backend.env`
+   - Montá secret `octopus_backend_env` en `/run/secrets/backend.env`
+
+2. **Secret por variable (`*_FILE`):**
+   - Ej: `JWT_SECRET_FILE=/run/secrets/jwt_secret`
+   - El entrypoint resuelve ambos patrones.
+
+### Ejemplo de contenido para `backend.env`
+
+```env
+DATABASE_URL=postgresql+asyncpg://octopustrack:TU_PASSWORD@tu-db-host:5432/octopustrack
+JWT_SECRET=tu_jwt_super_seguro
+GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=xxxxx
+GOOGLE_REDIRECT_URI=https://erp.tu-dominio.com/auth/google/callback
+FRONTEND_URL=https://erp.tu-dominio.com
+FRONTEND_ADMIN_URL=https://erp.tu-dominio.com
+CORS_ORIGINS=https://erp.tu-dominio.com
+APP_ENCRYPTION_KEY=tu_fernet_key
+DEBUG=false
+```
+
+> Importante: nunca subir este archivo al repo. Guardarlo como Docker Secret desde Portainer.
+
+### Subdominios separados sin exponer `tenant.html` / `admin.html`
+
+El stack `deploy/portainer-stack-traefik.yml` ya incluye middlewares de Traefik para abrir cada app desde `/`:
+
+- `https://erp.tu-dominio.com` → carga `tenant.html` internamente
+- `https://cms.tu-dominio.com` → carga `admin.html` internamente
+- `https://api.tu-dominio.com` → backend (`/api/tenant`, `/api/admin`, `/auth`)
+
+Esto mantiene UX limpia por subdominio sin pedir rutas HTML manuales al usuario.
+
 ## Estructura del proyecto
 
 ```text
