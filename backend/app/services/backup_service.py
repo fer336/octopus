@@ -44,7 +44,8 @@ class BackupService:
         """Escapa strings para SQL INSERT."""
         if value is None:
             return "NULL"
-        return f"'{value.replace("'", "''")}'"
+        escaped = value.replace("'", "''")
+        return f"'{escaped}'"
 
     def _escape_sql_value(self, value) -> str:
         """Escapa valores para SQL INSERT basándose en tipo."""
@@ -59,9 +60,11 @@ class BackupService:
         elif isinstance(value, UUID):
             return f"'{value}'"
         elif isinstance(value, dict):
-            return f"'{json.dumps(value).replace("'", "''")}'"
+            json_str = json.dumps(value).replace("'", "''")
+            return f"'{json_str}'"
         elif isinstance(value, list):
-            return f"'{json.dumps(value).replace("'", "''")}'"
+            json_str = json.dumps(value).replace("'", "''")
+            return f"'{json_str}'"
         else:
             return self._escape_sql_string(str(value))
 

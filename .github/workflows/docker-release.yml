@@ -19,11 +19,11 @@ jobs:
         include:
           - service: backend
             context: ./backend
-            dockerfile: ./backend/Dockerfile
+            dockerfile: ./backend/Dockerfile.prod
             image_name: octopustrack-backend
           - service: frontend
             context: ./frontend
-            dockerfile: ./frontend/Dockerfile
+            dockerfile: ./frontend/Dockerfile.prod
             image_name: octopustrack-frontend
 
     steps:
