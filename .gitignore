@@ -82,3 +82,9 @@ temp/
 # Carpetas de imágenes originales
 img-sistema/
 img/
+
+# Excluir contenido no versionable de negocio/deploy local
+excel/
+deploy/
+TASKS.md
+Productos-digitales.md
