@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Servicio de Categorías.
 Contiene toda la lógica de negocio para categorías jerárquicas.
