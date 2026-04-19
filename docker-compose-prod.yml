@@ -23,7 +23,7 @@ services:
         max_attempts: 5
       labels:
         - "traefik.enable=true"
-        - "traefik.docker.network=network_public"
+        - "traefik.swarm.network=network_public"
         - "traefik.http.routers.octopus-tenant-api.rule=Host(`octopus.qeva.xyz`) && PathPrefix(`/api/tenant`)"
         - "traefik.http.routers.octopus-tenant-api.entrypoints=websecure"
         - "traefik.http.routers.octopus-tenant-api.tls.certresolver=letsencryptresolver"
@@ -58,7 +58,7 @@ services:
         max_attempts: 3
       labels:
         - "traefik.enable=true"
-        - "traefik.docker.network=network_public"
+        - "traefik.swarm.network=network_public"
         - "traefik.http.routers.octopus-erp.rule=Host(`octopus.qeva.xyz`)"
         - "traefik.http.routers.octopus-erp.entrypoints=websecure"
         - "traefik.http.routers.octopus-erp.tls.certresolver=letsencryptresolver"
