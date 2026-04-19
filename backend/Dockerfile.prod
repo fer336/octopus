@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --fix-missing --no-install-recommends \
     libpq-dev \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
+    libharfbuzz0b \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
