@@ -550,23 +550,23 @@ const TOURS_BY_ROUTE: Record<string, RouteTour> = {
     ],
   },
   '/current-account': {
-    title: 'Tour de Cuenta Corriente',
+    title: 'Tour de Cuenta Corriente (flujo completo)',
     steps: [
       {
         element: '[data-tour-nav-current-account]',
         popover: {
           title: 'Cuenta Corriente (requisitos previos)',
           description:
-            'Antes de operar acá necesitás: clientes habilitados en CC + remitos de CC generados en Ventas + autorizaciones activas si retira un tercero.',
+            'Antes de operar acá necesitás: clientes con CC habilitada + remitos CC generados en Ventas + autorizaciones activas si retira un tercero.',
           side: 'right',
         },
       },
       {
         element: '[data-tour-current-account-auth-section]',
         popover: {
-          title: 'Autorizaciones titular/subcliente',
+          title: 'Paso 1 · Alta de autorizaciones',
           description:
-            'Primero definí quién paga (titular) y quién retira (subcliente autorizado).',
+            'Primero definí quién paga (titular) y quién retira (subcliente). Un titular puede tener varios autorizados.',
           side: 'top',
         },
       },
@@ -574,7 +574,7 @@ const TOURS_BY_ROUTE: Record<string, RouteTour> = {
         element: '[data-tour-current-account-billing-select]',
         popover: {
           title: 'Titular',
-          description: 'Seleccioná el cliente titular de la cuenta corriente.',
+          description: 'Seleccioná el cliente titular de la cuenta corriente (el que paga).',
           side: 'bottom',
         },
       },
@@ -582,31 +582,68 @@ const TOURS_BY_ROUTE: Record<string, RouteTour> = {
         element: '[data-tour-current-account-operating-select]',
         popover: {
           title: 'Subcliente autorizado',
-          description: 'Elegí quién está autorizado para retirar mercadería.',
+          description: 'Elegí quién retira. Luego podés repetir el proceso y crear más autorizados para el mismo titular.',
           side: 'bottom',
+        },
+      },
+      {
+        element: '[data-tour-current-account-create-auth]',
+        popover: {
+          title: 'Guardar autorización',
+          description:
+            'Este botón crea el vínculo titular/subcliente. Repetilo para cargar múltiples autorizados del mismo titular.',
+          side: 'left',
+        },
+      },
+      {
+        element: '[data-tour-current-account-authorizations-table]',
+        popover: {
+          title: 'Control de autorizaciones',
+          description:
+            'Acá ves activas e históricas, y podés editar/desactivar vínculos cuando cambian permisos de retiro.',
+          side: 'top',
         },
       },
       {
         element: '[data-tour-current-account-close-section]',
         popover: {
-          title: 'Control de remitos para cierre',
-          description: 'Seleccioná remitos a cerrar, revisá total y estado antes de confirmar.',
+          title: 'Paso 2 · Cierre de cuenta',
+          description:
+            'Después de emitir remitos en Ventas (modo Cta Cte), los cerrás acá por titular para consolidar deuda.',
+          side: 'top',
+        },
+      },
+      {
+        element: '[data-tour-current-account-closure-billing]',
+        popover: {
+          title: 'Titular a cerrar',
+          description: 'Elegí el titular, cargá observaciones y filtrá los remitos que querés incluir en el cierre.',
+          side: 'bottom',
+        },
+      },
+      {
+        element: '[data-tour-current-account-receipts-table]',
+        popover: {
+          title: 'Selección de remitos',
+          description:
+            'Marcá remitos pendientes. El sistema respeta bloqueos de cierres previos y te muestra total seleccionado.',
           side: 'top',
         },
       },
       {
         element: '[data-tour-current-account-preview]',
         popover: {
-          title: 'Vista previa',
-          description: 'Generá PDF preliminar para validar antes del cierre definitivo.',
+          title: 'Paso 3 · Vista previa',
+          description: 'Generá PDF preliminar para validar importes y remitos antes de cerrar.',
           side: 'left',
         },
       },
       {
         element: '[data-tour-current-account-close-all]',
         popover: {
-          title: 'Cerrar toda la cuenta',
-          description: 'Confirma el cierre y deja el comprobante pendiente para facturación.',
+          title: 'Paso 4 · Confirmar cierre',
+          description:
+            'Al confirmar, se genera comprobante de cierre y queda pendiente para facturación desde Ventas.',
           side: 'left',
         },
       },

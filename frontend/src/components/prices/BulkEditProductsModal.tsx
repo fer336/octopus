@@ -49,7 +49,6 @@ interface BulkEditProductsModalProps {
   isOpen: boolean
   onClose: () => void
   onSave: (products: EditableProduct[]) => Promise<void>
-  onSaveDraft?: (products: EditableProduct[]) => void
   onDraftSaved?: () => void  // callback para refrescar la lista de borradores
   products: EditableProduct[]
   categories: Category[]
@@ -62,7 +61,6 @@ export default function BulkEditProductsModal({
   isOpen,
   onClose,
   onSave,
-  onSaveDraft,
   onDraftSaved,
   products: initialProducts,
   categories,

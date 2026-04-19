@@ -7,7 +7,6 @@ import { useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import purchaseOrdersService, {
   PurchaseOrder,
-  PurchaseOrderListItem,
 } from '../../api/purchaseOrdersService'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -36,7 +35,6 @@ interface Props {
   orderId: string
   onClose: () => void
   onConfirm: (id: string) => void
-  onDownloadPdf: (order: PurchaseOrderListItem) => void
   /** Callback para abrir el modal de edición — solo para borradores */
   onEdit?: (order: PurchaseOrder) => void
 }
@@ -47,7 +45,6 @@ export default function PurchaseOrderDetailModal({
   orderId,
   onClose,
   onConfirm,
-  onDownloadPdf,
   onEdit,
 }: Props) {
   const { data: order, isLoading } = useQuery({

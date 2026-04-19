@@ -102,6 +102,7 @@ export interface FeatureFlagsResponse {
   receipts_enabled: boolean
   price_update_enabled: boolean
   reports_enabled: boolean
+  sql_backup_enabled?: boolean
 }
 
 export interface FeatureFlagsUpdate {
@@ -112,6 +113,7 @@ export interface FeatureFlagsUpdate {
   receipts_enabled?: boolean
   price_update_enabled?: boolean
   reports_enabled?: boolean
+  sql_backup_enabled?: boolean
 }
 
 export type FeedbackType = 'bug' | 'feature'

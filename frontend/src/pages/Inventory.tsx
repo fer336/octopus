@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import categoriesService from '../api/categoriesService'
+import categoriesService, { Category } from '../api/categoriesService'
 import suppliersService from '../api/suppliersService'
 import purchaseOrdersService, {
   PurchaseOrder,
@@ -94,7 +94,6 @@ export default function Inventory() {
   const {
     data: ordersData,
     isLoading,
-    refetch,
   } = useQuery({
     queryKey: ['purchase-orders', filterSupplier, filterCategory, filterStatus],
     queryFn: () =>
@@ -160,7 +159,7 @@ export default function Inventory() {
 
   const orders = ordersData?.items ?? []
   // categoriesService retorna array directo; suppliersService retorna paginado
-  const categories = Array.isArray(categoriesData) ? categoriesData : (categoriesData as any)?.items ?? []
+  const categories: Category[] = categoriesData ?? []
   const suppliers = suppliersData?.items ?? []
 
   return (
@@ -362,7 +361,6 @@ export default function Inventory() {
             confirmMutation.mutate(id)
             setSelectedOrderId(null)
           }}
-          onDownloadPdf={handleDownloadPdf}
           onEdit={(order) => {
             setSelectedOrderId(null)
             setEditingDraft(order)

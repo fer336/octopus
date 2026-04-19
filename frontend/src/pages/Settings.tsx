@@ -7,12 +7,11 @@ import { Building2, FileText, Bell, Shield } from 'lucide-react'
 import { Button, Input, Select } from '../components/ui'
 import { TAX_CONDITIONS } from '../types'
 import AIConfiguration from '../components/settings/AIConfiguration'
-import businessService, { Business, BusinessUpdate } from '../api/businessService'
+import businessService, { BusinessUpdate } from '../api/businessService'
 import toast from 'react-hot-toast'
 
 export default function Settings() {
   const [loading, setLoading] = useState(false)
-  const [business, setBusiness] = useState<Business | null>(null)
   const [businessId, setBusinessId] = useState<string>('')
   
   // Form state
@@ -37,7 +36,6 @@ export default function Settings() {
   const loadBusiness = async () => {
     try {
       const data = await businessService.getMyBusiness()
-      setBusiness(data)
       setBusinessId(data.id)
       setFormData({
         name: data.name || '',
@@ -94,8 +92,7 @@ export default function Settings() {
         sale_point: formData.sale_point,
       }
 
-      const updated = await businessService.updateMyBusiness(updateData)
-      setBusiness(updated)
+      await businessService.updateMyBusiness(updateData)
       toast.success('Datos del negocio actualizados correctamente')
     } catch (error: any) {
       console.error('Error al actualizar negocio:', error)

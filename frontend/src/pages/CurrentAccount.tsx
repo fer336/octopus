@@ -503,14 +503,21 @@ export default function CurrentAccount() {
           </div>
         </div>
 
-        <div className="flex justify-end">
-          <Button onClick={handleCreateAuthorization} isLoading={createAuthorizationMutation.isPending}>
+        <div className="flex justify-end" data-tour-current-account-create-auth-section>
+          <Button
+            onClick={handleCreateAuthorization}
+            isLoading={createAuthorizationMutation.isPending}
+            data-tour-current-account-create-auth
+          >
             Guardar autorización
           </Button>
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+      <div
+        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+        data-tour-current-account-authorizations-table
+      >
         <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold mb-3">
           <Filter size={16} className="text-primary-600" />
           Clientes titulares para Cuenta Corriente
@@ -679,6 +686,7 @@ export default function CurrentAccount() {
                 setSelectedReceiptIds([])
               }}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 dark:text-white"
+              data-tour-current-account-closure-billing
             >
               <option value="">{billingClients.length > 0 ? 'Seleccionar titular...' : 'Sin titulares disponibles'}</option>
               {billingClients.map((client) => (
@@ -748,7 +756,10 @@ export default function CurrentAccount() {
           </div>
         </div>
 
-        <div className="overflow-auto rounded-lg border border-gray-200 dark:border-gray-700 max-h-72">
+        <div
+          className="overflow-auto rounded-lg border border-gray-200 dark:border-gray-700 max-h-72"
+          data-tour-current-account-receipts-table
+        >
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/70">
               <tr>

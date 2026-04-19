@@ -62,7 +62,6 @@ function TenantTableSkeleton() {
 }
 
 export default function TenantList() {
-  const navigate = useNavigate()
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')

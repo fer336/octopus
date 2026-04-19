@@ -3,7 +3,7 @@
  * Muestra los productos parseados del Excel para revisión y edición antes de importar.
  */
 import { useState, useEffect } from 'react'
-import { AlertCircle, Check, XCircle, Edit2, Save, X, Tag } from 'lucide-react'
+import { AlertCircle, Check, XCircle, Edit2, Save, X } from 'lucide-react'
 import { Modal, Button } from '../ui'
 import { ProductImportRow } from '../../api/productsService'
 import BulkAssignModal from './BulkAssignModal'
@@ -44,6 +44,17 @@ export default function ImportPreviewModal({
   categories,
   suppliers,
 }: ImportPreviewModalProps) {
+  const bulkFieldLabels: Record<string, string> = {
+    category_id: 'Categoría',
+    supplier_id: 'Proveedor',
+    discount_display: 'Bonificaciones',
+    list_price: 'Precio lista',
+    extra_cost: 'Cargo extra',
+    current_stock: 'Stock',
+    minimum_stock: 'Stock mínimo',
+    iva_rate: 'IVA',
+  }
+
   const [editingRows, setEditingRows] = useState<Set<number>>(new Set())
   const [rows, setRows] = useState<ProductImportRow[]>([])
   const [isConfirming, setIsConfirming] = useState(false)
@@ -260,7 +271,9 @@ export default function ImportPreviewModal({
         }
         // Otros campos numéricos
         else {
-          updated[field] = value
+          const fieldKey = field as keyof ProductImportRow
+          const val = value as string | number
+          ;(updated as any)[fieldKey] = val
 
           // Si cambia precio o cargo, recalcular
           if (['list_price', 'extra_cost'].includes(field)) {
@@ -282,7 +295,7 @@ export default function ImportPreviewModal({
       })
     )
 
-    const fieldLabel = fields.find(f => f.key === field)?.label || field
+    const fieldLabel = bulkFieldLabels[field] || field
     toast.success(`${fieldLabel} actualizado en ${selectedRows.size} productos`, { icon: '✅' })
   }
 

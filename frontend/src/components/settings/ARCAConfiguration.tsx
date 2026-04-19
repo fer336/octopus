@@ -17,7 +17,7 @@ import {
   ShieldCheck,
   Upload,
 } from 'lucide-react'
-import { Button, Input, Select } from '../ui'
+import { Button, Select } from '../ui'
 import arcaService, {
   AfipSdkConfig,
   DiagnoseResponse,
@@ -31,7 +31,7 @@ interface ARCAConfigurationProps {
 
 export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps) {
   const cmsManagedMessage = 'Gestionado desde CMS superadmin.'
-  const [loading, setLoading] = useState(false)
+  const [loading] = useState(false)
   const [config, setConfig] = useState<AfipSdkConfig | null>(null)
 
   // Form states
@@ -41,10 +41,10 @@ export default function ARCAConfiguration({ businessId }: ARCAConfigurationProps
   const [environment, setEnvironment] = useState('testing')
 
   // Diagnóstico y testing
-  const [diagnosing, setDiagnosing] = useState(false)
-  const [diagnoseResult, setDiagnoseResult] = useState<DiagnoseResponse | null>(null)
-  const [testingInvoice, setTestingInvoice] = useState(false)
-  const [testResult, setTestResult] = useState<TestInvoiceResponse | null>(null)
+  const [diagnosing] = useState(false)
+  const [diagnoseResult] = useState<DiagnoseResponse | null>(null)
+  const [testingInvoice] = useState(false)
+  const [testResult] = useState<TestInvoiceResponse | null>(null)
 
   // Cargar configuración al montar
   useEffect(() => {

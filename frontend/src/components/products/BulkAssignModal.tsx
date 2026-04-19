@@ -2,7 +2,7 @@
  * Modal para asignar categoría y/o proveedor en lote a productos seleccionados.
  */
 import { useState } from 'react'
-import { Tag, Package, Check, X } from 'lucide-react'
+import { Tag, Check, X } from 'lucide-react'
 import { Modal, Button } from '../ui'
 
 interface Category {

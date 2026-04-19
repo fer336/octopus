@@ -260,24 +260,6 @@ export default function Products() {
     }
   }
 
-  // Manejo de backup completo (Excel)
-  const handleBackup = async () => {
-    try {
-      const blob = await productsService.exportBackup()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `backup-completo-${new Date().toISOString().split('T')[0]}.xlsx`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-      toast.success('Backup completo descargado')
-    } catch (error) {
-      toast.error('Error al generar backup')
-    }
-  }
-
   // Manejo de export SQL
   const handleExportSQL = async () => {
     try {
@@ -475,24 +457,6 @@ export default function Products() {
   // Handler cuando cambia el proveedor
   const handleSupplierChange = (supplierId: string) => {
     setFormData(prev => ({ ...prev, supplier_id: supplierId }))
-  }
-
-  // Calcular precio de venta estimado en frontend (solo visual)
-  const calculateEstimatedPrice = () => {
-    const listPrice = formData.list_price || 0
-    const d1 = formData.discount_1 || 0
-    const d2 = formData.discount_2 || 0
-    const d3 = formData.discount_3 || 0
-    const extra = formData.extra_cost || 0
-    const profit = formData.profit_margin || 0
-    const iva = formData.iva_rate || 21
-
-    const netBase = listPrice * (1 - d1 / 100) * (1 - d2 / 100) * (1 - d3 / 100)
-    const netWithExtra = netBase * (1 + extra / 100)
-    const netWithProfit = netWithExtra * (1 + profit / 100)
-    const finalPrice = netWithProfit * (1 + iva / 100)
-
-    return finalPrice
   }
 
   // Focus en el primer campo al abrir el modal

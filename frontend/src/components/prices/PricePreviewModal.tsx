@@ -52,7 +52,6 @@ export default function PricePreviewModal({
 
   // Calcular estadísticas
   const avgChange = previewData.items.reduce((sum, item) => sum + item.change_percentage, 0) / previewData.items.length
-  const totalIncrease = previewData.items.filter(i => i.change_amount > 0).length
   const totalDecrease = previewData.items.filter(i => i.change_amount < 0).length
 
   return (

@@ -96,7 +96,6 @@ export default function PriceUpdateModal({
     onClose()
   }
 
-  const selectedFieldLabel = fields.find(f => f.key === field)?.label || ''
   const selectedTypeConfig = updateTypes.find(t => t.key === updateType)
 
   return (

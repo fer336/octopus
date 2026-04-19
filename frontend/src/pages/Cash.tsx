@@ -366,7 +366,6 @@ function CloseCashModal({
 
 function MovementRow({ mv }: { mv: CashMovement }) {
   const isExpense = mv.type === 'EXPENSE'
-  const isIncome = mv.type === 'INCOME' || mv.type === 'SALE' || mv.type === 'PAYMENT_RECEIVED'
 
   return (
     <tr className="border-b hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
