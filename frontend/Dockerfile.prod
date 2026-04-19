@@ -7,12 +7,9 @@ RUN npm ci
 
 COPY . .
 
-# Variables de build para Vite (no sensibles)
-ARG VITE_BACKEND_URL=https://api.tu-dominio.com
-ARG VITE_API_URL=https://api.tu-dominio.com/api/tenant
-
-ENV VITE_BACKEND_URL=${VITE_BACKEND_URL}
-ENV VITE_API_URL=${VITE_API_URL}
+# Variables de build para producción
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL:-https://octopus.qeva.xyz/api/tenant}
 
 RUN npm run build
 
