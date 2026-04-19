@@ -3,6 +3,8 @@ Servicio de Órdenes de Pedido.
 Gestiona el ciclo completo: conteo físico → orden → confirmación.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional

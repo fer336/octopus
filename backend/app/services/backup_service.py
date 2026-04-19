@@ -3,6 +3,8 @@ Servicio de Backup para Tenants.
 Genera dumps SQL lógicos aislados para un tenant específico.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from decimal import Decimal
