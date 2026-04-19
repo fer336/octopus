@@ -515,7 +515,9 @@ class BackupService:
         # Crear mappings de datos
         category_map = {}  # old_id -> new_id
         supplier_map = {}  # old_id -> new_id
+
         # Primera pasada: importar categorías y suppliers (necesarios para productos)
+        # Pero primero buscar existentes para evitar duplicados
         for table_name, columns_str, values_str in inserts:
             columns = [c.strip() for c in columns_str.split(",")]
 
@@ -529,14 +531,36 @@ class BackupService:
 
             if table_name.lower() == "categories":
                 try:
+                    # Buscar categoría existente por nombre para evitar duplicados
+                    category_name = (
+                        self._sql_to_text(data.get("name"))
+                        or self._sql_to_text(data.get("description"))
+                        or "Sin categoría"
+                    )
+
+                    # Verificar si ya existe
+                    result = await self.db.execute(
+                        select(Category).where(
+                            Category.name == category_name,
+                            Category.business_id == business_id,
+                            Category.deleted_at.is_(None),
+                        )
+                    )
+                    existing_category = result.scalar_one_or_none()
+
+                    if existing_category:
+                        # Usar la categoría existente
+                        if "id" in data and self._sql_to_uuid_str(data["id"]):
+                            category_map[self._sql_to_uuid_str(data["id"])] = (
+                                existing_category.id
+                            )
+                        logger.info(f"Categoría existente encontrada: {category_name}")
+                        continue
+
+                    # Crear nueva categoría solo si no existe
                     async with self.db.begin_nested():
-                        # Crear nueva categoría
                         new_category = Category(
-                            name=(
-                                self._sql_to_text(data.get("name"))
-                                or self._sql_to_text(data.get("description"))
-                                or "Sin categoría"
-                            ),
+                            name=category_name,
                             description=self._sql_to_text(data.get("description")),
                             business_id=business_id,
                             created_at=datetime.utcnow(),
@@ -558,10 +582,34 @@ class BackupService:
 
             elif table_name.lower() == "suppliers":
                 try:
+                    # Buscar proveedor existente por nombre para evitar duplicados
+                    supplier_name = (
+                        self._sql_to_text(data.get("name")) or "Sin proveedor"
+                    )
+
+                    # Verificar si ya existe
+                    result = await self.db.execute(
+                        select(Supplier).where(
+                            Supplier.name == supplier_name,
+                            Supplier.business_id == business_id,
+                            Supplier.deleted_at.is_(None),
+                        )
+                    )
+                    existing_supplier = result.scalar_one_or_none()
+
+                    if existing_supplier:
+                        # Usar el proveedor existente
+                        if "id" in data and self._sql_to_uuid_str(data["id"]):
+                            supplier_map[self._sql_to_uuid_str(data["id"])] = (
+                                existing_supplier.id
+                            )
+                        logger.info(f"Proveedor existente encontrado: {supplier_name}")
+                        continue
+
+                    # Crear nuevo proveedor solo si no existe
                     async with self.db.begin_nested():
-                        # Crear nuevo supplier
                         new_supplier = Supplier(
-                            name=self._sql_to_text(data.get("name")) or "Sin proveedor",
+                            name=supplier_name,
                             cuit=self._sql_to_text(data.get("cuit")),
                             contact_name=self._sql_to_text(data.get("contact_name")),
                             phone=self._sql_to_text(data.get("phone")),
