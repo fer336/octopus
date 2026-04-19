@@ -5,19 +5,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Dependencias del sistema para psycopg/compilación
+# Dependencias del sistema para psycopg/compilación y WeasyPrint
+# Docs dicen que con wheels solo necesita: libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# WeasyPrint usa wheels que incluyen librerías compiladas
-# Pero necesitamos las dependencias base de Pango
-RUN apt-get update && apt-get install -y --no-install-recommends \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
-    libcairo2 \
-    libgobject-2.0-0 \
+    libharfbuzz0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
