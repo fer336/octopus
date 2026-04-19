@@ -1,0 +1,129 @@
+# TASKS - OctopusTrack
+
+## 🔴 Pendiente
+- [ ] [OPS-01] Replicar migraciones pendientes en entorno de deploy (`f1a2b3c4d5e6`, `a9b8c7d6e5f4`)
+- [ ] [FB-07] Validar flujo E2E feedback + sync a Linear con API key real (crear ticket tenant y verificar issue)
+- [ ] [VOU-02] Ventas: permitir cargar comprobante por código de presupuesto y autocompletar tabla de productos
+- [ ] [CC-02] Cuenta Corriente: permitir descuento global al cierre/liquidación de cuenta antes de emitir comprobante final
+- [ ] [CC-06] Cuenta Corriente: evaluar e implementar opción de interés por mora configurable
+- [ ] [CC-10] Cuenta Corriente: crear "Concepto de Retiro / Obra" (catálogo por titular) para etiquetar remitos (ej: CALIOPE 1234, FERLU 2334)
+- [ ] [CC-11] Cuenta Corriente: permitir autorizaciones titular→subcliente restringidas por Concepto/Obra y validar en emisión de remito
+- [ ] [CC-12-BE] Cuenta Corriente: diseñar/implementar endpoints de cierre detallado (`preview` sin persistencia + `confirm` con persistencia) manteniendo compatibilidad con CC-03/04/05/08/09
+- [ ] [CC-12-PDF] Cuenta Corriente: crear template PDF compacto de cierre (densidad tipo Orden de Pedido) con desglose por remito, productos, descuento por ítem y descuento general por remito
+- [ ] [CC-12-LINK] Cuenta Corriente: persistir vínculo explícito cierre↔remitos↔ítems para trazabilidad histórica (evitar depender de parseo de descripción)
+- [ ] [CC-13-FE] Cuenta Corriente UI: agregar botón "Vista preliminar" del cierre (abre PDF preliminar sin bloquear/afectar remitos)
+- [ ] [CC-13-UX] Cuenta Corriente UI: flujo de confirmación en dos pasos (Previsualizar → Confirmar cierre) con mensajes claros de impacto
+- [ ] [CC-14-BE] Cuenta Corriente: endpoint de histórico de cierres por cliente titular con detalle de remitos incluidos por cierre
+- [ ] [CC-14-FE] Cuenta Corriente UI: sección "Histórico de cierres" por titular, expandible por cierre y acceso a PDF final
+- [ ] [CC-14-QA] Testing: cubrir cierre preview/final + bloqueo CC-05 + visibilidad CC-04 en pendientes de facturar
+- [ ] [CC-15-QA] Cuenta Corriente: validar E2E que un titular pueda tener múltiples subclientes autorizados (alta/edición/baja + uso en Ventas) y ajustar UX si detectamos fricción
+- [ ] [CMS-CC-03] CMS/UI/Ventas: al activar/desactivar Cuenta Corriente en CMS, mostrar/ocultar en Tiempo Real tanto el ítem del Sidebar como la opción "Cta Cte" del menú de Ventas
+- [ ] [PREM-CC-01] Premium: compilar múltiples presupuestos por código en un comprobante unificado
+- [ ] [PREM-CC-02] Premium: bloquear edición de presupuestos origen una vez compilados y marcarlos como "compilados"
+
+## 🟢 Hecho
+
+### Deploy y DevOps (Abril 2026)
+- [x] [DEVOPS-09-BUG-01] 🐛 Release Docker: workflow ajustado para publicar imágenes con `backend/Dockerfile.prod` y `frontend/Dockerfile.prod` ✅ 2026-04-18
+- [x] [DEVOPS-08] Release: preparar commit+push del nuevo release con recambio de screenshots en `docs/screenshots` ✅ 2026-04-18
+- [x] [DEVOPS-07] GitHub Releases: automatizar creación de Release (badge Latest) al publicar tag semver en workflow `docker-release` ✅ 2026-04-17
+- [x] [DEVOPS-06] Documentación secrets: ampliar guía con plantilla completa de `backend.env` y comandos SSH para crear/rotar `octopus_backend_env` ✅ 2026-04-17
+- [x] [DEVOPS-05] Deploy domains: parametrizar stack/docs para `octopus.qeva.xyz` y `cms-octopus.qeva.xyz` con middleware Traefik en raíz ✅ 2026-04-17
+- [x] [DEVOPS-04] Documentación deploy: crear guía MD para Hetzner + Portainer + Traefik + Secrets con pasos de build/push/deploy/verificación ✅ 2026-04-17
+- [x] [DEVOPS-03] Deploy Traefik: separar subdominios ERP/CMS/API con middleware para abrir raíz sin mostrar `tenant.html`/`admin.html` ✅ 2026-04-17
+- [x] [DEVOPS-02] Deploy Hetzner/Portainer: crear imagen backend prod compatible con Docker Secrets (`*_FILE`) + stack template de despliegue ✅ 2026-04-17
+- [x] [DEVOPS-01-BUG-01] 🐛 CI backend: resolver conflicto `pytest==9.0.2` vs `pytest-asyncio==0.24.0` (requiere pytest < 9) ✅ 2026-04-17
+- [x] [DEVOPS-01] CI/CD Release: publicar imágenes Docker (backend/frontend) en Docker Hub desde GitHub Releases/Tags (semver + latest + sha) y documentar secrets requeridos ✅ 2026-04-17
+
+### Backup SQL y Productos
+- [x] [DATA-05] 🐛 Backup SQL: corregir importación SQL real de productos/categorías/proveedores (parser robusto + mapeo de campos + manejo NULL/boolean + evitar duplicados) ✅ 2026-04-19
+- [x] [DATA-05-BUG-03] 🐛 Import SQL: evitar duplicar categorías y proveedores si ya existen (buscar por nombre antes de crear) ✅ 2026-04-19
+- [x] [DATA-05-BUG-02] 🐛 Import SQL: corregido `SyntaxError` en `backup_service.py` por f-strings con comillas anidadas en escape SQL ✅ 2026-04-18
+- [x] [DATA-05-BUG-01] 🐛 Import SQL: corregir compatibilidad con dumps viejos que incluyen `barcode` (el modelo Product actual no tiene ese campo) ✅ 2026-04-17
+- [x] [DATA-02] Productos: implementar descarga de backup SQL completo del tenant (incluyendo precios, bonificaciones y relaciones) ✅ 2026-04-12
+- [x] [DATA-01] Productos: definir estrategia de backup SQL por tenant (dump lógico aislado, no export parcial Excel) ✅ 2026-04-12
+
+### Onboarding Tours
+- [x] [ONB-TOUR-01] Onboarding: Product Tour guiado por módulo implementado (Ventas por modo, Precios, Inventario, Clientes, Cuenta Corriente) con automatizaciones de flujo y UI compacta en modal de precios ✅ 2026-04-18
+- [x] [ONB-TOUR-02] Onboarding: validar tour en entorno real (selector por pantalla + copy + persistencia por usuario) y ajustar pasos según feedback ✅ 2026-04-19
+- [x] [ONB-TOUR-04] 🐛 Tour Precios: forzar posicionamiento del paso "Actualizar productos" sobre botón flotante (abajo) y esperar render tras selección ✅ 2026-04-18
+- [x] [ONB-TOUR-03] 🐛 Tour Precios: corregir apertura automática del modal en paso "Actualizar productos" (se había perdido `onNextClick`) ✅ 2026-04-18
+- [x] [UX-IMP-01] Productos: mostrar modal de loading/progreso durante importación SQL para feedback en tiempo real al usuario ✅ 2026-04-17
+
+### Cuenta Corriente
+- [x] [CC-14-FE] Cuenta Corriente UI: sección "Histórico de cierres" por titular, expandible por cierre y acceso a PDF final ✅ 2026-04-19
+- [x] [CC-14-BE] Cuenta Corriente: endpoint de histórico de cierres por cliente titular con detalle de remitos incluidos por cierre ✅ 2026-04-19
+- [x] [CC-13-FE] Cuenta Corriente UI: agregar botón "Vista preliminar" del cierre (abre PDF preliminar sin bloquear/afectar remitos) ✅ 2026-04-19
+- [x] [CC-13-UX] Cuenta Corriente UI: flujo de confirmación en dos pasos (Previsualizar → Confirmar cierre) con mensajes claros de impacto ✅ 2026-04-19
+- [x] [CC-12-PDF] Cuenta Corriente: crear template PDF compacto de cierre (densidad tipo Orden de Pedido) con desglose por remito, productos, descuento por ítem y descuento general por remito ✅ 2026-04-19
+- [x] [CC-12-LINK] Cuenta Corriente: persistir vínculo explícito cierre↔remitos↔ítems para trazabilidad histórica ✅ 2026-04-19
+- [x] [CC-12-BE] Cuenta Corriente: diseñar/implementar endpoints de cierre detallado (`preview` sin persistencia + `confirm` con persistencia) ✅ 2026-04-19
+- [x] [CC-11] Cuenta Corriente: permitir autorizaciones titular→subcliente restringidas por Concepto/Obra y validar en emisión de remito ✅ 2026-04-19
+- [x] [CC-10] Cuenta Corriente: crear "Concepto de Retiro / Obra" (catálogo por titular) para etiquetar remitos ✅ 2026-04-19
+- [x] [CC-06] Cuenta Corriente: evaluar e implementar opción de interés por mora configurable ✅ 2026-04-19
+- [x] [CC-02] Cuenta Corriente: permitir descuento global al cierre/liquidación de cuenta antes de emitir comprobante final ✅ 2026-04-19
+- [x] [CC-PLAN-01] Analizar estado actual (backend/frontend/PDF) de cierre de Cuenta Corriente y preparar plan técnico + tareas accionables ✅ 2026-04-16
+- [x] [CC-BUG-04] 🐛 Ventas Cta Cte: corregir selector titular/subcliente (autorizaciones + fallback a titular + payload `operating_client`) ✅ 2026-04-16
+- [x] [CC-09-BUG-02] 🐛 Remito PDF CC: ubicar "Retira" debajo de domicilio y mostrar fallback TITULAR cuando no hay subcliente ✅ 2026-04-16
+- [x] [CC-09] Remitos Cuenta Corriente: agregar campo/indicador "Autorizado" (sí/no) y mostrar nombre del subcliente retirador en listado/detalle/PDF según corresponda ✅ 2026-04-16
+- [x] [CC-08] Cuenta Corriente UI: en "Subcliente autorizado" ocultar al cliente titular seleccionado para evitar autovínculo ✅ 2026-04-16
+- [x] [CC-BUG-03] 🐛 Cuenta Corriente: evitar select de titular vacío cuando todos los clientes tienen `current_account_mode=disabled` ✅ 2026-04-16
+- [x] [CC-BUG-02] 🐛 Cuenta Corriente: corregir carga de clientes en `CurrentAccount` (frontend enviaba `per_page=200`) ✅ 2026-04-16
+- [x] [CC-01] Cuenta Corriente: crear nueva sección con tabla de clientes y remitos retirados para edición/control previo al cierre ✅ 2026-04-15
+- [x] [CC-03] Cuenta Corriente: modelar relación pagador/retiro (cliente titular + subcliente autorizado existente) ✅ 2026-04-15
+- [x] [CC-03-BUG-01] 🐛 SQLAlchemy: resolver AmbiguousForeignKeys entre `clients` y `vouchers` ✅ 2026-04-15
+- [x] [CC-07] Clientes: agregar "Tipo de Cliente" (catálogo administrable por tenant) + flag `is_subclient_eligible` ✅ 2026-04-15
+- [x] [CC-04] Cuenta Corriente: al cerrar cuenta generar comprobante pendiente de facturación con bandera "Cta Cte cerrada" ✅ 2026-04-15
+- [x] [CC-05] Cuenta Corriente: bloquear edición/eliminación de remitos incluidos en cierre y auditar diff ✅ 2026-04-15
+- [x] [SALES-CC-01] Ventas: agregar tipo de comprobante/flujo "Cuenta Corriente" con impresión con/sin precios y con/sin descuento ✅ 2026-04-15
+- [x] [CMS-CC-01] CMS: agregar feature flag de Cuenta Corriente (modo automático / modo manual) por tenant ✅ 2026-04-15
+- [x] [CMS-CC-02] CMS/UI: mostrar/ocultar ítem de sidebar "Cuenta Corriente" según toggle de feature flag ✅ 2026-04-15
+- [x] [CMS-CC-04] CMS usuarios: mostrar permiso "Cuenta Corriente" solo cuando el módulo esté habilitado en el tenant ✅ 2026-04-15
+
+### UI/UX y Branding
+- [x] [BRAND-02] Rebranding UI: migrar TODO EL SISTEMA a la nueva paleta de colores (Light y Dark) ✅ 2026-04-14
+- [x] [BRAND-01] Rebranding UI: aplicar nueva paleta (light/dark) y actualizar logo con fondo transparente ✅ 2026-04-14
+- [x] [BRAND-03] Branding: actualizar logos (sidebar + login) y compactar pantalla de login ✅ 2026-04-14
+- [x] [UI-06] Proveedores: rediseño compacto ✅ 2026-04-14
+- [x] [UI-05] Clientes: rediseño compacto/bonito (tabla, filtros, modal, spacing) ✅ 2026-04-12
+
+### Reportes y PDFs
+- [x] [REP-01] Reportes: diseñar arquitectura de reportes PDF (ventas, productos, stock, cuentas corrientes) ✅ 2026-04-14
+- [x] [REP-02] Reportes: implementar primera versión funcional de exportación PDF por reporte ✅ 2026-04-15
+- [x] [PDF-07] Ajustar ancho de columnas en comprobantes PDF para maximizar "Producto / Servicio" ✅ 2026-04-15
+- [x] [PDF-06] Comprobantes PDF: fijar columnas "Cantidad" y "Código" en 65px ✅ 2026-04-15
+- [x] [PDF-05] Comprobantes PDF (Remito + Factura): igualar ancho de columna "Código" con "Cantidad" ✅ 2026-04-15
+- [x] [PDF-04] Cotización PDF: achicar el ancho de la columna "Código" ✅ 2026-04-14
+- [x] [PDF-03] PDFs: quitar footer con firma comercial "Sistema creado por Qeva AI" ✅ 2026-04-13
+
+### ACL y Permisos
+- [x] [AUTH-ACL-01] CMS/Sesiones: jerarquía de administración por negocio (admin crea sub-empleados) ✅ 2026-04-15
+- [x] [AUTH-ACL-02] ACL backend: aplicar enforcement server-side por módulo ✅ 2026-04-15
+- [x] [AUTH-ACL-BUG-01] 🐛 CMS usuarios: corregir error `tenant_memberships.module_permissions does not exist` ✅ 2026-04-15
+- [x] [AUTH-ACL-BUG-02] 🐛 Tenant frontend en blanco: corregir `useAuthStore is not defined` ✅ 2026-04-15
+- [x] [AUTH-ACL-UI-01] CMS usuarios: compactar tabla/permisos y dejar acciones en una sola fila ✅ 2026-04-15
+- [x] [CMS-ACL-04] CMS/ACL: agregar toggles por tenant para Facturación, Remitos, Actualización de precios y Reportes ✅ 2026-04-16
+
+### Varios
+- [x] [VOU-01] Ventas/Remitos: exponer en UI de impresión la opción incluir/quitar precios para Remitos ✅ 2026-04-14
+- [x] [VOU-01-FIX] 🐛 Corregir alcance de toggle de precios: NO aplica a cotización (solo remito) ✅ 2026-04-14
+- [x] [INV-01] Inventario: permitir eliminar órdenes con UX clara (confirmación + feedback) ✅ 2026-04-12
+- [x] [INV-02] Inventario: registrar auditoría de eliminación de órdenes ✅ 2026-04-12
+- [x] [INT-01] Clientes: investigar integración ARCA/AFIP para autocompletar datos por CUIT ✅ 2026-04-12
+- [x] [INT-02] Clientes: implementar lookup CUIT y autocompletar campos con fallback manual ✅ 2026-04-12
+- [x] [SUP-01] Proveedores: remover bonificaciones del formulario y del listado ✅ 2026-04-14
+- [x] [PWA-META-01] Frontend: reemplazar meta tag deprecated `apple-mobile-web-app-capable` ✅ 2026-04-15
+- [x] [UI-SALES-ALERT-01] Ventas: reemplazar `window.confirm` de "Limpiar" por modal UI ✅ 2026-04-15
+- [x] [UI-CONFIRM-01] Frontend: reemplazar `window.confirm/confirm` restantes por modales UI ✅ 2026-04-15
+- [x] [PLAN-03] Definir estrategia "Opción B" para Cuenta Corriente (CMS + modos + premium) ✅ 2026-04-13
+
+### Admin y Premium
+- [x] [ADMIN-01] CMS: agregar acción de borrado total de datos de tenant (solo superadmin) ✅ 2026-04-12
+- [x] [ADMIN-02] CMS: registrar auditoría fuerte de borrado total ✅ 2026-04-12
+- [x] Implementar control de funcionalidades premium desde CMS (fase 1: Agente IA) ✅ 2026-04-12
+- [x] Corregir visibilidad del Agente IA en frontend tenant según feature flag ✅ 2026-04-12
+
+## 🚧 Bloqueado
+- [!] [DATA-03] Definir semántica "borrar base de datos completa" 🚧 El sistema es multitenant en una sola DB; no corresponde `DROP DATABASE`, sino purga transaccional por `business_id`.
+- [!] [DATA-04] Definir formato final de backup "SQL completo del usuario" 🚧 En entorno compartido no se puede exponer dump global; hay que generar dump lógico por tenant.
+- [!] [INT-03] Clientes: razón social AFIP por CUIT no confiable en algunos casos 🚧 Constancia devuelve errores regulatorios para ciertos CUITs.
