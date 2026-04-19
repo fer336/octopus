@@ -6,13 +6,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Dependencies for psycopg/compilation and WeasyPrint
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Dependencies for psycopg and WeasyPrint - using fix-missing
+RUN apt-get update && apt-get install -y --fix-missing --no-install-recommends \
     gcc \
     libpq-dev \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
-    libharfbuzz0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
