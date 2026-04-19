@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional
 
 import qrcode
 from jinja2 import Environment, FileSystemLoader
+from weasyprint import HTML
 
 from app.config import get_settings
 
@@ -21,21 +22,6 @@ settings = get_settings()
 # Configurar Jinja2
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates" / "pdf"
 env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
-
-# WeasyPrint se carga de forma lazy para evitar errores al inicio
-
-
-def _get_weasyprint_html():
-    """Lazy load de WeasyPrint."""
-    try:
-        from weasyprint import HTML
-
-        return HTML
-    except ImportError as e:
-        raise RuntimeError(
-            "WeasyPrint no está disponible. "
-            "Instala las dependencias: pip install weasyprint"
-        ) from e
 
 
 class PdfService:
@@ -57,7 +43,6 @@ class PdfService:
             bytes: El contenido del archivo PDF.
         """
         try:
-            HTML = _get_weasyprint_html()
             template = env.get_template("voucher.html")
             html_content = template.render(**context)
             pdf_bytes = HTML(string=html_content).write_pdf()
@@ -86,7 +71,6 @@ class PdfService:
             bytes: El contenido del archivo PDF.
         """
         try:
-            HTML = _get_weasyprint_html()
             template = env.get_template("invoice_arca.html")
             html_content = template.render(**context)
             pdf_bytes = HTML(string=html_content).write_pdf()

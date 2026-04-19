@@ -1,15 +1,18 @@
 FROM python:3.11-slim
 
-# v1.0.13 - Force rebuild with future annotations
+# v1.0.18 - Add WeasyPrint GTK dependencies
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Dependencies for psycopg/compilation - no cache
+# Dependencies for psycopg/compilation and WeasyPrint
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libharfbuzz0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
