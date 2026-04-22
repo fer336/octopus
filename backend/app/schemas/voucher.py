@@ -185,7 +185,7 @@ class ConvertQuotationToInvoice(BaseSchema):
         description="Métodos de pago (requerido para que quede registrado el cobro)",
     )
     price_strategy: Literal["historical", "current"] = Field(
-        default="current",
+        default="historical",
         description=(
             "Estrategia de precios para facturar desde comprobante: "
             "'historical' usa unit_price + iva_rate del comprobante origen; "

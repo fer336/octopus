@@ -147,7 +147,7 @@
 
 ### Varios
 - [x] [PREM-CC-03-BUG-01] 🐛 Sales (modal pendientes): al facturar 1 remito usa endpoint `convert-to-invoice` (solo cotización) y falla; debería enrutar por `compile-to-invoice` o soportar remito en convert ✅ 2026-04-22
-- [b] [PREM-CC-03-BUG-02] 🐛 Inconsistencia 1 vs varios en Sales: 1 comprobante usa `convert` (precios frescos), varios usan `compile` (precios históricos) y puede cambiar totales
+- [x] [PREM-CC-03-BUG-02] 🐛 Inconsistencia 1 vs varios en Sales: unificar default de price_strategy a "historical" en convert-to-invoice (era "current") para que 1 comprobante y varios usen la misma estrategia ✅ 2026-04-22
 - [x] [UI-SALES-HEADER-01] Ventas: reparar header para que "Limpiar" y "Borradores" muestren solo icono y todo el bloque quede en una sola fila ✅ 2026-04-22
 - [x] [VOU-01] Ventas/Remitos: exponer en UI de impresión la opción incluir/quitar precios para Remitos ✅ 2026-04-14
 - [x] [VOU-01-FIX] 🐛 Corregir alcance de toggle de precios: NO aplica a cotización (solo remito) ✅ 2026-04-14

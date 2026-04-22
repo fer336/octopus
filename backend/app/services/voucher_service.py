@@ -1557,7 +1557,7 @@ general_discount=final_discount,
         payments: Optional[List[Dict[str, Any]]],
         fiscal_client_id: Optional[UUID],
         user_id: UUID,
-        price_strategy: Literal["historical", "current"] = "current",
+        price_strategy: Literal["historical", "current"] = "historical",
     ) -> Voucher:
         """
         Convierte una cotización existente en una factura.
