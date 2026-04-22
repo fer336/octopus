@@ -25,6 +25,12 @@
 
 ## 🟢 Hecho
 
+- [x] [VOU-TABLE-UX-04] Comprobantes: mover detalle Titular/Autorizado/Retira a popover desde acciones de subfila ✅ 2026-04-22
+
+- [x] [VOU-TABLE-UX-03] Comprobantes: agregar acciones útiles en subfilas (ver PDF) y reubicar Titular/Autorizado sin columnas dedicadas ✅ 2026-04-22
+
+- [x] [VOU-TABLE-UX-02] Comprobantes: compactar columnas (más aire para Cliente), quitar Autorizado/Retira de tabla principal y ordenar Acciones en una sola fila ✅ 2026-04-22
+
 - [x] [PREM-CC-03-UX-02] Facturación desde comprobantes: compactar aún más el modal y asegurar selección usable del cliente fiscal en Vouchers ✅ 2026-04-22
 
 - [x] [PREM-CC-04] Facturación desde comprobantes: al emitir factura mostrar modal para elegir entre mantener precios originales del comprobante o actualizar precios vigentes, con trazabilidad del criterio aplicado ✅ 2026-04-22
@@ -146,6 +152,7 @@
 - [x] [CMS-ACL-04] CMS/ACL: agregar toggles por tenant para Facturación, Remitos, Actualización de precios y Reportes ✅ 2026-04-16
 
 ### Varios
+- [x] [VOU-TABLE-UX-01] Comprobantes: reemplazar árbol visual por desplegable limpio (sin flechas/conectores), normalizar subfilas origen y corregir overflow de columna Acciones ✅ 2026-04-22
 - [x] [PREM-CC-03-BUG-01] 🐛 Sales (modal pendientes): al facturar 1 remito usa endpoint `convert-to-invoice` (solo cotización) y falla; debería enrutar por `compile-to-invoice` o soportar remito en convert ✅ 2026-04-22
 - [x] [PREM-CC-03-BUG-02] 🐛 Inconsistencia 1 vs varios en Sales: unificar default de price_strategy a "historical" en convert-to-invoice (era "current") para que 1 comprobante y varios usen la misma estrategia ✅ 2026-04-22
 - [x] [UI-SALES-HEADER-01] Ventas: reparar header para que "Limpiar" y "Borradores" muestren solo icono y todo el bloque quede en una sola fila ✅ 2026-04-22

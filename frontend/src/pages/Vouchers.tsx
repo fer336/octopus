@@ -3,7 +3,7 @@
  * Visualiza cotizaciones, remitos y facturas generadas.
  */
 import { useState, useEffect } from 'react'
-import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle, RotateCcw, FileMinus, ExternalLink, Pencil, ChevronDown } from 'lucide-react'
+import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle, RotateCcw, FileMinus, ExternalLink, Pencil, Menu, Info } from 'lucide-react'
 import { Button, Table, Pagination, Select, Modal, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -72,7 +72,7 @@ const priceStrategyOptions: Array<{ value: PriceStrategy; label: string; help: s
   {
     value: 'historical',
     label: 'Mantener precios originales',
-    help: 'Usa unit_price + IVA del comprobante origen.',
+    help: 'Usa unit_price + IVA del comprobante base.',
   },
   {
     value: 'current',
@@ -118,6 +118,7 @@ export default function Vouchers() {
   } | null>(null)
   const [_compilePreviewLoading, _setCompilePreviewLoading] = useState(false)
   const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null)
+  const [openSubrowDetailsId, setOpenSubrowDetailsId] = useState<string | null>(null)
 
   // Query para comprobantes
   const { data: vouchersData, isLoading, error } = useQuery({
@@ -477,24 +478,23 @@ export default function Vouchers() {
     return (
       <div className="space-y-1">
         <div>{parentNode}</div>
-        <div className="mt-1 pl-2 border-l-2 border-indigo-300/90 dark:border-indigo-700/90 space-y-1">
+        <div className="mt-1 space-y-1">
           {isSourceQuotationsFetching ? (
             <span className="text-[11px] text-indigo-600 dark:text-indigo-300">
-              Cargando cotizaciones...
+              Cargando comprobantes vinculados...
             </span>
           ) : childRows.length > 0 ? (
-            childRows.map((child, index) => (
-              <div key={child.id} className="relative rounded-md bg-indigo-50/40 dark:bg-indigo-900/10 py-0.5">
-                <span className="absolute -left-2 top-1/2 -translate-y-1/2 w-2 h-px bg-indigo-300 dark:bg-indigo-700" />
-                {index === childRows.length - 1 && (
-                  <span className="absolute -left-2 top-1/2 h-[calc(50%+8px)] w-px bg-white dark:bg-gray-900" />
-                )}
-                <div className="pl-2">{renderChildNode(child)}</div>
+            childRows.map((child) => (
+              <div
+                key={child.id}
+                className="rounded-md border border-indigo-200/80 dark:border-indigo-800/80 bg-indigo-50/40 dark:bg-indigo-900/10 px-2 py-1"
+              >
+                {renderChildNode(child)}
               </div>
             ))
           ) : (
             <span className="text-[11px] text-gray-500 dark:text-gray-400">
-              Sin cotizaciones asociadas
+              Sin comprobantes vinculados
             </span>
           )}
         </div>
@@ -632,7 +632,6 @@ export default function Vouchers() {
             }
           const ChildIcon = childInfo.icon
           const childBadge = child.voucher_type === 'receipt' ? 'REM' : child.voucher_type === 'quotation' ? 'COT' : null
-          const childIsCompiledSource = isCompiledSourceVoucher(child, item)
           return (
             <div className="flex items-center gap-1.5">
               <ChildIcon size={12} className={childInfo.textClass} />
@@ -648,14 +647,6 @@ export default function Vouchers() {
                 </span>
               )}
               <span className={`text-[11px] ${childInfo.textClass}`}>{childInfo.label}</span>
-              {childIsCompiledSource && (
-                <span
-                  title="Comprobante compilado en una factura. No se puede editar."
-                  className="inline-flex items-center px-1 h-4 rounded border text-[9px] font-bold leading-none bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700"
-                >
-                  Compilado
-                </span>
-              )}
             </div>
           )
         })
@@ -664,6 +655,7 @@ export default function Vouchers() {
     {
       key: 'number',
       header: 'Número',
+      className: 'w-[150px] max-w-[150px] align-top',
       render: (item: any) => {
         // Referencia a factura generada (cotización/remito facturado)
         const invoicedRef = item.invoiced_voucher_id
@@ -706,7 +698,7 @@ export default function Vouchers() {
 
         return renderTreeCell(item, parentNode, (child) => (
           <span className="block font-mono text-[11px] text-indigo-700 dark:text-indigo-300">
-            ↳ {child.sale_point}-{child.number}
+            {child.sale_point}-{child.number}
           </span>
         ))
       },
@@ -714,6 +706,7 @@ export default function Vouchers() {
     {
       key: 'date',
       header: 'Fecha',
+      className: 'w-[110px] max-w-[110px] align-top',
       render: (item: any) => {
         // Parsear fecha sin conversión de zona horaria
         // Si la fecha viene como "2026-02-06", tratarla como local
@@ -737,68 +730,21 @@ export default function Vouchers() {
     {
       key: 'client',
       header: 'Cliente',
+      className: 'min-w-[240px] align-top',
       render: (item: any) => {
         const parentNode = (
-          <span className="text-sm">
+          <span className="block text-sm whitespace-normal break-words">
             {item.client ? item.client.name : `Cliente #${item.client_id.substring(0, 8)}...`}
           </span>
         )
 
-        return renderTreeCell(item, parentNode, (child) => (
-          <span className="text-[11px] text-gray-700 dark:text-gray-200">
-            {child.client?.name || child.client_id || '—'}
-          </span>
-        ))
-      },
-    },
-    {
-      key: 'authorized',
-      header: 'Autorizado',
-      render: (item: VoucherListItem) => {
-        const applies = item.voucher_type === 'receipt' && item.is_current_account
-        const parentNode = !applies ? (
-          <span className="text-xs text-gray-400">—</span>
-        ) : (
-          (() => {
-            const isAuthorized = !!item.is_withdrawal_authorized
-            return (
-          <span
-            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-              isAuthorized
-                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-            }`}
-          >
-            {isAuthorized ? 'Sí' : 'No'}
-          </span>
-            )
-          })()
-        )
-
-        return renderTreeCell(item, parentNode, () => (
-          <span className="text-[11px] text-gray-400">—</span>
-        ))
-      },
-    },
-    {
-      key: 'withdrawalClient',
-      header: 'Retira',
-      render: (item: VoucherListItem) => {
-        const applies = item.voucher_type === 'receipt' && item.is_current_account
-        const parentNode = (() => {
-          if (!applies) {
-            return <span className="text-xs text-gray-400">—</span>
-          }
-
-          const withdrawalName =
-            item.withdrawal_client_name || item.operating_client?.name || item.billing_client?.name
-
-          return <span className="text-sm text-gray-900 dark:text-gray-100">{withdrawalName || '—'}</span>
-        })()
-
-        return renderTreeCell(item, parentNode, () => (
-          <span className="text-[11px] text-gray-400">—</span>
-        ))
+        return renderTreeCell(item, parentNode, (child) => {
+          return (
+            <span className="block text-[11px] text-gray-700 dark:text-gray-200 whitespace-normal break-words">
+              {child.client?.name || child.client_id || '—'}
+            </span>
+          )
+        })
       },
     },
     {
@@ -818,20 +764,12 @@ export default function Vouchers() {
               label: child.status,
               className: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400',
             }
-          const childIsCompiledSource = isCompiledSourceVoucher(child, item)
+          const isCompiledStatus = String(childStatusInfo.label).toLowerCase() === 'compilado'
           return (
             <div className="flex items-center gap-1 flex-wrap">
               <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${childStatusInfo.className}`}>
-                {childStatusInfo.label}
+                {isCompiledStatus ? '—' : childStatusInfo.label}
               </span>
-              {childIsCompiledSource && (
-                <span
-                  title="Origen de factura compilada"
-                  className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
-                >
-                  Compilado
-                </span>
-              )}
             </div>
           )
         })
@@ -840,6 +778,7 @@ export default function Vouchers() {
     {
       key: 'total',
       header: 'Total',
+      className: 'w-[130px] max-w-[130px] align-top',
       render: (item: any) => {
         const parentNode = (
           <span className="text-sm font-bold text-gray-900 dark:text-white">
@@ -857,14 +796,14 @@ export default function Vouchers() {
     {
       key: 'actions',
       header: 'Acciones',
-      className: 'text-center',
+      className: 'text-center w-[140px] max-w-[140px] align-top',
        render: (item: VoucherListItem) => {
          const isDeleted = !!item.deleted_at
           const closureLockInfo = getCurrentAccountClosureLockInfo(item)
           const isLockedByClosure = closureLockInfo.isLocked
 
         const parentActions = (
-          <div className="flex gap-1 justify-center">
+          <div className="mx-auto flex w-[128px] flex-nowrap items-center justify-center gap-1 overflow-x-auto whitespace-nowrap">
             {!isDeleted && (
               <>
                 {item.voucher_type === 'quotation' && !item.invoiced_voucher_id && (
@@ -915,7 +854,7 @@ export default function Vouchers() {
                   </span>
                 )}
 
-                {/* Botón cotizaciones origen — solo para facturas compiladas */}
+                {/* Botón comprobantes vinculados — solo para facturas compiladas */}
                 {hasCompiledSources(item) && (
                   <button
                     onClick={() => {
@@ -924,14 +863,9 @@ export default function Vouchers() {
                       )
                     }}
                     className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
-                    title="Ver cotizaciones origen"
+                    title="Ver comprobantes vinculados"
                   >
-                    <ChevronDown
-                      size={14}
-                      className={`transition-transform ${
-                        expandedInvoiceId === item.id ? 'rotate-180' : ''
-                      }`}
-                    />
+                    <Menu size={14} />
                   </button>
                 )}
                 
@@ -972,22 +906,35 @@ export default function Vouchers() {
           const childIsEditableQuotation =
             child.voucher_type === 'quotation' && !child.invoiced_voucher_id
           const childIsCompiledSource = isCompiledSourceVoucher(child, item)
+          const canShowSubrowDetails = child.voucher_type === 'receipt' && child.is_current_account
+          const isDetailsOpen = openSubrowDetailsId === child.id
+          const holderName = child.billing_client?.name || child.client?.name || child.client_id || '—'
+          const withdrawalName =
+            child.withdrawal_client_name || child.operating_client?.name || child.billing_client?.name || '—'
 
           if (childIsDeleted) {
             return <span className="text-[10px] text-red-600 font-medium">ELIMINADO</span>
           }
 
           return (
-            <div className="flex gap-1">
-              {childIsCompiledSource && (
-                <span
-                  title="Comprobante compilado: edición bloqueada"
-                  className="inline-flex items-center px-1 h-4 rounded border text-[9px] font-bold leading-none bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700"
+            <div className="relative flex items-center justify-center gap-1">
+              {canShowSubrowDetails && (
+                <button
+                  onClick={() => setOpenSubrowDetailsId((current) => (current === child.id ? null : child.id))}
+                  className="p-0.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/30 rounded transition-colors"
+                  title="Ver detalle de retiro"
                 >
-                  Sin edición
-                </span>
+                  <Info size={12} />
+                </button>
               )}
-              {childIsEditableQuotation && (
+              <button
+                onClick={() => handleViewPdf(child.id)}
+                className="p-0.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded transition-colors"
+                title={`Ver PDF del ${child.voucher_type === 'receipt' ? 'remito' : 'comprobante'}`}
+              >
+                <Eye size={12} />
+              </button>
+              {!childIsCompiledSource && childIsEditableQuotation && (
                 <button
                   onClick={() => handleEditQuotation(child as any)}
                   className="p-0.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded transition-colors"
@@ -996,20 +943,28 @@ export default function Vouchers() {
                   <Pencil size={12} />
                 </button>
               )}
-              <button
-                onClick={() => handleViewPdf(child.id)}
-                className="p-0.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded transition-colors"
-                title="Ver PDF"
-              >
-                <Eye size={12} />
-              </button>
-              <button
-                onClick={() => handleDownloadPdf(child.id, `${child.sale_point}-${child.number}`)}
-                className="p-0.5 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded transition-colors"
-                title="Descargar PDF"
-              >
-                <Download size={12} />
-              </button>
+
+              {isDetailsOpen && canShowSubrowDetails && (
+                <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border border-gray-200 bg-white p-3 text-left shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Detalle de retiro
+                  </div>
+                  <div className="space-y-1.5 text-[11px] text-gray-700 dark:text-gray-200">
+                    <div>
+                      <span className="font-semibold text-gray-500 dark:text-gray-400">Titular:</span>{' '}
+                      {holderName}
+                    </div>
+                    <div>
+                      <span className="font-semibold text-gray-500 dark:text-gray-400">Autorizado:</span>{' '}
+                      {child.is_withdrawal_authorized ? 'Sí' : 'No'}
+                    </div>
+                    <div>
+                      <span className="font-semibold text-gray-500 dark:text-gray-400">Retira:</span>{' '}
+                      {withdrawalName}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )
         })
@@ -1338,7 +1293,7 @@ export default function Vouchers() {
                         <div className="space-y-3">
                           <div className="p-2.5 bg-gray-50 dark:bg-gray-800 rounded-lg">
                             <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                              Cliente origen (comprobantes): {clientName}
+                              Cliente comprobantes: {clientName}
                             </p>
                             <p className="text-xs text-gray-500 mt-1">
                               {selectedVouchers.length} comprobante
@@ -1370,7 +1325,7 @@ export default function Vouchers() {
                               ))}
                             </select>
                             <p className="mt-1.5 text-[11px] text-blue-700 dark:text-blue-300">
-                              Diferenciá titular fiscal final vs cliente origen de
+                              Diferenciá titular fiscal final vs cliente de
                               los comprobantes.
                             </p>
                             {isClientsLoading && (
