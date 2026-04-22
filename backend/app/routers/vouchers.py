@@ -375,6 +375,77 @@ async def get_voucher_by_code(
     return VoucherResponse.model_validate(voucher)
 
 
+@router.get("/by-code/{code}/check-prices")
+async def check_voucher_prices(
+    code: str,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """
+    Compara precios de una cotización con el catálogo actual.
+    Devuelve diferencias para que el frontend pueda preguntar al usuario
+    si quiere actualizar precios al cargar la cotización.
+    """
+    from decimal import Decimal as D
+
+    from app.models.product import Product
+    from app.models.voucher import VoucherType
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    service = VoucherService(db)
+    voucher = await service.get_by_code(code, business_id)
+
+    if not voucher:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cotización no encontrada",
+        )
+
+    if voucher.voucher_type != VoucherType.QUOTATION:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El código no corresponde a una cotización/presupuesto",
+        )
+
+    if voucher.invoiced_voucher_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Esta cotización ya fue convertida a factura",
+        )
+
+    # Compare each item's price with current catalog price
+    differences = []
+    for item in voucher.items:
+        product = await db.get(Product, item.product_id)
+        if not product or product.business_id != business_id:
+            continue
+
+        old_price = D(str(item.unit_price))
+        current_price = D(str(product.sale_price))
+
+        if old_price != current_price:
+            diff_pct = D("0")
+            if old_price > 0:
+                diff_pct = ((current_price - old_price) / old_price * D("100")).quantize(D("0.01"))
+
+            differences.append({
+                "product_id": str(item.product_id),
+                "product_name": product.description,
+                "code": item.code,
+                "old_price": old_price,
+                "current_price": current_price,
+                "difference_percent": diff_pct,
+            })
+
+    return {
+        "has_differences": len(differences) > 0,
+        "differences": differences,
+        "affected_items": len(differences),
+        "total_items": len(voucher.items),
+    }
+
+
 @router.get("/{voucher_id}/pdf")
 async def get_voucher_pdf(
     voucher_id: UUID,

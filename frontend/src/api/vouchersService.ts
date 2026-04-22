@@ -135,6 +135,28 @@ const vouchersService = {
     return response.data
   },
 
+  /**
+   * Compara precios de una cotización con el catálogo actual.
+   * Devuelve diferencias para que el frontend pueda preguntar al usuario
+   * si quiere actualizar precios al cargar la cotización.
+   */
+  checkPrices: async (code: string): Promise<{
+    has_differences: boolean
+    differences: Array<{
+      product_id: string
+      product_name: string
+      code: string
+      old_price: number
+      current_price: number
+      difference_percent: number
+    }>
+    affected_items: number
+    total_items: number
+  }> => {
+    const response = await httpClient.get(`/vouchers/by-code/${encodeURIComponent(code)}/check-prices`)
+    return response.data
+  },
+
   create: async (data: VoucherCreate): Promise<Voucher> => {
     const response = await httpClient.post('/vouchers', data)
     return response.data
@@ -197,7 +219,7 @@ const vouchersService = {
     const response = await httpClient.post(`/vouchers/${quotationId}/convert-to-invoice`, {
       payments: payments ?? null,
       fiscal_client_id: fiscalClientId ?? null,
-      price_strategy: priceStrategy ?? 'current',
+      price_strategy: priceStrategy ?? 'historical',
     })
     return response.data
   },

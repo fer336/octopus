@@ -3,7 +3,7 @@
  * Permite crear cotizaciones, remitos y facturas.
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, DollarSign, ZoomIn, ZoomOut } from 'lucide-react'
+import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button, Modal, Select, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import productsService from '../api/productsService'
@@ -324,6 +324,10 @@ export default function Sales() {
   const [isLoadingBudget, setIsLoadingBudget] = useState(false)
   const [loadedBudgets, setLoadedBudgets] = useState<LoadedBudget[]>([])
   const [loadedBudgetsPriceStrategy, setLoadedBudgetsPriceStrategy] = useState<PriceStrategy>('historical')
+  const [pendingBudgetData, setPendingBudgetData] = useState<{
+    voucher: any
+    priceCheck: any
+  } | null>(null)
   const [items, setItems] = useState<CartItem[]>([])
   const [selectedProductIndex, setSelectedProductIndex] = useState(0)
   const productListRef = useRef<HTMLDivElement>(null)
@@ -687,6 +691,9 @@ export default function Sales() {
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [pdfVoucherInfo, setPdfVoucherInfo] = useState<{ type: string, number: string } | null>(null)
+
+  // === Modal de diferencias de precios al cargar presupuesto ===
+  const [showPriceDiffModal, setShowPriceDiffModal] = useState(false)
 
   // === Modales de cotizaciones/remitos pendientes ===
   const [showPendingQuotationsModal, setShowPendingQuotationsModal] = useState(false)
@@ -1199,6 +1206,10 @@ export default function Sales() {
 
     setIsLoadingBudget(true)
     try {
+      // 1. First check if prices differ from catalog
+      const priceCheck = await vouchersService.checkPrices(budgetCodeTrimmed)
+
+      // 2. Get the voucher data
       const voucher = await vouchersService.getByCode(budgetCodeTrimmed)
 
       // Verificar que sea una cotización
@@ -1215,43 +1226,22 @@ export default function Sales() {
 
       // Verificar que todos los presupuestos sean del mismo cliente
       if (loadedBudgets.length > 0 && selectedClient) {
-        // Comparamos por nombre de cliente del voucher o client_id
         if (voucher.client && voucher.client.id !== selectedClient.id) {
           toast.error('No se pueden mezclar presupuestos de diferentes clientes')
           return
         }
       }
 
-      // Cargar los datos del cliente (solo la primera vez)
-      if (!selectedClient && voucher.client) {
-        setSelectedClient(voucher.client as Client)
-        setClientSearch(voucher.client.name)
+      // 3. If there are price differences, show modal and pause
+      if (priceCheck.has_differences) {
+        setPendingBudgetData({ voucher, priceCheck })
+        setShowPriceDiffModal(true)
+        setIsLoadingBudget(false)
+        return
       }
 
-      // Agregar a la lista de presupuestos cargados
-      const newBudget: LoadedBudget = {
-        id: voucher.id,
-        code: voucher.number,
-        clientName: voucher.client?.name || selectedClient?.name || 'Sin cliente',
-        itemCount: voucher.items?.length || 0,
-      }
-      setLoadedBudgets([...loadedBudgets, newBudget])
-
-      // Cargar los items del presupuesto con referencia al sourceBudgetId
-      if (voucher.items && voucher.items.length > 0) {
-        const newItems: CartItem[] = voucher.items.map((item) => ({
-          id: `${voucher.id}-${item.product_id}`, // ID único para el item
-          product_id: item.product_id, // ID original del producto
-          code: item.code,
-          description: item.description,
-          sale_price: Number(item.unit_price),
-          quantity: Number(item.quantity),
-          discount: Number(item.discount_percent),
-          sourceBudgetId: voucher.id, // Referencia al presupuesto origen
-        }))
-        setItems([...items, ...newItems])
-        toast.success(`Presupuesto ${voucher.number} cargado con ${newItems.length} productos`, { icon: '📋' })
-      }
+      // 4. No differences — load directly
+      applyBudgetToCart(voucher, 'historical')
 
       // Limpiar el campo de código
       setBudgetCode('')
@@ -1260,6 +1250,47 @@ export default function Sales() {
       toast.error(errorMessage)
     } finally {
       setIsLoadingBudget(false)
+    }
+  }
+
+  // Apply a loaded budget to the cart with the chosen price strategy
+  const applyBudgetToCart = (voucher: any, priceStrategy: PriceStrategy) => {
+    // Cargar los datos del cliente (solo la primera vez)
+    if (!selectedClient && voucher.client) {
+      setSelectedClient(voucher.client as Client)
+      setClientSearch(voucher.client.name)
+    }
+
+    // Agregar a la lista de presupuestos cargados
+    const newBudget: LoadedBudget = {
+      id: voucher.id,
+      code: voucher.number,
+      clientName: voucher.client?.name || selectedClient?.name || 'Sin cliente',
+      itemCount: voucher.items?.length || 0,
+    }
+    setLoadedBudgets((prev) => [...prev, newBudget])
+
+    // Cargar los items del presupuesto con referencia al sourceBudgetId
+    if (voucher.items && voucher.items.length > 0) {
+      const newItems: CartItem[] = voucher.items.map((item: any) => {
+        const useCurrentPrice = priceStrategy === 'current'
+        return {
+          id: `${voucher.id}-${item.product_id}`,
+          product_id: item.product_id,
+          code: item.code,
+          description: item.description,
+          sale_price: useCurrentPrice
+            ? (item.product?.sale_price ?? Number(item.unit_price))
+            : Number(item.unit_price),
+          quantity: Number(item.quantity),
+          discount: Number(item.discount_percent),
+          sourceBudgetId: voucher.id,
+        }
+      })
+      setItems((prev) => [...prev, ...newItems])
+
+      const strategyLabel = priceStrategy === 'historical' ? 'precios originales' : 'precios vigentes'
+      toast.success(`Presupuesto ${voucher.number} cargado con ${newItems.length} productos (${strategyLabel})`, { icon: '📋' })
     }
   }
 
@@ -3292,6 +3323,93 @@ export default function Sales() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal de diferencias de precios al cargar presupuesto por código */}
+      <Modal
+        isOpen={showPriceDiffModal}
+        onClose={() => {
+          setShowPriceDiffModal(false)
+          setPendingBudgetData(null)
+        }}
+        title="Precios modificados desde la cotización"
+        size="lg"
+      >
+        {pendingBudgetData && (() => {
+          const { voucher, priceCheck } = pendingBudgetData
+          return (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-full bg-amber-100 dark:bg-amber-800/40 p-2">
+                    <AlertTriangle className="text-amber-600 dark:text-amber-300" size={18} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                      {priceCheck.affected_items} de {priceCheck.total_items} producto(s) tienen precios diferentes al catálogo actual
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                      ¿Querés cargar los productos con los precios originales de la cotización o actualizar a los precios vigentes?
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabla de diferencias */}
+              <div className="border rounded-lg dark:border-gray-700 overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 dark:bg-gray-800 text-gray-500">
+                      <th className="text-left px-3 py-2 font-medium">Producto</th>
+                      <th className="text-right px-3 py-2 font-medium">Precio cotización</th>
+                      <th className="text-right px-3 py-2 font-medium">Precio actual</th>
+                      <th className="text-right px-3 py-2 font-medium">Diferencia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {priceCheck.differences.map((diff: any) => (
+                      <tr key={diff.product_id} className="border-t border-gray-100 dark:border-gray-700">
+                        <td className="px-3 py-2 font-medium text-gray-900 dark:text-white">{diff.product_name}</td>
+                        <td className="px-3 py-2 text-right font-mono">${Number(diff.old_price).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                        <td className="px-3 py-2 text-right font-mono">${Number(diff.current_price).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                        <td className={`px-3 py-2 text-right font-mono font-semibold ${Number(diff.difference_percent) > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                          {Number(diff.difference_percent) > 0 ? '+' : ''}{Number(diff.difference_percent).toLocaleString('es-AR', { minimumFractionDigits: 1 })}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    applyBudgetToCart(voucher, 'historical')
+                    setShowPriceDiffModal(false)
+                    setPendingBudgetData(null)
+                    setBudgetCode('')
+                  }}
+                  className="flex-1"
+                >
+                  Mantener precios originales
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    applyBudgetToCart(voucher, 'current')
+                    setShowPriceDiffModal(false)
+                    setPendingBudgetData(null)
+                    setBudgetCode('')
+                  }}
+                  className="flex-1"
+                >
+                  Actualizar a precios vigentes
+                </Button>
+              </div>
+            </div>
+          )
+        })()}
       </Modal>
 
       {/* Modal de confirmación de borrador guardado */}

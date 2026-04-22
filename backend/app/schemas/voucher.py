@@ -235,6 +235,26 @@ class CompileToInvoiceRequest(BaseSchema):
     )
 
 
+class PriceDifferenceItem(BaseSchema):
+    """Detalle de diferencia de precio entre comprobante y catálogo actual."""
+
+    product_id: UUID
+    product_name: str
+    code: str
+    old_price: Decimal
+    current_price: Decimal
+    difference_percent: Decimal
+
+
+class VoucherPriceCheckResponse(BaseSchema):
+    """Respuesta del chequeo de precios al cargar cotización por código."""
+
+    has_differences: bool
+    differences: List[PriceDifferenceItem]
+    affected_items: int
+    total_items: int
+
+
 class VoucherResponse(BaseResponse):
     """Schema de respuesta para comprobante."""
 
