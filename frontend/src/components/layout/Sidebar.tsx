@@ -143,7 +143,7 @@ export default function Sidebar({
       {/* Logo */}
       <div className="h-14 flex items-center justify-center border-b border-[#2b2340]">
         <img
-          src="/logo-tenculo-finalpng"
+          src="/logo-tenculo-final.png"
           alt="Octopus Logo"
           className="h-[24px] w-[24px] object-contain"
         />

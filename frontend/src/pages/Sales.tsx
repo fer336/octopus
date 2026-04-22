@@ -44,6 +44,15 @@ interface Product {
 interface CartItem extends Product {
   quantity: number
   discount: number // Descuento adicional en la venta
+  sourceBudgetId?: string // ID del presupuesto origen (para rastrear de qué cotización viene cada item)
+}
+
+// Presupuesto cargado desde código
+interface LoadedBudget {
+  id: string
+  code: string
+  clientName: string
+  itemCount: number
 }
 
 interface Client {
@@ -298,6 +307,9 @@ export default function Sales() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [selectedOperatingClientId, setSelectedOperatingClientId] = useState<string>('')
   const [productSearch, setProductSearch] = useState('')
+  const [budgetCode, setBudgetCode] = useState('')
+  const [isLoadingBudget, setIsLoadingBudget] = useState(false)
+  const [loadedBudgets, setLoadedBudgets] = useState<LoadedBudget[]>([])
   const [items, setItems] = useState<CartItem[]>([])
   const [selectedProductIndex, setSelectedProductIndex] = useState(0)
   const productListRef = useRef<HTMLDivElement>(null)
@@ -439,6 +451,70 @@ export default function Sales() {
     },
     onSettled: () => {
       setIsConvertingQuotation(false)
+    }
+  })
+
+  // Mutation para compilar múltiples cotizaciones en una factura
+  const compileToInvoiceMutation = useMutation({
+    mutationFn: ({ quotationIds, payments }: { quotationIds: string[]; payments?: VoucherPayment[] }) =>
+      vouchersService.compileToInvoice(quotationIds, payments),
+    onSuccess: async (data) => {
+      toast.success('Factura compilada correctamente desde múltiples presupuestos', { icon: '✅' })
+
+      // Emitir en ARCA/AFIP
+      if (data.voucher_type.startsWith('invoice_')) {
+        toast.loading('Emitiendo factura electrónica en ARCA/AFIP...', { id: 'emitting-compile' })
+        try {
+          const emitResponse = await arcaService.emitInvoice({ voucher_id: data.id })
+          if (emitResponse.success) {
+            toast.success(
+              `Factura emitida correctamente\nCAE: ${emitResponse.cae}`,
+              { id: 'emitting-compile', duration: 5000, icon: '🎉' }
+            )
+          } else {
+            toast.error(
+              `Error al emitir factura:\n${emitResponse.message}`,
+              { id: 'emitting-compile', duration: 7000 }
+            )
+          }
+        } catch (error: any) {
+          toast.error(
+            `Error al emitir factura electrónica:\n${error.response?.data?.detail || error.message}`,
+            { id: 'emitting-compile', duration: 7000 }
+          )
+        }
+      }
+
+      // Descargar y mostrar PDF
+      try {
+        const pdfBlob = await vouchersService.getPdf(data.id)
+        const blobUrl = URL.createObjectURL(pdfBlob)
+        setPdfUrl(blobUrl)
+        setPdfVoucherInfo({ type: data.voucher_type, number: data.number })
+        setShowPdfModal(true)
+      } catch (error) {
+        toast.error('Error al abrir el PDF: ' + formatErrorMessage(error))
+      }
+
+      // Limpiar todo
+      setLoadedBudgets([])
+      setItems([])
+      setSelectedClient(null)
+      setSelectedOperatingClientId('')
+      setClientSearch('')
+      setGeneralDiscount(0)
+      setShowPrices(voucherType === 'receipt' || voucherType === 'current_account' ? false : true)
+      setProductSearch('')
+      setBudgetCode('')
+      resetPaymentSelections()
+      refetchPendingQuotations()
+    },
+    onError: (error: any) => {
+      const message = formatErrorMessage(error)
+      toast.error(message)
+    },
+    onSettled: () => {
+      setIsGenerating(false)
     }
   })
 
@@ -1048,6 +1124,8 @@ export default function Sales() {
     setSelectedOperatingClientId('')
     setClientSearch('')
     setProductSearch('')
+    setBudgetCode('')
+    setLoadedBudgets([])
     setVoucherType('quotation')
     setShowPrices(true)
     setEditingVoucherId(null)
@@ -1071,6 +1149,99 @@ export default function Sales() {
     clearSalesScreen()
     setShowClearConfirmModal(false)
     toast.success('Pantalla de ventas limpiada')
+  }
+
+  const handleLoadBudget = async () => {
+    if (!budgetCode.trim()) {
+      return
+    }
+
+    const budgetCodeTrimmed = budgetCode.trim()
+
+    setIsLoadingBudget(true)
+    try {
+      const voucher = await vouchersService.getByCode(budgetCodeTrimmed)
+
+      // Verificar que sea una cotización
+      if (voucher.voucher_type !== 'quotation') {
+        toast.error('El código no corresponde a una cotización/presupuesto')
+        return
+      }
+
+      // Verificar si ya fue facturada
+      if (voucher.invoiced_voucher_id) {
+        toast.error('Esta cotización ya fue convertida a factura')
+        return
+      }
+
+      // Verificar que todos los presupuestos sean del mismo cliente
+      if (loadedBudgets.length > 0 && selectedClient) {
+        // Comparamos por nombre de cliente del voucher o client_id
+        if (voucher.client && voucher.client.id !== selectedClient.id) {
+          toast.error('No se pueden mezclar presupuestos de diferentes clientes')
+          return
+        }
+      }
+
+      // Cargar los datos del cliente (solo la primera vez)
+      if (!selectedClient && voucher.client) {
+        setSelectedClient(voucher.client as Client)
+        setClientSearch(voucher.client.name)
+      }
+
+      // Agregar a la lista de presupuestos cargados
+      const newBudget: LoadedBudget = {
+        id: voucher.id,
+        code: voucher.number,
+        clientName: voucher.client?.name || selectedClient?.name || 'Sin cliente',
+        itemCount: voucher.items?.length || 0,
+      }
+      setLoadedBudgets([...loadedBudgets, newBudget])
+
+      // Cargar los items del presupuesto con referencia al sourceBudgetId
+      if (voucher.items && voucher.items.length > 0) {
+        const newItems: CartItem[] = voucher.items.map((item) => ({
+          id: `${voucher.id}-${item.product_id}`, // ID único para el item
+          product_id: item.product_id, // ID original del producto
+          code: item.code,
+          description: item.description,
+          sale_price: Number(item.unit_price),
+          quantity: Number(item.quantity),
+          discount: Number(item.discount_percent),
+          sourceBudgetId: voucher.id, // Referencia al presupuesto origen
+        }))
+        setItems([...items, ...newItems])
+        toast.success(`Presupuesto ${voucher.number} cargado con ${newItems.length} productos`, { icon: '📋' })
+      }
+
+      // Limpiar el campo de código
+      setBudgetCode('')
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || error.message || 'Presupuesto no encontrado'
+      toast.error(errorMessage)
+    } finally {
+      setIsLoadingBudget(false)
+    }
+  }
+
+  // Función para quitar un presupuesto cargado
+  const handleRemoveLoadedBudget = (budgetId: string) => {
+    // Quitar de la lista de presupuestos cargados
+    const updatedBudgets = loadedBudgets.filter(b => b.id !== budgetId)
+    setLoadedBudgets(updatedBudgets)
+
+    // Quitar los items que有这个 sourceBudgetId
+    const updatedItems = items.filter(item => item.sourceBudgetId !== budgetId)
+    setItems(updatedItems)
+
+    // Si no quedan presupuestos, limpiar el cliente también
+    if (updatedBudgets.length === 0) {
+      setSelectedClient(null)
+      setClientSearch('')
+      setSelectedOperatingClientId('')
+    }
+
+    toast.success('Presupuesto removido')
   }
 
   const handleGenerateClick = () => {
@@ -1127,6 +1298,25 @@ export default function Sales() {
     if (voucherType === 'receipt' && !receiptsEnabled) {
       toast.error('Remitos deshabilitados para este tenant')
       setIsGenerating(false)
+      return
+    }
+
+    // Si hay múltiples presupuestos cargados y es factura, usar compileToInvoice
+    if (loadedBudgets.length >= 2 && voucherType === 'invoice') {
+      const quotationIds = loadedBudgets.map(b => b.id)
+      compileToInvoiceMutation.mutate({
+        quotationIds,
+        payments: buildPaymentsPayload()
+      })
+      return
+    }
+
+    // Si hay 1 presupuesto cargado y es factura, usar convertQuotationMutation
+    if (loadedBudgets.length === 1 && voucherType === 'invoice') {
+      convertQuotationMutation.mutate({
+        quotationId: loadedBudgets[0].id,
+        payments: buildPaymentsPayload()
+      })
       return
     }
     
@@ -1831,6 +2021,62 @@ export default function Sales() {
                 </span>
               )}
             </Button>
+
+            <div className="flex items-center gap-1.5" title="Cargar presupuesto por código">
+              <input
+                type="text"
+                value={budgetCode}
+                onChange={(e) => setBudgetCode(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && budgetCode.trim()) {
+                    handleLoadBudget()
+                  }
+                }}
+                placeholder="Cargar presupuesto (#0001-00000001)"
+                className="w-44 rounded-lg border px-2 py-1 text-xs dark:bg-gray-700 dark:border-gray-600 placeholder:text-gray-400"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLoadBudget}
+                disabled={!budgetCode.trim() || isLoadingBudget}
+                className="px-2 py-1"
+                title="Cargar presupuesto"
+              >
+                {isLoadingBudget ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-primary-600" />
+                ) : (
+                  <FileText size={16} className="text-blue-600" />
+                )}
+              </Button>
+            </div>
+
+            {/* Chips de presupuestos cargados */}
+            {loadedBudgets.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5" title="Presupuestos cargados">
+                {loadedBudgets.map((budget) => (
+                  <div
+                    key={budget.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-full text-xs"
+                  >
+                    <FileText size={12} className="text-amber-600 dark:text-amber-400" />
+                    <span className="font-medium text-amber-800 dark:text-amber-200">
+                      {budget.code}
+                    </span>
+                    <span className="text-amber-600 dark:text-amber-400">
+                      ({budget.itemCount} {budget.itemCount === 1 ? 'prod' : 'prods'})
+                    </span>
+                    <button
+                      onClick={() => handleRemoveLoadedBudget(budget.id)}
+                      className="ml-0.5 text-amber-500 hover:text-red-600 dark:text-amber-400 dark:hover:text-red-400"
+                      title="Quitar presupuesto"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="flex items-center rounded-lg border border-primary-200 bg-primary-50/40 p-0.5 dark:border-primary-800 dark:bg-primary-900/20" data-tour-sales-voucher-types>
               {salesMenuModes.map((mode) => {

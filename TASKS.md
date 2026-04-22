@@ -3,25 +3,40 @@
 ## 🔴 Pendiente
 - [ ] [OPS-01] Replicar migraciones pendientes en entorno de deploy (`f1a2b3c4d5e6`, `a9b8c7d6e5f4`)
 - [ ] [FB-07] Validar flujo E2E feedback + sync a Linear con API key real (crear ticket tenant y verificar issue)
-- [ ] [VOU-02] Ventas: permitir cargar comprobante por código de presupuesto y autocompletar tabla de productos
-- [ ] [CC-02] Cuenta Corriente: permitir descuento global al cierre/liquidación de cuenta antes de emitir comprobante final
-- [ ] [CC-06] Cuenta Corriente: evaluar e implementar opción de interés por mora configurable
-- [ ] [CC-10] Cuenta Corriente: crear "Concepto de Retiro / Obra" (catálogo por titular) para etiquetar remitos (ej: CALIOPE 1234, FERLU 2334)
-- [ ] [CC-11] Cuenta Corriente: permitir autorizaciones titular→subcliente restringidas por Concepto/Obra y validar en emisión de remito
-- [ ] [CC-12-BE] Cuenta Corriente: diseñar/implementar endpoints de cierre detallado (`preview` sin persistencia + `confirm` con persistencia) manteniendo compatibilidad con CC-03/04/05/08/09
-- [ ] [CC-12-PDF] Cuenta Corriente: crear template PDF compacto de cierre (densidad tipo Orden de Pedido) con desglose por remito, productos, descuento por ítem y descuento general por remito
-- [ ] [CC-12-LINK] Cuenta Corriente: persistir vínculo explícito cierre↔remitos↔ítems para trazabilidad histórica (evitar depender de parseo de descripción)
-- [ ] [CC-13-FE] Cuenta Corriente UI: agregar botón "Vista preliminar" del cierre (abre PDF preliminar sin bloquear/afectar remitos)
-- [ ] [CC-13-UX] Cuenta Corriente UI: flujo de confirmación en dos pasos (Previsualizar → Confirmar cierre) con mensajes claros de impacto
-- [ ] [CC-14-BE] Cuenta Corriente: endpoint de histórico de cierres por cliente titular con detalle de remitos incluidos por cierre
-- [ ] [CC-14-FE] Cuenta Corriente UI: sección "Histórico de cierres" por titular, expandible por cierre y acceso a PDF final
 - [ ] [CC-14-QA] Testing: cubrir cierre preview/final + bloqueo CC-05 + visibilidad CC-04 en pendientes de facturar
 - [ ] [CC-15-QA] Cuenta Corriente: validar E2E que un titular pueda tener múltiples subclientes autorizados (alta/edición/baja + uso en Ventas) y ajustar UX si detectamos fricción
 - [ ] [CMS-CC-03] CMS/UI/Ventas: al activar/desactivar Cuenta Corriente en CMS, mostrar/ocultar en Tiempo Real tanto el ítem del Sidebar como la opción "Cta Cte" del menú de Ventas
-- [ ] [PREM-CC-01] Premium: compilar múltiples presupuestos por código en un comprobante unificado
+- [x] [PREM-CC-01-A] Backend: endpoint `POST /vouchers/compile-to-invoice` que reciba múltiples quotation_ids, valide, cree factura única y marque todas como facturadas ✅ 2026-04-21
+- [x] [PREM-CC-01-B] Frontend Opción A: pantalla de Ventas permite cargar múltiples códigos de presupuesto, mostrar chips de selección, y facturar compilado ✅ 2026-04-21
+- [x] [PREM-CC-01-C] Frontend Opción B: listado de comprobantes permite selección múltiple de cotizaciones + bulk action "Facturar seleccionadas" ✅ 2026-04-21
+- [x] [PREM-CC-01-D] Frontend: en detalle de factura, mostrar desplegable/acordeón con cotizaciones origen que la componen ✅ 2026-04-21
 - [ ] [PREM-CC-02] Premium: bloquear edición de presupuestos origen una vez compilados y marcarlos como "compilados"
+- [ ] [PDF-COMPACT-01] Comprimir diseño de comprobantes PDF (cotización, remito, factura): reducir paddings, optimizar uso de espacio, densidad tipo Orden de Pedido
+
+## 🟡 En progreso
 
 ## 🟢 Hecho
+
+### Ventas (Abril 2026)
+- [x] [VOU-02] Ventas: permitir cargar comprobante por código de presupuesto y autocompletar tabla de productos ✅ 2026-04-21
+- [x] [VOU-02-BUG-01] 🐛 Compilación múltiple: modal de pagos con selección por checkbox, referencia condicional y redondeo correcto de totales ✅ 2026-04-21
+- [x] [VOU-02-UX-01] Comprobantes: mostrar cotizaciones compiladas como subfilas árbol dentro de la factura y compactar iconos de acciones ✅ 2026-04-21
+- [x] [VOU-02-BUG-02] 🐛 Compilación múltiple: corregir cálculo backend para usar precios históricos de cotización + descuento explícito + redondeo monetario en validación de pagos ✅ 2026-04-21
+- [x] [VOU-02-UX-02] Comprobantes: ocultar cotizaciones ya facturadas de la tabla raíz y mostrar árbol de subfilas consistente aunque cambie paginación/filtros ✅ 2026-04-21
+- [x] [VOU-02-UX-03] Comprobantes: extender lógica de subfilas a remitos facturados (igual que cotizaciones) y ocultarlos de la tabla raíz ✅ 2026-04-21
+- [x] [VOU-02-FLOW-01] Facturación mixta: permitir facturar 1 o más comprobantes seleccionados (cotización y/o remito) con validación por cliente ✅ 2026-04-21
+
+### Marketing (Abril 2026)
+- [x] [MKT-03] Optimizar pricing/copy de landing (combo Excel + reposicionamiento plan IA USD 600) ✅ 2026-04-21
+- [x] [MKT-02] Definir oferta comercial híbrida (Excel + Sistema), posicionamiento y estructura de planes para la landing ✅ 2026-04-21
+- [x] [MKT-01] Landing comercial para vender productos digitales de Excel (cotizadores) con copy orientado a conversión ✅ 2026-04-20
+
+### Excels de Producto (Abril 2026)
+- [x] [XLS-CC-01] Diseñar `CuentaCorriente_OctopusTrack.xlsx` (Config, Clientes, Movimientos, Estado_Cuenta, Dashboard, Impresion_Extracto, Ayuda) con branding OctopusTrack, fórmulas de saldo acumulado Debe/Haber, pivots, validaciones, formato condicional por riesgo y extracto A4 imprimible ✅ 2026-04-21
+- [x] [XLS-CC-02] Generar plantilla funcional `excel/cotizador/CuentaCorriente_OctopusTrack.xlsx` con hojas, fórmulas, validaciones, dashboard y layout de impresión ✅ 2026-04-21
+
+### Configuración (Abril 2026)
+- [x] [CFG-DEV-01] Configurar credenciales de desarrollo para login (`DEV_LOGIN_EMAIL=demo@demo`, `DEV_LOGIN_PASSWORD=Demo1234!`) ✅ 2026-04-21
 
 ### Deploy y DevOps (Abril 2026)
 - [x] [DEVOPS-09-BUG-01] 🐛 Release Docker: workflow ajustado para publicar imágenes con `backend/Dockerfile.prod` y `frontend/Dockerfile.prod` ✅ 2026-04-18

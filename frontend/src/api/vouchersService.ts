@@ -124,6 +124,15 @@ const vouchersService = {
     return response.data
   },
 
+  /**
+   * Obtiene una cotización por código (formato: sale_point-number, ej: "0001-00000001").
+   * Útil para cargar un presupuesto existente y autocompletar la tabla de productos.
+   */
+  getByCode: async (code: string): Promise<Voucher> => {
+    const response = await httpClient.get(`/vouchers/by-code/${encodeURIComponent(code)}`)
+    return response.data
+  },
+
   create: async (data: VoucherCreate): Promise<Voucher> => {
     const response = await httpClient.post('/vouchers', data)
     return response.data
@@ -277,6 +286,44 @@ const vouchersService = {
     total: number
   }> => {
     const response = await httpClient.get(`/vouchers/current-account/history/${billingClientId}`)
+    return response.data
+  },
+
+  /**
+   * Compila múltiples cotizaciones en una sola factura.
+   * Las cotizaciones origen quedan marcadas como facturadas.
+   * Útil para facturar varios presupuestos de un mismo cliente juntos.
+   */
+  compileToInvoice: async (
+    quotationIds: string[],
+    payments?: VoucherPayment[],
+    generalDiscount?: number
+  ): Promise<Voucher> => {
+    const response = await httpClient.post('/vouchers/compile-to-invoice', {
+      quotation_ids: quotationIds,
+      payments: payments ?? null,
+      general_discount: generalDiscount ?? 0,
+    })
+    return response.data
+  },
+
+  /**
+   * Obtiene las cotizaciones origen de una factura compilada.
+   */
+  getSourceQuotations: async (invoiceId: string): Promise<
+    Array<{
+      id: string
+      voucher_type: string
+      code: string
+      date: string
+      client_name: string
+      total: number
+      item_count: number
+    }>
+  > => {
+    const response = await httpClient.get(
+      `/vouchers/${invoiceId}/source-quotations`,
+    )
     return response.data
   },
 }

@@ -182,6 +182,35 @@ class ConvertQuotationToInvoice(BaseSchema):
     )
 
 
+class CompileToInvoiceRequest(BaseSchema):
+    """
+    Schema para compilar comprobantes (cotizaciones/remitos) en una factura.
+
+    Validaciones:
+    - Todos los comprobantes deben existir y pertenecer al tenant.
+    - Los tipos permitidos son: 'quotation' o 'receipt'.
+    - Ninguna debe estar ya facturada.
+    - Todas deben tener el MISMO cliente (no mezclar clientes).
+    - Descuento general: usa exactamente el valor recibido (0 = sin descuento).
+    """
+
+    quotation_ids: List[UUID] = Field(
+        ...,
+        min_length=1,
+        description="IDs de cotizaciones/remitos a facturar (mínimo 1)",
+    )
+    payments: Optional[List[VoucherPaymentCreate]] = Field(
+        default=None,
+        description="Métodos de pago (requerido para facturas)",
+    )
+    general_discount: Decimal = Field(
+        default=Decimal("0"),
+        ge=0,
+        le=100,
+        description="Descuento general (%) aplicado a la factura compilada. 0 = sin descuento.",
+    )
+
+
 class VoucherResponse(BaseResponse):
     """Schema de respuesta para comprobante."""
 
@@ -219,6 +248,18 @@ class VoucherResponse(BaseResponse):
     invoiced_voucher_id: Optional[UUID] = None
 
     items: List[VoucherItemResponse]
+
+
+class SourceQuotationResponse(BaseSchema):
+    """Comprobante origen (cotización/remito) de una factura."""
+
+    id: UUID
+    voucher_type: VoucherType
+    code: str
+    date: date
+    client_name: str
+    total: Decimal
+    item_count: int
 
 
 class VoucherAuditLogResponse(BaseResponse):

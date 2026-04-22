@@ -26,7 +26,9 @@ from app.schemas.voucher import (
     VoucherUpdate,
     VoucherResponse,
     ConvertQuotationToInvoice,
+    CompileToInvoiceRequest,
     VoucherAuditLogResponse,
+    SourceQuotationResponse,
 )
 from app.schemas.credit_note import CreditNoteCreate
 from app.schemas.voucher import CurrentAccountCloseHistoryResponse
@@ -341,6 +343,36 @@ async def update_voucher(
         return VoucherResponse.model_validate(voucher)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/by-code/{code}")
+async def get_voucher_by_code(
+    code: str,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """
+    Obtiene un comprobante por código (formato: sale_point-number, ej: "0001-00000001").
+    Solo retorna cotizaciones (presupuestos) que no hayan sido facturadas.
+    Útil para autocompletar la tabla de productos al crear una nueva venta.
+    """
+    service = VoucherService(db)
+    voucher = await service.get_by_code(code, business_id)
+
+    if not voucher:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cotización no encontrada",
+        )
+
+    # Verificar si ya fue facturada
+    if voucher.invoiced_voucher_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"La cotización ya fue convertida a factura",
+        )
+
+    return VoucherResponse.model_validate(voucher)
 
 
 @router.get("/{voucher_id}/pdf")
@@ -756,6 +788,92 @@ async def convert_quotation_to_invoice(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al convertir cotización: {str(e)}",
         )
+
+
+@router.post(
+    "/compile-to-invoice",
+    response_model=VoucherResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def compile_quotations_to_invoice(
+    data: CompileToInvoiceRequest,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """
+    Compila múltiples cotizaciones en una sola factura.
+
+    - Todas las cotizaciones deben pertenecer al mismo cliente.
+    - Ninguna debe estar ya facturada.
+    - El descuento general usado es el MAYOR entre todas las cotizaciones (decisión documentada).
+    - Los pagos son opcionales pero requeridos para registrar el cobro.
+    - Requiere caja abierta.
+
+    En caso de error en cualquiera de las cotizaciones, se retorna 400 con detalle.
+    Si falla algo, no se persiste ningún cambio (transacción atómica).
+    """
+    await _ensure_invoicing_enabled(db, business_id)
+
+    open_register = await get_open_cash_register(db, business_id)
+    if not open_register:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No hay una caja abierta. Debe abrir la caja antes de emitir facturas.",
+        )
+
+    service = VoucherService(db)
+    try:
+        payments_raw = None
+        if data.payments:
+            payments_raw = [p.model_dump() for p in data.payments]
+
+        invoice = await service.compile_quotations_to_invoice(
+            business_id=business_id,
+            quotation_ids=data.quotation_ids,
+            payments=payments_raw,
+            general_discount=data.general_discount,
+            user_id=current_user.id,
+        )
+
+        await _log_audit(
+            db=db,
+            user_id=current_user.id,
+            business_id=business_id,
+            action="create",
+            resource_type="voucher",
+            resource_id=invoice.id,
+            details={
+                "description": f"Factura compilada desde {len(data.quotation_ids)} cotizaciones",
+                "quotation_ids": [str(qid) for qid in data.quotation_ids],
+            },
+        )
+
+        return VoucherResponse.model_validate(invoice)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al compilar cotizaciones: {str(e)}",
+        )
+
+
+@router.get("/{invoice_id}/source-quotations", response_model=list[SourceQuotationResponse])
+async def get_source_quotations(
+    invoice_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """
+    Lista las cotizaciones origen que fueron compiladas en una factura.
+
+    Retorna cotizaciones (quotation) que tienen su `invoiced_voucher_id` apuntando
+    a la factura dada, ordenadas por fecha.
+    """
+    service = VoucherService(db)
+    quotations = await service.get_source_quotations(invoice_id, business_id)
+    return quotations
 
 
 @router.post(

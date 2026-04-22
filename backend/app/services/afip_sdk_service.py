@@ -528,8 +528,12 @@ class AfipSdkService:
             if alicuota not in iva_by_alicuota:
                 iva_by_alicuota[alicuota] = {"base": 0.0, "importe": 0.0}
 
-            base_imp = float(item.unit_price) * float(item.quantity)
-            iva_imp = base_imp * (alicuota / 100)
+            # IMPORTANTE:
+            # Debe usar los importes YA calculados en el comprobante
+            # (incluyen descuentos por ítem y descuento general), para que
+            # sum(Iva.Importe) coincida exactamente con ImpIVA enviado.
+            base_imp = float(item.subtotal or 0)
+            iva_imp = float(item.iva_amount or 0)
 
             iva_by_alicuota[alicuota]["base"] += base_imp
             iva_by_alicuota[alicuota]["importe"] += iva_imp

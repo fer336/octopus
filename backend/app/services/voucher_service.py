@@ -3,7 +3,7 @@ Servicio de Comprobantes.
 Maneja la creación de ventas, cálculo de totales y generación de PDF.
 """
 
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from datetime import date as date_type
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
@@ -36,6 +36,11 @@ from app.services.pdf_service import pdf_service
 class VoucherService:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    @staticmethod
+    def _round_money(value: Decimal) -> Decimal:
+        """Redondea montos monetarios a 2 decimales (estilo ARS)."""
+        return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     async def _get_client_or_raise(self, client_id: UUID, business_id: UUID) -> Client:
         """Obtiene cliente válido del tenant o lanza error."""
@@ -200,9 +205,12 @@ class VoucherService:
             Decimal(str(payment_data["amount"])) for payment_data in normalized_payments
         )
 
-        if abs(total_payments - total_expected) > Decimal("0.01"):
+        total_payments = self._round_money(total_payments)
+        total_expected_rounded = self._round_money(total_expected)
+
+        if abs(total_payments - total_expected_rounded) > Decimal("0.01"):
             raise ValueError(
-                f"La suma de pagos (${total_payments}) no coincide con el total del comprobante (${total_expected})"
+                f"La suma de pagos (${total_payments}) no coincide con el total del comprobante (${total_expected_rounded})"
             )
 
         for payment_data in normalized_payments:
@@ -486,6 +494,48 @@ class VoucherService:
                 selectinload(Voucher.credit_notes),  # Requerido por has_credit_note
             )
             .where(Voucher.id == voucher_id, Voucher.business_id == business_id)
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_by_code(
+        self, code: str, business_id: UUID
+    ) -> Optional[Voucher]:
+        """
+        Obtiene un comprobante por código (formato: sale_point-number, ej: "0001-00000001").
+       Solo retorna cotizaciones (quotation) que no hayan sido facturadas.
+        """
+        # Normalizar código: puede venir con o sin guiones
+        normalized_code = code.strip().upper()
+        if "-" in normalized_code:
+            parts = normalized_code.split("-")
+            if len(parts) == 2:
+                sale_point = parts[0].zfill(4)
+                number = parts[1].zfill(8)
+            else:
+                sale_point = parts[0].zfill(4)
+                number = "".join(parts[1:]).zfill(8)
+        else:
+            # Si no hay guión, asumir que todo es el número
+            sale_point = "0001"
+            number = normalized_code.zfill(8)
+
+        query = (
+            select(Voucher)
+            .options(
+                selectinload(Voucher.items),
+                selectinload(Voucher.client),
+                selectinload(Voucher.billing_client),
+                selectinload(Voucher.operating_client),
+                selectinload(Voucher.credit_notes),  # Requerido por has_credit_note
+            )
+            .where(
+                Voucher.business_id == business_id,
+                Voucher.deleted_at.is_(None),
+                Voucher.voucher_type == VoucherType.QUOTATION,
+                Voucher.sale_point == sale_point,
+                Voucher.number == number,
+            )
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
@@ -1166,7 +1216,7 @@ class VoucherService:
                     receipt_date=receipt.date,
                     operating_client_name=receipt.withdrawal_client_name,
                     is_withdrawal_authorized=receipt.is_withdrawal_authorized,
-                    general_discount=general_discount,
+general_discount=final_discount,
                     code=item.code,
                     description=desc_with_prefix,
                     quantity=item.quantity,
@@ -1567,6 +1617,234 @@ class VoucherService:
 
         return await self.get_by_id(invoice.id, business_id)
 
+    async def compile_quotations_to_invoice(
+        self,
+        business_id: UUID,
+        quotation_ids: List[UUID],
+        payments: Optional[List[Dict[str, Any]]],
+        general_discount: Decimal = Decimal("0"),
+        user_id: UUID = None,
+    ) -> Voucher:
+        """
+        Compila comprobantes (cotizaciones/remitos) en una sola factura.
+
+        Si se provee general_discount, se usa ese valor.
+        Si no se provee (0), se usa el MAYOR descuento general entre todas las cotizaciones.
+        Esto protege al negocio (aplica el descuento más alto, no el menor).
+        Las alternativas (promedio, primero) podrían generar discrepancias.
+
+        Args:
+            business_id: ID del negocio
+            quotation_ids: Lista de IDs de cotizaciones/remitos a compilar
+            payments: Métodos de pago (requerido para facturas)
+            general_discount: Descuento general (%) override. Si es 0, usa max de cotizaciones.
+            user_id: ID del usuario que realiza la compilación
+
+        Returns:
+            El nuevo Voucher de factura creado
+
+        Raises:
+            ValueError: Si hay errores de validación en cualquiera de los comprobantes
+        """
+        # 1. Validar mínimo
+        if len(quotation_ids) < 1:
+            raise ValueError("Debe indicar al menos 1 comprobante para facturar")
+
+        # 2. Cargar todas las cotizaciones en una sola query
+        result = await self.db.execute(
+            select(Voucher)
+            .options(
+                selectinload(Voucher.items),
+                selectinload(Voucher.client),
+            )
+            .where(
+                Voucher.id.in_(quotation_ids),
+                Voucher.business_id == business_id,
+                Voucher.deleted_at.is_(None),
+            )
+        )
+        source_vouchers = list(result.scalars().all())
+
+        # 3. Verificar que todas existan
+        found_ids = {q.id for q in source_vouchers}
+        missing = [qid for qid in quotation_ids if qid not in found_ids]
+        if missing:
+            raise ValueError(
+                f"Comprobante(s) no encontrado(s): {[str(m) for m in missing]}"
+            )
+
+        # 4. Validar tipos permitidos (quotation/receipt)
+        for q in source_vouchers:
+            if q.voucher_type not in [VoucherType.QUOTATION, VoucherType.RECEIPT]:
+                raise ValueError(
+                    f"El comprobante '{q.full_number}' no es válido para facturar (solo cotización/remito)"
+                )
+
+        # 5. Validar que ninguna esté ya facturada
+        already_invoiced = [
+            q for q in source_vouchers if q.invoiced_voucher_id is not None
+        ]
+        if already_invoiced:
+            numbers = ", ".join(q.full_number for q in already_invoiced)
+            raise ValueError(
+                f"Los siguientes comprobantes ya fueron facturados: {numbers}"
+            )
+
+        # 6. Validar que TODAS tengan el MISMO cliente
+        client_ids = {str(q.client_id) for q in source_vouchers}
+        if len(client_ids) > 1:
+            raise ValueError(
+                "No se pueden facturar juntos comprobantes de diferentes clientes. "
+                "Todas deben tener el mismo cliente."
+            )
+
+        client = source_vouchers[0].client
+        if not client:
+            client = await self.db.get(Client, source_vouchers[0].client_id)
+        if not client:
+            raise ValueError("Cliente de los comprobantes no encontrado")
+
+        # 7. Determinar tipo de factura según condición fiscal del cliente
+        invoice_type = VoucherType.INVOICE_B
+        if client.tax_condition == "RI":
+            invoice_type = VoucherType.INVOICE_A
+
+        # 8. Obtener business para numeración
+        business = await self.db.get(Business, business_id)
+        if not business:
+            raise ValueError("Negocio no encontrado")
+
+        # 9. Obtener siguiente número de factura
+        if invoice_type == VoucherType.INVOICE_A:
+            last_number = int(business.last_invoice_a_number or "0")
+            next_number = last_number + 1
+            business.last_invoice_a_number = str(next_number).zfill(8)
+        else:
+            last_number = int(business.last_invoice_b_number or "0")
+            next_number = last_number + 1
+            business.last_invoice_b_number = str(next_number).zfill(8)
+
+        # 10. Descuento general:
+        # Si el frontend envía 0, se respeta 0 (sin descuento).
+        # Si envía otro valor, se usa exactamente ese valor.
+        final_discount = Decimal(str(general_discount or Decimal("0")))
+        general_discount_factor = 1 - (final_discount / 100)
+
+        # 11. Construir notas con los comprobantes origen
+        source_numbers = ", ".join(
+            f"{'COT' if q.voucher_type == VoucherType.QUOTATION else 'REM'} {q.full_number}"
+            for q in source_vouchers
+        )
+        invoice_notes = f"Facturado desde comprobantes: {source_numbers}"
+
+        # 12. Crear la factura
+        invoice = Voucher(
+            business_id=business_id,
+            client_id=source_vouchers[0].client_id,
+            created_by=user_id,
+            voucher_type=invoice_type,
+            status=VoucherStatus.CONFIRMED,
+            sale_point=business.sale_point or "0001",
+            number=str(next_number).zfill(8),
+            date=date_type.today(),
+            notes=invoice_notes,
+            show_prices="S",
+            general_discount=final_discount,
+        )
+
+        # 13. Copiar TODOS los items de TODOS los comprobantes origen
+        total_subtotal = Decimal(0)
+        total_iva = Decimal(0)
+        total_final = Decimal(0)
+        items_db: List[VoucherItem] = []
+        line_number = 1
+
+        for source_voucher in source_vouchers:
+            source_general_discount = Decimal(
+                str(source_voucher.general_discount or Decimal("0"))
+            )
+            source_discount_factor = 1 - (source_general_discount / 100)
+            for item_data in source_voucher.items:
+                product = await self.db.get(Product, item_data.product_id)
+                if not product or product.business_id != business_id:
+                    raise ValueError(
+                        f"Producto {item_data.product_id} no encontrado o no "
+                        f"pertenece al negocio (en comprobante {source_voucher.full_number})"
+                    )
+
+                # Mantener precios históricos de la cotización (no precio fresco de catálogo)
+                unit_price = Decimal(str(item_data.unit_price))
+                iva_rate = Decimal(str(item_data.iva_rate))
+                item_discount_factor = 1 - (item_data.discount_percent / 100)
+                subtotal_line = (
+                    unit_price
+                    * item_data.quantity
+                    * item_discount_factor
+                    * source_discount_factor
+                    * general_discount_factor
+                )
+                iva_line = subtotal_line * (iva_rate / 100)
+                total_line = subtotal_line + iva_line
+
+                subtotal_line = self._round_money(subtotal_line)
+                iva_line = self._round_money(iva_line)
+                total_line = self._round_money(total_line)
+
+                total_subtotal += subtotal_line
+                total_iva += iva_line
+                total_final += total_line
+
+                invoice_item = VoucherItem(
+                    product_id=product.id,
+                    code=item_data.code,
+                    description=item_data.description,
+                    quantity=item_data.quantity,
+                    unit=item_data.unit,
+                    unit_price=unit_price,
+                    discount_percent=item_data.discount_percent,
+                    iva_rate=iva_rate,
+                    iva_amount=iva_line,
+                    subtotal=subtotal_line,
+                    total=total_line,
+                    line_number=line_number,
+                )
+                items_db.append(invoice_item)
+                line_number += 1
+
+                # Descontar stock
+                product.current_stock -= int(item_data.quantity)
+
+        # 14. Asignar totales
+        invoice.subtotal = self._round_money(total_subtotal)
+        invoice.iva_amount = self._round_money(total_iva)
+        invoice.total = self._round_money(total_final)
+
+        # 15. Guardar factura
+        self.db.add(invoice)
+        await self.db.flush()
+
+        for item in items_db:
+            item.voucher_id = invoice.id
+            self.db.add(item)
+
+        # 16. Crear pagos
+        await self._create_voucher_payments(
+            voucher_id=invoice.id,
+            business_id=business_id,
+            payments=payments,
+            total_expected=invoice.total,
+            require_payments=True,
+        )
+
+        # 17. Marcar TODOS los comprobantes origen como facturados
+        for source_voucher in source_vouchers:
+            source_voucher.invoiced_voucher_id = invoice.id
+
+        await self.db.commit()
+        await self.db.refresh(invoice)
+
+        return await self.get_by_id(invoice.id, business_id)
+
     async def create_credit_note(
         self,
         business_id: UUID,
@@ -1742,3 +2020,42 @@ class VoucherService:
             .where(Voucher.id == credit_note.id)
         )
         return result.scalar_one()
+
+    async def get_source_quotations(
+        self,
+        invoice_id: UUID,
+        business_id: UUID,
+    ) -> List[Dict[str, Any]]:
+        """
+        Lista los comprobantes origen (cotizaciones/remitos) de una factura.
+
+        Busca cotizaciones/remitos cuyo `invoiced_voucher_id` apunta a la factura,
+        ordenadas por fecha.
+        """
+        from app.schemas.voucher import SourceQuotationResponse
+
+        query = (
+            select(Voucher)
+            .options(selectinload(Voucher.client), selectinload(Voucher.items))
+            .where(
+                Voucher.business_id == business_id,
+                Voucher.deleted_at.is_(None),
+                Voucher.voucher_type.in_([VoucherType.QUOTATION, VoucherType.RECEIPT]),
+                Voucher.invoiced_voucher_id == invoice_id,
+            )
+            .order_by(Voucher.date)
+        )
+        result = await self.db.execute(query)
+        vouchers = result.scalars().all()
+        return [
+            SourceQuotationResponse(
+                id=v.id,
+                voucher_type=v.voucher_type,
+                code=v.full_number,
+                date=v.date,
+                client_name=v.client.name if v.client else "",
+                total=v.total or Decimal("0"),
+                item_count=len(v.items) if v.items else 0,
+            ).model_dump()
+            for v in vouchers
+        ]

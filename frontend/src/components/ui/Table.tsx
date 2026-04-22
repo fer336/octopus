@@ -7,7 +7,7 @@ import { clsx } from 'clsx'
 
 interface Column<T> {
   key: keyof T | string
-  header: string
+  header: ReactNode
   render?: (item: T) => ReactNode
   className?: string
 }
