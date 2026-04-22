@@ -1007,6 +1007,7 @@ async def preview_compile_totals(
 
 
 @router.post(
+    "/compile-to-invoice",
     response_model=VoucherResponse,
     status_code=status.HTTP_201_CREATED,
 )
