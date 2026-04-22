@@ -318,6 +318,30 @@ const vouchersService = {
   },
 
   /**
+   * Previsualiza los totales de una compilación sin crear la factura.
+   * Calcula subtotal, IVA y total según la estrategia de precios elegida.
+   */
+  previewCompile: async (
+    quotationIds: string[],
+    generalDiscount?: number,
+    priceStrategy?: PriceStrategy,
+  ): Promise<{
+    subtotal: number
+    iva_amount: number
+    total: number
+    discount_amount: number
+    voucher_count: number
+    item_count: number
+  }> => {
+    const response = await httpClient.post('/vouchers/compile-to-invoice/preview', {
+      quotation_ids: quotationIds,
+      general_discount: generalDiscount ?? 0,
+      price_strategy: priceStrategy ?? 'historical',
+    })
+    return response.data
+  },
+
+  /**
    * Compila múltiples cotizaciones en una sola factura.
    * Las cotizaciones origen quedan marcadas como facturadas.
    * Útil para facturar varios presupuestos de un mismo cliente juntos.

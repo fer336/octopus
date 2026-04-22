@@ -255,6 +255,37 @@ class VoucherPriceCheckResponse(BaseSchema):
     total_items: int
 
 
+class CompilePreviewRequest(BaseSchema):
+    """Request para previsualizar totales de compilación con estrategia de precios."""
+
+    quotation_ids: List[UUID] = Field(
+        ...,
+        min_length=1,
+        description="IDs de cotizaciones/remitos a compilar",
+    )
+    general_discount: Decimal = Field(
+        default=Decimal("0"),
+        ge=0,
+        le=100,
+        description="Descuento general (%)",
+    )
+    price_strategy: Literal["historical", "current"] = Field(
+        default="historical",
+        description="Estrategia de precios",
+    )
+
+
+class CompilePreviewResponse(BaseSchema):
+    """Respuesta del preview de compilación con totales calculados."""
+
+    subtotal: Decimal
+    iva_amount: Decimal
+    total: Decimal
+    discount_amount: Decimal
+    voucher_count: int
+    item_count: int
+
+
 class VoucherResponse(BaseResponse):
     """Schema de respuesta para comprobante."""
 

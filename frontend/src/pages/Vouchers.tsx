@@ -2,7 +2,7 @@
  * Página de Comprobantes.
  * Visualiza cotizaciones, remitos y facturas generadas.
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle, RotateCcw, FileMinus, ExternalLink, Pencil, ChevronDown } from 'lucide-react'
 import { Button, Table, Pagination, Select, Modal, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -110,6 +110,13 @@ export default function Vouchers() {
   const [compilePaymentError, setCompilePaymentError] = useState<string>('')
   const [compileFiscalClientId, setCompileFiscalClientId] = useState<string>('')
   const [compilePriceStrategy, setCompilePriceStrategy] = useState<PriceStrategy>('historical')
+  const [compilePreviewTotals, setCompilePreviewTotals] = useState<{
+    subtotal: number
+    iva_amount: number
+    total: number
+    discount_amount: number
+  } | null>(null)
+  const [_compilePreviewLoading, _setCompilePreviewLoading] = useState(false)
   const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null)
 
   // Query para comprobantes
@@ -125,6 +132,48 @@ export default function Vouchers() {
     }),
     retry: false,
   })
+
+  // Fetch preview totals when modal is open or strategy/discount changes
+  useEffect(() => {
+    if (!showCompileModal || selectedQuotationIds.length === 0) {
+      setCompilePreviewTotals(null)
+      return
+    }
+
+    const fetchPreview = async () => {
+      _setCompilePreviewLoading(true)
+      try {
+        const preview = await vouchersService.previewCompile(
+          selectedQuotationIds,
+          Number(compileGeneralDiscount) || 0,
+          compilePriceStrategy,
+        )
+        setCompilePreviewTotals({
+          subtotal: preview.subtotal,
+          iva_amount: preview.iva_amount,
+          total: preview.total,
+          discount_amount: preview.discount_amount,
+        })
+        setCompilePaymentError('')
+      } catch {
+        // Fallback: use local calculation if preview fails
+        const vouchers = (vouchersData?.items || []).filter((v) =>
+          selectedQuotationIds.includes(v.id),
+        )
+        const subtotal = vouchers.reduce((sum, v) => sum + Number(v.total), 0)
+        setCompilePreviewTotals({
+          subtotal,
+          iva_amount: 0,
+          total: subtotal,
+          discount_amount: 0,
+        })
+      } finally {
+        _setCompilePreviewLoading(false)
+      }
+    }
+
+    fetchPreview()
+  }, [showCompileModal, selectedQuotationIds, compilePriceStrategy, compileGeneralDiscount, vouchersData])
 
   const {
     data: clientsData,
@@ -1247,27 +1296,13 @@ export default function Vouchers() {
               ) : (
                 <>
                   {(() => {
-                    const subtotal =
-                      Math.round(
-                        (selectedVouchers.reduce(
-                          (sum, v) => sum + Number(v.total),
-                          0,
-                        ) +
-                          Number.EPSILON) *
-                          100,
-                      ) / 100
+                    // Use preview totals from backend (respects price strategy)
+                    const previewSubtotal = compilePreviewTotals?.subtotal ?? 0
+                    const previewTotal = compilePreviewTotals?.total ?? 0
+                    const previewDiscountAmount = compilePreviewTotals?.discount_amount ?? 0
                     const discountPercent = Number(compileGeneralDiscount) || 0
-                    const discountAmount =
-                      Math.round(
-                        ((subtotal * Math.min(discountPercent, 100)) / 100 +
-                          Number.EPSILON) *
-                          100,
-                      ) / 100
-                    const finalTotal =
-                      Math.round((subtotal - discountAmount + Number.EPSILON) * 100) /
-                      100
                     const assignedTotal = compileSelectedPaymentMethodId
-                      ? finalTotal
+                      ? previewTotal
                       : 0
 
                     const compileClientOptions = (() => {
@@ -1308,7 +1343,7 @@ export default function Vouchers() {
                             <p className="text-xs text-gray-500 mt-1">
                               {selectedVouchers.length} comprobante
                               {selectedVouchers.length > 1 ? 's' : ''} — Total: $
-                              {subtotal.toLocaleString('es-AR', {
+                              {previewSubtotal.toLocaleString('es-AR', {
                                 minimumFractionDigits: 2,
                               })}
                             </p>
@@ -1413,7 +1448,7 @@ export default function Vouchers() {
                             <div className="flex justify-between">
                               <span className="text-gray-500">Subtotal:</span>
                               <span className="font-medium">
-                                ${subtotal.toLocaleString('es-AR', {
+                                ${previewSubtotal.toLocaleString('es-AR', {
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2,
                                 })}
@@ -1424,7 +1459,7 @@ export default function Vouchers() {
                                 <span>Descuento ({discountPercent}%):</span>
                                 <span>
                                   -$
-                                  {discountAmount.toLocaleString('es-AR', {
+                                  {previewDiscountAmount.toLocaleString('es-AR', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2,
                                   })}
@@ -1434,7 +1469,7 @@ export default function Vouchers() {
                             <div className="flex justify-between font-bold text-base border-t border-gray-200 dark:border-gray-700 pt-1">
                               <span>Total a pagar:</span>
                               <span>
-                                ${finalTotal.toLocaleString('es-AR', {
+                                ${previewTotal.toLocaleString('es-AR', {
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2,
                                 })}
@@ -1443,8 +1478,8 @@ export default function Vouchers() {
                             <div className="flex justify-between text-xs">
                               <span
                                 className={
-                                  assignedTotal >= finalTotal - 0.01 &&
-                                  assignedTotal <= finalTotal + 0.01
+                                  assignedTotal >= previewTotal - 0.01 &&
+                                  assignedTotal <= previewTotal + 0.01
                                     ? 'text-green-600'
                                     : 'text-orange-600'
                                 }
@@ -1453,8 +1488,18 @@ export default function Vouchers() {
                               </span>
                               <span
                                 className={
-                                  assignedTotal >= finalTotal - 0.01 &&
-                                  assignedTotal <= finalTotal + 0.01
+                                  assignedTotal >= previewTotal - 0.01 &&
+                                  assignedTotal <= previewTotal + 0.01
+                                    ? 'text-green-600'
+                                    : 'text-orange-600'
+                                }
+                              >
+                                Pagos asignados:
+                              </span>
+                              <span
+                                className={
+                                  assignedTotal >= previewTotal - 0.01 &&
+                                  assignedTotal <= previewTotal + 0.01
                                     ? 'text-green-600'
                                     : 'text-orange-600'
                                 }
@@ -1583,7 +1628,7 @@ export default function Vouchers() {
                                         </span>
                                         {isSelected && (
                                           <span className="text-xs text-gray-500">
-                                            ${finalTotal.toLocaleString('es-AR', {
+                                            ${previewTotal.toLocaleString('es-AR', {
                                               minimumFractionDigits: 2,
                                               maximumFractionDigits: 2,
                                             })}
@@ -1636,12 +1681,13 @@ export default function Vouchers() {
                   <Button
                     variant="primary"
                     onClick={() => {
-                      // Validar pagos
-                      const selectedVouchers = (vouchersData?.items || []).filter(v => selectedQuotationIds.includes(v.id))
-                      const subtotal = Math.round((selectedVouchers.reduce((sum, v) => sum + Number(v.total), 0) + Number.EPSILON) * 100) / 100
-                      const discountPercent = Number(compileGeneralDiscount) || 0
-                      const discountAmount = Math.round(((subtotal * Math.min(discountPercent, 100) / 100) + Number.EPSILON) * 100) / 100
-                      const finalTotal = Math.round(((subtotal - discountAmount) + Number.EPSILON) * 100) / 100
+                      // Validar pagos usando totales del preview (respetan price_strategy)
+                      if (!compilePreviewTotals) {
+                        setCompilePaymentError('Calculando totales, esperá un momento...')
+                        return
+                      }
+
+                      const previewTotal = compilePreviewTotals.total
 
                       const payments: VoucherPayment[] = []
                       let assignedTotal = 0
@@ -1675,25 +1721,25 @@ export default function Vouchers() {
 
                       payments.push({
                         payment_method_id: selectedMethod.id,
-                        amount: finalTotal,
+                        amount: previewTotal,
                         reference: compilePaymentReferences[selectedMethod.id]?.trim() || undefined,
                       })
-                      assignedTotal = finalTotal
+                      assignedTotal = previewTotal
 
                       if (payments.length === 0) {
                         setCompilePaymentError('Debe cargar al menos un método de pago')
                         return
                       }
 
-                      if (assignedTotal < finalTotal - 0.01 || assignedTotal > finalTotal + 0.01) {
-                        setCompilePaymentError(`El total asignado ($${assignedTotal.toFixed(2)}) no coincide con el total a pagar ($${finalTotal.toFixed(2)})`)
+                      if (assignedTotal < previewTotal - 0.01 || assignedTotal > previewTotal + 0.01) {
+                        setCompilePaymentError(`El total asignado ($${assignedTotal.toFixed(2)}) no coincide con el total a pagar ($${previewTotal.toFixed(2)})`)
                         return
                       }
 
                       compileMutation.mutate({
                         quotationIds: selectedQuotationIds,
                         payments,
-                        general_discount: discountPercent,
+                        general_discount: Number(compileGeneralDiscount) || 0,
                         fiscal_client_id: compileFiscalClientId,
                         price_strategy: compilePriceStrategy,
                       })

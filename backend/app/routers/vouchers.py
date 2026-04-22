@@ -27,6 +27,8 @@ from app.schemas.voucher import (
     VoucherResponse,
     ConvertQuotationToInvoice,
     CompileToInvoiceRequest,
+    CompilePreviewRequest,
+    CompilePreviewResponse,
     VoucherAuditLogResponse,
     SourceQuotationResponse,
 )
@@ -868,7 +870,143 @@ async def convert_quotation_to_invoice(
 
 
 @router.post(
-    "/compile-to-invoice",
+    "/compile-to-invoice/preview",
+    response_model=CompilePreviewResponse,
+)
+async def preview_compile_totals(
+    data: CompilePreviewRequest,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """
+    Previsualiza los totales de una compilación sin crear la factura.
+    Calcula subtotal, IVA y total según la estrategia de precios elegida.
+    Útil para que el frontend muestre el total correcto antes de confirmar.
+    """
+    from decimal import Decimal as D
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from app.models.product import Product
+    from app.models.voucher import Voucher as VoucherModel, VoucherType
+
+    if not data.quotation_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Se requiere al menos un comprobante",
+        )
+
+    # Fetch all source vouchers with items
+    result = await db.execute(
+        select(VoucherModel)
+        .options(selectinload(VoucherModel.items))
+        .where(
+            VoucherModel.id.in_(data.quotation_ids),
+            VoucherModel.business_id == business_id,
+            VoucherModel.deleted_at.is_(None),
+        )
+    )
+    source_vouchers = result.scalars().all()
+
+    if len(source_vouchers) != len(data.quotation_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uno o más comprobantes no encontrados",
+        )
+
+    # Validate all are quotation or receipt
+    for v in source_vouchers:
+        if v.voucher_type not in (VoucherType.QUOTATION, VoucherType.RECEIPT):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El comprobante {v.full_number} no es una cotización ni remito",
+            )
+        if v.invoiced_voucher_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El comprobante {v.full_number} ya fue facturado",
+            )
+
+    # Check same client
+    client_ids = set(v.client_id for v in source_vouchers)
+    if len(client_ids) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Todos los comprobantes deben pertenecer al mismo cliente",
+        )
+
+    # Calculate totals using the same logic as _build_invoice_items_from_source_vouchers
+    total_subtotal = D("0")
+    total_iva = D("0")
+    total_final = D("0")
+    item_count = 0
+
+    invoice_discount_factor = D("1") - (D(str(data.general_discount or D("0"))) / D("100"))
+
+    for source_voucher in source_vouchers:
+        source_general_discount = D(str(source_voucher.general_discount or D("0")))
+        source_discount_factor = D("1") - (source_general_discount / D("100"))
+
+        for source_item in source_voucher.items:
+            product = await db.get(Product, source_item.product_id)
+            if not product or product.business_id != business_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Producto {source_item.product_id} no encontrado",
+                )
+
+            # Resolve price based on strategy
+            if data.price_strategy == "historical":
+                unit_price = D(str(source_item.unit_price))
+                iva_rate = D(str(source_item.iva_rate))
+            else:
+                unit_price = D(str(product.sale_price))
+                iva_rate = D(str(product.iva_rate))
+
+            item_discount_factor = D("1") - (D(str(source_item.discount_percent)) / D("100"))
+
+            subtotal_line = (
+                unit_price
+                * D(str(source_item.quantity))
+                * item_discount_factor
+                * source_discount_factor
+                * invoice_discount_factor
+            )
+            iva_line = subtotal_line * (iva_rate / D("100"))
+            total_line = subtotal_line + iva_line
+
+            # Round each line
+            subtotal_line = subtotal_line.quantize(D("0.01"))
+            iva_line = iva_line.quantize(D("0.01"))
+            total_line = total_line.quantize(D("0.01"))
+
+            total_subtotal += subtotal_line
+            total_iva += iva_line
+            total_final += total_line
+            item_count += 1
+
+    # Round totals
+    total_subtotal = total_subtotal.quantize(D("0.01"))
+    total_iva = total_iva.quantize(D("0.01"))
+    total_final = total_final.quantize(D("0.01"))
+
+    discount_amount = (
+        sum(D(str(v.total)) for v in source_vouchers) - total_final
+        if data.general_discount > 0
+        else D("0")
+    )
+
+    return CompilePreviewResponse(
+        subtotal=total_subtotal,
+        iva_amount=total_iva,
+        total=total_final,
+        discount_amount=discount_amount.quantize(D("0.01")),
+        voucher_count=len(source_vouchers),
+        item_count=item_count,
+    )
+
+
+@router.post(
     response_model=VoucherResponse,
     status_code=status.HTTP_201_CREATED,
 )
