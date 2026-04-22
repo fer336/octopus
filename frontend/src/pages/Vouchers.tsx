@@ -7,9 +7,10 @@ import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle,
 import { Button, Table, Pagination, Select, Modal, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import vouchersService, { type Voucher, type VoucherPayment } from '../api/vouchersService'
+import vouchersService, { type Voucher, type VoucherPayment, type PriceStrategy } from '../api/vouchersService'
 import arcaService from '../api/arcaService'
 import businessService from '../api/businessService'
+import clientsService from '../api/clientsService'
 import { usePaymentMethods } from '../hooks/usePaymentMethods'
 import CreditNoteModal from '../components/vouchers/CreditNoteModal'
 import toast from 'react-hot-toast'
@@ -67,6 +68,19 @@ const statusLabels: Record<string, { label: string; className: string }> = {
   cancelled: { label: 'Anulado', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
 }
 
+const priceStrategyOptions: Array<{ value: PriceStrategy; label: string; help: string }> = [
+  {
+    value: 'historical',
+    label: 'Mantener precios originales',
+    help: 'Usa unit_price + IVA del comprobante origen.',
+  },
+  {
+    value: 'current',
+    label: 'Actualizar a precios vigentes',
+    help: 'Usa precio de venta + IVA actuales del producto.',
+  },
+]
+
 export default function Vouchers() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -89,11 +103,13 @@ export default function Vouchers() {
   const [showCreditNoteModal, setShowCreditNoteModal] = useState(false)
   const [selectedVoucherForNC, setSelectedVoucherForNC] = useState<any>(null)
   const [selectedQuotationIds, setSelectedQuotationIds] = useState<string[]>([])
-const [showCompileModal, setShowCompileModal] = useState(false)
+  const [showCompileModal, setShowCompileModal] = useState(false)
   const [compileSelectedPaymentMethodId, setCompileSelectedPaymentMethodId] = useState<string | null>(null)
   const [compilePaymentReferences, setCompilePaymentReferences] = useState<Record<string, string>>({})
   const [compileGeneralDiscount, setCompileGeneralDiscount] = useState<string>('0')
   const [compilePaymentError, setCompilePaymentError] = useState<string>('')
+  const [compileFiscalClientId, setCompileFiscalClientId] = useState<string>('')
+  const [compilePriceStrategy, setCompilePriceStrategy] = useState<PriceStrategy>('historical')
   const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null)
 
   // Query para comprobantes
@@ -110,7 +126,18 @@ const [showCompileModal, setShowCompileModal] = useState(false)
     retry: false,
   })
 
+  const {
+    data: clientsData,
+    isLoading: isClientsLoading,
+    isError: isClientsError,
+  } = useQuery({
+    queryKey: ['clients-for-voucher-compile'],
+    queryFn: () => clientsService.getAll({ per_page: 200 }),
+    retry: false,
+  })
+
   const vouchers = vouchersData?.items || []
+  const allClients = Array.isArray(clientsData?.items) ? clientsData.items : []
   const paymentMethods = usePaymentMethods(false).data || []
   const sourceParentInvoiceIds = new Set(
     vouchers
@@ -121,11 +148,37 @@ const [showCompileModal, setShowCompileModal] = useState(false)
       )
       .map((v) => v.invoiced_voucher_id as string),
   )
-  const hasCompiledSources = (voucher: VoucherListItem) => {
+  const isCompiledInvoice = (voucher: VoucherListItem) => {
     if (!voucher.voucher_type?.startsWith('invoice_')) return false
     if (sourceParentInvoiceIds.has(voucher.id)) return true
     const notes = (voucher.notes || '').toLowerCase()
-    return notes.includes('facturado desde cotizaciones') || notes.includes('facturado desde remito') || notes.includes('facturado desde remitos')
+    return (
+      notes.includes('facturado desde comprobantes') ||
+      notes.includes('facturado desde cotizaciones') ||
+      notes.includes('facturado desde remito') ||
+      notes.includes('facturado desde remitos')
+    )
+  }
+
+  const isCompiledSourceVoucher = (
+    voucher: VoucherListItem,
+    parentInvoice?: VoucherListItem,
+  ): boolean => {
+    const isSourceType =
+      voucher.voucher_type === 'quotation' || voucher.voucher_type === 'receipt'
+
+    if (!isSourceType || !voucher.invoiced_voucher_id) return false
+
+    if (!parentInvoice) return true
+
+    return (
+      voucher.invoiced_voucher_id === parentInvoice.id &&
+      isCompiledInvoice(parentInvoice)
+    )
+  }
+
+  const hasCompiledSources = (voucher: VoucherListItem) => {
+    return isCompiledInvoice(voucher)
   }
 
   // Query para cotizaciones origen de una factura expandida
@@ -157,8 +210,8 @@ const [showCompileModal, setShowCompileModal] = useState(false)
   })
 
   const compileMutation = useMutation({
-    mutationFn: ({ quotationIds, payments, general_discount }: { quotationIds: string[]; payments: VoucherPayment[]; general_discount?: number }) =>
-      vouchersService.compileToInvoice(quotationIds, payments, general_discount),
+    mutationFn: ({ quotationIds, payments, general_discount, fiscal_client_id, price_strategy }: { quotationIds: string[]; payments: VoucherPayment[]; general_discount?: number; fiscal_client_id?: string; price_strategy: PriceStrategy }) =>
+      vouchersService.compileToInvoice(quotationIds, payments, general_discount, fiscal_client_id, price_strategy),
     onSuccess: async (invoice: any) => {
       queryClient.invalidateQueries({ queryKey: ['vouchers'] })
       setShowCompileModal(false)
@@ -167,6 +220,8 @@ const [showCompileModal, setShowCompileModal] = useState(false)
       setCompilePaymentReferences({})
       setCompileGeneralDiscount('0')
       setCompilePaymentError('')
+      setCompileFiscalClientId('')
+      setCompilePriceStrategy('historical')
       toast.success('Factura generada correctamente', { icon: '✅' })
 
       if (invoice?.voucher_type?.startsWith('invoice_')) {
@@ -528,6 +583,7 @@ const [showCompileModal, setShowCompileModal] = useState(false)
             }
           const ChildIcon = childInfo.icon
           const childBadge = child.voucher_type === 'receipt' ? 'REM' : child.voucher_type === 'quotation' ? 'COT' : null
+          const childIsCompiledSource = isCompiledSourceVoucher(child, item)
           return (
             <div className="flex items-center gap-1.5">
               <ChildIcon size={12} className={childInfo.textClass} />
@@ -543,6 +599,14 @@ const [showCompileModal, setShowCompileModal] = useState(false)
                 </span>
               )}
               <span className={`text-[11px] ${childInfo.textClass}`}>{childInfo.label}</span>
+              {childIsCompiledSource && (
+                <span
+                  title="Comprobante compilado en una factura. No se puede editar."
+                  className="inline-flex items-center px-1 h-4 rounded border text-[9px] font-bold leading-none bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700"
+                >
+                  Compilado
+                </span>
+              )}
             </div>
           )
         })
@@ -705,10 +769,21 @@ const [showCompileModal, setShowCompileModal] = useState(false)
               label: child.status,
               className: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400',
             }
+          const childIsCompiledSource = isCompiledSourceVoucher(child, item)
           return (
-            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${childStatusInfo.className}`}>
-              {childStatusInfo.label}
-            </span>
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${childStatusInfo.className}`}>
+                {childStatusInfo.label}
+              </span>
+              {childIsCompiledSource && (
+                <span
+                  title="Origen de factura compilada"
+                  className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
+                >
+                  Compilado
+                </span>
+              )}
+            </div>
           )
         })
       },
@@ -847,6 +922,7 @@ const [showCompileModal, setShowCompileModal] = useState(false)
           const childIsDeleted = !!child.deleted_at
           const childIsEditableQuotation =
             child.voucher_type === 'quotation' && !child.invoiced_voucher_id
+          const childIsCompiledSource = isCompiledSourceVoucher(child, item)
 
           if (childIsDeleted) {
             return <span className="text-[10px] text-red-600 font-medium">ELIMINADO</span>
@@ -854,6 +930,14 @@ const [showCompileModal, setShowCompileModal] = useState(false)
 
           return (
             <div className="flex gap-1">
+              {childIsCompiledSource && (
+                <span
+                  title="Comprobante compilado: edición bloqueada"
+                  className="inline-flex items-center px-1 h-4 rounded border text-[9px] font-bold leading-none bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700"
+                >
+                  Sin edición
+                </span>
+              )}
               {childIsEditableQuotation && (
                 <button
                   onClick={() => handleEditQuotation(child as any)}
@@ -1002,7 +1086,13 @@ const [showCompileModal, setShowCompileModal] = useState(false)
             {selectedQuotationIds.length} comprobante{selectedQuotationIds.length > 1 ? 's' : ''} seleccionado{selectedQuotationIds.length > 1 ? 's' : ''}
           </span>
           <Button
-            onClick={() => setShowCompileModal(true)}
+            onClick={() => {
+              const selectedVouchers = (vouchersData?.items || []).filter((voucher) =>
+                selectedQuotationIds.includes(voucher.id),
+              )
+              setCompileFiscalClientId(selectedVouchers[0]?.client?.id || selectedVouchers[0]?.client_id || '')
+              setShowCompileModal(true)
+            }}
             variant="primary"
             size="sm"
           >
@@ -1126,8 +1216,11 @@ const [showCompileModal, setShowCompileModal] = useState(false)
           setCompilePaymentReferences({})
           setCompileGeneralDiscount('0')
           setCompilePaymentError('')
+          setCompileFiscalClientId('')
+          setCompilePriceStrategy('historical')
         }}
         title="Facturar comprobantes seleccionados"
+        size="xl"
       >
         {(() => {
           const selectedVouchers = (vouchersData?.items || []).filter(
@@ -1144,7 +1237,7 @@ const [showCompileModal, setShowCompileModal] = useState(false)
           const hasMixedClients = mixedClients.size > 1
 
           return (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {hasMixedClients ? (
                 <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
                   Los comprobantes seleccionados pertenecen a diferentes
@@ -1153,190 +1246,378 @@ const [showCompileModal, setShowCompileModal] = useState(false)
                 </div>
               ) : (
                 <>
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                      Cliente: {clientName}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {selectedVouchers.length} comprobante
-                      {selectedVouchers.length > 1 ? 's' : ''} — Total: $
-                      {selectedVouchers
-                        .reduce(
+                  {(() => {
+                    const subtotal =
+                      Math.round(
+                        (selectedVouchers.reduce(
                           (sum, v) => sum + Number(v.total),
                           0,
-                        )
-                        .toLocaleString('es-AR', {
-                          minimumFractionDigits: 2,
-                        })}
-                    </p>
-                  </div>
-
-                  <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-gray-50 dark:bg-gray-800 text-gray-500">
-                          <th className="text-left px-3 py-2 font-medium">
-                            Número
-                          </th>
-                          <th className="text-left px-3 py-2 font-medium">
-                            Fecha
-                          </th>
-                          <th className="text-right px-3 py-2 font-medium">
-                            Total
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedVouchers.map((v) => {
-                          const [y, m, d] = v.date.split('-')
-                          const ld = new Date(
-                            parseInt(y),
-                            parseInt(m) - 1,
-                            parseInt(d),
-                          )
-                          return (
-                            <tr
-                              key={v.id}
-                              className="border-t border-gray-100 dark:border-gray-700 last:border-0"
-                            >
-                              <td className="px-3 py-2 font-mono">
-                                {v.sale_point}-{v.number}
-                              </td>
-                              <td className="px-3 py-2">
-                                {ld.toLocaleDateString('es-AR')}
-                              </td>
-                              <td className="px-3 py-2 text-right">
-                                ${Number(v.total).toLocaleString(
-                                  'es-AR',
-                                  { minimumFractionDigits: 2 },
-                                )}
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Descuento general (%)
-                    </label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.01}
-                      value={compileGeneralDiscount}
-                      onChange={(e) => {
-                        setCompileGeneralDiscount(e.target.value)
-                        setCompilePaymentError('')
-                      }}
-                      className="w-32 text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Métodos de pago
-                    </label>
-                    {paymentMethods.length === 0 ? (
-                      <p className="text-xs text-gray-400 italic">
-                        No hay métodos de pago configurados.
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {(() => {
-                          const selectedVouchers = (vouchersData?.items || []).filter(v => selectedQuotationIds.includes(v.id))
-                          const subtotal = Math.round((selectedVouchers.reduce((sum, v) => sum + Number(v.total), 0) + Number.EPSILON) * 100) / 100
-                          const discountPercent = Number(compileGeneralDiscount) || 0
-                          const discountAmount = Math.round(((subtotal * Math.min(discountPercent, 100) / 100) + Number.EPSILON) * 100) / 100
-                          const finalTotal = Math.round(((subtotal - discountAmount) + Number.EPSILON) * 100) / 100
-                          return paymentMethods.map((pm: any) => {
-                            const methodName = String(pm.name || '').toLowerCase()
-                            const methodCode = String(pm.code || '').toLowerCase()
-                            const isCheque = methodName.includes('cheque') || methodCode.includes('cheque')
-                            const isCard = methodName.includes('crédito') || methodName.includes('credito') || methodName.includes('débito') || methodName.includes('debito') || methodName.includes('tarjeta') || methodCode.includes('credit') || methodCode.includes('debit') || methodCode.includes('card')
-                            const shouldAskReference = Boolean(pm.requires_reference) || isCheque || isCard
-                            const referenceLabel = isCheque ? 'N° cheque' : isCard ? 'N° cupón' : 'Referencia'
-                            const isSelected = compileSelectedPaymentMethodId === pm.id
-
-                            return (
-                              <div key={pm.id} className="space-y-1.5">
-                                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={(e) => {
-                                      setCompileSelectedPaymentMethodId(e.target.checked ? pm.id : null)
-                                      setCompilePaymentError('')
-                                    }}
-                                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                                  />
-                                  <span className="w-40 shrink-0">{pm.name}</span>
-                                  {isSelected && (
-                                    <span className="text-xs text-gray-500">
-                                      ${finalTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </span>
-                                  )}
-                                </label>
-
-                                {isSelected && shouldAskReference && (
-                                  <div className="pl-7">
-                                    <Input
-                                      type="text"
-                                      placeholder={referenceLabel}
-                                      className="text-sm"
-                                      value={compilePaymentReferences[pm.id] || ''}
-                                      onChange={(e) => {
-                                        setCompilePaymentReferences((prev) => ({ ...prev, [pm.id]: e.target.value }))
-                                        setCompilePaymentError('')
-                                      }}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })
-                        })()}
-                      </div>
-                    )}
-                  </div>
-
-                  {(() => {
-                    const selectedVouchers = (vouchersData?.items || []).filter(v => selectedQuotationIds.includes(v.id))
-                    const subtotal = Math.round((selectedVouchers.reduce((sum, v) => sum + Number(v.total), 0) + Number.EPSILON) * 100) / 100
+                        ) +
+                          Number.EPSILON) *
+                          100,
+                      ) / 100
                     const discountPercent = Number(compileGeneralDiscount) || 0
-                    const discountAmount = Math.round(((subtotal * Math.min(discountPercent, 100) / 100) + Number.EPSILON) * 100) / 100
-                    const finalTotal = Math.round(((subtotal - discountAmount) + Number.EPSILON) * 100) / 100
-                    const assignedTotal = compileSelectedPaymentMethodId ? finalTotal : 0
+                    const discountAmount =
+                      Math.round(
+                        ((subtotal * Math.min(discountPercent, 100)) / 100 +
+                          Number.EPSILON) *
+                          100,
+                      ) / 100
+                    const finalTotal =
+                      Math.round((subtotal - discountAmount + Number.EPSILON) * 100) /
+                      100
+                    const assignedTotal = compileSelectedPaymentMethodId
+                      ? finalTotal
+                      : 0
+
+                    const compileClientOptions = (() => {
+                      const options = new Map<string, { id: string; name: string; document_number?: string; tax_condition?: string }>()
+
+                      allClients.forEach((client: any) => {
+                        if (client?.id) {
+                          options.set(client.id, client)
+                        }
+                      })
+
+                      selectedVouchers.forEach((voucher) => {
+                        const fallbackClientId = voucher.client?.id || voucher.client_id
+                        if (fallbackClientId) {
+                          options.set(fallbackClientId, {
+                            id: fallbackClientId,
+                            name: voucher.client?.name || `Cliente #${voucher.client_id.substring(0, 8)}...`,
+                            document_number: voucher.client?.document_number,
+                            tax_condition: voucher.client?.tax_condition,
+                          })
+                        }
+                      })
+
+                      return Array.from(options.values())
+                    })()
+
+                    const selectedFiscalClient = compileClientOptions.find(
+                      (client) => client.id === compileFiscalClientId,
+                    )
+
                     return (
-                      <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm space-y-1">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Subtotal:</span>
-                          <span className="font-medium">${subtotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                        {discountPercent > 0 && (
-                          <div className="flex justify-between text-orange-600">
-                            <span>Descuento ({discountPercent}%):</span>
-                            <span>-${discountAmount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                        <div className="space-y-3">
+                          <div className="p-2.5 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                              Cliente origen (comprobantes): {clientName}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {selectedVouchers.length} comprobante
+                              {selectedVouchers.length > 1 ? 's' : ''} — Total: $
+                              {subtotal.toLocaleString('es-AR', {
+                                minimumFractionDigits: 2,
+                              })}
+                            </p>
                           </div>
-                        )}
-                        <div className="flex justify-between font-bold text-base border-t border-gray-200 dark:border-gray-700 pt-1">
-                          <span>Total a pagar:</span>
-                          <span>${finalTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+
+                          <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-2.5 dark:border-blue-800 dark:bg-blue-900/20">
+                            <label className="block text-xs font-semibold text-blue-900 dark:text-blue-200 mb-1.5">
+                              Cliente a facturar (titular fiscal)
+                            </label>
+                            <select
+                              value={compileFiscalClientId}
+                              onChange={(e) => {
+                                setCompileFiscalClientId(e.target.value)
+                                setCompilePaymentError('')
+                              }}
+                              disabled={isClientsLoading || compileClientOptions.length === 0}
+                              className="h-10 w-full rounded-lg border border-blue-300 bg-white px-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-70 dark:border-blue-700 dark:bg-gray-900 dark:text-gray-100"
+                            >
+                              <option value="">{isClientsLoading ? 'Cargando clientes...' : 'Seleccionar cliente fiscal'}</option>
+                              {compileClientOptions.map((client: any) => (
+                                <option key={client.id} value={client.id}>
+                                  {client.name} · {client.document_number}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="mt-1.5 text-[11px] text-blue-700 dark:text-blue-300">
+                              Diferenciá titular fiscal final vs cliente origen de
+                              los comprobantes.
+                            </p>
+                            {isClientsLoading && (
+                              <p className="mt-1 text-[11px] text-blue-700 dark:text-blue-300">
+                                Cargando clientes disponibles...
+                              </p>
+                            )}
+                            {!isClientsLoading && isClientsError && compileClientOptions.length === 0 && (
+                              <p className="mt-1 text-[11px] text-red-600 dark:text-red-300">
+                                No pudimos cargar el listado completo de clientes. Reintentá y, si persiste, revisamos el endpoint.
+                              </p>
+                            )}
+                            {!isClientsLoading && compileClientOptions.length === 0 && (
+                              <p className="mt-1 text-[11px] text-red-600 dark:text-red-300">
+                                No hay clientes disponibles para facturar.
+                              </p>
+                            )}
+                            {(() => {
+                              const fiscalTaxCondition = selectedFiscalClient?.tax_condition
+                              return (
+                                <p className="mt-1 text-[11px] text-blue-700 dark:text-blue-300">
+                                  Condición IVA: {fiscalTaxCondition || '—'} →
+                                  Factura{' '}
+                                  {fiscalTaxCondition
+                                    ? fiscalTaxCondition === 'RI'
+                                      ? 'A'
+                                      : 'B'
+                                    : '—'}
+                                </p>
+                              )
+                            })()}
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                            <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-2.5 dark:border-violet-800 dark:bg-violet-900/10">
+                              <label className="block text-xs font-semibold text-violet-900 dark:text-violet-200 mb-1.5">
+                                Estrategia de precios al facturar
+                              </label>
+                              <select
+                                value={compilePriceStrategy}
+                                onChange={(e) => setCompilePriceStrategy(e.target.value as PriceStrategy)}
+                                className="h-10 w-full rounded-lg border border-violet-300 bg-white px-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:border-violet-700 dark:bg-gray-900 dark:text-gray-100"
+                              >
+                                {priceStrategyOptions.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <p className="mt-1 text-[11px] text-violet-700 dark:text-violet-300">
+                                {priceStrategyOptions.find((option) => option.value === compilePriceStrategy)?.help}
+                              </p>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Descuento general (%)
+                              </label>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step={0.01}
+                                value={compileGeneralDiscount}
+                                onChange={(e) => {
+                                  setCompileGeneralDiscount(e.target.value)
+                                  setCompilePaymentError('')
+                                }}
+                                className="w-28 text-sm"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="p-2.5 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Subtotal:</span>
+                              <span className="font-medium">
+                                ${subtotal.toLocaleString('es-AR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </span>
+                            </div>
+                            {discountPercent > 0 && (
+                              <div className="flex justify-between text-orange-600">
+                                <span>Descuento ({discountPercent}%):</span>
+                                <span>
+                                  -$
+                                  {discountAmount.toLocaleString('es-AR', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex justify-between font-bold text-base border-t border-gray-200 dark:border-gray-700 pt-1">
+                              <span>Total a pagar:</span>
+                              <span>
+                                ${finalTotal.toLocaleString('es-AR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span
+                                className={
+                                  assignedTotal >= finalTotal - 0.01 &&
+                                  assignedTotal <= finalTotal + 0.01
+                                    ? 'text-green-600'
+                                    : 'text-orange-600'
+                                }
+                              >
+                                Pagos asignados:
+                              </span>
+                              <span
+                                className={
+                                  assignedTotal >= finalTotal - 0.01 &&
+                                  assignedTotal <= finalTotal + 0.01
+                                    ? 'text-green-600'
+                                    : 'text-orange-600'
+                                }
+                              >
+                                ${assignedTotal.toLocaleString('es-AR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </span>
+                            </div>
+                            {compilePaymentError && (
+                              <p className="text-red-600 text-xs mt-1">
+                                {compilePaymentError}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex justify-between text-xs">
-                          <span className={assignedTotal >= finalTotal - 0.01 && assignedTotal <= finalTotal + 0.01 ? 'text-green-600' : 'text-orange-600'}>
-                            Pagos asignados:
-                          </span>
-                          <span className={assignedTotal >= finalTotal - 0.01 && assignedTotal <= finalTotal + 0.01 ? 'text-green-600' : 'text-orange-600'}>
-                            ${assignedTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
+
+                        <div className="space-y-4">
+                          <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                            <div className="max-h-40 overflow-y-auto">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="bg-gray-50 dark:bg-gray-800 text-gray-500">
+                                    <th className="text-left px-3 py-2 font-medium">
+                                      Número
+                                    </th>
+                                    <th className="text-left px-3 py-2 font-medium">
+                                      Fecha
+                                    </th>
+                                    <th className="text-right px-3 py-2 font-medium">
+                                      Total
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {selectedVouchers.map((v) => {
+                                    const [y, m, d] = v.date.split('-')
+                                    const ld = new Date(
+                                      parseInt(y),
+                                      parseInt(m) - 1,
+                                      parseInt(d),
+                                    )
+                                    return (
+                                      <tr
+                                        key={v.id}
+                                        className="border-t border-gray-100 dark:border-gray-700 last:border-0"
+                                      >
+                                        <td className="px-3 py-2 font-mono">
+                                          {v.sale_point}-{v.number}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          {ld.toLocaleDateString('es-AR')}
+                                        </td>
+                                        <td className="px-3 py-2 text-right">
+                                          ${Number(v.total).toLocaleString(
+                                            'es-AR',
+                                            { minimumFractionDigits: 2 },
+                                          )}
+                                        </td>
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Métodos de pago
+                            </label>
+                            {paymentMethods.length === 0 ? (
+                              <p className="text-xs text-gray-400 italic">
+                                No hay métodos de pago configurados.
+                              </p>
+                            ) : (
+                                <div className="space-y-1.5">
+                                {paymentMethods.map((pm: any) => {
+                                  const methodName = String(
+                                    pm.name || '',
+                                  ).toLowerCase()
+                                  const methodCode = String(
+                                    pm.code || '',
+                                  ).toLowerCase()
+                                  const isCheque =
+                                    methodName.includes('cheque') ||
+                                    methodCode.includes('cheque')
+                                  const isCard =
+                                    methodName.includes('crédito') ||
+                                    methodName.includes('credito') ||
+                                    methodName.includes('débito') ||
+                                    methodName.includes('debito') ||
+                                    methodName.includes('tarjeta') ||
+                                    methodCode.includes('credit') ||
+                                    methodCode.includes('debit') ||
+                                    methodCode.includes('card')
+                                  const shouldAskReference =
+                                    Boolean(pm.requires_reference) ||
+                                    isCheque ||
+                                    isCard
+                                  const referenceLabel = isCheque
+                                    ? 'N° cheque'
+                                    : isCard
+                                      ? 'N° cupón'
+                                      : 'Referencia'
+                                  const isSelected =
+                                    compileSelectedPaymentMethodId === pm.id
+
+                                  return (
+                                    <div key={pm.id} className="space-y-1.5">
+                                      <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={(e) => {
+                                            setCompileSelectedPaymentMethodId(
+                                              e.target.checked ? pm.id : null,
+                                            )
+                                            setCompilePaymentError('')
+                                          }}
+                                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                        />
+                                        <span className="w-40 shrink-0">
+                                          {pm.name}
+                                        </span>
+                                        {isSelected && (
+                                          <span className="text-xs text-gray-500">
+                                            ${finalTotal.toLocaleString('es-AR', {
+                                              minimumFractionDigits: 2,
+                                              maximumFractionDigits: 2,
+                                            })}
+                                          </span>
+                                        )}
+                                      </label>
+
+                                      {isSelected && shouldAskReference && (
+                                        <div className="pl-7">
+                                          <Input
+                                            type="text"
+                                            placeholder={referenceLabel}
+                                            className="text-sm"
+                                            value={
+                                              compilePaymentReferences[pm.id] ||
+                                              ''
+                                            }
+                                            onChange={(e) => {
+                                              setCompilePaymentReferences((prev) => ({
+                                                ...prev,
+                                                [pm.id]: e.target.value,
+                                              }))
+                                              setCompilePaymentError('')
+                                            }}
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        {compilePaymentError && (
-                          <p className="text-red-600 text-xs mt-1">{compilePaymentError}</p>
-                        )}
                       </div>
                     )
                   })()}
@@ -1367,6 +1648,11 @@ const [showCompileModal, setShowCompileModal] = useState(false)
 
                       if (!compileSelectedPaymentMethodId) {
                         setCompilePaymentError('Debe seleccionar un método de pago')
+                        return
+                      }
+
+                      if (!compileFiscalClientId) {
+                        setCompilePaymentError('Debe seleccionar el cliente a facturar')
                         return
                       }
 
@@ -1408,6 +1694,8 @@ const [showCompileModal, setShowCompileModal] = useState(false)
                         quotationIds: selectedQuotationIds,
                         payments,
                         general_discount: discountPercent,
+                        fiscal_client_id: compileFiscalClientId,
+                        price_strategy: compilePriceStrategy,
                       })
                     }}
                      disabled={

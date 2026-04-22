@@ -16,6 +16,8 @@ export interface VoucherPayment {
   reference?: string
 }
 
+export type PriceStrategy = 'historical' | 'current'
+
 export interface VoucherCreate {
   client_id: string
   voucher_type: 'quotation' | 'receipt' | 'invoice_a' | 'invoice_b' | 'invoice_c'
@@ -188,10 +190,14 @@ const vouchersService = {
    */
   convertToInvoice: async (
     quotationId: string,
-    payments?: VoucherPayment[]
+    payments?: VoucherPayment[],
+    fiscalClientId?: string,
+    priceStrategy?: PriceStrategy,
   ): Promise<Voucher> => {
     const response = await httpClient.post(`/vouchers/${quotationId}/convert-to-invoice`, {
       payments: payments ?? null,
+      fiscal_client_id: fiscalClientId ?? null,
+      price_strategy: priceStrategy ?? 'current',
     })
     return response.data
   },
@@ -297,12 +303,16 @@ const vouchersService = {
   compileToInvoice: async (
     quotationIds: string[],
     payments?: VoucherPayment[],
-    generalDiscount?: number
+    generalDiscount?: number,
+    fiscalClientId?: string,
+    priceStrategy?: PriceStrategy,
   ): Promise<Voucher> => {
     const response = await httpClient.post('/vouchers/compile-to-invoice', {
       quotation_ids: quotationIds,
       payments: payments ?? null,
       general_discount: generalDiscount ?? 0,
+      fiscal_client_id: fiscalClientId ?? null,
+      price_strategy: priceStrategy ?? 'historical',
     })
     return response.data
   },

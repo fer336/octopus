@@ -5,7 +5,7 @@ Maneja la creación de ventas, cálculo de totales y generación de PDF.
 
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import date as date_type
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Literal
 from uuid import UUID
 
 from sqlalchemy import desc, func, or_, select
@@ -297,6 +297,118 @@ class VoucherService:
                 product.current_stock -= int(item_data.quantity)
 
         return items_db, total_subtotal, total_iva, total_final
+
+    @staticmethod
+    def _resolve_price_and_iva_by_strategy(
+        *,
+        price_strategy: Literal["historical", "current"],
+        source_item: VoucherItem,
+        product: Product,
+    ) -> tuple[Decimal, Decimal]:
+        """Resuelve precio unitario + IVA según estrategia elegida."""
+        if price_strategy == "historical":
+            return Decimal(str(source_item.unit_price)), Decimal(str(source_item.iva_rate))
+
+        return Decimal(str(product.sale_price)), Decimal(str(product.iva_rate))
+
+    async def _build_invoice_items_from_source_vouchers(
+        self,
+        *,
+        business_id: UUID,
+        source_vouchers: List[Voucher],
+        price_strategy: Literal["historical", "current"],
+        invoice_general_discount: Decimal,
+        metadata_strategy: Literal["source", "product"],
+    ) -> tuple[List[VoucherItem], Decimal, Decimal, Decimal]:
+        """Construye ítems/totales de factura desde comprobantes origen."""
+        total_subtotal = Decimal("0")
+        total_iva = Decimal("0")
+        total_final = Decimal("0")
+        items_db: List[VoucherItem] = []
+        line_number = 1
+
+        invoice_discount_factor = Decimal("1") - (
+            Decimal(str(invoice_general_discount or Decimal("0"))) / Decimal("100")
+        )
+
+        for source_voucher in source_vouchers:
+            source_general_discount = Decimal(
+                str(source_voucher.general_discount or Decimal("0"))
+            )
+            source_discount_factor = Decimal("1") - (source_general_discount / Decimal("100"))
+
+            for source_item in source_voucher.items:
+                product = await self.db.get(Product, source_item.product_id)
+                if not product or product.business_id != business_id:
+                    raise ValueError(
+                        f"Producto {source_item.product_id} no encontrado o no "
+                        f"pertenece al negocio (en comprobante {source_voucher.full_number})"
+                    )
+
+                unit_price, iva_rate = self._resolve_price_and_iva_by_strategy(
+                    price_strategy=price_strategy,
+                    source_item=source_item,
+                    product=product,
+                )
+
+                item_discount_factor = Decimal("1") - (
+                    Decimal(str(source_item.discount_percent)) / Decimal("100")
+                )
+
+                subtotal_line = (
+                    unit_price
+                    * Decimal(str(source_item.quantity))
+                    * item_discount_factor
+                    * source_discount_factor
+                    * invoice_discount_factor
+                )
+                iva_line = subtotal_line * (iva_rate / Decimal("100"))
+                total_line = subtotal_line + iva_line
+
+                subtotal_line = self._round_money(subtotal_line)
+                iva_line = self._round_money(iva_line)
+                total_line = self._round_money(total_line)
+
+                total_subtotal += subtotal_line
+                total_iva += iva_line
+                total_final += total_line
+
+                if metadata_strategy == "product":
+                    code = product.code
+                    description = product.description
+                    unit = product.unit
+                else:
+                    code = source_item.code
+                    description = source_item.description
+                    unit = source_item.unit
+
+                items_db.append(
+                    VoucherItem(
+                        product_id=product.id,
+                        code=code,
+                        description=description,
+                        quantity=source_item.quantity,
+                        unit=unit,
+                        unit_price=unit_price,
+                        discount_percent=source_item.discount_percent,
+                        iva_rate=iva_rate,
+                        iva_amount=iva_line,
+                        subtotal=subtotal_line,
+                        total=total_line,
+                        line_number=line_number,
+                    )
+                )
+                line_number += 1
+
+                # Las facturas descuentan stock
+                product.current_stock -= int(source_item.quantity)
+
+        return (
+            items_db,
+            self._round_money(total_subtotal),
+            self._round_money(total_iva),
+            self._round_money(total_final),
+        )
 
     async def create(
         self, business_id: UUID, data: VoucherCreate, user_id: UUID
@@ -1443,12 +1555,15 @@ general_discount=final_discount,
         business_id: UUID,
         quotation_id: UUID,
         payments: Optional[List[Dict[str, Any]]],
+        fiscal_client_id: Optional[UUID],
         user_id: UUID,
+        price_strategy: Literal["historical", "current"] = "current",
     ) -> Voucher:
         """
         Convierte una cotización existente en una factura.
 
-        - Crea una nueva factura con los mismos items y cliente.
+        - Crea una nueva factura con los mismos ítems.
+        - Permite override opcional de cliente fiscal final.
         - Marca la cotización original con el ID de la factura generada
           (campo invoiced_voucher_id), dejándola como 'facturada'.
         - Una cotización facturada NO se puede volver a facturar.
@@ -1458,6 +1573,8 @@ general_discount=final_discount,
             business_id: ID del negocio
             quotation_id: ID de la cotización a convertir
             payments: Métodos de pago (requerido para facturas)
+            fiscal_client_id: Cliente fiscal final (opcional)
+            price_strategy: Estrategia de precios ('historical' | 'current')
             user_id: ID del usuario que realiza la conversión
 
         Returns:
@@ -1490,17 +1607,21 @@ general_discount=final_discount,
         if quotation.invoiced_voucher_id is not None:
             raise ValueError("Esta cotización ya fue facturada")
 
-        # 2. Determinar tipo de factura según condición fiscal del cliente
-        client = quotation.client
-        if not client:
-            client = await self.db.get(Client, quotation.client_id)
-        if not client:
+        # 2. Resolver cliente origen (trazabilidad) y cliente fiscal final
+        source_client = quotation.client
+        if not source_client:
+            source_client = await self.db.get(Client, quotation.client_id)
+        if not source_client:
             raise ValueError("Cliente de la cotización no encontrado")
+
+        invoice_client = source_client
+        if fiscal_client_id:
+            invoice_client = await self._get_client_or_raise(fiscal_client_id, business_id)
 
         invoice_type = (
             VoucherType.INVOICE_B
         )  # Default: Consumidor Final / Monotributista
-        if client.tax_condition == "RI":
+        if invoice_client.tax_condition == "RI":
             invoice_type = VoucherType.INVOICE_A
 
         # 3. Obtener business para numeración
@@ -1522,71 +1643,47 @@ general_discount=final_discount,
         # Heredar el descuento general de la cotización original
         quotation_general_discount = quotation.general_discount or Decimal(0)
 
+        strategy_note = (
+            "precios históricos del comprobante"
+            if price_strategy == "historical"
+            else "precios vigentes del catálogo"
+        )
+        invoice_notes = (
+            f"Facturado desde Cotización {quotation.full_number}"
+            f" | Estrategia de precio: {price_strategy} ({strategy_note})"
+        )
+        if invoice_client.id != source_client.id:
+            invoice_notes += (
+                f" | Cliente origen: {source_client.name}"
+                f" | Facturado a: {invoice_client.name}"
+            )
+
         invoice = Voucher(
             business_id=business_id,
-            client_id=quotation.client_id,
+            client_id=invoice_client.id,
             created_by=user_id,
             voucher_type=invoice_type,
             status=VoucherStatus.CONFIRMED,
             sale_point=business.sale_point or "0001",
             number=str(next_number).zfill(8),
             date=date_type.today(),
-            notes=f"Facturado desde Cotización {quotation.full_number}",
+            notes=invoice_notes,
             show_prices="S",
             general_discount=quotation_general_discount,
         )
 
-        total_subtotal = Decimal(0)
-        total_iva = Decimal(0)
-        total_final = Decimal(0)
-        items_db = []
-
-        # Factor de descuento general heredado de la cotización
-        general_discount_factor = 1 - (quotation_general_discount / 100)
-
-        # 6. Copiar items de la cotización a la factura (con precios frescos de BD)
-        for i, item_data in enumerate(quotation.items):
-            product = await self.db.get(Product, item_data.product_id)
-            if not product or product.business_id != business_id:
-                raise ValueError(
-                    f"Producto {item_data.product_id} no encontrado o no pertenece al negocio"
-                )
-
-            # Replicar la lógica del frontend: subtotal = sale_price × qty × descuentos,
-            # luego iva = subtotal × iva_rate, total = subtotal + iva
-            unit_price = product.sale_price
-            item_discount_factor = 1 - (item_data.discount_percent / 100)
-            subtotal_line = (
-                unit_price
-                * item_data.quantity
-                * item_discount_factor
-                * general_discount_factor
-            )
-            iva_line = subtotal_line * (product.iva_rate / 100)
-            total_line = subtotal_line + iva_line
-
-            total_subtotal += subtotal_line
-            total_iva += iva_line
-            total_final += total_line
-
-            invoice_item = VoucherItem(
-                product_id=product.id,
-                code=product.code,
-                description=product.description,
-                quantity=item_data.quantity,
-                unit=product.unit,
-                unit_price=unit_price,
-                discount_percent=item_data.discount_percent,
-                iva_rate=product.iva_rate,
-                iva_amount=iva_line,
-                subtotal=subtotal_line,
-                total=total_line,
-                line_number=i + 1,
-            )
-            items_db.append(invoice_item)
-
-            # Descontar stock (las facturas sí descuentan)
-            product.current_stock -= int(item_data.quantity)
+        (
+            items_db,
+            total_subtotal,
+            total_iva,
+            total_final,
+        ) = await self._build_invoice_items_from_source_vouchers(
+            business_id=business_id,
+            source_vouchers=[quotation],
+            price_strategy=price_strategy,
+            invoice_general_discount=Decimal("0"),
+            metadata_strategy="product",
+        )
 
         # 7. Asignar totales
         invoice.subtotal = total_subtotal
@@ -1622,6 +1719,8 @@ general_discount=final_discount,
         business_id: UUID,
         quotation_ids: List[UUID],
         payments: Optional[List[Dict[str, Any]]],
+        fiscal_client_id: Optional[UUID],
+        price_strategy: Literal["historical", "current"] = "historical",
         general_discount: Decimal = Decimal("0"),
         user_id: UUID = None,
     ) -> Voucher:
@@ -1637,6 +1736,8 @@ general_discount=final_discount,
             business_id: ID del negocio
             quotation_ids: Lista de IDs de cotizaciones/remitos a compilar
             payments: Métodos de pago (requerido para facturas)
+            fiscal_client_id: Cliente fiscal final (opcional)
+            price_strategy: Estrategia de precios ('historical' | 'current')
             general_discount: Descuento general (%) override. Si es 0, usa max de cotizaciones.
             user_id: ID del usuario que realiza la compilación
 
@@ -1698,15 +1799,19 @@ general_discount=final_discount,
                 "Todas deben tener el mismo cliente."
             )
 
-        client = source_vouchers[0].client
-        if not client:
-            client = await self.db.get(Client, source_vouchers[0].client_id)
-        if not client:
+        source_client = source_vouchers[0].client
+        if not source_client:
+            source_client = await self.db.get(Client, source_vouchers[0].client_id)
+        if not source_client:
             raise ValueError("Cliente de los comprobantes no encontrado")
+
+        invoice_client = source_client
+        if fiscal_client_id:
+            invoice_client = await self._get_client_or_raise(fiscal_client_id, business_id)
 
         # 7. Determinar tipo de factura según condición fiscal del cliente
         invoice_type = VoucherType.INVOICE_B
-        if client.tax_condition == "RI":
+        if invoice_client.tax_condition == "RI":
             invoice_type = VoucherType.INVOICE_A
 
         # 8. Obtener business para numeración
@@ -1728,19 +1833,31 @@ general_discount=final_discount,
         # Si el frontend envía 0, se respeta 0 (sin descuento).
         # Si envía otro valor, se usa exactamente ese valor.
         final_discount = Decimal(str(general_discount or Decimal("0")))
-        general_discount_factor = 1 - (final_discount / 100)
 
         # 11. Construir notas con los comprobantes origen
         source_numbers = ", ".join(
             f"{'COT' if q.voucher_type == VoucherType.QUOTATION else 'REM'} {q.full_number}"
             for q in source_vouchers
         )
-        invoice_notes = f"Facturado desde comprobantes: {source_numbers}"
+        strategy_note = (
+            "precios históricos del comprobante"
+            if price_strategy == "historical"
+            else "precios vigentes del catálogo"
+        )
+        invoice_notes = (
+            f"Facturado desde comprobantes: {source_numbers}"
+            f" | Estrategia de precio: {price_strategy} ({strategy_note})"
+        )
+        if invoice_client.id != source_client.id:
+            invoice_notes += (
+                f" | Cliente origen: {source_client.name}"
+                f" | Facturado a: {invoice_client.name}"
+            )
 
         # 12. Crear la factura
         invoice = Voucher(
             business_id=business_id,
-            client_id=source_vouchers[0].client_id,
+            client_id=invoice_client.id,
             created_by=user_id,
             voucher_type=invoice_type,
             status=VoucherStatus.CONFIRMED,
@@ -1753,71 +1870,23 @@ general_discount=final_discount,
         )
 
         # 13. Copiar TODOS los items de TODOS los comprobantes origen
-        total_subtotal = Decimal(0)
-        total_iva = Decimal(0)
-        total_final = Decimal(0)
-        items_db: List[VoucherItem] = []
-        line_number = 1
-
-        for source_voucher in source_vouchers:
-            source_general_discount = Decimal(
-                str(source_voucher.general_discount or Decimal("0"))
-            )
-            source_discount_factor = 1 - (source_general_discount / 100)
-            for item_data in source_voucher.items:
-                product = await self.db.get(Product, item_data.product_id)
-                if not product or product.business_id != business_id:
-                    raise ValueError(
-                        f"Producto {item_data.product_id} no encontrado o no "
-                        f"pertenece al negocio (en comprobante {source_voucher.full_number})"
-                    )
-
-                # Mantener precios históricos de la cotización (no precio fresco de catálogo)
-                unit_price = Decimal(str(item_data.unit_price))
-                iva_rate = Decimal(str(item_data.iva_rate))
-                item_discount_factor = 1 - (item_data.discount_percent / 100)
-                subtotal_line = (
-                    unit_price
-                    * item_data.quantity
-                    * item_discount_factor
-                    * source_discount_factor
-                    * general_discount_factor
-                )
-                iva_line = subtotal_line * (iva_rate / 100)
-                total_line = subtotal_line + iva_line
-
-                subtotal_line = self._round_money(subtotal_line)
-                iva_line = self._round_money(iva_line)
-                total_line = self._round_money(total_line)
-
-                total_subtotal += subtotal_line
-                total_iva += iva_line
-                total_final += total_line
-
-                invoice_item = VoucherItem(
-                    product_id=product.id,
-                    code=item_data.code,
-                    description=item_data.description,
-                    quantity=item_data.quantity,
-                    unit=item_data.unit,
-                    unit_price=unit_price,
-                    discount_percent=item_data.discount_percent,
-                    iva_rate=iva_rate,
-                    iva_amount=iva_line,
-                    subtotal=subtotal_line,
-                    total=total_line,
-                    line_number=line_number,
-                )
-                items_db.append(invoice_item)
-                line_number += 1
-
-                # Descontar stock
-                product.current_stock -= int(item_data.quantity)
+        (
+            items_db,
+            total_subtotal,
+            total_iva,
+            total_final,
+        ) = await self._build_invoice_items_from_source_vouchers(
+            business_id=business_id,
+            source_vouchers=source_vouchers,
+            price_strategy=price_strategy,
+            invoice_general_discount=final_discount,
+            metadata_strategy="source",
+        )
 
         # 14. Asignar totales
-        invoice.subtotal = self._round_money(total_subtotal)
-        invoice.iva_amount = self._round_money(total_iva)
-        invoice.total = self._round_money(total_final)
+        invoice.subtotal = total_subtotal
+        invoice.iva_amount = total_iva
+        invoice.total = total_final
 
         # 15. Guardar factura
         self.db.add(invoice)

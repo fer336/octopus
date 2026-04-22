@@ -6,16 +6,42 @@
 - [ ] [CC-14-QA] Testing: cubrir cierre preview/final + bloqueo CC-05 + visibilidad CC-04 en pendientes de facturar
 - [ ] [CC-15-QA] Cuenta Corriente: validar E2E que un titular pueda tener múltiples subclientes autorizados (alta/edición/baja + uso en Ventas) y ajustar UX si detectamos fricción
 - [ ] [CMS-CC-03] CMS/UI/Ventas: al activar/desactivar Cuenta Corriente en CMS, mostrar/ocultar en Tiempo Real tanto el ítem del Sidebar como la opción "Cta Cte" del menú de Ventas
+- [x] [PREM-CC-03-BUG-01] Facturación desde comprobantes: en Sales, 1 remito seleccionado intenta usar `convert-to-invoice` (solo cotización) y falla; corregir enrutamiento/flujo individual ✅ 2026-04-22
 - [x] [PREM-CC-01-A] Backend: endpoint `POST /vouchers/compile-to-invoice` que reciba múltiples quotation_ids, valide, cree factura única y marque todas como facturadas ✅ 2026-04-21
 - [x] [PREM-CC-01-B] Frontend Opción A: pantalla de Ventas permite cargar múltiples códigos de presupuesto, mostrar chips de selección, y facturar compilado ✅ 2026-04-21
 - [x] [PREM-CC-01-C] Frontend Opción B: listado de comprobantes permite selección múltiple de cotizaciones + bulk action "Facturar seleccionadas" ✅ 2026-04-21
 - [x] [PREM-CC-01-D] Frontend: en detalle de factura, mostrar desplegable/acordeón con cotizaciones origen que la componen ✅ 2026-04-21
-- [ ] [PREM-CC-02] Premium: bloquear edición de presupuestos origen una vez compilados y marcarlos como "compilados"
 - [ ] [PDF-COMPACT-01] Comprimir diseño de comprobantes PDF (cotización, remito, factura): reducir paddings, optimizar uso de espacio, densidad tipo Orden de Pedido
+- [ ] [CMS-UX-01] CMS: revisar arquitectura/UX del CMS y proponer reorganización de secciones, navegación y prioridades
+- [ ] [CMS-DASH-01] CMS: diseñar e implementar dashboard con métricas clave (tenants activos, estado de planes, cobranzas, alertas)
+- [ ] [CMS-BILL-01] CMS: agregar módulo de pagos/cobranzas por cliente con historial y estado mensual
+- [ ] [BILLING-MP-01] Billing: integrar MercadoPago (botón de pago por plan) usando API provista y flujo por negocio/tenant
+- [ ] [BILLING-MP-02] Billing: contador mensual por tenant (1/0 días restantes) + recordatorios automáticos de pago al vencer
+- [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
 
 ## 🟡 En progreso
 
+
+
 ## 🟢 Hecho
+
+- [x] [PREM-CC-03-UX-02] Facturación desde comprobantes: compactar aún más el modal y asegurar selección usable del cliente fiscal en Vouchers ✅ 2026-04-22
+
+- [x] [PREM-CC-04] Facturación desde comprobantes: al emitir factura mostrar modal para elegir entre mantener precios originales del comprobante o actualizar precios vigentes, con trazabilidad del criterio aplicado ✅ 2026-04-22
+
+- [x] [PREM-CC-04-EXP] Exploración técnica: unificación de estrategia de precios (histórico vs vigente) para facturación desde comprobantes en Sales/Vouchers + contrato API + trazabilidad ✅ 2026-04-22
+
+- [x] [PREM-CC-03-UX-01] Facturación desde comprobantes: corregir selector de cliente fiscal y rediseñar modal compacto/horizontal sin scroll innecesario ✅ 2026-04-22
+
+- [x] [PREM-CC-03-QA] QA/verify por código de `fiscal_client_id` en Sales/Vouchers (1 y varios), con evidencia y riesgos documentados ✅ 2026-04-22
+
+- [x] [PREM-CC-03] Facturación desde comprobantes: al seleccionar 1 o varias cotizaciones/remitos del mismo cliente, permitir cambiar el cliente a facturar porque el titular fiscal final puede ser otra persona ✅ 2026-04-22
+
+- [x] [PREM-CC-03-EXP] Investigación técnica: flujo actual compile-to-invoice y viabilidad de override de cliente fiscal al facturar desde comprobantes ✅ 2026-04-22
+
+- [x] [PREM-CC-02] Premium: bloquear edición de presupuestos origen una vez compilados y marcarlos como "compilados" ✅ 2026-04-22
+
+- [x] [PREM-CC-02-EXP] Investigación técnica: relevamiento backend/frontend para bloqueo de edición y marcado de presupuestos compilados ✅ 2026-04-22
 
 ### Ventas (Abril 2026)
 - [x] [VOU-02] Ventas: permitir cargar comprobante por código de presupuesto y autocompletar tabla de productos ✅ 2026-04-21
@@ -120,6 +146,9 @@
 - [x] [CMS-ACL-04] CMS/ACL: agregar toggles por tenant para Facturación, Remitos, Actualización de precios y Reportes ✅ 2026-04-16
 
 ### Varios
+- [x] [PREM-CC-03-BUG-01] 🐛 Sales (modal pendientes): al facturar 1 remito usa endpoint `convert-to-invoice` (solo cotización) y falla; debería enrutar por `compile-to-invoice` o soportar remito en convert ✅ 2026-04-22
+- [b] [PREM-CC-03-BUG-02] 🐛 Inconsistencia 1 vs varios en Sales: 1 comprobante usa `convert` (precios frescos), varios usan `compile` (precios históricos) y puede cambiar totales
+- [x] [UI-SALES-HEADER-01] Ventas: reparar header para que "Limpiar" y "Borradores" muestren solo icono y todo el bloque quede en una sola fila ✅ 2026-04-22
 - [x] [VOU-01] Ventas/Remitos: exponer en UI de impresión la opción incluir/quitar precios para Remitos ✅ 2026-04-14
 - [x] [VOU-01-FIX] 🐛 Corregir alcance de toggle de precios: NO aplica a cotización (solo remito) ✅ 2026-04-14
 - [x] [INV-01] Inventario: permitir eliminar órdenes con UX clara (confirmación + feedback) ✅ 2026-04-12

@@ -4,7 +4,7 @@ Schemas para Comprobantes (Ventas).
 
 from datetime import date
 from decimal import Decimal
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -176,9 +176,21 @@ class VoucherPartySummary(BaseSchema):
 class ConvertQuotationToInvoice(BaseSchema):
     """Schema para convertir una cotización en factura."""
 
+    fiscal_client_id: Optional[UUID] = Field(
+        default=None,
+        description="Cliente fiscal final de la factura (opcional). Si no se envía, se usa el cliente origen.",
+    )
     payments: Optional[List[VoucherPaymentCreate]] = Field(
         default=None,
         description="Métodos de pago (requerido para que quede registrado el cobro)",
+    )
+    price_strategy: Literal["historical", "current"] = Field(
+        default="current",
+        description=(
+            "Estrategia de precios para facturar desde comprobante: "
+            "'historical' usa unit_price + iva_rate del comprobante origen; "
+            "'current' usa sale_price + iva_rate actuales del producto."
+        ),
     )
 
 
@@ -203,11 +215,23 @@ class CompileToInvoiceRequest(BaseSchema):
         default=None,
         description="Métodos de pago (requerido para facturas)",
     )
+    fiscal_client_id: Optional[UUID] = Field(
+        default=None,
+        description="Cliente fiscal final de la factura (opcional). Si no se envía, se usa el cliente origen.",
+    )
     general_discount: Decimal = Field(
         default=Decimal("0"),
         ge=0,
         le=100,
         description="Descuento general (%) aplicado a la factura compilada. 0 = sin descuento.",
+    )
+    price_strategy: Literal["historical", "current"] = Field(
+        default="historical",
+        description=(
+            "Estrategia de precios para facturar desde comprobantes: "
+            "'historical' usa unit_price + iva_rate del comprobante origen; "
+            "'current' usa sale_price + iva_rate actuales del producto."
+        ),
     )
 
 

@@ -764,7 +764,9 @@ async def convert_quotation_to_invoice(
             business_id=business_id,
             quotation_id=quotation_id,
             payments=payments_raw,
+            fiscal_client_id=data.fiscal_client_id,
             user_id=current_user.id,
+            price_strategy=data.price_strategy,
         )
 
         await _log_audit(
@@ -777,6 +779,10 @@ async def convert_quotation_to_invoice(
             details={
                 "description": f"Cotización convertida a factura: {quotation_id} -> {invoice.id}",
                 "quotation_id": str(quotation_id),
+                "fiscal_client_id": (
+                    str(data.fiscal_client_id) if data.fiscal_client_id else None
+                ),
+                "price_strategy": data.price_strategy,
             },
         )
 
@@ -832,6 +838,8 @@ async def compile_quotations_to_invoice(
             business_id=business_id,
             quotation_ids=data.quotation_ids,
             payments=payments_raw,
+            fiscal_client_id=data.fiscal_client_id,
+            price_strategy=data.price_strategy,
             general_discount=data.general_discount,
             user_id=current_user.id,
         )
@@ -846,6 +854,10 @@ async def compile_quotations_to_invoice(
             details={
                 "description": f"Factura compilada desde {len(data.quotation_ids)} cotizaciones",
                 "quotation_ids": [str(qid) for qid in data.quotation_ids],
+                "fiscal_client_id": (
+                    str(data.fiscal_client_id) if data.fiscal_client_id else None
+                ),
+                "price_strategy": data.price_strategy,
             },
         )
 

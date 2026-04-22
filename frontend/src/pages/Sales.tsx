@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import productsService from '../api/productsService'
 import clientsService from '../api/clientsService'
 import clientAuthorizationsService from '../api/clientAuthorizationsService'
-import vouchersService, { VoucherCreate, VoucherUpdate, VoucherPayment, Voucher as VoucherType2 } from '../api/vouchersService'
+import vouchersService, { VoucherCreate, VoucherUpdate, VoucherPayment, Voucher as VoucherType2, type PriceStrategy } from '../api/vouchersService'
 import arcaService from '../api/arcaService'
 import paymentMethodsService from '../api/paymentMethodsService'
 import businessService from '../api/businessService'
@@ -240,6 +240,19 @@ const taxConditions = [
   { value: 'Exento', label: 'Exento' },
 ]
 
+const priceStrategyOptions: Array<{ value: PriceStrategy; label: string; help: string }> = [
+  {
+    value: 'historical',
+    label: 'Mantener precios originales',
+    help: 'Usa unit_price + IVA guardados en el comprobante origen.',
+  },
+  {
+    value: 'current',
+    label: 'Actualizar a precios vigentes',
+    help: 'Usa sale_price + IVA actuales del catálogo de productos.',
+  },
+]
+
 export default function Sales() {
   const queryClient = useQueryClient()
   const aiPreloadedItems = useSalesStore((s) => s.items)
@@ -310,6 +323,7 @@ export default function Sales() {
   const [budgetCode, setBudgetCode] = useState('')
   const [isLoadingBudget, setIsLoadingBudget] = useState(false)
   const [loadedBudgets, setLoadedBudgets] = useState<LoadedBudget[]>([])
+  const [loadedBudgetsPriceStrategy, setLoadedBudgetsPriceStrategy] = useState<PriceStrategy>('historical')
   const [items, setItems] = useState<CartItem[]>([])
   const [selectedProductIndex, setSelectedProductIndex] = useState(0)
   const productListRef = useRef<HTMLDivElement>(null)
@@ -396,10 +410,28 @@ export default function Sales() {
 
   // Mutation para convertir cotización en factura
   const convertQuotationMutation = useMutation({
-    mutationFn: ({ quotationId, payments }: { quotationId: string; payments?: VoucherPayment[] }) =>
-      vouchersService.convertToInvoice(quotationId, payments),
-    onSuccess: async (data) => {
-      toast.success('Factura generada a partir de la cotización', { icon: '✅' })
+    mutationFn: ({
+      quotationId,
+      payments,
+      fiscalClientId,
+      priceStrategy,
+      sourceVoucherType,
+    }: {
+      quotationId: string
+      payments?: VoucherPayment[]
+      fiscalClientId?: string
+      priceStrategy: PriceStrategy
+      sourceVoucherType?: VoucherType2['voucher_type']
+    }) => {
+      if (sourceVoucherType === 'receipt') {
+        return vouchersService.compileToInvoice([quotationId], payments, undefined, fiscalClientId, priceStrategy)
+      }
+
+      return vouchersService.convertToInvoice(quotationId, payments, fiscalClientId, priceStrategy)
+    },
+    onSuccess: async (data, variables) => {
+      const sourceLabel = variables.sourceVoucherType === 'receipt' ? 'remito' : 'cotización'
+      toast.success(`Factura generada a partir del ${sourceLabel}`, { icon: '✅' })
 
       // Emitir en ARCA/AFIP
       if (data.voucher_type.startsWith('invoice_')) {
@@ -440,6 +472,8 @@ export default function Sales() {
       setShowConvertQuotationModal(false)
       setShowPendingQuotationsModal(false)
       setSelectedQuotation(null)
+      setSelectedConvertFiscalClientId('')
+      setConvertPriceStrategy('historical')
       resetConvertPaymentSelections()
       refetchPendingQuotations()
     },
@@ -456,8 +490,8 @@ export default function Sales() {
 
   // Mutation para compilar múltiples cotizaciones en una factura
   const compileToInvoiceMutation = useMutation({
-    mutationFn: ({ quotationIds, payments }: { quotationIds: string[]; payments?: VoucherPayment[] }) =>
-      vouchersService.compileToInvoice(quotationIds, payments),
+    mutationFn: ({ quotationIds, payments, fiscalClientId, priceStrategy }: { quotationIds: string[]; payments?: VoucherPayment[]; fiscalClientId?: string; priceStrategy: PriceStrategy }) =>
+      vouchersService.compileToInvoice(quotationIds, payments, undefined, fiscalClientId, priceStrategy),
     onSuccess: async (data) => {
       toast.success('Factura compilada correctamente desde múltiples presupuestos', { icon: '✅' })
 
@@ -506,6 +540,7 @@ export default function Sales() {
       setShowPrices(voucherType === 'receipt' || voucherType === 'current_account' ? false : true)
       setProductSearch('')
       setBudgetCode('')
+      setLoadedBudgetsPriceStrategy('historical')
       resetPaymentSelections()
       refetchPendingQuotations()
     },
@@ -657,6 +692,8 @@ export default function Sales() {
   const [showPendingQuotationsModal, setShowPendingQuotationsModal] = useState(false)
   const [showConvertQuotationModal, setShowConvertQuotationModal] = useState(false)
   const [selectedQuotation, setSelectedQuotation] = useState<VoucherType2 | null>(null)
+  const [selectedConvertFiscalClientId, setSelectedConvertFiscalClientId] = useState('')
+  const [convertPriceStrategy, setConvertPriceStrategy] = useState<PriceStrategy>('historical')
   const [quotationSearch, setQuotationSearch] = useState('')
   const [quotationTypeFilter, setQuotationTypeFilter] = useState<'all' | 'quotation' | 'receipt'>('all')
   // Fechas predeterminadas: primer y último día del mes actual
@@ -1126,12 +1163,14 @@ export default function Sales() {
     setProductSearch('')
     setBudgetCode('')
     setLoadedBudgets([])
+    setLoadedBudgetsPriceStrategy('historical')
     setVoucherType('quotation')
     setShowPrices(true)
     setEditingVoucherId(null)
     setEditingVoucherDate(null)
     setEditingVoucherNotes(undefined)
     setGeneralDiscount(0)
+    setConvertPriceStrategy('historical')
     sessionStorage.removeItem('sales-edit-voucher')
     resetPaymentSelections()
   }
@@ -1306,7 +1345,9 @@ export default function Sales() {
       const quotationIds = loadedBudgets.map(b => b.id)
       compileToInvoiceMutation.mutate({
         quotationIds,
-        payments: buildPaymentsPayload()
+        payments: buildPaymentsPayload(),
+        fiscalClientId: selectedClient.id,
+        priceStrategy: loadedBudgetsPriceStrategy,
       })
       return
     }
@@ -1315,7 +1356,9 @@ export default function Sales() {
     if (loadedBudgets.length === 1 && voucherType === 'invoice') {
       convertQuotationMutation.mutate({
         quotationId: loadedBudgets[0].id,
-        payments: buildPaymentsPayload()
+        payments: buildPaymentsPayload(),
+        fiscalClientId: selectedClient.id,
+        priceStrategy: loadedBudgetsPriceStrategy,
       })
       return
     }
@@ -1564,6 +1607,8 @@ export default function Sales() {
   // Inicializar pagos de conversión cuando se selecciona una cotización
   const handleSelectQuotationToConvert = (quotation: VoucherType2) => {
     setSelectedQuotation(quotation)
+    setSelectedConvertFiscalClientId(quotation.client?.id || '')
+    setConvertPriceStrategy('historical')
     // Pre-inicializar los métodos de pago
     if (paymentMethods.length > 0) {
       const next: Record<string, PaymentSelectionState> = {}
@@ -1700,6 +1745,11 @@ export default function Sales() {
   // Confirmar conversión de cotización a factura
   const handleConfirmConvertQuotation = () => {
     if (!selectedQuotation) return
+    const fiscalClientId = selectedConvertFiscalClientId || selectedQuotation.client?.id
+    if (!fiscalClientId) {
+      toast.error('Debe seleccionar el cliente a facturar')
+      return
+    }
     const paymentValidation = validateConvertPayments()
     if (!paymentValidation.valid) {
       toast.error(paymentValidation.message || 'Verifique los métodos de pago')
@@ -1709,6 +1759,9 @@ export default function Sales() {
     convertQuotationMutation.mutate({
       quotationId: selectedQuotation.id,
       payments: buildConvertPaymentsPayload(),
+      fiscalClientId,
+      priceStrategy: convertPriceStrategy,
+      sourceVoucherType: selectedQuotation.voucher_type,
     })
   }
 
@@ -2007,20 +2060,34 @@ export default function Sales() {
               </div>
             )}
 
-            <Button variant="outline" size="sm" onClick={handleClear} className="text-xs px-2.5 py-1" title="Limpiar">
-              <RotateCcw size={16} />
-              Limpiar
-            </Button>
+            <div className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClear}
+                className="px-2 py-1"
+                title="Limpiar"
+                aria-label="Limpiar"
+              >
+                <RotateCcw size={16} />
+              </Button>
 
-            <Button variant="outline" size="sm" onClick={() => setShowDraftsModal(true)} className="relative text-xs px-2.5 py-1" title="Borradores">
-              <FileText size={16} />
-              Borradores
-              {drafts.length > 0 && (
-                <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-600 px-1 text-[10px] font-bold leading-none text-white">
-                  {drafts.length}
-                </span>
-              )}
-            </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDraftsModal(true)}
+                className="relative px-2 py-1"
+                title="Borradores"
+                aria-label="Borradores"
+              >
+                <FileText size={16} />
+                {drafts.length > 0 && (
+                  <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-600 px-1 text-[10px] font-bold leading-none text-white">
+                    {drafts.length}
+                  </span>
+                )}
+              </Button>
+            </div>
 
             <div className="flex items-center gap-1.5" title="Cargar presupuesto por código">
               <input
@@ -2075,6 +2142,33 @@ export default function Sales() {
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {voucherType === 'invoice' && loadedBudgets.length > 0 && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50/70 px-2 py-2 text-[11px] text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+                <div>
+                  <span className="font-semibold">Origen:</span> {loadedBudgets[0]?.clientName || '—'}
+                  <span className="mx-1">→</span>
+                  <span className="font-semibold">Cliente a facturar:</span> {selectedClient?.name || 'Seleccionar cliente fiscal'}
+                </div>
+                <div className="mt-1.5 flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+                  <label className="font-semibold">Precios al facturar:</label>
+                  <select
+                    value={loadedBudgetsPriceStrategy}
+                    onChange={(e) => setLoadedBudgetsPriceStrategy(e.target.value as PriceStrategy)}
+                    className="h-8 rounded-md border border-blue-300 bg-white px-2 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-blue-700 dark:bg-gray-900 dark:text-gray-100"
+                  >
+                    {priceStrategyOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="mt-1 text-[10px] text-blue-700 dark:text-blue-300">
+                  {priceStrategyOptions.find((option) => option.value === loadedBudgetsPriceStrategy)?.help}
+                </p>
               </div>
             )}
 
@@ -2920,6 +3014,27 @@ export default function Sales() {
                   </div>
                 )}
 
+                {voucherType === 'invoice' && loadedBudgets.length > 0 && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Cliente origen:</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{loadedBudgets[0]?.clientName || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Cliente a facturar:</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{selectedClient?.name || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Estrategia de precios:</span>
+                      <span className="font-medium text-gray-900 dark:text-white">
+                        {loadedBudgetsPriceStrategy === 'historical'
+                          ? 'Mantener precios originales'
+                          : 'Actualizar a precios vigentes'}
+                      </span>
+                    </div>
+                  </>
+                )}
+
                 {voucherType === 'current_account' && (
                   <>
                     <div className="flex justify-between">
@@ -3445,6 +3560,8 @@ export default function Sales() {
           if (!isConvertingQuotation) {
             setShowConvertQuotationModal(false)
             setSelectedQuotation(null)
+            setSelectedConvertFiscalClientId('')
+            setConvertPriceStrategy('historical')
             resetConvertPaymentSelections()
           }
         }}
@@ -3467,21 +3584,58 @@ export default function Sales() {
                   {selectedQuotation.voucher_type === 'receipt' ? 'REM' : 'COT'} {selectedQuotation.sale_point}-{selectedQuotation.number}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+              {(() => {
+                const billedClient = allClients.find((client) => client.id === selectedConvertFiscalClientId)
+                const billedTaxCondition = billedClient?.tax_condition || selectedQuotation.client?.tax_condition
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mb-3">
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400 text-xs">Cliente:</span>
+                  <span className="text-gray-500 dark:text-gray-400 text-xs">Cliente origen (comprobante):</span>
                   <p className="font-medium text-gray-900 dark:text-white">{selectedQuotation.client?.name}</p>
                   <p className="text-xs text-gray-500">
                     {selectedQuotation.client?.document_type}: {selectedQuotation.client?.document_number}
                   </p>
                 </div>
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400 text-xs">Condición IVA:</span>
-                  <p className="font-medium text-gray-900 dark:text-white">{selectedQuotation.client?.tax_condition}</p>
+                  <span className="text-gray-500 dark:text-gray-400 text-xs">Cliente a facturar (titular fiscal):</span>
+                  <select
+                    value={selectedConvertFiscalClientId}
+                    onChange={(e) => setSelectedConvertFiscalClientId(e.target.value)}
+                    className="mt-1 w-full rounded-lg border px-2 py-1.5 text-sm dark:bg-gray-700 dark:border-gray-600"
+                  >
+                    <option value="">Seleccionar cliente fiscal</option>
+                    {allClients.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {client.name} · {client.document_number}
+                      </option>
+                    ))}
+                  </select>
                   <p className="text-xs text-primary-600 dark:text-primary-400 mt-1">
-                    → Factura {selectedQuotation.client?.tax_condition === 'RI' ? 'A' : 'B'}
+                    Condición IVA: {billedTaxCondition || '—'} → Factura {billedTaxCondition === 'RI' ? 'A' : 'B'}
                   </p>
                 </div>
+              </div>
+                )
+              })()}
+
+              <div className="rounded-lg border border-violet-200 bg-violet-50/70 p-3 dark:border-violet-800 dark:bg-violet-900/20 mb-3">
+                <label className="block text-xs font-semibold text-violet-900 dark:text-violet-200 mb-1.5">
+                  Estrategia de precios al facturar
+                </label>
+                <select
+                  value={convertPriceStrategy}
+                  onChange={(e) => setConvertPriceStrategy(e.target.value as PriceStrategy)}
+                  className="h-10 w-full rounded-lg border border-violet-300 bg-white px-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:border-violet-700 dark:bg-gray-900 dark:text-gray-100"
+                >
+                  {priceStrategyOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-violet-700 dark:text-violet-300">
+                  {priceStrategyOptions.find((option) => option.value === convertPriceStrategy)?.help}
+                </p>
               </div>
 
               {/* Items */}
@@ -3626,6 +3780,8 @@ export default function Sales() {
                   setShowConvertQuotationModal(false)
                   setShowPendingQuotationsModal(true)
                   setSelectedQuotation(null)
+                  setSelectedConvertFiscalClientId('')
+                  setConvertPriceStrategy('historical')
                   resetConvertPaymentSelections()
                 }}
                 className="flex-1"
