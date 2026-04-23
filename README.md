@@ -1,387 +1,73 @@
-# OctopusTrack
+# 🐙 OctopusTrack
 
-Sistema ERP para gestión comercial de sanitarios, ferreterías y corralones.
+Sistema ERP para sanitarios, ferreterías y corralones.
 
-## Descripción general
+---
 
-OctopusTrack hoy se organiza en **dos plataformas frontend** que comparten backend y base de datos:
+## 🚀 Probar el sistema
 
-- **Tenant app**: aplicación principal del negocio. Es el ERP que usa cada tenant para operar ventas, productos, clientes, caja, inventario y reportes.
-- **Admin CMS**: panel de superadministración. Se usa para gestionar tenants, usuarios de plataforma y tareas administrativas/globales.
+🌐 **Demo online:** https://octopus.qeva.xyz
 
-Ambas plataformas viven en el mismo proyecto `frontend/`, usan Vite con entradas separadas y consumen la misma API FastAPI.
+📲 **Acceso de prueba con autorización previa por WhatsApp:**
 
-## Plataformas actuales
+- WhatsApp: **+54 9 2254 59-6618**
+- Link directo: https://wa.me/5492254596618
 
-### 1) Tenant app
+> Al ingresar, solicitá acceso por WhatsApp para habilitar la prueba.
 
-Es la experiencia principal para cada negocio/tenant.
+---
 
-**Casos de uso principales:**
-- ventas y comprobantes
-- gestión de productos, clientes, proveedores y categorías
-- caja diaria
-- inventario
-- reportes operativos
+## ✨ ¿Qué tiene hoy OctopusTrack? (paso a paso)
 
-**Entry point frontend:** `frontend/tenant.html`
+1. 🧾 **Cotizaciones**
+   - Creación rápida de presupuestos.
+   - Conversión posterior a remito o factura.
 
-**Vista actual documentada:**
+2. 🧷 **Remitos con y sin precios**
+   - Emisión de remitos según necesidad operativa.
+   - Ideal para entrega con control comercial.
 
-![Tenant app - Dashboard](docs/screenshots/dashboard.png)
+3. 🧮 **Facturación electrónica ARCA (vía AFIP SDK)**
+   - Emisión de comprobantes fiscales.
+   - Flujo integrado con datos fiscales del sistema.
 
-### 2) Admin CMS
+4. 💸 **Actualización masiva de precios**
+   - Herramientas para modificar grandes volúmenes de productos.
+   - Pensado para rubros con listas cambiantes.
 
-Es el panel interno de superadministración de la plataforma.
+5. 🤝 **Cuenta corriente por cliente**
+   - Gestión de saldo, movimientos y seguimiento comercial.
 
-**Casos de uso principales:**
-- administración de tenants
-- administración de usuarios de plataforma
-- gestión operativa interna del entorno admin
+6. 🏗️ **Cuenta corriente + retiro autorizado de mercadería**
+   - Un cliente titular puede autorizar a otro cliente a retirar mercadería.
+   - Caso real: arquitecto titular + instalador/plomero/electricista autorizado.
 
-**Entry point frontend:** `frontend/admin.html`
+7. 💳 **Métodos de pago**
+   - Configuración de métodos y registro operativo.
 
-**¿Qué es el CMS y para qué se usa?**
+8. 👥 **Clientes y proveedores**
+   - Gestión completa de contactos comerciales.
 
-El CMS admin es la consola interna de operación de OctopusTrack. No la usa el comercio final: la usa el equipo administrador para dar de alta y mantener tenants, gestionar usuarios de plataforma, revisar branding por tenant y configurar integraciones sensibles como ARCA/AFIP.
+9. 🤖 **Agente de IA**
+   - Consulta de precios por lenguaje natural.
+   - Asistencia para crear cotizaciones.
+   - Módulo en evolución continua para nuevas mejoras.
 
-**Vista funcional hoy en código:**
-- dashboard de superadministración
-- listado y detalle de tenants
-- gestión de usuarios
-- configuración ARCA por tenant
-- branding y acceso administrativo por tenant
+10. 📦 **Inventario y stock**
+    - Control de stock y conteo.
+    - Reportes para contabilizar mercadería.
+    - Reportes exportables para compartir con proveedores.
 
-> TODO: agregar captura real del CMS admin en `docs/screenshots/admin-cms-dashboard.png`.
->
-> Estado actual: no existe todavía una imagen del CMS dentro del repo para referenciarla sin romper el README.
+11. 📊 **Área de reportes**
+    - Reportes operativos del negocio para análisis diario.
 
-## Características principales
+12. 🛟 **Soporte y seguimiento de incidencias**
+    - El usuario puede enviar feedback/problemas desde el sistema.
+    - El mensaje se integra con **Linear App** para gestión de tickets.
 
-- **Gestión de productos** con cálculo automático de precios y bonificaciones
-- **Clientes y cuenta corriente** con seguimiento de saldos
-- **Proveedores** con condiciones comerciales
-- **Ventas unificadas**: cotizaciones, remitos y facturas
-- **Facturación electrónica** con integración ARCA
-- **Reportes** de ventas, stock y cuentas corrientes
-- **Caja diaria** con apertura, cierre y movimientos
-- **Tema claro/oscuro**
+---
 
-## Arquitectura actual
-
-```text
-┌───────────────────────────── Frontend ─────────────────────────────┐
-│                                                                    │
-│  Tenant app (Vite + React)        Admin CMS (Vite + React)         │
-│  - tenant.html                    - admin.html                     │
-│  - puerto dev 5173                - puerto dev 5174                │
-│                                                                    │
-└───────────────────────────┬────────────────────────────────────────┘
-                            │ REST API / JSON
-┌───────────────────────────▼────────────────────────────────────────┐
-│                        Backend (FastAPI)                           │
-│  Auth · Productos · Clientes · Proveedores · Caja · PDF · ARCA    │
-└───────────────────────────┬────────────────────────────────────────┘
-                            │
-                    ┌───────▼────────┐
-                    │   PostgreSQL   │
-                    └────────────────┘
-```
-
-### Distribución por capas
-
-- **Frontend tenant**: experiencia ERP del negocio.
-- **Frontend admin**: consola de superadmin para operación de plataforma.
-- **Backend**: API central, autenticación, lógica de negocio, generación de PDFs e integración ARCA.
-- **Base de datos**: persistencia multi-tenant en PostgreSQL.
-
-## Stack tecnológico
-
-### Backend
-- **FastAPI** (Python 3.11+)
-- **SQLAlchemy async** + **PostgreSQL**
-- **Alembic** para migraciones
-- **Pydantic** para validación
-- **JWT** para autenticación
-
-### Frontend
-- **React 18** + **TypeScript**
-- **Vite** con entradas múltiples (`tenant.html` y `admin.html`)
-- **TailwindCSS**
-- **TanStack Query**
-- **Zustand**
-- **React Router**
-
-## Requisitos
-
-- Docker y Docker Compose
-- Node.js 20+ (desarrollo frontend)
-- Python 3.11+ (desarrollo backend)
-
-## Getting Started
-
-### Opción 1 — Docker
-
-```bash
-# Clonar el repositorio
-git clone <repo-url>
-cd 18-OctopusTrack
-
-# Copiar variables de entorno
-cp .env.example .env
-
-# Levantar servicios
-docker-compose up -d
-
-# Ver logs
-docker-compose logs -f
-```
-
-Servicios esperados:
-
-- Backend API: http://localhost:8000
-- Documentación API: http://localhost:8000/docs
-
-> Nota: el README documenta con más detalle el flujo de desarrollo local del frontend porque hoy existen dos apps separadas (tenant y admin).
-
-### Opción 2 — Desarrollo local
-
-#### Backend
-
-```bash
-cd backend
-
-# Crear entorno virtual
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# o: venv\Scripts\activate  # Windows
-
-# Instalar dependencias
-pip install -r requirements.txt
-
-# Configurar variables de entorno
-cp ../.env.example .env
-
-# Ejecutar migraciones
-alembic upgrade head
-
-# Iniciar servidor
-uvicorn app.main:app --reload
-```
-
-Backend local:
-
-- API: http://localhost:8000
-- Swagger: http://localhost:8000/docs
-
-#### Frontend
-
-```bash
-cd frontend
-
-# Instalar dependencias
-npm install
-```
-
-##### Tenant app
-
-```bash
-npm run dev:tenant
-```
-
-- Script validado en `frontend/package.json`
-- Puerto esperado: **5173**
-- URL esperada: `http://localhost:5173/tenant.html`
-
-##### Admin CMS
-
-```bash
-npm run dev:admin
-```
-
-- Script validado en `frontend/package.json`
-- Puerto esperado: **5174**
-- URL esperada: `http://localhost:5174/admin.html`
-
-##### ¿Se pueden correr en paralelo?
-
-Sí. Los dos scripts usan **puertos distintos** y pueden ejecutarse al mismo tiempo:
-
-- `dev:tenant` → `5173`
-- `dev:admin` → `5174`
-
-Además, ambos usan `--strictPort`, así que si el puerto está ocupado **Vite falla** en vez de moverse a otro puerto automáticamente.
-
-## Scripts de desarrollo del frontend
-
-Scripts relevantes validados contra `frontend/package.json`:
-
-```bash
-npm run dev          # alias de dev:tenant
-npm run dev:tenant   # tenant app
-npm run dev:admin    # admin CMS
-npm run build
-npm run build:tenant
-npm run build:admin
-npm run lint
-npm run preview
-```
-
-## CI/CD de versiones (Docker Hub)
-
-El repositorio incluye workflows de GitHub Actions para CI y publicación versionada de imágenes Docker.
-
-### Workflows
-
-- `.github/workflows/ci.yml`
-  - Se ejecuta en `pull_request` y en `push` a `main/master`.
-  - Valida que los Dockerfiles de backend y frontend construyan correctamente (sin push).
-
-- `.github/workflows/docker-release.yml`
-  - Se ejecuta al pushear tags semver `v*.*.*` (ej: `v1.4.0`).
-  - Publica imágenes en Docker Hub para backend y frontend.
-
-### Secrets requeridos (GitHub Repository Settings → Secrets and variables → Actions)
-
-- `DOCKERHUB_USERNAME`: usuario/organización de Docker Hub
-- `DOCKERHUB_TOKEN`: access token de Docker Hub (no usar password de cuenta)
-
-### Convención de tags publicadas
-
-Para cada release `vX.Y.Z` se publican:
-
-- `X.Y.Z`
-- `X.Y`
-- `sha-<commit>`
-- `latest` (solo para tags estables, sin sufijo pre-release)
-
-Imágenes:
-
-- `${DOCKERHUB_USERNAME}/octopustrack-backend`
-- `${DOCKERHUB_USERNAME}/octopustrack-frontend`
-
-### Cómo disparar una release
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-Con eso, GitHub Actions construye y publica ambas imágenes automáticamente.
-
-## Deploy en Hetzner + Portainer + Traefik (con Secrets)
-
-Se incluye una plantilla de stack para Docker Swarm/Portainer:
-
-- `deploy/portainer-stack-traefik.yml`
-
-Y un entrypoint backend compatible con secretos:
-
-- `backend/docker/entrypoint-secrets.sh`
-
-### Patrón de secretos soportado
-
-1. **Secret tipo `.env` (recomendado para Portainer):**
-   - Definí `BACKEND_ENV_FILE=/run/secrets/backend.env`
-   - Montá secret `octopus_backend_env` en `/run/secrets/backend.env`
-
-2. **Secret por variable (`*_FILE`):**
-   - Ej: `JWT_SECRET_FILE=/run/secrets/jwt_secret`
-   - El entrypoint resuelve ambos patrones.
-
-### Ejemplo de contenido para `backend.env`
-
-```env
-DATABASE_URL=postgresql+asyncpg://octopustrack:TU_PASSWORD@tu-db-host:5432/octopustrack
-JWT_SECRET=tu_jwt_super_seguro
-GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=xxxxx
-GOOGLE_REDIRECT_URI=https://erp.tu-dominio.com/auth/google/callback
-FRONTEND_URL=https://erp.tu-dominio.com
-FRONTEND_ADMIN_URL=https://erp.tu-dominio.com
-CORS_ORIGINS=https://erp.tu-dominio.com
-APP_ENCRYPTION_KEY=tu_fernet_key
-DEBUG=false
-```
-
-> Importante: nunca subir este archivo al repo. Guardarlo como Docker Secret desde Portainer.
-
-### Subdominios separados sin exponer `tenant.html` / `admin.html`
-
-El stack `deploy/portainer-stack-traefik.yml` ya incluye middlewares de Traefik para abrir cada app desde `/`:
-
-- `https://erp.tu-dominio.com` → carga `tenant.html` internamente
-- `https://cms.tu-dominio.com` → carga `admin.html` internamente
-- `https://api.tu-dominio.com` → backend (`/api/tenant`, `/api/admin`, `/auth`)
-
-Esto mantiene UX limpia por subdominio sin pedir rutas HTML manuales al usuario.
-
-## Estructura del proyecto
-
-```text
-18-OctopusTrack/
-├── backend/
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── config.py
-│   │   ├── database.py
-│   │   ├── models/
-│   │   ├── schemas/
-│   │   ├── routers/
-│   │   ├── services/
-│   │   └── utils/
-│   ├── alembic/
-│   └── requirements.txt
-├── frontend/
-│   ├── admin.html                # entrada del Admin CMS
-│   ├── tenant.html               # entrada de la Tenant app
-│   ├── vite.config.ts
-│   ├── package.json
-│   └── src/
-│       ├── admin/                # app de superadministración
-│       ├── tenant/               # app ERP del negocio
-│       ├── api/                  # cliente HTTP y servicios
-│       ├── components/           # componentes compartidos
-│       ├── context/
-│       ├── hooks/
-│       ├── pages/
-│       ├── stores/
-│       ├── styles/
-│       └── types/
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
-
-## Arquitectura del agente IA
-
-<picture>
-  <source type="image/svg+xml" srcset="docs/diagrams/ai-agent-architecture-min.svg">
-  <img src="docs/diagrams/ai-agent-architecture-min.png" alt="Arquitectura Agente IA" />
-</picture>
-
-### Subgrafos detallados
-
-![Subgrafos del Agente IA](docs/diagrams/ai-agent-subgraphs.svg)
-
-El asistente IA usa una arquitectura LangGraph con un grafo principal y subgrafos especializados:
-
-- **Main Agent Graph**: orquesta el enrutamiento según intención.
-- **Catalog Discovery Graph**: búsqueda guiada con preguntas aclaratorias.
-- **Guided Quote Graph**: intake multimodal, detección de faltantes y preview editable.
-- **System Help & Onboarding Graph**: ayuda operativa del sistema y guías visuales.
-
-Fuente editable del diagrama: `docs/diagrams/ai-agent-architecture.drawio`
-
-## Testing E2E (TestSprite)
-
-Guía de ejecución local y bypass de login para pruebas automatizadas:
-
-- `testsprite_tests/README.md`
-
-## Capturas del sistema
-
-Las siguientes capturas corresponden a la **tenant app** (ERP operativo del negocio).
+## 🖼️ Capturas del sistema
 
 ### Login
 ![Login](docs/screenshots/login.png)
@@ -434,117 +120,17 @@ Las siguientes capturas corresponden a la **tenant app** (ERP operativo del nego
 ### PDF — Inventario
 ![Inventario PDF](docs/screenshots/pdf-inventario.png)
 
-## API endpoints
+---
 
-### Autenticación
-- `POST /api/v1/auth/google` - Login con Google OAuth
-- `POST /api/v1/auth/refresh` - Refrescar token
-- `GET /api/v1/auth/me` - Usuario actual
+## 💜 Colaboración
 
-### Productos
-- `GET /api/v1/products` - Listar productos
-- `POST /api/v1/products` - Crear producto
-- `GET /api/v1/products/{id}` - Obtener producto
-- `PUT /api/v1/products/{id}` - Actualizar producto
-- `DELETE /api/v1/products/{id}` - Eliminar producto
+Este proyecto está en crecimiento constante.
 
-### Clientes
-- `GET /api/v1/clients` - Listar clientes
-- `POST /api/v1/clients` - Crear cliente
-- `GET /api/v1/clients/{id}` - Obtener cliente
-- `PUT /api/v1/clients/{id}` - Actualizar cliente
-- `DELETE /api/v1/clients/{id}` - Eliminar cliente
+Si querés colaborar con ideas, feedback funcional o mejoras:
 
-### Proveedores
-- `GET /api/v1/suppliers` - Listar proveedores
-- `POST /api/v1/suppliers` - Crear proveedor
-- `GET /api/v1/suppliers/{id}` - Obtener proveedor
-- `PUT /api/v1/suppliers/{id}` - Actualizar proveedor
-- `DELETE /api/v1/suppliers/{id}` - Eliminar proveedor
+- abrí un issue
+- o escribinos por WhatsApp para coordinar una prueba guiada
 
-### Categorías
-- `GET /api/v1/categories` - Listar categorías
-- `GET /api/v1/categories/tree` - Árbol de categorías
-- `POST /api/v1/categories` - Crear categoría
-- `PUT /api/v1/categories/{id}` - Actualizar categoría
-- `DELETE /api/v1/categories/{id}` - Eliminar categoría
+---
 
-## Base de datos
-
-### Opción A — Migraciones Alembic
-
-```bash
-cd backend
-source venv/bin/activate
-alembic upgrade head
-```
-
-### Opción B — Script SQL directo
-
-```bash
-# Crear la base de datos (si no existe)
-psql -U postgres -c "CREATE DATABASE octopustrack;"
-
-# Aplicar el schema completo
-psql -U postgres -d octopustrack -f database/schema.sql
-```
-
-### Tablas del sistema
-
-| Tabla | Descripción |
-|---|---|
-| `users` | Usuarios del sistema |
-| `businesses` | Negocios / tenants |
-| `categories` | Categorías de productos |
-| `suppliers` | Proveedores |
-| `supplier_categories` | Relación proveedor ↔ categoría |
-| `supplier_category_discounts` | Bonificaciones por proveedor/categoría |
-| `products` | Productos con precios y stock |
-| `price_history` | Historial de cambios de precio |
-| `price_update_drafts` | Borradores de actualización masiva de precios |
-| `clients` | Clientes |
-| `client_accounts` | Cuenta corriente por cliente |
-| `payment_methods` | Métodos de pago configurables |
-| `vouchers` | Comprobantes |
-| `voucher_items` | Líneas de cada comprobante |
-| `voucher_payments` | Pagos asociados a cada comprobante |
-| `payments` | Pagos de cuenta corriente |
-| `cash_registers` | Cajas diarias |
-| `cash_movements` | Movimientos de caja |
-| `purchase_orders` | Órdenes de compra |
-| `purchase_order_items` | Líneas de cada orden |
-
-## Variables de entorno
-
-Ver `.env.example` para la lista completa de variables.
-
-## Roadmap
-
-Funcionalidades planificadas para próximas versiones:
-
-### 🤖 Agente de IA para Cotizaciones
-Integración de un agente conversacional para generar cotizaciones mediante lenguaje natural.
-
-### 📄 OCR para Presupuestos de Proveedores
-Carga de listas de precios y presupuestos mediante foto o PDF con extracción automática.
-
-### 📱 App Mobile
-Versión mobile para consulta de stock, emisión de comprobantes y gestión de caja.
-
-### 📊 Dashboard Avanzado
-Gráficos interactivos de ventas, comparativas y proyecciones.
-
-### 🔔 Notificaciones y Alertas
-Alertas automáticas por stock crítico, vencimiento de CAE y facturas impagas.
-
-### 👥 Jerarquía de Usuarios y Permisos
-Sistema de roles y permisos dentro de cada negocio.
-
-### 🔗 Integraciones
-- MercadoLibre
-- WhatsApp
-- Bancos
-
-## Licencia
-
-Todos los derechos reservados.
+**OctopusTrack** — evolución constante para negocios que necesitan velocidad, control y orden comercial real.

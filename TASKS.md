@@ -25,6 +25,8 @@
 
 ## 🟢 Hecho
 
+- [x] [DOCS-03] README: versión comercial enfocada en funcionalidades actuales paso a paso + URL demo + autorización por WhatsApp (sin sección de instalación) ✅ 2026-04-23
+- [x] [DOCS-02] README: simplificar documentación a estado actual real del sistema + guía de instalación/ejecución (Docker y local) ✅ 2026-04-23
 - [x] [DOCS-01] README: reorganizar galería de screenshots en `docs/screenshots/` con nombres reales de archivos y todas las vistas actuales del sistema ✅ 2026-04-22
 - [x] [CMS-TENANT-DEL-01] CMS: agregar acción visible para eliminar/purgar comercio desde Tenant Detail con confirmación fuerte ✅ 2026-04-22
 
