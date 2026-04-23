@@ -687,75 +687,122 @@ class BackupService:
                     data.get("minimum_stock") or data.get("min_stock"), 0
                 )
 
-                # Crear nuevo producto
-                async with self.db.begin_nested():
-                    new_product = Product(
-                        code=self._sql_to_text(data.get("code"))
-                        or f"IMP-{imported_products + 1}",
-                        # Compatibilidad: dumps viejos traen `barcode` pero el modelo actual no tiene esa columna.
-                        # Lo mapeamos a supplier_code si supplier_code no viene informado.
-                        supplier_code=(
-                            self._sql_to_text(data.get("supplier_code"))
-                            or self._sql_to_text(data.get("barcode"))
-                        ),
-                        description=self._sql_to_text(data.get("description"))
-                        or self._sql_to_text(data.get("name"))
-                        or "Sin descripción",
-                        details=self._sql_to_text(data.get("details")),
-                        brand=self._sql_to_text(data.get("brand")),
-                        line=self._sql_to_text(data.get("line")),
-                        application_area=self._sql_to_text(
-                            data.get("application_area")
-                        ),
-                        finish=self._sql_to_text(data.get("finish")),
-                        quality_tier=self._sql_to_text(data.get("quality_tier")),
-                        attributes_json=self._sql_to_text(data.get("attributes_json")),
-                        customer_terms=self._sql_to_text(data.get("customer_terms")),
-                        list_price=list_price,
-                        cost_price=cost_price,
-                        discount_1=self._sql_to_decimal(
-                            data.get("discount_1"), Decimal("0")
-                        ),
-                        discount_2=self._sql_to_decimal(
-                            data.get("discount_2"), Decimal("0")
-                        ),
-                        discount_3=self._sql_to_decimal(
-                            data.get("discount_3"), Decimal("0")
-                        ),
-                        discount_display=self._sql_to_text(
-                            data.get("discount_display")
-                        ),
-                        extra_cost=self._sql_to_decimal(
-                            data.get("extra_cost"), Decimal("0")
-                        ),
-                        profit_margin=self._sql_to_decimal(
-                            data.get("profit_margin"), Decimal("0")
-                        ),
-                        net_price=self._sql_to_decimal(
-                            data.get("net_price"), list_price
-                        ),
-                        sale_price=self._sql_to_decimal(
-                            data.get("sale_price"), list_price
-                        ),
-                        iva_rate=self._sql_to_decimal(
-                            data.get("iva_rate"), Decimal("21")
-                        ),
-                        current_stock=stock_val,
-                        minimum_stock=min_stock_val,
-                        unit=self._sql_to_text(data.get("unit")) or "unidad",
-                        is_active=self._sql_to_bool(data.get("is_active"), True),
-                        business_id=business_id,
-                        category_id=new_category_id,
-                        supplier_id=new_supplier_id,
-                        created_at=datetime.utcnow(),
-                        updated_at=datetime.utcnow(),
-                        deleted_at=None,
-                    )
-                    # Recalcular para mantener consistencia con reglas del dominio
-                    new_product.calculate_prices()
+                # Buscar producto existente por código para evitar duplicados
+                product_code = self._sql_to_text(data.get("code"))
+                if not product_code:
+                    product_code = f"IMP-{imported_products + 1}"
 
-                    self.db.add(new_product)
-                    await self.db.flush()
+                existing_result = await self.db.execute(
+                    select(Product).where(
+                        Product.code == product_code,
+                        Product.business_id == business_id,
+                        Product.deleted_at.is_(None),
+                    )
+                )
+                existing_product = existing_result.scalar_one_or_none()
+
+                if existing_product:
+                    # Actualizar producto existente
+                    existing_product.supplier_code = (
+                        self._sql_to_text(data.get("supplier_code"))
+                        or self._sql_to_text(data.get("barcode"))
+                        or existing_product.supplier_code
+                    )
+                    existing_product.description = (
+                        self._sql_to_text(data.get("description"))
+                        or self._sql_to_text(data.get("name"))
+                        or existing_product.description
+                    )
+                    existing_product.details = self._sql_to_text(data.get("details")) or existing_product.details
+                    existing_product.brand = self._sql_to_text(data.get("brand")) or existing_product.brand
+                    existing_product.line = self._sql_to_text(data.get("line")) or existing_product.line
+                    existing_product.application_area = self._sql_to_text(data.get("application_area")) or existing_product.application_area
+                    existing_product.finish = self._sql_to_text(data.get("finish")) or existing_product.finish
+                    existing_product.quality_tier = self._sql_to_text(data.get("quality_tier")) or existing_product.quality_tier
+                    existing_product.attributes_json = self._sql_to_text(data.get("attributes_json")) or existing_product.attributes_json
+                    existing_product.customer_terms = self._sql_to_text(data.get("customer_terms")) or existing_product.customer_terms
+                    existing_product.list_price = list_price if list_price != Decimal("0") else existing_product.list_price
+                    existing_product.cost_price = cost_price if cost_price != Decimal("0") else existing_product.cost_price
+                    existing_product.discount_1 = self._sql_to_decimal(data.get("discount_1"), existing_product.discount_1)
+                    existing_product.discount_2 = self._sql_to_decimal(data.get("discount_2"), existing_product.discount_2)
+                    existing_product.discount_3 = self._sql_to_decimal(data.get("discount_3"), existing_product.discount_3)
+                    existing_product.discount_display = self._sql_to_text(data.get("discount_display")) or existing_product.discount_display
+                    existing_product.extra_cost = self._sql_to_decimal(data.get("extra_cost"), existing_product.extra_cost)
+                    existing_product.profit_margin = self._sql_to_decimal(data.get("profit_margin"), existing_product.profit_margin)
+                    existing_product.iva_rate = self._sql_to_decimal(data.get("iva_rate"), existing_product.iva_rate)
+                    existing_product.current_stock = stock_val
+                    existing_product.minimum_stock = min_stock_val
+                    existing_product.unit = self._sql_to_text(data.get("unit")) or existing_product.unit
+                    existing_product.is_active = self._sql_to_bool(data.get("is_active"), existing_product.is_active)
+                    existing_product.category_id = new_category_id or existing_product.category_id
+                    existing_product.supplier_id = new_supplier_id or existing_product.supplier_id
+                    existing_product.updated_at = datetime.utcnow()
+                    existing_product.calculate_prices()
+                else:
+                    # Crear nuevo producto
+                    async with self.db.begin_nested():
+                        new_product = Product(
+                            code=product_code,
+                            supplier_code=(
+                                self._sql_to_text(data.get("supplier_code"))
+                                or self._sql_to_text(data.get("barcode"))
+                            ),
+                            description=self._sql_to_text(data.get("description"))
+                            or self._sql_to_text(data.get("name"))
+                            or "Sin descripción",
+                            details=self._sql_to_text(data.get("details")),
+                            brand=self._sql_to_text(data.get("brand")),
+                            line=self._sql_to_text(data.get("line")),
+                            application_area=self._sql_to_text(
+                                data.get("application_area")
+                            ),
+                            finish=self._sql_to_text(data.get("finish")),
+                            quality_tier=self._sql_to_text(data.get("quality_tier")),
+                            attributes_json=self._sql_to_text(data.get("attributes_json")),
+                            customer_terms=self._sql_to_text(data.get("customer_terms")),
+                            list_price=list_price,
+                            cost_price=cost_price,
+                            discount_1=self._sql_to_decimal(
+                                data.get("discount_1"), Decimal("0")
+                            ),
+                            discount_2=self._sql_to_decimal(
+                                data.get("discount_2"), Decimal("0")
+                            ),
+                            discount_3=self._sql_to_decimal(
+                                data.get("discount_3"), Decimal("0")
+                            ),
+                            discount_display=self._sql_to_text(
+                                data.get("discount_display")
+                            ),
+                            extra_cost=self._sql_to_decimal(
+                                data.get("extra_cost"), Decimal("0")
+                            ),
+                            profit_margin=self._sql_to_decimal(
+                                data.get("profit_margin"), Decimal("0")
+                            ),
+                            net_price=self._sql_to_decimal(
+                                data.get("net_price"), list_price
+                            ),
+                            sale_price=self._sql_to_decimal(
+                                data.get("sale_price"), list_price
+                            ),
+                            iva_rate=self._sql_to_decimal(
+                                data.get("iva_rate"), Decimal("21")
+                            ),
+                            current_stock=stock_val,
+                            minimum_stock=min_stock_val,
+                            unit=self._sql_to_text(data.get("unit")) or "unidad",
+                            is_active=self._sql_to_bool(data.get("is_active"), True),
+                            business_id=business_id,
+                            category_id=new_category_id,
+                            supplier_id=new_supplier_id,
+                            created_at=datetime.utcnow(),
+                            updated_at=datetime.utcnow(),
+                            deleted_at=None,
+                        )
+                        new_product.calculate_prices()
+                        self.db.add(new_product)
+                        await self.db.flush()
                 imported_products += 1
 
             except Exception as e:

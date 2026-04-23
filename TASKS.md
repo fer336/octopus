@@ -1,6 +1,7 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
+- [ ] [BRAND-HEADER-01] Branding/PDF: definir para qué sirve `header_text` y hacerlo visible realmente en los comprobantes o pantallas donde corresponda
 - [ ] [OPS-01] Replicar migraciones pendientes en entorno de deploy (`f1a2b3c4d5e6`, `a9b8c7d6e5f4`)
 - [ ] [FB-07] Validar flujo E2E feedback + sync a Linear con API key real (crear ticket tenant y verificar issue)
 - [ ] [CC-14-QA] Testing: cubrir cierre preview/final + bloqueo CC-05 + visibilidad CC-04 en pendientes de facturar
@@ -11,7 +12,6 @@
 - [x] [PREM-CC-01-B] Frontend Opción A: pantalla de Ventas permite cargar múltiples códigos de presupuesto, mostrar chips de selección, y facturar compilado ✅ 2026-04-21
 - [x] [PREM-CC-01-C] Frontend Opción B: listado de comprobantes permite selección múltiple de cotizaciones + bulk action "Facturar seleccionadas" ✅ 2026-04-21
 - [x] [PREM-CC-01-D] Frontend: en detalle de factura, mostrar desplegable/acordeón con cotizaciones origen que la componen ✅ 2026-04-21
-- [ ] [PDF-COMPACT-01] Comprimir diseño de comprobantes PDF (cotización, remito, factura): reducir paddings, optimizar uso de espacio, densidad tipo Orden de Pedido
 - [ ] [CMS-UX-01] CMS: revisar arquitectura/UX del CMS y proponer reorganización de secciones, navegación y prioridades
 - [ ] [CMS-DASH-01] CMS: diseñar e implementar dashboard con métricas clave (tenants activos, estado de planes, cobranzas, alertas)
 - [ ] [CMS-BILL-01] CMS: agregar módulo de pagos/cobranzas por cliente con historial y estado mensual
@@ -24,6 +24,19 @@
 
 
 ## 🟢 Hecho
+
+- [x] [DOCS-01] README: reorganizar galería de screenshots en `docs/screenshots/` con nombres reales de archivos y todas las vistas actuales del sistema ✅ 2026-04-22
+- [x] [CMS-TENANT-DEL-01] CMS: agregar acción visible para eliminar/purgar comercio desde Tenant Detail con confirmación fuerte ✅ 2026-04-22
+
+- [x] [CMS-DASH-02] CMS Dashboard: mostrar métricas reales del negocio/plataforma, incluyendo clientes activos, tenants activos, usuarios activos y estado de facturación ✅ 2026-04-22
+
+- [x] [AUTH-ONBOARD-01] Auth/CMS: cuando un usuario intente ingresar por primera vez, registrarlo automáticamente en Gestión de Usuarios pero dejarlo bloqueado/pendiente por defecto hasta aprobación ✅ 2026-04-22
+
+- [x] [TAX-STD-01] Fiscal: normalizar condición fiscal en todo el sistema con dropdown único y opciones predeterminadas consistentes para backend/frontend/AFIP SDK ✅ 2026-04-22
+
+- [x] [ARCA-CLEAN-01] Remover referencias activas a MrBot del CMS y documentación para dejar AFIP SDK como integración vigente ✅ 2026-04-22
+
+- [x] [CMS-ARCA-01] CMS: aclarar onboarding de facturación electrónica para recordar qué pedir al cliente (token, acceso ARCA/certificados, test) ✅ 2026-04-22
 
 - [x] [VOU-TABLE-UX-04] Comprobantes: mover detalle Titular/Autorizado/Retira a popover desde acciones de subfila ✅ 2026-04-22
 
@@ -83,6 +96,7 @@
 - [x] [DEVOPS-01] CI/CD Release: publicar imágenes Docker (backend/frontend) en Docker Hub desde GitHub Releases/Tags (semver + latest + sha) y documentar secrets requeridos ✅ 2026-04-17
 
 ### Backup SQL y Productos
+- [x] [DATA-06] 🐛 Import SQL: evitar duplicación de productos al importar SQL — ahora busca por código existente y actualiza en lugar de crear ✅ 2026-04-22
 - [x] [DATA-05] 🐛 Backup SQL: corregir importación SQL real de productos/categorías/proveedores (parser robusto + mapeo de campos + manejo NULL/boolean + evitar duplicados) ✅ 2026-04-19
 - [x] [DATA-05-BUG-03] 🐛 Import SQL: evitar duplicar categorías y proveedores si ya existen (buscar por nombre antes de crear) ✅ 2026-04-19
 - [x] [DATA-05-BUG-02] 🐛 Import SQL: corregido `SyntaxError` en `backup_service.py` por f-strings con comillas anidadas en escape SQL ✅ 2026-04-18

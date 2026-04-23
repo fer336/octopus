@@ -28,7 +28,7 @@ Es la experiencia principal para cada negocio/tenant.
 
 **Vista actual documentada:**
 
-![Tenant app - Dashboard](docs/screenshots/01-dashboard.png)
+![Tenant app - Dashboard](docs/screenshots/dashboard.png)
 
 ### 2) Admin CMS
 
@@ -381,55 +381,58 @@ Guía de ejecución local y bypass de login para pruebas automatizadas:
 
 ## Capturas del sistema
 
-Las siguientes capturas corresponden a la **tenant app** (ERP operativo del negocio). El **CMS admin** quedó documentado arriba con su explicación funcional y con TODO explícito de screenshot pendiente.
+Las siguientes capturas corresponden a la **tenant app** (ERP operativo del negocio).
+
+### Login
+![Login](docs/screenshots/login.png)
 
 ### Dashboard
-![Dashboard](docs/screenshots/01-dashboard.png)
-
-### Nueva Venta
-![Nueva Venta](docs/screenshots/03-ventas.png)
-
-### Comprobantes
-![Comprobantes](docs/screenshots/05-comprobantes.png)
-
-### Factura Electrónica (PDF)
-![Factura PDF](docs/screenshots/04-factura-pdf.png)
-
-### Cotización (PDF)
-![Cotización PDF](docs/screenshots/15-cotizacion-pdf.png)
-
-### Remito (PDF)
-![Remito PDF](docs/screenshots/16-remito-pdf.png)
+![Dashboard](docs/screenshots/dashboard.png)
 
 ### Productos
-![Productos](docs/screenshots/02-productos.png)
+![Productos](docs/screenshots/productos.png)
 
 ### Actualización Masiva de Precios
-![Actualización de Precios](docs/screenshots/07-actualizacion-precios.png)
-
-### Edición Masiva de Precios
-![Edición Masiva](docs/screenshots/17-edicion-masiva-precios.png)
+![Actualización de Precios](docs/screenshots/actualizar-bd.png)
 
 ### Clientes
-![Clientes](docs/screenshots/08-clientes.png)
+![Clientes](docs/screenshots/clientes.png)
 
 ### Proveedores
-![Proveedores](docs/screenshots/09-proveedores.png)
+![Proveedores](docs/screenshots/proveedores.png)
 
 ### Categorías
-![Categorías](docs/screenshots/10-categorias.png)
+![Categorías](docs/screenshots/categorias.png)
+
+### Comprobantes
+![Comprobantes](docs/screenshots/comprobantes.png)
+
+### Cuenta Corriente
+![Cuenta Corriente](docs/screenshots/cta-cte.png)
+
+### Resumen Cuenta Corriente
+![Resumen Cuenta Corriente](docs/screenshots/resumen-cta-cte.png)
 
 ### Caja
-![Caja](docs/screenshots/11-caja.png)
+![Caja](docs/screenshots/caja.png)
 
-### Reportes
-![Reportes](docs/screenshots/12-reportes.png)
+### Métodos de Pago
+![Métodos de Pago](docs/screenshots/metodosdepago.png)
 
-### Control de Inventario
-![Inventario](docs/screenshots/13-inventario.png)
+### Inventario
+![Inventario](docs/screenshots/inventario.png)
 
-### Orden de Pedido (PDF)
-![Orden de Pedido PDF](docs/screenshots/14-orden-pedido-pdf.png)
+### PDF — Cotización
+![Cotización PDF](docs/screenshots/pdf-cotizacion.png)
+
+### PDF — Remito
+![Remito PDF](docs/screenshots/pdf-remit.png)
+
+### PDF — Factura
+![Factura PDF](docs/screenshots/pdf-factura.png)
+
+### PDF — Inventario
+![Inventario PDF](docs/screenshots/pdf-inventario.png)
 
 ## API endpoints
 
