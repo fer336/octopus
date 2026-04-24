@@ -18,8 +18,6 @@ const MP_CHECKOUT_WEBHOOK_URL =
   import.meta.env.VITE_LANDING_MP_CHECKOUT_WEBHOOK_URL ||
   'https://n8nw.qeva.xyz/webhook/octopus-mp'
 const ASSET_WEBHOOK_URL = import.meta.env.VITE_LANDING_ASSET_WEBHOOK_URL || '#webhook-no-configured'
-const EXCEL_DOWNLOAD_URL = import.meta.env.VITE_LANDING_EXCEL_URL || '#excel-no-configured'
-const SHEETS_URL = import.meta.env.VITE_LANDING_SHEETS_URL || '#sheets-no-configured'
 
 interface LandingProps {
   loginUrl?: string
