@@ -71,8 +71,14 @@ jobs:
     name: Deploy Landing via Portainer Webhook
     runs-on: ubuntu-latest
     needs: build-and-push
-    if: ${{ secrets.PORTAINER_LANDING_WEBHOOK_URL != '' }}
     steps:
       - name: Trigger Portainer webhook
+        env:
+          PORTAINER_LANDING_WEBHOOK_URL: ${{ secrets.PORTAINER_LANDING_WEBHOOK_URL }}
         run: |
-          curl -fsSL -X POST "${{ secrets.PORTAINER_LANDING_WEBHOOK_URL }}"
+          if [ -z "$PORTAINER_LANDING_WEBHOOK_URL" ]; then
+            echo "PORTAINER_LANDING_WEBHOOK_URL no configurado. Se omite deploy."
+            exit 0
+          fi
+
+          curl -fsSL -X POST "$PORTAINER_LANDING_WEBHOOK_URL"
