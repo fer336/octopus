@@ -1,791 +1,523 @@
-/**
- * Landing page con estrategia híbrida: productos Excel + sistema SaaS escalable.
- * Página pública orientada a conversión B2B para sanitarios, ferreterías y corralones.
- * 
- * Modelo comercial:
- * - Entrada: venta de plantillas Excel (one-time)
- * - Escalamiento: sistema SaaS en planes mensuales (USD)
- */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
-  Calculator,
-  Clock,
-  CheckCircle2,
-  TrendingUp,
-  ChevronDown,
-  ChevronUp,
   ArrowRight,
-  Star,
-  Download,
-  Zap,
-  BarChart3,
-  Building2,
+  CheckCircle2,
+  CircleAlert,
+  Clock,
+  HandCoins,
   MessageCircle,
-  FileSpreadsheet,
-  Rocket,
+  ReceiptText,
+  ShieldCheck,
+  Sparkles,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 
-// ============================================================
-// Constantes
-// ============================================================
-
 const WHATSAPP_URL = import.meta.env.VITE_LANDING_WHATSAPP_URL || 'https://wa.me/5490000000000'
+const CHECKOUT_URL = import.meta.env.VITE_LANDING_CHECKOUT_URL || '#checkout-no-configured'
+const MP_CHECKOUT_WEBHOOK_URL =
+  import.meta.env.VITE_LANDING_MP_CHECKOUT_WEBHOOK_URL ||
+  'https://n8nw.qeva.xyz/webhook/octopus-mp'
+const ASSET_WEBHOOK_URL = import.meta.env.VITE_LANDING_ASSET_WEBHOOK_URL || '#webhook-no-configured'
+const EXCEL_DOWNLOAD_URL = import.meta.env.VITE_LANDING_EXCEL_URL || '#excel-no-configured'
+const SHEETS_URL = import.meta.env.VITE_LANDING_SHEETS_URL || '#sheets-no-configured'
 
-// ============================================================
-// Tipos
-// ============================================================
-
-interface FAQItem {
-  question: string
-  answer: string
-}
-
-interface ExcelProduct {
-  name: string
-  description: string
-  price: number
-  currency: 'ARS' | 'USD'
-  features: string[]
-  highlighted?: boolean
-}
-
-interface SaaSPlan {
-  id: string
-  name: string
-  tagline: string
-  price: number
-  currency: 'USD'
-  period: string
-  description: string
-  features: string[]
-  featured?: boolean
-  badge?: string
-  cta: string
-  ctaVariant: 'primary' | 'secondary' | 'outline'
-}
-
-// ============================================================
-// Componentes internos
-// ============================================================
-
-/**
- * Header simple para landing pública con logo real.
- */
 interface LandingProps {
   loginUrl?: string
 }
 
-function Header({ loginUrl }: { loginUrl: string }) {
+interface CheckoutRequest {
+  price: number
+  product: string
+  email: string
+  source: string
+  planCode?: string
+  onboardingType?: 'excel' | 'plan'
+}
 
+function normalizeWhatsappLink(input: string) {
+  const trimmed = input.trim()
+  if (!trimmed) return WHATSAPP_URL
+  if (trimmed.startsWith('http')) return trimmed
+
+  const digits = trimmed.replace(/\D/g, '')
+  if (!digits) return WHATSAPP_URL
+  return `https://wa.me/${digits}`
+}
+
+function openWhatsAppWithMessage(message: string) {
+  const target = normalizeWhatsappLink(WHATSAPP_URL)
+  const separator = target.includes('?') ? '&' : '?'
+  const finalUrl = `${target}${separator}text=${encodeURIComponent(message)}`
+  window.open(finalUrl, '_blank', 'noopener,noreferrer')
+}
+
+function shouldShowThankYou() {
+  const params = new URLSearchParams(window.location.search)
+  const purchase = params.get('purchase')
+  const status = params.get('status')
+  const payment = params.get('payment')
+  const mpStatus = params.get('mp_status')
+  return purchase === 'success' || status === 'success' || payment === 'success' || mpStatus === 'approved'
+}
+
+function buildAssetWebhookUrl(format: 'excel' | 'sheets') {
+  if (!ASSET_WEBHOOK_URL || ASSET_WEBHOOK_URL.startsWith('#')) return ASSET_WEBHOOK_URL
+  const separator = ASSET_WEBHOOK_URL.includes('?') ? '&' : '?'
+  return `${ASSET_WEBHOOK_URL}${separator}format=${format}`
+}
+
+function buildFallbackCheckoutUrl() {
+  if (MP_CHECKOUT_WEBHOOK_URL && !MP_CHECKOUT_WEBHOOK_URL.startsWith('#')) {
+    return MP_CHECKOUT_WEBHOOK_URL
+  }
+  return CHECKOUT_URL
+}
+
+async function startMercadoPagoCheckout(payload: CheckoutRequest) {
+  const endpoint = buildFallbackCheckoutUrl()
+
+  if (!endpoint || endpoint.startsWith('#')) {
+    openWhatsAppWithMessage(`Hola! Quiero contratar ${payload.product}. Mi email es ${payload.email}.`)
+    return
+  }
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      precio: payload.price,
+      product: payload.product,
+      source: payload.source,
+      email: payload.email,
+      plan_code: payload.planCode,
+      onboarding_type: payload.onboardingType,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`checkout-error-${response.status}`)
+  }
+
+  const data = await response.json()
+  const initPoint = data?.init_point || data?.sandbox_init_point
+
+  if (initPoint) {
+    window.location.href = initPoint
+    return
+  }
+
+  throw new Error('checkout-without-init-point')
+}
+
+function Header({ loginUrl }: { loginUrl: string }) {
   return (
-    <header className="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo con imagen real */}
-          <div className="flex items-center gap-3">
-            <img
-              src="/logo-tentaculo1.png"
-              alt="OctopusTrack - Logo"
-              className="h-10 w-auto object-contain"
-            />
-          </div>
-          <nav className="hidden md:flex items-center gap-6">
-            <a
-              href="#excel"
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-            >
-              Excel
-            </a>
-            <a
-              href="#sistema"
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-            >
-              Sistema
-            </a>
-            <a
-              href="#planes-sistema"
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-            >
-              Planes
-            </a>
-            <a
-              href={WHATSAPP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-            >
-              <MessageCircle className="w-5 h-5" />
-            </a>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                window.location.href = loginUrl
-              }}
-            >
-              Iniciar sesión
-            </Button>
-          </nav>
-        </div>
+    <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/90 backdrop-blur dark:border-gray-800 dark:bg-gray-950/90">
+      <div className="relative mx-auto flex h-16 w-full max-w-7xl items-center justify-center px-4 sm:justify-between sm:px-6 lg:px-8">
+        <a href="#inicio" className="flex items-center gap-3 sm:absolute sm:left-6 lg:static">
+          <img src="/logo-tentaculo1.png" alt="OctopusTrack" className="h-10 w-auto object-contain" />
+        </a>
+
+        <nav className="hidden items-center gap-6 md:flex">
+          <a href="#compra-cotizador" className="text-sm text-gray-600 transition-colors hover:text-primary-600 dark:text-gray-300 dark:hover:text-primary-300">Comprar cotizador</a>
+          <a href="#camino-sistema" className="text-sm text-gray-600 transition-colors hover:text-primary-600 dark:text-gray-300 dark:hover:text-primary-300">Sistema</a>
+          <a href="#planes" className="text-sm text-gray-600 transition-colors hover:text-primary-600 dark:text-gray-300 dark:hover:text-primary-300">Planes</a>
+          <Button size="sm" variant="outline" onClick={() => (window.location.href = loginUrl)}>
+            Iniciar sesion
+          </Button>
+        </nav>
       </div>
     </header>
   )
 }
 
-/**
- * Sección Hero con propuesta dual: entrada Excel + escalamiento SaaS.
- */
 function HeroSection() {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-primary-50 via-white to-primary-100 dark:from-primary-950 dark:via-primary-900 dark:to-primary-800">
-      {/* Fondo decorativo */}
-      <div className="absolute inset-0 opacity-30">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-primary-300 rounded-full blur-3xl mix-blend-multiply dark:mix-blend-lighten" />
-        <div className="absolute bottom-10 right-10 w-96 h-96 bg-primary-400 rounded-full blur-3xl mix-blend-multiply dark:mix-blend-lighten" />
+    <section id="inicio" className="relative overflow-hidden bg-gradient-to-br from-primary-50 via-white to-primary-100 dark:from-[#07070d] dark:via-[#090812] dark:to-primary-950">
+      <div className="absolute inset-0 opacity-40 dark:opacity-100">
+        <div className="absolute -left-16 top-14 h-72 w-72 rounded-full bg-primary-300 blur-3xl dark:bg-primary-800/30" />
+        <div className="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-primary-400 blur-3xl dark:bg-primary-700/30" />
       </div>
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Contenido izquierdo */}
-          <div className="text-center lg:text-left">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary-100 dark:bg-primary-800/50 text-primary-700 dark:text-primary-200 text-sm font-medium mb-6">
-              <Star className="w-4 h-4" />
-              <span>Herramientas profesionales para sanitarios, ferreterías y corralones</span>
-            </div>
-
-            {/* Headline principal */}
-            <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-6 tracking-tight leading-tight">
-              Empezá con Excel,
-              <br />
-              <span className="text-primary-600 dark:text-primary-400">escalá al sistema</span>
-            </h1>
-
-            {/* Subheadline */}
-            <p className="text-lg text-gray-600 dark:text-gray-300 max-w-xl mx-auto lg:mx-0 mb-8">
-              Arrancá con plantillas Excel profesionales para cotizar en minutos.
-              Cuando tu negocio crezca, migrá a nuestro sistema SaaS completo con
-              facturación electrónica, gestión de clientes y agentes IA.
-            </p>
-
-            {/* Microcopy de escalamiento */}
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-100/50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-sm font-medium mb-8">
-              <Rocket className="w-4 h-4" />
-              <span>Arrancá simple, escalá cuando crezcas</span>
-            </div>
-
-            {/* CTAs */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-              <a href="#excel">
-                <Button size="lg" className="px-8">
-                  Ver productos Excel
-                  <ArrowRight className="w-5 h-5" />
-                </Button>
-              </a>
-              <a href="#planes-sistema">
-                <Button size="lg" variant="outline">
-                  Conocer el sistema
-                </Button>
-              </a>
-            </div>
+      <div className="relative mx-auto w-full max-w-5xl px-4 py-14 text-center sm:px-6 sm:py-16 lg:px-8 lg:py-24">
+        <div className="mx-auto flex max-w-4xl flex-col items-center">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary-300 bg-primary-100 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary-700 dark:border-primary-700 dark:bg-primary-900/40 dark:text-primary-200">
+            <Sparkles className="h-4 w-4" />
+            Para ferreterias, sanitarios y pymes
           </div>
 
-          {/* Contenido derecho: logo grande */}
-          <div className="hidden lg:flex justify-center">
-            <img
-              src="/logo-tentaculo1.png"
-              alt="OctopusTrack - Logo"
-              className="w-full max-w-md h-auto object-contain drop-shadow-2xl"
-            />
-          </div>
-        </div>
+          <h1 className="text-3xl font-extrabold leading-tight text-gray-900 sm:text-5xl dark:text-white">
+            Cotiza en segundos.
+            <br />
+            Vende mas sin errores.
+          </h1>
 
-        {/* Trust badges */}
-        <div className="mt-16 pt-8 border-t border-primary-200 dark:border-primary-700">
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 text-center">
-            Soluciones usadas por negocios como el tuyo
+          <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-600 dark:text-gray-300">
+            Empeza con un cotizador profesional por USD 11.99 o activa el sistema completo desde USD 33/mes.
+            Vos elegis el ritmo, sin vueltas y sin friccion.
           </p>
-          <div className="flex flex-wrap justify-center gap-8 opacity-60">
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Sanitarios</span>
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Ferreterías</span>
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Corralones</span>
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Materiales de construcción</span>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
 
-/**
- * Sección de productos digitales Excel.
- */
-function ExcelProductsSection() {
-  const products: ExcelProduct[] = [
-    {
-      name: 'Combo 3 Excel (Oferta)',
-      description: 'Llevate los 3 Excels en pack: Cotizador + Cuenta Corriente + Precios. Mejor relación precio/beneficio.',
-      price: 20,
-      currency: 'USD',
-      features: [
-        '3 plantillas incluidas',
-        'Ahorro vs compra por separado',
-        'Migración al sistema sin recargar datos',
-        'Guía rápida de uso',
-        'Actualización de onboarding incluida',
-      ],
-      highlighted: true,
-    },
-    {
-      name: 'Cotizador Profesional',
-      description: 'Cotizá rápido con formato profesional, IVA automático y envío por WhatsApp.',
-      price: 9.99,
-      currency: 'USD',
-      features: [
-        'Base de artículos',
-        'Cálculo automático',
-        'Formato prolijo para cliente',
-        'Exportable y compartible',
-      ],
-    },
-    {
-      name: 'Gestor de Cuentas',
-      description: 'Seguí saldos, movimientos y estado de tus clientes en una sola plantilla.',
-      price: 9.99,
-      currency: 'USD',
-      features: [
-        'Movimientos por cliente',
-        'Saldos actualizados',
-        'Historial de deuda',
-        'Reporte imprimible',
-      ],
-    },
-    {
-      name: 'Calculadora de Precios',
-      description: 'Definí precios con margen objetivo y costos actualizados sin errores manuales.',
-      price: 9.99,
-      currency: 'USD',
-      features: [
-        'Costo + margen automático',
-        'Simulación por escenarios',
-        'Control de rentabilidad',
-        'Fácil de mantener',
-      ],
-    },
-  ]
-
-  // Formateador de precio consistente
-  const formatPrice = (price: number, currency: 'ARS' | 'USD') => {
-    if (currency === 'USD') {
-      return `USD ${price.toFixed(2)}`
-    }
-    return `$${price.toLocaleString('es-AR')} ARS`
-  }
-
-  return (
-    <section className="py-20 bg-white dark:bg-gray-900" id="excel">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary-100 dark:bg-primary-800/50 text-primary-700 dark:text-primary-200 text-sm font-medium mb-4">
-            <Download className="w-4 h-4" />
-            <span>Productos digitales</span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            Plantillas Excel profesionales
-          </h2>
-          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            Pagás una vez, usás para siempre. Descargá, personalizá y empezá a cotizar
-            en minutos. Sin suscripciones, sin depender de internet.
-          </p>
-          <p className="mt-4 text-sm font-medium text-primary-700 dark:text-primary-300">
-            ✅ Importante: todos los Excel se pueden migrar al sistema completo cuando quieras.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-6xl mx-auto">
-          {products.map((product, index) => (
-            <div
-              key={index}
-              className={`relative p-8 rounded-2xl transition-all ${
-                product.highlighted
-                  ? 'bg-primary-600 dark:bg-primary-700 ring-4 ring-primary-300 dark:ring-primary-500 shadow-xl'
-                  : 'bg-gray-50 dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 hover:shadow-lg'
-              }`}
-            >
-              {product.highlighted && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-yellow-500 text-white text-xs font-bold rounded-full">
-                  Mejor oferta
-                </div>
-              )}
-
-              <h3 className={`text-xl font-bold mb-2 ${
-                product.highlighted ? 'text-white' : 'text-gray-900 dark:text-white'
-              }`}>
-                {product.name}
-              </h3>
-
-              <p className={`text-sm mb-4 ${
-                product.highlighted ? 'text-primary-100' : 'text-gray-600 dark:text-gray-400'
-              }`}>
-                {product.description}
-              </p>
-
-              <div className={`text-3xl font-bold mb-1 ${
-                product.highlighted ? 'text-white' : 'text-gray-900 dark:text-white'
-              }`}>
-                {formatPrice(product.price, product.currency)}
-              </div>
-              <div className={`text-sm mb-6 ${
-                product.highlighted ? 'text-primary-200' : 'text-gray-500'
-              }`}>
-                pago único
-              </div>
-
-              <ul className="space-y-3 mb-8">
-                {product.features.map((feature, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <CheckCircle2 className={`w-5 h-5 flex-shrink-0 ${
-                      product.highlighted ? 'text-primary-200' : 'text-primary-600'
-                    }`} />
-                    <span className={`text-sm ${
-                      product.highlighted ? 'text-primary-50' : 'text-gray-600 dark:text-gray-400'
-                    }`}>
-                      {feature}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className={product.highlighted ? 'text-white' : ''}>
-                <Button
-                  className="w-full"
-                  variant={product.highlighted ? 'secondary' : 'primary'}
-                >
-                  Comprar ahora
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-10 max-w-4xl mx-auto p-5 rounded-2xl border border-primary-200 dark:border-primary-700 bg-primary-50/70 dark:bg-primary-900/30">
-          <p className="text-sm sm:text-base text-primary-800 dark:text-primary-200 text-center">
-            Si hoy comprás Excel, mañana podés migrar al sistema sin arrancar de cero:
-            mantenés estructura, datos y flujo de trabajo.
-          </p>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/**
- * Sección de beneficios del sistema SaaS.
- */
-function SystemBenefitsSection() {
-  const benefits = [
-    {
-      icon: Clock,
-      title: 'Ahorrá hasta 40 minutos por día',
-      description: 'El tiempo que gastás armando presupuestos a mano ahora usalo para atender clientes.',
-    },
-    {
-      icon: CheckCircle2,
-      title: 'Eliminá errores de cálculo',
-      description: 'Fórmulas automatizadas que hacen los números por vos. Olvidate de errores de cuenta.',
-    },
-    {
-      icon: TrendingUp,
-      title: 'Imagen profesional',
-      description: 'Cotizaciones con formato perfecto, listas para enviar por WhatsApp o guardar como PDF.',
-    },
-    {
-      icon: Calculator,
-      title: 'Control de márgenes',
-      description: 'Calculá precios con margen exacto. No perdás más plata por precios mal calculados.',
-    },
-  ]
-
-  return (
-    <section className="py-20 bg-gray-50 dark:bg-gray-950" id="sistema">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary-100 dark:bg-primary-800/50 text-primary-700 dark:text-primary-200 text-sm font-medium mb-4">
-            <Zap className="w-4 h-4" />
-            <span>Sistema SaaS escalable</span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            Potenciá tu negocio con el sistema
-          </h2>
-          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            Cuando estés listo para escalar, accedé al sistema completo.
-            Facturación electrónica, gestión de clientes, agentes IA y más.
-            Sin límite de productos, sin límite de usuarios.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {benefits.map((benefit, index) => (
-            <div
-              key={index}
-              className="group p-6 rounded-2xl bg-white dark:bg-gray-800 hover:shadow-lg transition-shadow"
-            >
-              <div className="w-12 h-12 rounded-xl bg-primary-600 dark:bg-primary-700 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <benefit.icon className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                {benefit.title}
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
-                {benefit.description}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* Comparativa simple */}
-        <div className="mt-16 max-w-3xl mx-auto">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 text-center">
-              Excel vs Sistema
-            </h3>
-            <div className="grid md:grid-cols-2 gap-8">
-              {/* Columna Excel */}
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <FileSpreadsheet className="w-5 h-5 text-primary-600" />
-                  <span className="font-semibold text-gray-900 dark:text-white">Excel</span>
-                </div>
-                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span>Pago único</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span>Sin internet</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span>Hasta 20.000 productos</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span>Actualización manual</span>
-                  </li>
-                </ul>
-              </div>
-              {/* Columna Sistema */}
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <Building2 className="w-5 h-5 text-primary-600" />
-                  <span className="font-semibold text-gray-900 dark:text-white">Sistema SaaS</span>
-                </div>
-                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span>Suscripción mensual</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span>Acceso desde cualquier dispositivo</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span>Productos ilimitados</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span>Facturación electrónica + IA</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/**
- * Sección de planes del sistema SaaS.
- */
-function SaaSPlansSection() {
-  const plans: SaaSPlan[] = [
-    {
-      id: 'basico',
-      name: 'Básico',
-      tagline: 'Para empezar',
-      price: 129,
-      currency: 'USD',
-      period: 'mes',
-      description: 'Ideal para arrancar digitalizando cotizaciones y productos.',
-      features: [
-        'Cotizaciones ilimitadas',
-        'Actualización de precios en lote',
-        'Carga de productos (hasta 20.000)',
-        'Plantillas Excel compatibles',
-      ],
-      badge: undefined,
-      cta: 'Elegir Básico',
-      ctaVariant: 'outline',
-    },
-    {
-      id: 'standard',
-      name: 'Standard',
-      tagline: 'El más popular',
-      price: 249,
-      currency: 'USD',
-      period: 'mes',
-      description: 'Gestión completa de clientes y cuenta corriente.',
-      features: [
-        'Todo lo de Básico',
-        'Remitos digitales',
-        'Cuenta corriente de clientes',
-        'Reportes de ventas',
-      ],
-      featured: false,
-      badge: 'Popular',
-      cta: 'Elegir Standard',
-      ctaVariant: 'primary',
-    },
-    {
-      id: 'premium',
-      name: 'Premium',
-      tagline: 'Escalamiento profesional',
-      price: 399,
-      currency: 'USD',
-      period: 'mes',
-      description: 'Incluye facturación electrónica ARCA/AFIP para profesionalizar tu operación.',
-      features: [
-        'Todo lo de Standard',
-        'Facturación electrónica (CAE)',
-        'Facturas A, B y C',
-        'Notas de crédito y débito',
-        'Integración ARCA completa',
-      ],
-      featured: false,
-      badge: 'Para escalar',
-      cta: 'Elegir Premium',
-      ctaVariant: 'outline',
-    },
-    {
-      id: 'enterprise',
-      name: 'Platinum IA',
-      tagline: 'Plan más completo',
-      price: 600,
-      currency: 'USD',
-      period: 'mes',
-      description: 'Agente IA + mejoras a medida. Tope de valor para operación avanzada.',
-      features: [
-        'Todo lo de Premium',
-        'Agente IA para consultas',
-        'Automatizaciones personalizadas',
-        'Mejoras a medida',
-        'Soporte prioritario 24/7',
-        'API personalizada',
-      ],
-      featured: true,
-      badge: 'IA incluida',
-      cta: 'Contactar ventas',
-      ctaVariant: 'secondary',
-    },
-  ]
-
-  return (
-    <section className="py-20 bg-white dark:bg-gray-900" id="planes-sistema">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary-100 dark:bg-primary-800/50 text-primary-700 dark:text-primary-200 text-sm font-medium mb-4">
-            <BarChart3 className="w-4 h-4" />
-            <span>Planes del sistema</span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            Elegí el plan que mejor se adapte a tu negocio
-          </h2>
-          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            Sin contratos. Cancelá cuando quieras.
-            <strong> Arrancá simple, escalá cuando crezcas.</strong>
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {plans.map((plan) => (
-            <div
-              key={plan.id}
-              className={`relative flex flex-col p-6 rounded-2xl transition-all ${
-                plan.featured
-                  ? 'bg-primary-600 dark:bg-primary-700 ring-4 ring-primary-300 dark:ring-primary-500 shadow-xl'
-                  : 'bg-gray-50 dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700'
-              }`}
-            >
-              {plan.badge && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-yellow-500 text-white text-xs font-bold rounded-full">
-                  {plan.badge}
-                </div>
-              )}
-
-              <div className="mb-4">
-                <h3 className={`text-lg font-bold ${
-                  plan.featured ? 'text-white' : 'text-gray-900 dark:text-white'
-                }`}>
-                  {plan.name}
-                </h3>
-                <p className={`text-sm ${
-                  plan.featured ? 'text-primary-200' : 'text-gray-500'
-                }`}>
-                  {plan.tagline}
-                </p>
-              </div>
-
-              <div className="mb-1">
-                {plan.id === 'enterprise' ? (
-                  <div className={`text-3xl font-bold ${
-                    plan.featured ? 'text-white' : 'text-gray-900 dark:text-white'
-                  }`}>
-                    Desde USD {plan.price}
-                  </div>
-                ) : (
-                  <>
-                    <span className={`text-3xl font-bold ${
-                      plan.featured ? 'text-white' : 'text-gray-900 dark:text-white'
-                    }`}>
-                      USD {plan.price}
-                    </span>
-                    <span className={`text-sm ${
-                      plan.featured ? 'text-primary-200' : 'text-gray-500'
-                    }`}>
-                      /{plan.period}
-                    </span>
-                  </>
-                )}
-              </div>
-
-              <p className={`text-sm mb-6 ${
-                plan.featured ? 'text-primary-100' : 'text-gray-600 dark:text-gray-400'
-              }`}>
-                {plan.description}
-              </p>
-
-              <ul className="space-y-3 mb-8 flex-1">
-                {plan.features.map((feature, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <CheckCircle2 className={`w-5 h-5 flex-shrink-0 ${
-                      plan.featured ? 'text-primary-200' : 'text-primary-600'
-                    }`} />
-                    <span className={`text-sm ${
-                      plan.featured ? 'text-primary-50' : 'text-gray-600 dark:text-gray-400'
-                    }`}>
-                      {feature}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-
-              <Button
-                className="w-full"
-                variant={plan.ctaVariant}
-              >
-                {plan.cta}
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <a href="#compra-cotizador" className="w-full sm:w-auto">
+              <Button size="lg" className="w-full px-8 sm:w-auto">
+                Comprar Cotizador - USD 11.99
+                <ArrowRight className="h-5 w-5" />
               </Button>
-            </div>
-          ))}
-        </div>
-
-        {/* Nota de escalamiento */}
-        <div className="mt-10 text-center">
-          <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-            Todos los planes incluyen 1 usuario.
-          </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Usuarios adicionales: Básico USD 12/mes • Standard USD 15/mes • Premium USD 20/mes • Platinum IA USD 25/mes
-          </p>
-        </div>
-
-        <div className="mt-8 text-center">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            ¿Empezaste con Excel? Podés migrar al sistema cuando quieras.
-            <a href="#excel" className="text-primary-600 hover:underline ml-1">
-              Ver productos Excel
             </a>
-          </p>
+            <a href="#camino-sistema" className="w-full sm:w-auto">
+              <Button size="lg" variant="outline" className="w-full">
+                Ver demo del sistema completo
+              </Button>
+            </a>
+          </div>
+
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            {['Pago unico', 'Entrega automatica', 'Excel + Google Sheets'].map((item) => (
+              <span key={item} className="rounded-full border border-primary-300 bg-white/70 px-4 py-1.5 text-sm text-primary-700 dark:border-primary-700 dark:bg-primary-900/35 dark:text-primary-200">
+                {item}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </section>
   )
 }
 
-/**
- * Sección de preguntas frecuentes actualizada.
- */
-function FAQSection() {
-  const faqs: FAQItem[] = [
+function MobileQuickActions() {
+  return (
+    <section className="bg-white/80 px-4 py-3 backdrop-blur dark:bg-gray-950/80 md:hidden">
+      <div className="mx-auto grid w-full max-w-7xl grid-cols-2 gap-2">
+        <a href="#compra-cotizador">
+          <Button className="w-full text-xs">
+            Comprar
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </a>
+        <a href="#planes">
+          <Button variant="outline" className="w-full text-xs">
+            Ver planes
+          </Button>
+        </a>
+      </div>
+    </section>
+  )
+}
+
+function ProductPurchaseSection({
+  email,
+  setEmail,
+  isEmailValid,
+  onBuyExcel,
+  isCheckoutLoading,
+}: {
+  email: string
+  setEmail: (value: string) => void
+  isEmailValid: boolean
+  onBuyExcel: () => void
+  isCheckoutLoading: boolean
+}) {
+  const benefits = [
+    'Pago unico',
+    'Entrega automatica',
+    'Incluye Excel + Google Sheets',
+    'Listo para usar',
+    'Sin conocimientos tecnicos',
+    'Ideal para negocios que cotizan todos los dias',
+  ]
+
+  return (
+    <section id="compra-cotizador" className="bg-white py-14 dark:bg-gray-900 sm:py-20">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <article className="rounded-3xl border border-primary-200 bg-primary-50/70 p-5 dark:border-primary-800 dark:bg-primary-900/20 sm:p-7">
+            <p className="text-sm font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">Producto digital</p>
+            <h2 className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">Cotizador profesional</h2>
+            <p className="mt-3 text-gray-600 dark:text-gray-300">
+              Compras una vez y recibis las dos versiones: Excel y Google Sheets.
+              Usalo en tu compu, compartilo con tu equipo o adaptalo a tu forma de trabajar.
+            </p>
+
+            <div className="mt-6 rounded-2xl border border-primary-200 bg-white p-5 dark:border-primary-700 dark:bg-gray-950/40">
+              <p className="text-sm text-gray-500 dark:text-primary-200">Precio</p>
+              <p className="text-4xl font-extrabold text-gray-900 dark:text-white">USD 11.99</p>
+              <p className="mt-1 text-sm text-gray-500 dark:text-primary-200/80">Pago unico</p>
+
+              <div className="mt-4">
+                <label htmlFor="buyer-email" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Email para enviarte el Excel (obligatorio)
+                </label>
+                <input
+                  id="buyer-email"
+                  type="email"
+                  placeholder="tu@email.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="w-full rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none dark:border-primary-700 dark:bg-gray-950 dark:text-white"
+                />
+                {!isEmailValid && email.trim().length > 0 && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">Ingresa un email valido para habilitar la compra.</p>
+                )}
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <Button className="w-full" onClick={onBuyExcel} isLoading={isCheckoutLoading} disabled={!isEmailValid}>
+                  Comprar Cotizador - USD 11.99
+                </Button>
+                <a href="#camino-sistema">
+                  <Button variant="outline" className="w-full">Ver demo del sistema completo</Button>
+                </a>
+              </div>
+
+              <div className="mt-3">
+                <Button className="w-full" onClick={onBuyExcel} isLoading={isCheckoutLoading} disabled={!isEmailValid}>
+                  Comprar y recibir ahora
+                </Button>
+              </div>
+
+              <a href="/cotizadorProfesional.png" target="_blank" rel="noopener noreferrer" className="mt-3 block">
+                <Button variant="outline" className="w-full">Ver imagen del Excel</Button>
+              </a>
+            </div>
+          </article>
+
+          <article className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950/30 sm:p-7">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Incluye</h3>
+            <ul className="mt-4 space-y-2 text-gray-600 dark:text-gray-300">
+              <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-5 w-5 text-primary-600" />Archivo Excel descargable (.xlsx)</li>
+              <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-5 w-5 text-primary-600" />Version Google Sheets duplicable por enlace</li>
+              <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-5 w-5 text-primary-600" />Instrucciones rapidas de uso</li>
+            </ul>
+
+            <h4 className="mt-6 text-base font-semibold text-gray-900 dark:text-white">Beneficios</h4>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {benefits.map((benefit) => (
+                <div key={benefit} className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                  {benefit}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 grid gap-2 sm:grid-cols-2">
+              <a href={buildAssetWebhookUrl('excel')} target="_blank" rel="noopener noreferrer">
+                <Button className="w-full">Obtener Excel</Button>
+              </a>
+              <a href={buildAssetWebhookUrl('sheets')} target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" className="w-full">Obtener Google Sheets</Button>
+              </a>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ProblemSection() {
+  const pains = [
+    'Perdes tiempo armando cotizaciones una por una.',
+    'Te equivocaste en un precio y regalaste margen.',
+    'El cliente se enfria mientras seguis calculando.',
+    'No tenes claro quien te debe y cuanto stock queda.',
+  ]
+
+  return (
+    <section className="bg-gray-50 py-16 dark:bg-gray-950">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Si esto te pasa todos los dias, te esta frenando ventas</h2>
+        <ul className="mt-6 grid gap-3 md:grid-cols-2">
+          {pains.map((pain) => (
+            <li key={pain} className="flex items-start gap-3 rounded-xl border border-red-200 bg-white p-4 text-gray-700 dark:border-red-900/50 dark:bg-gray-900 dark:text-gray-200">
+              <CircleAlert className="mt-0.5 h-5 w-5 flex-none text-red-500" />
+              <span>{pain}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+function SolutionSection() {
+  const solutions = [
+    { icon: Clock, title: 'Mas rapido', copy: 'Cotizas en minutos y respondes antes que la competencia.' },
+    { icon: ShieldCheck, title: 'Mas ordenado', copy: 'Todo queda claro para vos y para tu equipo.' },
+    { icon: ReceiptText, title: 'Mas profesional', copy: 'Tus cotizaciones salen prolijas y listas para cerrar venta.' },
+    { icon: HandCoins, title: 'Mas rentable', copy: 'Menos errores, mejor margen y mas control del negocio.' },
+  ]
+
+  return (
+    <section className="bg-white py-16 dark:bg-gray-900">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">OctopusTrack te da control y velocidad desde el primer dia</h2>
+        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {solutions.map((item) => (
+            <article key={item.title} className="rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-950/40">
+              <item.icon className="h-6 w-6 text-primary-600 dark:text-primary-300" />
+              <h3 className="mt-3 text-lg font-semibold text-gray-900 dark:text-white">{item.title}</h3>
+              <p className="mt-1 text-gray-600 dark:text-gray-300">{item.copy}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ChooseStartSection() {
+  return (
+    <section id="elegi-como-empezar" className="bg-gray-50 py-16 dark:bg-gray-950">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Elegi como empezar</h2>
+        <p className="mt-3 max-w-2xl text-gray-600 dark:text-gray-300">Dos caminos claros para vender mejor hoy mismo.</p>
+
+        <div className="mt-8 grid gap-5 lg:grid-cols-2">
+          <article id="camino-excel" className="rounded-2xl border border-emerald-300 bg-emerald-50 p-6 dark:border-emerald-800/60 dark:bg-emerald-950/20">
+            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">OPCION 1</p>
+            <h3 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">Excel Profesional de Cotizaciones</h3>
+            <p className="mt-2 text-3xl font-extrabold text-emerald-700 dark:text-emerald-300">USD 11.99</p>
+            <ul className="mt-5 space-y-2 text-gray-700 dark:text-gray-200">
+              {['Listo para usar en minutos', 'No necesitas conocimientos tecnicos', 'Cotizaciones rapidas y prolijas'].map((point) => (
+                <li key={point} className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />{point}</li>
+              ))}
+            </ul>
+            <a href="#compra-cotizador" className="mt-6 block">
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700">Comprar Cotizador</Button>
+            </a>
+          </article>
+
+          <article id="camino-sistema" className="rounded-2xl border border-primary-300 bg-primary-50 p-6 dark:border-primary-800 dark:bg-primary-900/20">
+            <p className="text-sm font-semibold text-primary-700 dark:text-primary-300">OPCION 2</p>
+            <h3 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">Sistema OctopusTrack</h3>
+            <p className="mt-2 text-3xl font-extrabold text-primary-700 dark:text-primary-300">Desde USD 33/mes</p>
+            <ul className="mt-5 space-y-2 text-gray-700 dark:text-gray-200">
+              {['Cotizaciones y control diario desde un solo lugar', 'Clientes, proveedores e inventario ordenados', 'Escalas por plan segun tu etapa de negocio'].map((point) => (
+                <li key={point} className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-5 w-5 text-primary-600" />{point}</li>
+              ))}
+            </ul>
+            <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="mt-6 block">
+              <Button className="w-full">Probar sistema</Button>
+            </a>
+          </article>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function PlansSection({
+  email,
+  setEmail,
+  isEmailValid,
+  onBuyPlan,
+  isCheckoutLoading,
+}: {
+  email: string
+  setEmail: (value: string) => void
+  isEmailValid: boolean
+  onBuyPlan: (plan: { code: string; name: string; price: number }) => void
+  isCheckoutLoading: boolean
+}) {
+  const plans = [
     {
-      question: '¿Empiezo con Excel o directamente con el sistema?',
-      answer: 'Depende de tu situación actual. Si arrancás de cero o querés algo simple, las plantillas Excel son perfectas. Si ya manejás muchos clientes y necesitás facturación electrónica, arrancá con el sistema.',
+      name: 'Basico',
+      code: 'basico',
+      price: 33,
+      line: 'Para digitalizar tu operacion diaria con foco en venta y control.',
+      features: [
+        'Hasta 20.000 productos',
+        'Cotizaciones',
+        'Actualizacion masiva de precios',
+        'Clientes y proveedores',
+        'Inventario con control de stock',
+      ],
     },
     {
-      question: '¿Puedo migrar de Excel al sistema después?',
-      answer: 'Sí, totalmente. Todos los Excel están pensados para migrar al sistema completo sin arrancar de cero. Importamos estructura y datos para que no pierdas trabajo.',
+      name: 'Negocio',
+      code: 'negocio',
+      price: 49,
+      line: 'Para seguimiento comercial y operacion con entregas.',
+      features: ['Todo lo del plan Basico', 'Cuenta corriente', 'Remitos'],
     },
     {
-      question: '¿Necesito saber Excel avanzado para usar las plantillas?',
-      answer: 'No. Nuestras plantillas están diseñadas para que cualquier persona pueda usarlas. Solo necesitás saber lo básico: abrir un archivo, escribir y guardar.',
-    },
-    {
-      question: '¿Qué incluye la facturación electrónica?',
-      answer: 'El plan Premium incluye la integración completa con ARCA/AFIP para emitir Facturas A, B y C con CAE, código QR y código de barras. También incluye Notas de Crédito y Débito.',
-    },
-    {
-      question: '¿El precio de los planes es en dólares?',
-      answer: 'Sí, tanto los planes del sistema como las plantillas Excel de esta landing se expresan en USD. Aceptamos pago con tarjeta internacional, transferencia bancaria y Mercado Pago (con recargo).',
-    },
-    {
-      question: '¿Puedo cancelar mi suscripción cuando quiera?',
-      answer: 'Sí, sin permanencia ni penalizaciones. Cancelás desde el panel y seguís usando el servicio hasta fin de período. Tus datos se pueden exportar en cualquier momento.',
+      name: 'Completo',
+      code: 'completo',
+      price: 119,
+      line: 'Para operar sin fricciones fiscales y escalar con acompanamiento.',
+      features: [
+        'Todo lo del plan Negocio',
+        'Facturacion electronica con ARCA',
+        'Mantenimiento continuo',
+        'Soporte personalizado',
+      ],
     },
   ]
 
-  const [isOpen, setIsOpen] = useState<number | null>(null)
-
   return (
-    <section className="py-20 bg-gray-50 dark:bg-gray-950" id="faq">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            Preguntas frecuentes
-          </h2>
+    <section id="planes" className="bg-gray-50 py-14 dark:bg-gray-950 sm:py-16">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <h2 className="text-center text-3xl font-bold text-gray-900 dark:text-white md:text-left">Planes simples</h2>
+        <div className="mt-4 rounded-2xl border border-primary-200 bg-white p-4 text-center dark:border-primary-800 dark:bg-gray-900/60 sm:p-5 md:text-left">
+          <label htmlFor="plan-onboarding-email" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200">
+            Email para onboarding y activacion del sistema
+          </label>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <input
+              id="plan-onboarding-email"
+              type="email"
+              placeholder="tu@email.com"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="w-full rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none dark:border-primary-700 dark:bg-gray-950 dark:text-white"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 md:max-w-xs">
+              Este mail se usa para enviarte el acceso y arrancar el onboarding despues del pago.
+            </p>
+          </div>
+          {!isEmailValid && email.trim().length > 0 && (
+            <p className="mt-2 text-xs text-red-600 dark:text-red-400">Ingresa un email valido para habilitar la compra de planes.</p>
+          )}
         </div>
-
-        <div className="space-y-4">
-          {faqs.map((faq, index) => (
-            <div
-              key={index}
-              className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800"
+        <div className="mt-7 grid gap-4 md:grid-cols-3">
+          {plans.map((plan) => (
+            <article
+              key={plan.name}
+              className={`rounded-2xl border bg-white p-5 text-center dark:bg-gray-900 sm:p-6 md:text-left ${
+                plan.name === 'Negocio'
+                  ? 'border-primary-400 ring-2 ring-primary-200 dark:border-primary-600 dark:ring-primary-900/50'
+                  : 'border-gray-200 dark:border-gray-800'
+              }`}
             >
-              <button
-                className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                onClick={() => setIsOpen(isOpen === index ? null : index)}
-                aria-expanded={isOpen === index}
-              >
-                <span className="font-medium text-gray-900 dark:text-white pr-4">
-                  {faq.question}
+              {plan.name === 'Negocio' && (
+                <span className="inline-flex rounded-full bg-primary-100 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
+                  Recomendado
                 </span>
-                {isOpen === index ? (
-                  <ChevronUp className="w-5 h-5 text-primary-600 flex-shrink-0" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                )}
-              </button>
-              {isOpen === index && (
-                <div className="px-6 pb-4 text-gray-600 dark:text-gray-400">
-                  {faq.answer}
-                </div>
               )}
-            </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">{plan.name}</h3>
+              <p className="mt-2 text-3xl font-extrabold text-primary-700 dark:text-primary-300">
+                USD {plan.price}
+                <span className="text-sm font-medium text-gray-500 dark:text-primary-200">/mes</span>
+              </p>
+              <p className="mt-3 text-gray-600 dark:text-gray-300">{plan.line}</p>
+              <ul className="mt-4 space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
+                {plan.features.map((feature) => (
+                  <li key={feature} className="flex items-start justify-center gap-2 text-left md:justify-start">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-5">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => onBuyPlan({ code: plan.code, name: plan.name, price: plan.price })}
+                  isLoading={isCheckoutLoading}
+                  disabled={!isEmailValid}
+                >
+                  Elegir {plan.name}
+                </Button>
+              </div>
+            </article>
           ))}
         </div>
       </div>
@@ -793,122 +525,212 @@ function FAQSection() {
   )
 }
 
-/**
- * CTA final para conversión dual.
- */
-function CTASection() {
+function ScaleSection() {
   return (
-    <section className="py-20 bg-gradient-to-r from-primary-600 to-primary-700 dark:from-primary-700 dark:to-primary-800">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-          ¿Listo para empezar?
-        </h2>
-        <p className="text-lg text-primary-100 mb-8 max-w-2xl mx-auto">
-          Arrancá con Excel hoy o agendá una demo del sistema.
-          Sin compromiso, sin contrato.
+    <section className="bg-gradient-to-r from-primary-600 to-primary-700 py-14">
+      <div className="mx-auto w-full max-w-7xl px-4 text-center sm:px-6 lg:px-8">
+        <p className="text-3xl font-extrabold text-white">
+          Empeza con Excel. Cuando crezcas, pasas al sistema. Sin perder datos.
         </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <a href="#excel">
-            <Button
-              size="lg"
-              variant="secondary"
-              className="border-0 shadow-sm"
-            >
-              <FileSpreadsheet className="w-5 h-5 mr-2" />
-              Comprar Excel
-            </Button>
-          </a>
-          <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
-            <Button
-              size="lg"
-              variant="outline"
-              className="text-white border-white hover:bg-primary-800"
-            >
-              <Rocket className="w-5 h-5 mr-2" />
-              Agendar demo del sistema
-            </Button>
-          </a>
-          <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
-            <Button
-              size="lg"
-              variant="outline"
-              className="text-white border-white hover:bg-primary-800"
-            >
-              <MessageCircle className="w-5 h-5 mr-2" />
-              Escribir por WhatsApp
-            </Button>
-          </a>
+      </div>
+    </section>
+  )
+}
+
+function ComparisonSection() {
+  return (
+    <section className="bg-white py-16 dark:bg-gray-900">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Excel vs Sistema</h2>
+        <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead className="bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200">
+              <tr>
+                <th className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">Excel</th>
+                <th className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">Sistema</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white text-gray-700 dark:bg-gray-950/40 dark:text-gray-200">
+              <tr><td className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">Pago unico</td><td className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">Mensual</td></tr>
+              <tr><td className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">Simple</td><td className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">Completo</td></tr>
+              <tr><td className="px-4 py-3">Ideal para empezar</td><td className="px-4 py-3">Ideal para escalar</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
   )
 }
 
-/**
- * Footer con logo.
- */
-function Footer() {
-  const currentYear = new Date().getFullYear()
-
+function StickyMobileCTA() {
   return (
-    <footer className="py-12 bg-gray-900 dark:bg-black">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-          {/* Logo e info */}
-          <div className="flex flex-col items-center md:items-start gap-4">
-            <img
-              src="/logo-tentaculo1.png"
-              alt="OctopusTrack - Logo"
-              className="h-12 w-auto object-contain"
-            />
-            <p className="text-sm text-gray-400 text-center md:text-left">
-              Herramientas profesionales para sanitarios, ferreterías y corralones.
-            </p>
-          </div>
+    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white/95 p-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 md:hidden">
+      <div className="mx-auto flex max-w-7xl gap-2 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+        <a href="#compra-cotizador" className="w-1/2">
+          <Button className="w-full text-xs">Comprar Cotizador</Button>
+        </a>
+        <a href="#camino-sistema" className="w-1/2">
+          <Button variant="outline" className="w-full text-xs">Ver demo</Button>
+        </a>
+      </div>
+    </div>
+  )
+}
 
-          {/* Links */}
-          <div className="flex flex-wrap justify-center gap-6 text-sm">
-            <a href="#excel" className="text-gray-400 hover:text-primary-400 transition-colors">
-              Productos Excel
-            </a>
-            <a href="#planes-sistema" className="text-gray-400 hover:text-primary-400 transition-colors">
-              Planes del sistema
-            </a>
-            <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-primary-400 transition-colors">
-              Contacto
-            </a>
-          </div>
-
-          {/* Copyright */}
-          <p className="text-sm text-gray-500">
-            © {currentYear} OctopusTrack. Todos los derechos reservados.
-          </p>
+function Footer() {
+  const year = new Date().getFullYear()
+  return (
+    <footer className="bg-gray-900 pb-24 pt-8 text-center text-xs text-gray-400 md:pb-8 dark:bg-black">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-4 flex justify-center">
+          <img src="/logo-tentaculo1.png" alt="OctopusTrack" className="h-10 w-auto object-contain" />
         </div>
+        <p>OctopusTrack - Gestion comercial para negocios reales.</p>
+        <p className="mt-1">{year} OctopusTrack. Todos los derechos reservados.</p>
       </div>
     </footer>
   )
 }
 
-// ============================================================
-// Componente principal
-// ============================================================
-
-/**
- * Landing pública con estrategia híbrida: productos Excel + sistema SaaS.
- */
-export default function Landing({ loginUrl = '/login' }: LandingProps) {
+function ThankYouPage() {
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-100 dark:from-gray-950 dark:via-gray-900 dark:to-primary-950">
+      <div className="mx-auto flex min-h-screen w-full max-w-4xl items-center px-4 py-12 sm:px-6">
+        <section className="w-full rounded-3xl border border-primary-200 bg-white p-8 text-center shadow-xl dark:border-primary-800 dark:bg-gray-900">
+          <p className="text-sm font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">Pago confirmado</p>
+          <h1 className="mt-2 text-4xl font-extrabold text-gray-900 dark:text-white">Tu cotizador ya esta listo</h1>
+          <p className="mx-auto mt-3 max-w-2xl text-gray-600 dark:text-gray-300">
+            Aca tenes acceso inmediato al archivo Excel, la version Google Sheets y una guia rapida para arrancar hoy.
+          </p>
+
+          <div className="mt-7 grid gap-3 sm:grid-cols-2">
+            <a href={buildAssetWebhookUrl('excel')} target="_blank" rel="noopener noreferrer">
+              <Button className="w-full">Obtener Excel</Button>
+            </a>
+            <a href={buildAssetWebhookUrl('sheets')} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" className="w-full">Obtener Google Sheets</Button>
+            </a>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-primary-200 bg-primary-50 p-4 text-left text-sm text-gray-700 dark:border-primary-800 dark:bg-primary-900/20 dark:text-gray-200">
+            <p className="font-semibold text-gray-900 dark:text-white">Instrucciones rapidas</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5">
+              <li>Descarga el archivo Excel o duplica la version de Google Sheets.</li>
+              <li>Carga tus productos y precios en la pestaña inicial.</li>
+              <li>Empeza a cotizar y envia por WhatsApp en minutos.</li>
+            </ol>
+          </div>
+
+          <p className="mt-6 text-primary-700 dark:text-primary-300">
+            Cuando quieras escalar, podes migrar a OctopusTrack sin empezar de cero.
+          </p>
+
+          <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block">
+            <Button variant="secondary" className="border-0 shadow-sm">
+              <MessageCircle className="h-5 w-5" />
+              Necesito ayuda para configurarlo
+            </Button>
+          </a>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function LandingContent({ loginUrl }: { loginUrl: string }) {
+  const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
+  const [buyerEmail, setBuyerEmail] = useState('')
+
+  const isEmailValid = useMemo(() => /\S+@\S+\.\S+/.test(buyerEmail.trim()), [buyerEmail])
+
+  const handleExcelCheckout = async () => {
+    if (!isEmailValid) return
+
+    setIsCheckoutLoading(true)
+
+    try {
+      await startMercadoPagoCheckout({
+        price: 11.99,
+        product: 'OctopusTrack - Cotizador Profesional',
+        source: 'landing-octopustrack',
+        email: buyerEmail.trim(),
+        onboardingType: 'excel',
+      })
+    } catch {
+      const endpoint = buildFallbackCheckoutUrl()
+      if (endpoint && !endpoint.startsWith('#')) {
+        window.open(endpoint, '_blank', 'noopener,noreferrer')
+      }
+    } finally {
+      setIsCheckoutLoading(false)
+    }
+  }
+
+  const handlePlanCheckout = async (plan: { code: string; name: string; price: number }) => {
+    if (!isEmailValid) return
+
+    setIsCheckoutLoading(true)
+
+    try {
+      await startMercadoPagoCheckout({
+        price: plan.price,
+        product: `OctopusTrack - Plan ${plan.name}`,
+        source: 'landing-octopustrack-plan',
+        email: buyerEmail.trim(),
+        planCode: plan.code,
+        onboardingType: 'plan',
+      })
+    } catch {
+      openWhatsAppWithMessage(
+        `Hola! Quiero contratar el Plan ${plan.name} de OctopusTrack (USD ${plan.price}/mes). Mi email para onboarding es ${buyerEmail.trim()}.`,
+      )
+    } finally {
+      setIsCheckoutLoading(false)
+    }
+  }
+
+  return (
+    <>
       <Header loginUrl={loginUrl} />
+      <MobileQuickActions />
       <main>
         <HeroSection />
-        <ExcelProductsSection />
-        <SystemBenefitsSection />
-        <SaaSPlansSection />
-        <FAQSection />
-        <CTASection />
+        <ProductPurchaseSection
+          email={buyerEmail}
+          setEmail={setBuyerEmail}
+          isEmailValid={isEmailValid}
+          onBuyExcel={handleExcelCheckout}
+          isCheckoutLoading={isCheckoutLoading}
+        />
+        <ProblemSection />
+        <SolutionSection />
+        <ChooseStartSection />
+        <PlansSection
+          email={buyerEmail}
+          setEmail={setBuyerEmail}
+          isEmailValid={isEmailValid}
+          onBuyPlan={handlePlanCheckout}
+          isCheckoutLoading={isCheckoutLoading}
+        />
+        <ScaleSection />
+        <ComparisonSection />
       </main>
       <Footer />
+      <StickyMobileCTA />
+    </>
+  )
+}
+
+export default function Landing({ loginUrl = '/login' }: LandingProps) {
+  const isThankYou = useMemo(() => shouldShowThankYou(), [])
+
+  if (isThankYou) {
+    return <ThankYouPage />
+  }
+
+  return (
+    <div className="min-h-screen bg-white dark:bg-gray-900">
+      <LandingContent loginUrl={loginUrl} />
     </div>
   )
 }
