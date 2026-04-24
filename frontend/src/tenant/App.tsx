@@ -111,7 +111,7 @@ export default function App() {
         <HashRouter>
           <Routes>
             {/* Rutas públicas */}
-            <Route path="/landing" element={<Landing />} />
+            <Route path="/landing" element={<Landing loginUrl="#/login" />} />
             <Route path="/login" element={<Login />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
 

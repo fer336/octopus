@@ -18,12 +18,21 @@
 - [ ] [BILLING-MP-01] Billing: integrar MercadoPago (botón de pago por plan) usando API provista y flujo por negocio/tenant
 - [ ] [BILLING-MP-02] Billing: contador mensual por tenant (1/0 días restantes) + recordatorios automáticos de pago al vencer
 - [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
+- [ ] [DEVOPS-LANDING-02] Configurar secrets/vars de GitHub y webhook de Portainer para activar deploy automático real de la landing en el dominio público
 
 ## 🟡 En progreso
 
 
 
 ## 🟢 Hecho
+
+- [x] [DEVOPS-LANDING-03] Crear stack compose dedicado para landing pública con Traefik y dominio separado ✅ 2026-04-24
+
+- [x] [DEVOPS-LANDING-01] Landing: separar build/entrypoint y crear CI/CD dedicado para deploy automático en dominio público ✅ 2026-04-24
+
+- [x] [AI-ARCH-02] IA Cotizaciones: validar implementación real de Luci (router/chat/history/store/ventas) y aterrizar propuesta multiagente sobre el codebase actual ✅ 2026-04-23
+
+- [x] [AI-ARCH-01] IA Cotizaciones: relevamiento del codebase actual y propuesta de arquitectura multiagente segura para orquestador + subagentes paralelos ✅ 2026-04-23
 
 - [x] [DOCS-03] README: versión comercial enfocada en funcionalidades actuales paso a paso + URL demo + autorización por WhatsApp (sin sección de instalación) ✅ 2026-04-23
 - [x] [DOCS-02] README: simplificar documentación a estado actual real del sistema + guía de instalación/ejecución (Docker y local) ✅ 2026-04-23

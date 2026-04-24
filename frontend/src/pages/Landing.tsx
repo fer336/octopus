@@ -7,7 +7,6 @@
  * - Escalamiento: sistema SaaS en planes mensuales (USD)
  */
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   Calculator,
   Clock,
@@ -73,8 +72,11 @@ interface SaaSPlan {
 /**
  * Header simple para landing pública con logo real.
  */
-function Header() {
-  const navigate = useNavigate()
+interface LandingProps {
+  loginUrl?: string
+}
+
+function Header({ loginUrl }: { loginUrl: string }) {
 
   return (
     <header className="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm sticky top-0 z-50">
@@ -118,7 +120,9 @@ function Header() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => navigate('/login')}
+              onClick={() => {
+                window.location.href = loginUrl
+              }}
             >
               Iniciar sesión
             </Button>
@@ -892,10 +896,10 @@ function Footer() {
 /**
  * Landing pública con estrategia híbrida: productos Excel + sistema SaaS.
  */
-export default function Landing() {
+export default function Landing({ loginUrl = '/login' }: LandingProps) {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
-      <Header />
+      <Header loginUrl={loginUrl} />
       <main>
         <HeroSection />
         <ExcelProductsSection />
