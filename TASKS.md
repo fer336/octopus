@@ -18,13 +18,14 @@
 - [ ] [BILLING-MP-01] Billing: integrar MercadoPago (botón de pago por plan) usando API provista y flujo por negocio/tenant
 - [ ] [BILLING-MP-02] Billing: contador mensual por tenant (1/0 días restantes) + recordatorios automáticos de pago al vencer
 - [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
-- [ ] [DEVOPS-LANDING-02] Configurar secrets/vars de GitHub y webhook de Portainer para activar deploy automático real de la landing en el dominio público
 
 ## 🟡 En progreso
 
 
 
 ## 🟢 Hecho
+
+- [x] [DEVOPS-LANDING-02] Configurar secrets/vars de GitHub y webhook de Portainer para activar deploy automático real de la landing en el dominio público ✅ 2026-04-24
 
 - [x] [DEVOPS-LANDING-03] Crear stack compose dedicado para landing pública con Traefik y dominio separado ✅ 2026-04-24
 

@@ -16,7 +16,7 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=network_public"
-        - "traefik.http.routers.octopus-landing.rule=Host(`${LANDING_HOST}`)"
+        - "traefik.http.routers.octopus-landing.rule=Host(`web-octopus.qeva.xyz`)"
         - "traefik.http.routers.octopus-landing.entrypoints=websecure"
         - "traefik.http.routers.octopus-landing.tls.certresolver=letsencryptresolver"
         - "traefik.http.routers.octopus-landing.priority=20"
