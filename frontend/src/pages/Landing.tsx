@@ -1,22 +1,11 @@
 import { useMemo, useState } from 'react'
-import {
-  ArrowRight,
-  CheckCircle2,
-  CircleAlert,
-  Clock,
-  HandCoins,
-  MessageCircle,
-  ReceiptText,
-  ShieldCheck,
-  Sparkles,
-} from 'lucide-react'
+import { ArrowRight, CheckCircle2, Menu, X, Zap, Shield, Users } from 'lucide-react'
 import Button from '../components/ui/Button'
 
 const WHATSAPP_URL = 'https://wa.me/5492254596618'
 const CHECKOUT_URL = import.meta.env.VITE_LANDING_CHECKOUT_URL || '#checkout-no-configured'
 const MP_CHECKOUT_WEBHOOK_URL =
-  import.meta.env.VITE_LANDING_MP_CHECKOUT_WEBHOOK_URL ||
-  'https://n8nw.qeva.xyz/webhook/octopus-mp'
+  import.meta.env.VITE_LANDING_MP_CHECKOUT_WEBHOOK_URL || 'https://n8nw.qeva.xyz/webhook/octopus-mp'
 const ASSET_WEBHOOK_URL = import.meta.env.VITE_LANDING_ASSET_WEBHOOK_URL || '#webhook-no-configured'
 
 interface LandingProps {
@@ -49,38 +38,14 @@ function openWhatsAppWithMessage(message: string) {
   window.open(finalUrl, '_blank', 'noopener,noreferrer')
 }
 
-function openSystemDemoWhatsApp(event?: { preventDefault?: () => void }) {
+function scrollToId(id: string, event?: { preventDefault?: () => void }, desktopOffset = 90, mobileOffset = 82) {
   event?.preventDefault?.()
-  openWhatsAppWithMessage('Hola, me gustaria probar OctopusTrack')
-}
+  const element = document.getElementById(id)
+  if (!element) return
 
-function scrollToBuyerEmail(event?: { preventDefault?: () => void }) {
-  event?.preventDefault?.()
-  const emailInput = document.getElementById('buyer-email') as HTMLInputElement | null
-  const purchaseCard = document.getElementById('purchase-card')
-  if (!emailInput) return
-
-  if (purchaseCard) {
-    const headerOffset = window.innerWidth >= 640 ? 88 : 84
-    const top = purchaseCard.getBoundingClientRect().top + window.scrollY - headerOffset
-    window.scrollTo({ top, behavior: 'smooth' })
-  }
-
-  window.setTimeout(() => {
-    emailInput.focus()
-    emailInput.select()
-  }, 250)
-}
-
-function scrollToPlansSection(event?: { preventDefault?: () => void }) {
-  event?.preventDefault?.()
-  const section = document.getElementById('planes')
-  if (!section) return
-
-  const headerOffset = window.innerWidth >= 640 ? 8 : 4
-  const top = section.getBoundingClientRect().top + window.scrollY - headerOffset
-
-  window.scrollTo({ top, behavior: 'smooth' })
+  const offset = window.innerWidth >= 768 ? desktopOffset : mobileOffset
+  const top = element.getBoundingClientRect().top + window.scrollY - offset
+  window.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' })
 }
 
 function shouldShowThankYou() {
@@ -99,9 +64,7 @@ function buildAssetWebhookUrl(format: 'excel' | 'sheets') {
 }
 
 function buildFallbackCheckoutUrl() {
-  if (MP_CHECKOUT_WEBHOOK_URL && !MP_CHECKOUT_WEBHOOK_URL.startsWith('#')) {
-    return MP_CHECKOUT_WEBHOOK_URL
-  }
+  if (MP_CHECKOUT_WEBHOOK_URL && !MP_CHECKOUT_WEBHOOK_URL.startsWith('#')) return MP_CHECKOUT_WEBHOOK_URL
   return CHECKOUT_URL
 }
 
@@ -126,13 +89,10 @@ async function startMercadoPagoCheckout(payload: CheckoutRequest) {
     }),
   })
 
-  if (!response.ok) {
-    throw new Error(`checkout-error-${response.status}`)
-  }
+  if (!response.ok) throw new Error(`checkout-error-${response.status}`)
 
   const data = await response.json()
   const initPoint = data?.init_point || data?.sandbox_init_point
-
   if (initPoint) {
     window.location.href = initPoint
     return
@@ -141,73 +101,140 @@ async function startMercadoPagoCheckout(payload: CheckoutRequest) {
   throw new Error('checkout-without-init-point')
 }
 
+// ========================================
+// Header — Premium dark with subtle animation
+// ========================================
 function Header({ loginUrl }: { loginUrl: string }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  const menuItems = [
+    { label: 'Características', id: 'caracteristicas' },
+    { label: 'Precios', id: 'precios' },
+    { label: 'Empieza con un excel', id: 'excel-start' },
+    { label: 'Para profesionales', id: 'independientes' },
+    { label: 'Contacto', id: 'contacto' },
+  ]
+
   return (
-    <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/90 backdrop-blur dark:border-gray-800 dark:bg-gray-950/90">
-      <div className="relative mx-auto flex h-16 w-full max-w-7xl items-center justify-center px-4 sm:justify-between sm:px-6 lg:px-8">
-        <a href="#inicio" className="flex items-center gap-3 sm:absolute sm:left-6 lg:static">
-          <img src="/logo-tentaculo1.png" alt="OctopusTrack" className="h-10 w-auto object-contain" />
+    <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#0d0d1a]/90 backdrop-blur-xl">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+        <a href="#inicio" className="flex items-center transition-transform duration-300 hover:scale-[1.02]">
+          <img src="/logo-tentaculo1.png" alt="OctopusTrack" className="h-11 w-auto" />
         </a>
 
-        <nav className="hidden items-center gap-6 md:flex">
-          <a href="#buyer-email" onClick={scrollToBuyerEmail} className="text-sm text-gray-600 transition-colors hover:text-primary-600 dark:text-gray-300 dark:hover:text-primary-300">Comprar cotizador</a>
-          <a href="#camino-sistema" className="text-sm text-gray-600 transition-colors hover:text-primary-600 dark:text-gray-300 dark:hover:text-primary-300">Sistema</a>
-          <a href="#planes" onClick={scrollToPlansSection} className="text-sm text-gray-600 transition-colors hover:text-primary-600 dark:text-gray-300 dark:hover:text-primary-300">Planes</a>
-          <Button size="sm" variant="outline" onClick={() => (window.location.href = loginUrl)}>
-            Iniciar sesion
+        <div className="flex items-center gap-3">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="hidden text-white/70 hover:text-white sm:block"
+            onClick={() => (window.location.href = loginUrl)}
+          >
+            Iniciar sesión
           </Button>
+          <button
+            type="button"
+            aria-label="Abrir menú"
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/80 transition-all duration-200 hover:bg-white/10 hover:text-white"
+            onClick={() => setMenuOpen((prev) => !prev)}
+          >
+            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile menu */}
+      <div
+        className={`overflow-hidden border-t border-white/5 bg-[#0d0d1a]/95 transition-all duration-300 ease-out ${
+          menuOpen ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        <nav className="mx-auto flex w-full max-w-7xl flex-col gap-1 px-4 py-3 sm:px-6 sm:py-4">
+          {menuItems.map((item) => (
+            <a
+              key={item.label}
+              href={`#${item.id}`}
+              onClick={(event) => {
+                setMenuOpen(false)
+                scrollToId(item.id, event, 94, 86)
+              }}
+              className="rounded-lg px-4 py-2.5 text-sm font-medium text-white/70 transition-all duration-200 hover:bg-white/5 hover:text-white"
+            >
+              {item.label}
+            </a>
+          ))}
+          <a
+            href={loginUrl}
+            className="mt-2 rounded-lg bg-primary-600 px-4 py-2.5 text-center text-sm font-semibold text-white transition-all duration-200 hover:bg-primary-500"
+          >
+            Iniciar sesión
+          </a>
         </nav>
       </div>
     </header>
   )
 }
 
-function HeroSection() {
+// ========================================
+// Hero — Staggered entrance with enhanced glow
+// ========================================
+function Hero() {
   return (
-    <section id="inicio" className="relative overflow-hidden bg-gradient-to-br from-primary-50 via-white to-primary-100 dark:from-[#07070d] dark:via-[#090812] dark:to-primary-950">
-      <div className="absolute inset-0 opacity-40 dark:opacity-100">
-        <div className="absolute -left-16 top-14 h-72 w-72 rounded-full bg-primary-300 blur-3xl dark:bg-primary-800/30" />
-        <div className="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-primary-400 blur-3xl dark:bg-primary-700/30" />
-      </div>
+    <section id="inicio" className="relative overflow-hidden bg-[#0a0a14] px-4 pb-24 pt-32 text-center sm:px-6 sm:pt-40 sm:pb-28">
+      {/* Ambient glow effects */}
+      <div className="absolute left-1/2 top-[-200px] h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-radial from-primary-600/20 via-primary-700/10 to-transparent blur-3xl" />
+      <div className="absolute left-[10%] top-[20%] h-[300px] w-[300px] rounded-full bg-primary-800/10 blur-[100px]" />
+      <div className="absolute right-[10%] top-[40%] h-[200px] w-[200px] rounded-full bg-violet-600/10 blur-[80px]" />
 
-      <div className="relative mx-auto w-full max-w-5xl px-4 py-14 text-center sm:px-6 sm:py-16 lg:px-8 lg:py-24">
-        <div className="mx-auto flex max-w-4xl flex-col items-center">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary-300 bg-primary-100 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary-700 dark:border-primary-700 dark:bg-primary-900/40 dark:text-primary-200">
-            <Sparkles className="h-4 w-4" />
-            Para ferreterias, sanitarios y pymes
+      {/* Animated content */}
+      <div className="relative z-10 mx-auto max-w-4xl animate-fade-in-up">
+        <h1 className="text-[36px] font-bold leading-[1.08] tracking-tight text-white sm:text-5xl sm:leading-tight lg:text-6xl">
+          Agilizá tu negocio{' '}
+          <span className="bg-gradient-to-r from-primary-400 to-violet-400 bg-clip-text text-transparent">
+            desde hoy
+          </span>
+        </h1>
+
+        <p className="mx-auto mt-6 max-w-2xl text-lg text-white/60 sm:text-xl">
+          Soluciones en Excel listas para usar: cotizá, controlá el stock y gestioná tu negocio sin complicaciones.
+        </p>
+
+        <p className="mx-auto mt-3 max-w-xl text-base text-white/40 sm:text-lg">
+          Cuando llegué el momento escalá a un sistema completo sin empezar de cero. Crecemos con vos.
+        </p>
+
+        <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <a href="#excel-start" onClick={(event) => scrollToId('excel-start', event, 100, 92)}>
+            <Button size="lg" className="min-w-[240px] gap-2 px-8 shadow-lg shadow-primary-500/25">
+              Cotizá con Excel
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </a>
+          <a href="#caracteristicas" onClick={(event) => scrollToId('caracteristicas', event, 100, 92)}>
+            <Button
+              size="lg"
+              variant="outline"
+              className="min-w-[200px] border-white/20 bg-white/5 text-white hover:bg-white/10"
+            >
+             Ver sistema completo
+            </Button>
+          </a>
+        </div>
+
+        {/* Social proof badges */}
+        <div className="mt-16 flex flex-wrap items-center justify-center gap-6 text-sm text-white/40">
+          <div className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-primary-400" />
+            <span>Configuración en 2 minutos</span>
           </div>
-
-          <h1 className="text-3xl font-extrabold leading-tight text-gray-900 sm:text-5xl dark:text-white">
-            Cotiza en segundos.
-            <br />
-            Vende mas sin errores.
-          </h1>
-
-          <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-600 dark:text-gray-300">
-            Empeza con un cotizador profesional por USD 11.99 o activa el sistema completo desde USD 33/mes.
-            Vos elegis el ritmo, sin vueltas y sin friccion.
-          </p>
-
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-            <a href="#buyer-email" onClick={scrollToBuyerEmail} className="w-full sm:w-auto">
-              <Button size="lg" className="w-full px-8 sm:w-auto">
-                Comprar Cotizador - USD 11.99
-                <ArrowRight className="h-5 w-5" />
-              </Button>
-            </a>
-            <a href="#camino-sistema" className="w-full sm:w-auto">
-              <Button size="lg" variant="outline" className="w-full">
-                Ver demo del sistema completo
-              </Button>
-            </a>
+          <div className="h-1 w-1 rounded-full bg-white/20" />
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary-400" />
+            <span>Garantía de por vida</span>
           </div>
-
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            {['Pago unico', 'Entrega automatica', 'Excel + Google Sheets'].map((item) => (
-              <span key={item} className="rounded-full border border-primary-300 bg-white/70 px-4 py-1.5 text-sm text-primary-700 dark:border-primary-700 dark:bg-primary-900/35 dark:text-primary-200">
-                {item}
-              </span>
-            ))}
+          <div className="h-1 w-1 rounded-full bg-white/20" />
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary-400" />
+            <span>+500 negocios</span>
           </div>
         </div>
       </div>
@@ -215,27 +242,10 @@ function HeroSection() {
   )
 }
 
-function MobileQuickActions() {
-  return (
-    <section className="bg-white/80 px-4 py-3 backdrop-blur dark:bg-gray-950/80 md:hidden">
-      <div className="mx-auto grid w-full max-w-7xl grid-cols-2 gap-2">
-        <a href="#buyer-email" onClick={scrollToBuyerEmail}>
-          <Button className="w-full text-xs">
-            Comprar
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </a>
-        <a href="#planes" onClick={scrollToPlansSection}>
-          <Button variant="outline" className="w-full text-xs">
-            Ver planes
-          </Button>
-        </a>
-      </div>
-    </section>
-  )
-}
-
-function ProductPurchaseSection({
+// ========================================
+// ExcelOffer — Visual premium card
+// ========================================(
+function ExcelOffer({
   email,
   setEmail,
   isEmailValid,
@@ -248,136 +258,200 @@ function ProductPurchaseSection({
   onBuyExcel: () => void
   isCheckoutLoading: boolean
 }) {
-  const benefits = [
-    'Pago unico',
-    'Entrega automatica',
-    'Incluye Excel + Google Sheets',
-    'Listo para usar',
-    'Sin conocimientos tecnicos',
-    'Ideal para negocios que cotizan todos los dias',
+  const targetItems = [
+    'Personas sin conocimientos técnicos',
+    'Negocios que cotizan todos los días',
   ]
 
   return (
-    <section id="compra-cotizador" className="scroll-mt-24 bg-white py-14 dark:bg-gray-900 sm:py-20">
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <article id="purchase-card" className="rounded-3xl border border-primary-200 bg-primary-50/70 p-5 dark:border-primary-800 dark:bg-primary-900/20 sm:p-7">
-            <p className="text-sm font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">Producto digital</p>
-            <h2 className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">Cotizador profesional</h2>
-            <p className="mt-3 text-gray-600 dark:text-gray-300">
-              Compras una vez y recibis las dos versiones: Excel y Google Sheets.
-              Usalo en tu compu, compartilo con tu equipo o adaptalo a tu forma de trabajar.
+    <section id="excel-start" className="relative overflow-hidden bg-[#0d0d1a] px-4 py-20 sm:px-6 sm:py-24">
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a14] via-transparent to-[#0d0d1a] opacity-50" />
+
+      <div className="relative mx-auto grid w-full max-w-6xl items-start gap-10 lg:grid-cols-2">
+        {/* Image side */}
+        <article className="group relative rounded-3xl border border-white/10 bg-white/5 p-2 shadow-2xl shadow-black/50">
+          <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary-500/10 to-violet-500/10 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+          <img
+            src="/assets/excel.png"
+            alt="Vista del cotizador en Excel"
+            className="relative h-auto w-full rounded-2xl border border-white/5"
+          />
+        </article>
+
+        {/* Content side */}
+        <article className="flex flex-col justify-center">
+          <div className="mb-2 inline-flex w-fit items-center gap-2 rounded-full border border-primary-500/30 bg-primary-500/10 px-3 py-1 text-xs font-medium text-primary-300">
+            <Zap className="h-3 w-3" />
+            Más vendido
+          </div>
+
+          <h2 className="mt-3 text-3xl font-bold text-white sm:text-4xl">
+            Tu cotizador profesional en Excel
+          </h2>
+
+          <p className="mt-4 text-base text-white/60">
+            Dejá de perder tiempo cotizando a mano. Con este cotizador vas a poder generar presupuestos
+            profesionales en segundos, con tu logo, datos y precios actualizados.
+          </p>
+
+          <div id="independientes" className="mt-8">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-white/40">Para quién está dirigido</h3>
+            <ul className="mt-3 space-y-2">
+              {targetItems.map((item) => (
+                <li key={item} className="flex items-center gap-2 text-sm text-white/60">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-400" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Price card */}
+          <div className="mt-10 rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[2%] p-6">
+            <div className="flex items-baseline gap-2">
+              <span className="text-sm font-medium uppercase tracking-wider text-white/40">Precio</span>
+              <span className="text-4xl font-bold text-white">USD 20.99</span>
+            </div>
+
+            <label htmlFor="buyer-email" className="mb-2 mt-5 block text-sm font-medium text-white/60">
+              Tu correo electrónico
+            </label>
+            <input
+              id="buyer-email"
+              type="email"
+              placeholder="tu@email.com"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-primary-500 focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            />
+            {!isEmailValid && email.trim().length > 0 && (
+              <p className="mt-2 text-xs text-red-400">Ingresá un correo válido para comprar.</p>
+            )}
+
+            <Button
+              className="mt-5 w-full gap-2 py-3"
+              onClick={onBuyExcel}
+              isLoading={isCheckoutLoading}
+              disabled={!isEmailValid}
+            >
+              Comprar ahora
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+
+            <p className="mt-3 text-center text-xs text-white/30">
+              Pago seguro • Entrega inmediata • Garantía de 30 días
             </p>
+          </div>
+        </article>
+      </div>
+    </section>
+  )
+}
 
-            <div className="mt-6 rounded-2xl border border-primary-200 bg-white p-5 dark:border-primary-700 dark:bg-gray-950/40">
-              <p className="text-sm text-gray-500 dark:text-primary-200">Precio</p>
-              <p className="text-4xl font-extrabold text-gray-900 dark:text-white">USD 11.99</p>
-              <p className="mt-1 text-sm text-gray-500 dark:text-primary-200/80">Pago unico</p>
+// ========================================
+// FeaturesZigZag — Animated with proper spacing
+// ========================================
+function FeaturesZigZag() {
+  const features = [
+    {
+      title: '',
+      image: '/assets/ventas-cajas.png',
+      description: 'Centralizá todo tu proceso de ventas en una única pantalla, diseñadas para operar rápido, sin errores y sin cambiar de entorno.',
+      lines: [
+        'Gestión unificada: Cotizaciones, remitos, facturación y retiros de cuentas corrientes en un solo lugar.',
+        'Carga ágil: Ingresá productos con atajos de teclado optimizados, reduciendo tiempos operativos.',
+        'Comprobantes profesionales con datos del cliente y detalle completo.',
+        'Trazabilidad: Seguimiento claro entre comprobantes.',
+        'Gestión de borradores para continuarlos después.',
+      ],
+    },
+    {
+      title: '',
+      image: '/assets/catalogo-inventario.png',
+      description: 'Control total de tus productos, precios y stock en un solo lugar.',
+      lines: [
+        'Carga flexible: Productos manuales o importalos desde Excel.',
+        'Backups completos: Exportá e importá tu base.',
+        'Actualización masiva: Modificá precios y stock por categorías.',
+        'Inventario inteligente: Reportes para controlar stock físico.',
+        'Optimización de compras con costos reales.',
+      ],
+    },
+    {
+      title: '',
+      image: '/assets/Contacto-categorias.png',
+      description: 'Gestión centralizada de todos tus contactos y su relación en el negocio.',
+      lines: [
+        'Clientes con autorizaciones: Un cliente puede habilitar a terceros.',
+        'Ejemplo: Un arquitecto habilita a electricistas, plomeros.',
+        'Categorías: Organizá tu catálogo clasificando productos.',
+        'Proveedores: Administrá tu red de proveedores.',
+      ],
+    },
+    {
+      title: '',
+      image: '/assets/reportes.png',
+      description: 'Tomá decisiones con información clara, en tiempo real.',
+      lines: [
+        'Ventas por período: Resúmenes claros y comparativas.',
+        'Productos más vendidos: Identificá qué genera más ingresos.',
+        'Estado de stock: Consultá y detectá productos con bajo stock.',
+        'Cuentas corrientes: Visualizá saldos y antigüedad.',
+        'Exportación simple: Reports listos para compartir.',
+      ],
+    },
+  ]
 
-              <div className="mt-4">
-                <label htmlFor="buyer-email" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Email para enviarte el Excel (obligatorio)
-                </label>
-                <input
-                  id="buyer-email"
-                  type="email"
-                  placeholder="tu@email.com"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="scroll-mt-24 w-full rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none dark:border-primary-700 dark:bg-gray-950 dark:text-white"
+  return (
+    <section id="caracteristicas" className="relative overflow-hidden bg-[#0a0a14] px-4 py-20 sm:px-6 sm:py-24">
+      <div className="absolute left-1/2 top-1/2 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-900/10 blur-[120px]" />
+
+      <div className="relative mx-auto w-full max-w-6xl">
+        <div className="text-center">
+          <h2 className="text-3xl font-bold text-white sm:text-4xl lg:text-5xl">
+            Sistema completo para{' '}
+            <span className="bg-gradient-to-r from-primary-400 to-violet-400 bg-clip-text text-transparent">
+              hacer crecer tu negocio
+            </span>
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-base text-white/50 sm:text-lg">
+            Una solución diseñada para negocios reales del rubro sanitario, ferretería y corralón.
+          </p>
+        </div>
+
+        <div className="mt-16 space-y-24">
+          {features.map((feature, index) => (
+            <article
+              key={feature.image}
+              className={`mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-2 ${
+                index % 2 === 1 ? 'lg:[&>*:first-child]:order-2' : ''
+              }`}
+            >
+              {/* Image */}
+              <div className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-1 shadow-xl">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary-500/5 to-violet-500/5 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                <img
+                  src={feature.image}
+                  alt="OctopusTrack"
+                  className="relative h-auto w-full rounded-2xl"
                 />
-                {!isEmailValid && email.trim().length > 0 && (
-                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">Ingresa un email valido para habilitar la compra.</p>
+              </div>
+
+              {/* Content - sin título */}
+              <div className="flex flex-col justify-center">
+                <p className="text-xl font-medium text-white/80">{feature.description}</p>
+
+                {feature.lines.length > 0 && (
+                  <ul className="mt-6 space-y-3">
+                    {feature.lines.map((line) => (
+                      <li key={line} className="flex items-start gap-3 text-lg text-white/70">
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary-400" />
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
-
-              <div className="mt-5">
-                <Button className="w-full" onClick={onBuyExcel} isLoading={isCheckoutLoading} disabled={!isEmailValid}>
-                  Comprar Cotizador - USD 11.99
-                </Button>
-              </div>
-
-              <a href="/cotizadorProfesional.png" target="_blank" rel="noopener noreferrer" className="mt-3 block">
-                <Button variant="outline" className="w-full">Ver imagen del Excel</Button>
-              </a>
-            </div>
-          </article>
-
-          <article className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950/30 sm:p-7">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Incluye</h3>
-            <ul className="mt-4 space-y-2 text-gray-600 dark:text-gray-300">
-              <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-5 w-5 text-primary-600" />Archivo Excel descargable (.xlsx)</li>
-              <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-5 w-5 text-primary-600" />Version Google Sheets duplicable por enlace</li>
-              <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-5 w-5 text-primary-600" />Instrucciones rapidas de uso</li>
-            </ul>
-
-            <h4 className="mt-6 text-base font-semibold text-gray-900 dark:text-white">Beneficios</h4>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {benefits.map((benefit) => (
-                <div key={benefit} className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                  {benefit}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-6 grid gap-2 sm:grid-cols-2">
-              <Button className="w-full" onClick={onBuyExcel} isLoading={isCheckoutLoading} disabled={!isEmailValid}>
-                Obtener Excel
-              </Button>
-              <Button variant="outline" className="w-full" onClick={onBuyExcel} isLoading={isCheckoutLoading} disabled={!isEmailValid}>
-                Obtener Google Sheets
-              </Button>
-            </div>
-          </article>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function ProblemSection() {
-  const pains = [
-    'Perdes tiempo armando cotizaciones una por una.',
-    'Te equivocaste en un precio y regalaste margen.',
-    'El cliente se enfria mientras seguis calculando.',
-    'No tenes claro quien te debe y cuanto stock queda.',
-  ]
-
-  return (
-    <section className="bg-gray-50 py-16 dark:bg-gray-950">
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Si esto te pasa todos los dias, te esta frenando ventas</h2>
-        <ul className="mt-6 grid gap-3 md:grid-cols-2">
-          {pains.map((pain) => (
-            <li key={pain} className="flex items-start gap-3 rounded-xl border border-red-200 bg-white p-4 text-gray-700 dark:border-red-900/50 dark:bg-gray-900 dark:text-gray-200">
-              <CircleAlert className="mt-0.5 h-5 w-5 flex-none text-red-500" />
-              <span>{pain}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  )
-}
-
-function SolutionSection() {
-  const solutions = [
-    { icon: Clock, title: 'Mas rapido', copy: 'Cotizas en minutos y respondes antes que la competencia.' },
-    { icon: ShieldCheck, title: 'Mas ordenado', copy: 'Todo queda claro para vos y para tu equipo.' },
-    { icon: ReceiptText, title: 'Mas profesional', copy: 'Tus cotizaciones salen prolijas y listas para cerrar venta.' },
-    { icon: HandCoins, title: 'Mas rentable', copy: 'Menos errores, mejor margen y mas control del negocio.' },
-  ]
-
-  return (
-    <section className="bg-white py-16 dark:bg-gray-900">
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">OctopusTrack te da control y velocidad desde el primer dia</h2>
-        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {solutions.map((item) => (
-            <article key={item.title} className="rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-950/40">
-              <item.icon className="h-6 w-6 text-primary-600 dark:text-primary-300" />
-              <h3 className="mt-3 text-lg font-semibold text-gray-900 dark:text-white">{item.title}</h3>
-              <p className="mt-1 text-gray-600 dark:text-gray-300">{item.copy}</p>
             </article>
           ))}
         </div>
@@ -386,48 +460,10 @@ function SolutionSection() {
   )
 }
 
-function ChooseStartSection() {
-  return (
-    <section id="elegi-como-empezar" className="bg-gray-50 py-16 dark:bg-gray-950">
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Elegi como empezar</h2>
-        <p className="mt-3 max-w-2xl text-gray-600 dark:text-gray-300">Dos caminos claros para vender mejor hoy mismo.</p>
-
-        <div className="mt-8 grid gap-5 lg:grid-cols-2">
-          <article id="camino-excel" className="scroll-mt-24 rounded-2xl border border-emerald-300 bg-emerald-50 p-6 dark:border-emerald-800/60 dark:bg-emerald-950/20">
-            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">OPCION 1</p>
-            <h3 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">Excel Profesional de Cotizaciones</h3>
-            <p className="mt-2 text-3xl font-extrabold text-emerald-700 dark:text-emerald-300">USD 11.99</p>
-            <ul className="mt-5 space-y-2 text-gray-700 dark:text-gray-200">
-              {['Listo para usar en minutos', 'No necesitas conocimientos tecnicos', 'Cotizaciones rapidas y prolijas'].map((point) => (
-                <li key={point} className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />{point}</li>
-              ))}
-            </ul>
-            <a href="#buyer-email" onClick={scrollToBuyerEmail} className="mt-6 block">
-              <Button className="w-full bg-emerald-600 hover:bg-emerald-700">Comprar Cotizador</Button>
-            </a>
-          </article>
-
-          <article id="camino-sistema" className="scroll-mt-24 rounded-2xl border border-primary-300 bg-primary-50 p-6 dark:border-primary-800 dark:bg-primary-900/20">
-            <p className="text-sm font-semibold text-primary-700 dark:text-primary-300">OPCION 2</p>
-            <h3 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">Sistema OctopusTrack</h3>
-            <p className="mt-2 text-3xl font-extrabold text-primary-700 dark:text-primary-300">Desde USD 33/mes</p>
-            <ul className="mt-5 space-y-2 text-gray-700 dark:text-gray-200">
-              {['Cotizaciones y control diario desde un solo lugar', 'Clientes, proveedores e inventario ordenados', 'Escalas por plan segun tu etapa de negocio'].map((point) => (
-                <li key={point} className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-5 w-5 text-primary-600" />{point}</li>
-              ))}
-            </ul>
-            <a href={WHATSAPP_URL} onClick={openSystemDemoWhatsApp} target="_blank" rel="noopener noreferrer" className="mt-6 block">
-              <Button className="w-full">Probar sistema</Button>
-            </a>
-          </article>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function PlansSection({
+// ========================================
+// Plans — Premium cards with distinction
+// ========================================
+function Plans({
   email,
   setEmail,
   isEmailValid,
@@ -442,104 +478,111 @@ function PlansSection({
 }) {
   const plans = [
     {
-      name: 'Basico',
+      name: 'Básico',
       code: 'basico',
       price: 33,
-      line: 'Para digitalizar tu operacion diaria con foco en venta y control.',
-      features: [
-        'Hasta 20.000 productos',
-        'Cotizaciones',
-        'Actualizacion masiva de precios',
-        'Clientes y proveedores',
-        'Inventario con control de stock',
-      ],
+      description: 'Para negocios que inician',
+      features: ['Hasta 20.000 productos', 'Cotizaciones ilimitadas', 'Actualización de precios', 'Clientes y proveedores', 'Control de stock'],
+      featured: false,
     },
     {
       name: 'Negocio',
       code: 'negocio',
       price: 49,
-      line: 'Para seguimiento comercial y operacion con entregas.',
-      features: ['Todo lo del plan Basico', 'Cuenta corriente', 'Remitos'],
+      description: 'El más elegido',
+      features: ['Todo lo del Básico', 'Seguimiento de entregas', 'Cuenta corriente', 'Reportes y análisis', 'Soporte prioritario'],
+      featured: true,
     },
     {
       name: 'Completo',
       code: 'completo',
       price: 119,
-      line: 'Para operar sin fricciones fiscales y escalar con acompanamiento.',
-      features: [
-        'Todo lo del plan Negocio',
-        'Facturacion electronica con ARCA',
-        'Mantenimiento continuo',
-        'Soporte personalizado',
-      ],
+      description: 'Para escalar',
+      features: ['Todo lo de Negocio', 'Facturación electrónica ARCA', 'Mantenimiento continuo', 'Soporte personalizado', 'Onboarding incluido'],
+      featured: false,
     },
   ]
 
   return (
-    <section id="planes" className="bg-gray-50 py-14 dark:bg-gray-950 sm:py-16">
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <h2 className="text-center text-3xl font-bold text-gray-900 dark:text-white md:text-left">Planes simples</h2>
-        <div className="mt-4 rounded-2xl border border-primary-200 bg-white p-4 text-center dark:border-primary-800 dark:bg-gray-900/60 sm:p-5 md:text-left">
-          <label htmlFor="plan-onboarding-email" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200">
-            Email para onboarding y activacion del sistema
+    <section id="precios" className="relative overflow-hidden bg-[#0d0d1a] px-4 py-20 sm:px-6 sm:py-24">
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a14] via-transparent to-[#0a0a14]" />
+
+      <div className="relative mx-auto w-full max-w-6xl">
+        <div className="text-center">
+          <h2 className="text-3xl font-bold text-white sm:text-4xl lg:text-5xl">
+            Planes diseñados para{' '}
+            <span className="bg-gradient-to-r from-primary-400 to-violet-400 bg-clip-text text-transparent">
+              crecer con vos
+            </span>
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-base text-white/50 sm:text-lg">
+            Elegí el plan que mejor se adapte a las necesidades de tu negocio. Todos incluyen soporte y actualizaciones.
+          </p>
+        </div>
+
+        {/* Email input */}
+        <div className="mx-auto mt-10 max-w-md rounded-2xl border border-white/10 bg-white/5 p-4">
+          <label htmlFor="plan-onboarding-email" className="mb-2 block text-sm font-medium text-white/60">
+            Email para onboarding
           </label>
-          <div className="flex flex-col gap-3 md:flex-row md:items-center">
-            <input
-              id="plan-onboarding-email"
-              type="email"
-              placeholder="tu@email.com"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none dark:border-primary-700 dark:bg-gray-950 dark:text-white"
-            />
-            <p className="text-xs text-gray-500 dark:text-gray-400 md:max-w-xs">
-              Este mail se usa para enviarte el acceso y arrancar el onboarding despues del pago.
-            </p>
-          </div>
+          <input
+            id="plan-onboarding-email"
+            type="email"
+            placeholder="tu@email.com"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-primary-500 focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          />
           {!isEmailValid && email.trim().length > 0 && (
-            <p className="mt-2 text-xs text-red-600 dark:text-red-400">Ingresa un email valido para habilitar la compra de planes.</p>
+            <p className="mt-2 text-xs text-red-400">Ingresá un correo válido para comprar planes.</p>
           )}
         </div>
-        <div className="mt-7 grid gap-4 md:grid-cols-3">
+
+        {/* Plans grid */}
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
           {plans.map((plan) => (
             <article
               key={plan.name}
-              className={`rounded-2xl border bg-white p-5 text-center dark:bg-gray-900 sm:p-6 md:text-left ${
-                plan.name === 'Negocio'
-                  ? 'border-primary-400 ring-2 ring-primary-200 dark:border-primary-600 dark:ring-primary-900/50'
-                  : 'border-gray-200 dark:border-gray-800'
+              className={`relative flex flex-col rounded-3xl border p-6 transition-all duration-300 ${
+                plan.featured
+                  ? 'border-primary-500/50 bg-gradient-to-b from-primary-900/30 to-[#0d0d1a] shadow-xl shadow-primary-500/10 scale-105'
+                  : 'border-white/10 bg-white/5 hover:border-white/20'
               }`}
             >
-              {plan.name === 'Negocio' && (
-                <span className="inline-flex rounded-full bg-primary-100 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
-                  Recomendado
+              {plan.featured && (
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-primary-600 to-violet-600 px-4 py-1 text-xs font-semibold text-white">
+                  Más elegido
                 </span>
               )}
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">{plan.name}</h3>
-              <p className="mt-2 text-3xl font-extrabold text-primary-700 dark:text-primary-300">
-                USD {plan.price}
-                <span className="text-sm font-medium text-gray-500 dark:text-primary-200">/mes</span>
-              </p>
-              <p className="mt-3 text-gray-600 dark:text-gray-300">{plan.line}</p>
-              <ul className="mt-4 space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
+
+              <p className="text-xs font-semibold uppercase tracking-widest text-primary-400">{plan.name}</p>
+              <p className="mt-1 text-sm text-white/50">{plan.description}</p>
+
+              <div className="mt-6 flex items-baseline gap-1">
+                <span className="text-5xl font-bold text-white">${plan.price}</span>
+                <span className="text-sm text-white/50">USD/mes</span>
+              </div>
+
+              <div className="my-6 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+              <ul className="flex-1 space-y-3 text-sm text-white/70">
                 {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-start justify-center gap-2 text-left md:justify-start">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />
+                  <li key={feature} className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-primary-400" />
                     {feature}
                   </li>
                 ))}
               </ul>
-              <div className="mt-5">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => onBuyPlan({ code: plan.code, name: plan.name, price: plan.price })}
-                  isLoading={isCheckoutLoading}
-                  disabled={!isEmailValid}
-                >
-                  Elegir {plan.name}
-                </Button>
-              </div>
+
+              <Button
+                variant={plan.featured ? 'primary' : 'outline'}
+                className="mt-6 w-full"
+                onClick={() => onBuyPlan({ code: plan.code, name: plan.name, price: plan.price })}
+                isLoading={isCheckoutLoading}
+                disabled={!isEmailValid}
+              >
+                Elegir {plan.name}
+              </Button>
             </article>
           ))}
         </div>
@@ -548,118 +591,99 @@ function PlansSection({
   )
 }
 
-function ScaleSection() {
-  return (
-    <section className="bg-gradient-to-r from-primary-600 to-primary-700 py-14">
-      <div className="mx-auto w-full max-w-7xl px-4 text-center sm:px-6 lg:px-8">
-        <p className="text-3xl font-extrabold text-white">
-          Empeza con Excel. Cuando crezcas, pasas al sistema. Sin perder datos.
-        </p>
-      </div>
-    </section>
-  )
-}
-
-function ComparisonSection() {
-  return (
-    <section className="bg-white py-16 dark:bg-gray-900">
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Excel vs Sistema</h2>
-        <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200">
-              <tr>
-                <th className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">Excel</th>
-                <th className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">Sistema</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white text-gray-700 dark:bg-gray-950/40 dark:text-gray-200">
-              <tr><td className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">Pago unico</td><td className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">Mensual</td></tr>
-              <tr><td className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">Simple</td><td className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">Completo</td></tr>
-              <tr><td className="px-4 py-3">Ideal para empezar</td><td className="px-4 py-3">Ideal para escalar</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function StickyMobileCTA() {
-  return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white/95 p-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 md:hidden">
-      <div className="mx-auto flex max-w-7xl gap-2 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-900">
-        <a href="#buyer-email" onClick={scrollToBuyerEmail} className="w-1/2">
-          <Button className="w-full text-xs">Comprar Cotizador</Button>
-        </a>
-        <a href="#camino-sistema" className="w-1/2">
-          <Button variant="outline" className="w-full text-xs">Ver demo</Button>
-        </a>
-      </div>
-    </div>
-  )
-}
-
+// ========================================
+// Footer — Enriched with guarantees
+// ========================================
 function Footer() {
   const year = new Date().getFullYear()
+
+  const guarantees = [
+    { icon: Shield, text: ' Datos seguros' },
+    { icon: Zap, text: ' Configuración rápida' },
+    { icon: Users, text: ' Soporte dedicado' },
+  ]
+
   return (
-    <footer className="bg-gray-900 pb-24 pt-8 text-center text-xs text-gray-400 md:pb-8 dark:bg-black">
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-4 flex justify-center">
-          <img src="/logo-tentaculo1.png" alt="OctopusTrack" className="h-10 w-auto object-contain" />
+    <footer id="contacto" className="border-t border-white/5 bg-[#080810] px-4 py-12 sm:px-6 sm:py-16">
+      <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-8 md:flex-row md:justify-between">
+        {/* Guarantees */}
+        <div className="flex flex-wrap items-center justify-center gap-6 md:gap-8">
+          {guarantees.map((item) => (
+            <div key={item.text} className="flex items-center gap-2 text-sm text-white/40">
+              <item.icon className="h-4 w-4 text-primary-400" />
+              {item.text}
+            </div>
+          ))}
         </div>
-        <p>OctopusTrack - Gestion comercial para negocios reales.</p>
-        <p className="mt-1">{year} OctopusTrack. Todos los derechos reservados.</p>
+
+        {/* Contact */}
+        <div className="flex flex-col items-center gap-3 md:items-end">
+          <a
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition-all hover:bg-white/10"
+          >
+            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.297-.297.446-.521.795-.521.297 0 .694.1.998.605.149.198.447.595.546.698.099.149.298 1.195.298 1.447 0 .297-.149.595-.447.795l-.652.652c-.223.223-.447.446-.895.446-.297 0-.694-.149-1.095-.447-.396-.297-.654-1.195-.743-1.392-.099-.298.149-.595.447-.744l1.194-1.194c.297-.198.595-.447.744-.547l.397-.397c.149-.149.297-.297.446-.496.149-.199.198-.397.198-.595 0-.297-.149-.694-.447-1.195l-1.194-1.194c-.297-.297-.595-.447-.844-.595-.198-.099-.417-.149-.595-.149zM12 22.5c-1.757 0-3.47-.463-5.023-1.352-.494-.282-.975-.595-1.404-1.027L4 21.707l1.414-1.414c.432-.43.745-.91 1.027-1.404.889-1.553 1.352-3.266 1.352-5.023 0-5.522-4.478-10-10-10S2 5.478 2 11c0 1.757.464 3.47 1.352 5.023.282.494.595.975 1.027 1.404L5.964 20l1.414 1.414c.43.432.91.745 1.404 1.027 1.553.889 3.266 1.352 5.023 1.352 5.522 0 10 4.478 10 10s-4.478 10-10 10z" />
+            </svg>
+            Escribinos
+          </a>
+        </div>
       </div>
     </footer>
   )
 }
 
+// ========================================
+// ThankYouPage — Premium after purchase
+// ========================================
 function ThankYouPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-100 dark:from-gray-950 dark:via-gray-900 dark:to-primary-950">
+    <div className="min-h-screen bg-[#080810]">
       <div className="mx-auto flex min-h-screen w-full max-w-4xl items-center px-4 py-12 sm:px-6">
-        <section className="w-full rounded-3xl border border-primary-200 bg-white p-8 text-center shadow-xl dark:border-primary-800 dark:bg-gray-900">
-          <p className="text-sm font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">Pago confirmado</p>
-          <h1 className="mt-2 text-4xl font-extrabold text-gray-900 dark:text-white">Tu cotizador ya esta listo</h1>
-          <p className="mx-auto mt-3 max-w-2xl text-gray-600 dark:text-gray-300">
-            Aca tenes acceso inmediato al archivo Excel, la version Google Sheets y una guia rapida para arrancar hoy.
+        <section className="w-full rounded-3xl border border-white/10 bg-white/5 p-8 text-center shadow-2xl">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary-500/20">
+            <CheckCircle2 className="h-8 w-8 text-primary-400" />
+          </div>
+          <p className="text-sm font-semibold uppercase tracking-widest text-primary-400">Pago confirmado</p>
+          <h1 className="mt-3 text-3xl font-bold text-white sm:text-4xl">Tu cotizador ya está listo</h1>
+          <p className="mx-auto mt-4 max-w-lg text-base text-white/60">
+            Acá tenés acceso inmediato al archivo Excel y Google Sheets. Descargalo y empezá a usar tu nuevo cotizador.
           </p>
 
-          <div className="mt-7 grid gap-3 sm:grid-cols-2">
+          <div className="mt-10 grid gap-4 sm:grid-cols-2">
             <a href={buildAssetWebhookUrl('excel')} target="_blank" rel="noopener noreferrer">
-              <Button className="w-full">Obtener Excel</Button>
+              <Button className="w-full gap-2 py-3">
+                Descargar Excel
+                <ArrowRight className="h-4 w-4" />
+              </Button>
             </a>
             <a href={buildAssetWebhookUrl('sheets')} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" className="w-full">Obtener Google Sheets</Button>
+              <Button variant="outline" className="w-full gap-2 py-3">
+                Obtener Google Sheets
+                <ArrowRight className="h-4 w-4" />
+              </Button>
             </a>
           </div>
 
-          <div className="mt-6 rounded-2xl border border-primary-200 bg-primary-50 p-4 text-left text-sm text-gray-700 dark:border-primary-800 dark:bg-primary-900/20 dark:text-gray-200">
-            <p className="font-semibold text-gray-900 dark:text-white">Instrucciones rapidas</p>
-            <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>Descarga el archivo Excel o duplica la version de Google Sheets.</li>
-              <li>Carga tus productos y precios en la pestaña inicial.</li>
-              <li>Empeza a cotizar y envia por WhatsApp en minutos.</li>
-            </ol>
+          <div className="mt-10 rounded-xl bg-white/5 p-4">
+            <p className="text-sm text-white/50">
+              ¿Necesitás ayuda?{' '}
+              <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="text-primary-400 underline hover:text-primary-300">
+                Escribinos por WhatsApp
+              </a>
+            </p>
           </div>
-
-          <p className="mt-6 text-primary-700 dark:text-primary-300">
-            Cuando quieras escalar, podes migrar a OctopusTrack sin empezar de cero.
-          </p>
-
-          <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block">
-            <Button variant="secondary" className="border-0 shadow-sm">
-              <MessageCircle className="h-5 w-5" />
-              Necesito ayuda para configurarlo
-            </Button>
-          </a>
         </section>
       </div>
     </div>
   )
 }
 
+// ========================================
+// Main Landing Component
+// ========================================
 function LandingContent({ loginUrl }: { loginUrl: string }) {
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
   const [buyerEmail, setBuyerEmail] = useState('')
@@ -668,13 +692,11 @@ function LandingContent({ loginUrl }: { loginUrl: string }) {
 
   const handleExcelCheckout = async () => {
     if (!isEmailValid) return
-
     setIsCheckoutLoading(true)
-
     try {
       await startMercadoPagoCheckout({
-        price: 11.99,
-        product: 'OctopusTrack - Cotizador Profesional',
+        price: 20.99,
+        product: 'OctopusTrack - Cotizador Excel',
         source: 'landing-octopustrack',
         email: buyerEmail.trim(),
         onboardingType: 'excel',
@@ -693,7 +715,6 @@ function LandingContent({ loginUrl }: { loginUrl: string }) {
     if (!isEmailValid) return
 
     setIsCheckoutLoading(true)
-
     try {
       await startMercadoPagoCheckout({
         price: plan.price,
@@ -705,7 +726,7 @@ function LandingContent({ loginUrl }: { loginUrl: string }) {
       })
     } catch {
       openWhatsAppWithMessage(
-        `Hola! Quiero contratar el Plan ${plan.name} de OctopusTrack (USD ${plan.price}/mes). Mi email para onboarding es ${buyerEmail.trim()}.`,
+        `Hola! Quiero contratar el Plan ${plan.name} de OctopusTrack (USD ${plan.price}/mes). Mi email es ${buyerEmail.trim()}.`,
       )
     } finally {
       setIsCheckoutLoading(false)
@@ -715,44 +736,35 @@ function LandingContent({ loginUrl }: { loginUrl: string }) {
   return (
     <>
       <Header loginUrl={loginUrl} />
-      <MobileQuickActions />
       <main>
-        <HeroSection />
-        <ProductPurchaseSection
+        <Hero />
+        <ExcelOffer
           email={buyerEmail}
           setEmail={setBuyerEmail}
           isEmailValid={isEmailValid}
           onBuyExcel={handleExcelCheckout}
           isCheckoutLoading={isCheckoutLoading}
         />
-        <ProblemSection />
-        <SolutionSection />
-        <ChooseStartSection />
-        <PlansSection
+        <FeaturesZigZag />
+        <Plans
           email={buyerEmail}
           setEmail={setBuyerEmail}
           isEmailValid={isEmailValid}
           onBuyPlan={handlePlanCheckout}
           isCheckoutLoading={isCheckoutLoading}
         />
-        <ScaleSection />
-        <ComparisonSection />
       </main>
       <Footer />
-      <StickyMobileCTA />
     </>
   )
 }
 
 export default function Landing({ loginUrl = '/login' }: LandingProps) {
   const isThankYou = useMemo(() => shouldShowThankYou(), [])
-
-  if (isThankYou) {
-    return <ThankYouPage />
-  }
+  if (isThankYou) return <ThankYouPage />
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
+    <div className="min-h-screen bg-[#080810] text-white">
       <LandingContent loginUrl={loginUrl} />
     </div>
   )
