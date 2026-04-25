@@ -65,7 +65,6 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             VITE_TENANT_LOGIN_URL=${{ vars.VITE_TENANT_LOGIN_URL }}
-            VITE_LANDING_WHATSAPP_URL=${{ vars.VITE_LANDING_WHATSAPP_URL }}
 
   deploy:
     name: Deploy Landing via Portainer Webhook

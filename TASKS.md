@@ -27,6 +27,8 @@
 
 ## 🟢 Hecho
 
+- [x] [MKT-WHATSAPP-HARDCODE-01] Landing: hardcodear WhatsApp comercial en código y remover override del pipeline de deploy ✅ 2026-04-24
+
 - [x] [MKT-WHATSAPP-CTA-01] Landing: configurar botón "Probar sistema" con WhatsApp real y mensaje directo ✅ 2026-04-24
 
 - [x] [MKT-LANDING-CTA-02] Landing: quitar CTAs redundantes "Ver demo del sistema completo" y "Comprar y recibir ahora" del bloque del cotizador ✅ 2026-04-24

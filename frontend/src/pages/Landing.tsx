@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 
-const WHATSAPP_URL = import.meta.env.VITE_LANDING_WHATSAPP_URL || 'https://wa.me/5492254596618'
+const WHATSAPP_URL = 'https://wa.me/5492254596618'
 const CHECKOUT_URL = import.meta.env.VITE_LANDING_CHECKOUT_URL || '#checkout-no-configured'
 const MP_CHECKOUT_WEBHOOK_URL =
   import.meta.env.VITE_LANDING_MP_CHECKOUT_WEBHOOK_URL ||
