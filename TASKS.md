@@ -23,7 +23,53 @@
 
 
 
+
+
 ## 🟢 Hecho
+
+- [x] [MKT-LANDING-CTA-02] Landing: quitar CTAs redundantes "Ver demo del sistema completo" y "Comprar y recibir ahora" del bloque del cotizador ✅ 2026-04-24
+
+- [x] [MKT-BUYER-EMAIL-ANCHOR-04] Landing: bajar 4px el aterrizaje de "Comprar cotizador" para ajuste fino ✅ 2026-04-24
+
+- [x] [MKT-PLANS-OFFSET-07] Landing: subir un poco más el scroll de planes para ajuste fino final ✅ 2026-04-24
+
+- [x] [MKT-PLANS-OFFSET-06] Landing: subir al máximo razonable el scroll de planes para pegarlo al header ✅ 2026-04-24
+
+- [x] [MKT-PLANS-OFFSET-05] Landing: subir todavía más el scroll de planes hasta pegarlo visualmente al header ✅ 2026-04-24
+
+- [x] [MKT-PLANS-OFFSET-04] Landing: subir aún más el scroll de planes para que quede más pegado al header ✅ 2026-04-24
+
+- [x] [MKT-PLANS-OFFSET-03] Landing: subir un poco más la navegación de planes para alinearla al borde del header ✅ 2026-04-24
+
+- [x] [MKT-BUYER-EMAIL-ANCHOR-03] Landing: corregir target de compra para anclar a la card del cotizador y no a la sección completa ✅ 2026-04-24
+
+- [x] [MKT-BUYER-EMAIL-ANCHOR-02] Landing: corregir scroll de compra para mostrar completa la card del cotizador y enfocar email sin cortar encabezado ✅ 2026-04-24
+
+- [x] [MKT-PLANS-ANCHOR-04] Landing: corregir navegación de planes para aterrizar en el top real de la sección como referencia visual aprobada ✅ 2026-04-24
+
+- [x] [MKT-PLANS-ANCHOR-03] Landing: mover anchor de navegación de planes a un punto interno más estable para evitar cortes visuales ✅ 2026-04-24
+
+- [x] [MKT-BUYER-EMAIL-ANCHOR-01] Landing: hacer que "Comprar cotizador" aterrice sobre el campo de email y le dé foco ✅ 2026-04-24
+
+- [x] [MKT-PLANS-OFFSET-02] Landing: afinar posición final del anchor de planes para alinearlo con el header ✅ 2026-04-24
+
+- [x] [MKT-PLANS-OFFSET-01] Landing: ajustar offset del anchor de planes para subir la sección un poco más ✅ 2026-04-24
+
+- [x] [MKT-LANDING-CTA-01] Landing: corregir targets visuales de "Ver demo" y unificar CTAs de Excel con checkout MP ✅ 2026-04-24
+
+- [x] [MKT-DEPLOY-01] Landing: corregir build roto por variables sin uso en `Landing.tsx` y reintentar deploy ✅ 2026-04-24
+
+- [x] [MKT-LANDING-REMOVE-DELIVERY-01] Landing: quitar bloque "Recibilo por email o WhatsApp" ✅ 2026-04-24
+
+- [x] [MKT-PLANS-CHECKOUT-01] Landing: conectar planes 33/49/119 al mismo checkout MP de n8n y capturar email para onboarding ✅ 2026-04-24
+
+- [x] [MKT-MOBILE-PLANS-01] Landing mobile: centrar bloque de planes y CTA "Ver planes" ✅ 2026-04-24
+
+- [x] [MKT-MOBILE-HEADER-01] Landing mobile: centrar logo del header en mobile ✅ 2026-04-24
+
+- [x] [MKT-HERO-01] Landing: quitar logo/visual del hero y centrar copy principal + CTAs en desktop ✅ 2026-04-24
+
+- [x] [MKT-16-SETUP-01] N8N: generar workflows importables (`octopus-notification`, `octopus-return`) + payload listo de checkout MP en `docs/` para aplicación manual en n8n ✅ 2026-04-24
 
 - [x] [DEVOPS-LANDING-02] Configurar secrets/vars de GitHub y webhook de Portainer para activar deploy automático real de la landing en el dominio público ✅ 2026-04-24
 
@@ -84,6 +130,19 @@
 - [x] [VOU-02-FLOW-01] Facturación mixta: permitir facturar 1 o más comprobantes seleccionados (cotización y/o remito) con validación por cliente ✅ 2026-04-21
 
 ### Marketing (Abril 2026)
+- [x] [MKT-14-BUG-02] Landing: actualizar fallback de checkout al nuevo webhook `https://n8nw.qeva.xyz/webhook/octopus-mp` ✅ 2026-04-24
+- [x] [MKT-15] Landing: exigir email antes de comprar y agregar botón para ver imagen demo del Excel ✅ 2026-04-24
+- [x] [MKT-14-BUG-01] Landing: evitar fallback a WhatsApp cuando falta env de checkout, usando webhook MP activo por defecto ✅ 2026-04-24
+- [x] [MKT-14] Landing: conectar botón de compra a webhook de checkout MP (POST) y redirección automática a `init_point` ✅ 2026-04-24
+- [x] [MKT-12] Landing: eliminar CTA "Escribi COTIZADOR" y usar botones "Obtener Excel"/"Obtener Google Sheets" redirigidos a webhook ✅ 2026-04-24
+- [x] [MKT-11] Landing: unificar logo de footer con header y mejorar version mobile responsive (look moderno) ✅ 2026-04-24
+- [x] [MKT-10] Landing: actualizar branding de logos (header con `logo-tentaculo1.png` y footer con logo institucional) ✅ 2026-04-24
+- [x] [MKT-09] Landing: eliminar configurador modular y simplificar oferta SaaS a 3 planes claros (33/45/119) con alcance comercial definido ✅ 2026-04-24
+- [x] [MKT-08] Landing: quitar bloque "Demo visual: cotizacion en 10 segundos" del hero y reemplazarlo por visual mas limpio ✅ 2026-04-24
+- [x] [MKT-07] Landing: usar logo1/logo1-dark en light/dark mode (header) para consistencia visual con nueva identidad ✅ 2026-04-24
+- [x] [MKT-06] Rediseñar visual de la landing para acercarla al look&feel histórico (web-octopus) manteniendo la lógica nueva de compra/entrega automática ✅ 2026-04-24
+- [x] [MKT-05] Implementar flujo de compra y entrega automatica del Cotizador (checkout + pagina de gracias + entrega de Excel/Google Sheets + captura de contacto) ✅ 2026-04-24
+- [x] [MKT-04] Rediseñar landing de OctopusTrack con foco CRO (dual: Excel USD 11.99 + sistema SaaS modular), copy directo y configurador con precio dinámico ✅ 2026-04-24
 - [x] [MKT-03] Optimizar pricing/copy de landing (combo Excel + reposicionamiento plan IA USD 600) ✅ 2026-04-21
 - [x] [MKT-02] Definir oferta comercial híbrida (Excel + Sistema), posicionamiento y estructura de planes para la landing ✅ 2026-04-21
 - [x] [MKT-01] Landing comercial para vender productos digitales de Excel (cotizadores) con copy orientado a conversión ✅ 2026-04-20
@@ -201,6 +260,12 @@
 - [x] Corregir visibilidad del Agente IA en frontend tenant según feature flag ✅ 2026-04-12
 
 ## 🚧 Bloqueado
+- [!] [MKT-20] N8N: definir e implementar workflow de retorno HTML (GET) + completar workflow de notificación (POST) para envío automático por Gmail 🚧 Definición técnica lista en `docs/n8n-octopus-mp-flujos.md`; pendiente aplicar cambios manuales en n8n UI (MCP no permite editar nodos)
+- [!] [MKT-19] N8N: mostrar página HTML post-pago con botones Excel/Sheets 🚧 Debe implementarse en endpoint de retorno GET (back_urls), no en webhook de notificación POST de MercadoPago
+- [!] [MKT-18] N8N/MP: usar mismo endpoint `octopus-notification` para `notification_url` y `back_urls` 🚧 El webhook actual acepta solo POST; `back_urls` de MercadoPago redirigen por GET y hoy devuelve 404
+- [!] [MKT-17] N8N: alinear `notification_url` del checkout a `/webhook/octopus-notification` 🚧 Requiere edición manual en n8n UI (MCP actual no permite editar nodos)
+- [!] [MKT-16] N8N: completar flujo post-pago (notificacion MP -> envio email con links/adjunto) y definir pruebas en sandbox antes de produccion 🚧 MCP no expone edición de nodos/workflow; requiere ajuste manual en n8n UI y luego validación
+- [!] [MKT-13] N8N: duplicar workflow base para checkout de Mercadopago y conectar botón de compra de landing al webhook nuevo 🚧 MCP actual expone búsqueda/detalle/ejecución pero no endpoint de clonación; falta ID del workflow duplicado para continuar con ajustes
 - [!] [DATA-03] Definir semántica "borrar base de datos completa" 🚧 El sistema es multitenant en una sola DB; no corresponde `DROP DATABASE`, sino purga transaccional por `business_id`.
 - [!] [DATA-04] Definir formato final de backup "SQL completo del usuario" 🚧 En entorno compartido no se puede exponer dump global; hay que generar dump lógico por tenant.
 - [!] [INT-03] Clientes: razón social AFIP por CUIT no confiable en algunos casos 🚧 Constancia devuelve errores regulatorios para ciertos CUITs.

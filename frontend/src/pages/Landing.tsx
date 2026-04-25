@@ -49,6 +49,35 @@ function openWhatsAppWithMessage(message: string) {
   window.open(finalUrl, '_blank', 'noopener,noreferrer')
 }
 
+function scrollToBuyerEmail(event?: { preventDefault?: () => void }) {
+  event?.preventDefault?.()
+  const emailInput = document.getElementById('buyer-email') as HTMLInputElement | null
+  const purchaseCard = document.getElementById('purchase-card')
+  if (!emailInput) return
+
+  if (purchaseCard) {
+    const headerOffset = window.innerWidth >= 640 ? 88 : 84
+    const top = purchaseCard.getBoundingClientRect().top + window.scrollY - headerOffset
+    window.scrollTo({ top, behavior: 'smooth' })
+  }
+
+  window.setTimeout(() => {
+    emailInput.focus()
+    emailInput.select()
+  }, 250)
+}
+
+function scrollToPlansSection(event?: { preventDefault?: () => void }) {
+  event?.preventDefault?.()
+  const section = document.getElementById('planes')
+  if (!section) return
+
+  const headerOffset = window.innerWidth >= 640 ? 8 : 4
+  const top = section.getBoundingClientRect().top + window.scrollY - headerOffset
+
+  window.scrollTo({ top, behavior: 'smooth' })
+}
+
 function shouldShowThankYou() {
   const params = new URLSearchParams(window.location.search)
   const purchase = params.get('purchase')
@@ -116,9 +145,9 @@ function Header({ loginUrl }: { loginUrl: string }) {
         </a>
 
         <nav className="hidden items-center gap-6 md:flex">
-          <a href="#compra-cotizador" className="text-sm text-gray-600 transition-colors hover:text-primary-600 dark:text-gray-300 dark:hover:text-primary-300">Comprar cotizador</a>
+          <a href="#buyer-email" onClick={scrollToBuyerEmail} className="text-sm text-gray-600 transition-colors hover:text-primary-600 dark:text-gray-300 dark:hover:text-primary-300">Comprar cotizador</a>
           <a href="#camino-sistema" className="text-sm text-gray-600 transition-colors hover:text-primary-600 dark:text-gray-300 dark:hover:text-primary-300">Sistema</a>
-          <a href="#planes" className="text-sm text-gray-600 transition-colors hover:text-primary-600 dark:text-gray-300 dark:hover:text-primary-300">Planes</a>
+          <a href="#planes" onClick={scrollToPlansSection} className="text-sm text-gray-600 transition-colors hover:text-primary-600 dark:text-gray-300 dark:hover:text-primary-300">Planes</a>
           <Button size="sm" variant="outline" onClick={() => (window.location.href = loginUrl)}>
             Iniciar sesion
           </Button>
@@ -155,7 +184,7 @@ function HeroSection() {
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-            <a href="#compra-cotizador" className="w-full sm:w-auto">
+            <a href="#buyer-email" onClick={scrollToBuyerEmail} className="w-full sm:w-auto">
               <Button size="lg" className="w-full px-8 sm:w-auto">
                 Comprar Cotizador - USD 11.99
                 <ArrowRight className="h-5 w-5" />
@@ -185,13 +214,13 @@ function MobileQuickActions() {
   return (
     <section className="bg-white/80 px-4 py-3 backdrop-blur dark:bg-gray-950/80 md:hidden">
       <div className="mx-auto grid w-full max-w-7xl grid-cols-2 gap-2">
-        <a href="#compra-cotizador">
+        <a href="#buyer-email" onClick={scrollToBuyerEmail}>
           <Button className="w-full text-xs">
             Comprar
             <ArrowRight className="h-4 w-4" />
           </Button>
         </a>
-        <a href="#planes">
+        <a href="#planes" onClick={scrollToPlansSection}>
           <Button variant="outline" className="w-full text-xs">
             Ver planes
           </Button>
@@ -224,10 +253,10 @@ function ProductPurchaseSection({
   ]
 
   return (
-    <section id="compra-cotizador" className="bg-white py-14 dark:bg-gray-900 sm:py-20">
+    <section id="compra-cotizador" className="scroll-mt-24 bg-white py-14 dark:bg-gray-900 sm:py-20">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <article className="rounded-3xl border border-primary-200 bg-primary-50/70 p-5 dark:border-primary-800 dark:bg-primary-900/20 sm:p-7">
+          <article id="purchase-card" className="rounded-3xl border border-primary-200 bg-primary-50/70 p-5 dark:border-primary-800 dark:bg-primary-900/20 sm:p-7">
             <p className="text-sm font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">Producto digital</p>
             <h2 className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">Cotizador profesional</h2>
             <p className="mt-3 text-gray-600 dark:text-gray-300">
@@ -250,25 +279,16 @@ function ProductPurchaseSection({
                   placeholder="tu@email.com"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  className="w-full rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none dark:border-primary-700 dark:bg-gray-950 dark:text-white"
+                  className="scroll-mt-24 w-full rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none dark:border-primary-700 dark:bg-gray-950 dark:text-white"
                 />
                 {!isEmailValid && email.trim().length > 0 && (
                   <p className="mt-1 text-xs text-red-600 dark:text-red-400">Ingresa un email valido para habilitar la compra.</p>
                 )}
               </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="mt-5">
                 <Button className="w-full" onClick={onBuyExcel} isLoading={isCheckoutLoading} disabled={!isEmailValid}>
                   Comprar Cotizador - USD 11.99
-                </Button>
-                <a href="#camino-sistema">
-                  <Button variant="outline" className="w-full">Ver demo del sistema completo</Button>
-                </a>
-              </div>
-
-              <div className="mt-3">
-                <Button className="w-full" onClick={onBuyExcel} isLoading={isCheckoutLoading} disabled={!isEmailValid}>
-                  Comprar y recibir ahora
                 </Button>
               </div>
 
@@ -296,12 +316,12 @@ function ProductPurchaseSection({
             </div>
 
             <div className="mt-6 grid gap-2 sm:grid-cols-2">
-              <a href={buildAssetWebhookUrl('excel')} target="_blank" rel="noopener noreferrer">
-                <Button className="w-full">Obtener Excel</Button>
-              </a>
-              <a href={buildAssetWebhookUrl('sheets')} target="_blank" rel="noopener noreferrer">
-                <Button variant="outline" className="w-full">Obtener Google Sheets</Button>
-              </a>
+              <Button className="w-full" onClick={onBuyExcel} isLoading={isCheckoutLoading} disabled={!isEmailValid}>
+                Obtener Excel
+              </Button>
+              <Button variant="outline" className="w-full" onClick={onBuyExcel} isLoading={isCheckoutLoading} disabled={!isEmailValid}>
+                Obtener Google Sheets
+              </Button>
             </div>
           </article>
         </div>
@@ -369,7 +389,7 @@ function ChooseStartSection() {
         <p className="mt-3 max-w-2xl text-gray-600 dark:text-gray-300">Dos caminos claros para vender mejor hoy mismo.</p>
 
         <div className="mt-8 grid gap-5 lg:grid-cols-2">
-          <article id="camino-excel" className="rounded-2xl border border-emerald-300 bg-emerald-50 p-6 dark:border-emerald-800/60 dark:bg-emerald-950/20">
+          <article id="camino-excel" className="scroll-mt-24 rounded-2xl border border-emerald-300 bg-emerald-50 p-6 dark:border-emerald-800/60 dark:bg-emerald-950/20">
             <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">OPCION 1</p>
             <h3 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">Excel Profesional de Cotizaciones</h3>
             <p className="mt-2 text-3xl font-extrabold text-emerald-700 dark:text-emerald-300">USD 11.99</p>
@@ -378,12 +398,12 @@ function ChooseStartSection() {
                 <li key={point} className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />{point}</li>
               ))}
             </ul>
-            <a href="#compra-cotizador" className="mt-6 block">
+            <a href="#buyer-email" onClick={scrollToBuyerEmail} className="mt-6 block">
               <Button className="w-full bg-emerald-600 hover:bg-emerald-700">Comprar Cotizador</Button>
             </a>
           </article>
 
-          <article id="camino-sistema" className="rounded-2xl border border-primary-300 bg-primary-50 p-6 dark:border-primary-800 dark:bg-primary-900/20">
+          <article id="camino-sistema" className="scroll-mt-24 rounded-2xl border border-primary-300 bg-primary-50 p-6 dark:border-primary-800 dark:bg-primary-900/20">
             <p className="text-sm font-semibold text-primary-700 dark:text-primary-300">OPCION 2</p>
             <h3 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">Sistema OctopusTrack</h3>
             <p className="mt-2 text-3xl font-extrabold text-primary-700 dark:text-primary-300">Desde USD 33/mes</p>
@@ -564,7 +584,7 @@ function StickyMobileCTA() {
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white/95 p-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 md:hidden">
       <div className="mx-auto flex max-w-7xl gap-2 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-900">
-        <a href="#compra-cotizador" className="w-1/2">
+        <a href="#buyer-email" onClick={scrollToBuyerEmail} className="w-1/2">
           <Button className="w-full text-xs">Comprar Cotizador</Button>
         </a>
         <a href="#camino-sistema" className="w-1/2">
