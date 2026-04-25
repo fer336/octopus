@@ -233,6 +233,13 @@ export const TAX_CONDITIONS = [
   { value: 'EX', label: 'Exento' },
 ] as const
 
+// Helper function to get tax condition label
+export function getTaxConditionLabel(value?: string | null): string {
+  if (!value) return ''
+  const found = TAX_CONDITIONS.find((tc) => tc.value === value)
+  return found?.label || value
+}
+
 // Tipos de documento
 export const DOCUMENT_TYPES = [
   { value: 'CUIT', label: 'CUIT' },
