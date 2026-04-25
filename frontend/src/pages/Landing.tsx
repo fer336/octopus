@@ -595,8 +595,6 @@ function Plans({
 // Footer — Enriched with guarantees
 // ========================================
 function Footer() {
-  const year = new Date().getFullYear()
-
   const guarantees = [
     { icon: Shield, text: ' Datos seguros' },
     { icon: Zap, text: ' Configuración rápida' },

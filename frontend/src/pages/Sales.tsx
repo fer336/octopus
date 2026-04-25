@@ -16,6 +16,7 @@ import businessService from '../api/businessService'
 import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { useSalesStore } from '../stores/salesStore'
+import { TAX_CONDITIONS, getTaxConditionLabel } from '../types'
 
 type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'current_account'
 type SalesMenuMode = VoucherType
@@ -233,12 +234,7 @@ const documentTypes = [
   { value: 'DNI', label: 'DNI' },
 ]
 
-const taxConditions = [
-  { value: 'RI', label: 'Responsable Inscripto' },
-  { value: 'Monotributista', label: 'Monotributista' },
-  { value: 'CF', label: 'Consumidor Final' },
-  { value: 'Exento', label: 'Exento' },
-]
+const taxConditions = [...TAX_CONDITIONS]
 
 const priceStrategyOptions: Array<{ value: PriceStrategy; label: string; help: string }> = [
   {
@@ -2985,9 +2981,9 @@ export default function Sales() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-medium text-primary-600 dark:text-primary-400">
-                          {client.tax_condition}
-                        </p>
+                          <p className="text-xs font-medium text-primary-600 dark:text-primary-400">
+                            {getTaxConditionLabel(client.tax_condition)}
+                          </p>
                         {client.phone && (
                           <p className="text-xs text-gray-500">{client.phone}</p>
                         )}
@@ -3629,7 +3625,7 @@ export default function Sales() {
                             {voucher.client?.document_type}: {voucher.client?.document_number}
                             {voucher.client?.tax_condition && (
                               <span className="ml-1.5 text-primary-500 dark:text-primary-400">
-                                · {voucher.client.tax_condition}
+                                · {getTaxConditionLabel(voucher.client.tax_condition)}
                               </span>
                             )}
                           </p>
