@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 
-const WHATSAPP_URL = import.meta.env.VITE_LANDING_WHATSAPP_URL || 'https://wa.me/5490000000000'
+const WHATSAPP_URL = import.meta.env.VITE_LANDING_WHATSAPP_URL || 'https://wa.me/5492254596618'
 const CHECKOUT_URL = import.meta.env.VITE_LANDING_CHECKOUT_URL || '#checkout-no-configured'
 const MP_CHECKOUT_WEBHOOK_URL =
   import.meta.env.VITE_LANDING_MP_CHECKOUT_WEBHOOK_URL ||
@@ -47,6 +47,11 @@ function openWhatsAppWithMessage(message: string) {
   const separator = target.includes('?') ? '&' : '?'
   const finalUrl = `${target}${separator}text=${encodeURIComponent(message)}`
   window.open(finalUrl, '_blank', 'noopener,noreferrer')
+}
+
+function openSystemDemoWhatsApp(event?: { preventDefault?: () => void }) {
+  event?.preventDefault?.()
+  openWhatsAppWithMessage('Hola, me gustaria probar OctopusTrack')
 }
 
 function scrollToBuyerEmail(event?: { preventDefault?: () => void }) {
@@ -412,7 +417,7 @@ function ChooseStartSection() {
                 <li key={point} className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-5 w-5 text-primary-600" />{point}</li>
               ))}
             </ul>
-            <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="mt-6 block">
+            <a href={WHATSAPP_URL} onClick={openSystemDemoWhatsApp} target="_blank" rel="noopener noreferrer" className="mt-6 block">
               <Button className="w-full">Probar sistema</Button>
             </a>
           </article>

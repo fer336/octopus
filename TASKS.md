@@ -27,6 +27,8 @@
 
 ## 🟢 Hecho
 
+- [x] [MKT-WHATSAPP-CTA-01] Landing: configurar botón "Probar sistema" con WhatsApp real y mensaje directo ✅ 2026-04-24
+
 - [x] [MKT-LANDING-CTA-02] Landing: quitar CTAs redundantes "Ver demo del sistema completo" y "Comprar y recibir ahora" del bloque del cotizador ✅ 2026-04-24
 
 - [x] [MKT-BUYER-EMAIL-ANCHOR-04] Landing: bajar 4px el aterrizaje de "Comprar cotizador" para ajuste fino ✅ 2026-04-24
