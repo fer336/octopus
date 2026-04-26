@@ -427,7 +427,11 @@ function FeaturesZigZag() {
     <section id="caracteristicas" className="relative overflow-hidden bg-[#0a0a14] px-4 py-20 sm:px-6 sm:py-24">
       <div className="absolute left-1/2 top-1/2 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-900/10 blur-[120px]" />
 
-      <div className="relative mx-auto w-full max-w-6xl">
+<div className="relative mx-auto w-full max-w-6xl">
+        <p className="mx-auto mb-6 max-w-xl text-center text-sm text-white/40">
+          ¿Listo para dar el siguiente paso? Cuando tus necesidades crezcan, podés migrar a OctopusTrack y llevar tu negocio al siguiente nivel.
+        </p>
+
         <div className="text-center">
           <h2 className="text-3xl font-bold text-white sm:text-4xl lg:text-5xl">
             Sistema completo para{' '}
@@ -435,11 +439,8 @@ function FeaturesZigZag() {
               hacer crecer tu negocio
             </span>
           </h2>
-<p className="mx-auto mt-4 max-w-2xl text-base text-white/50 sm:text-lg">
+          <p className="mx-auto mt-4 max-w-2xl text-base text-white/50 sm:text-lg">
             Una solución diseñada para todo tipo de comercios que quieren escalar sus ventas y crecer sin límites.
-          </p>
-          <p className="mx-auto mt-6 max-w-xl text-sm text-white/40">
-            ¿Listo para dar el siguiente paso? Cuando tus necesidades crezcan, podés migrar a OctopusTrack y llevar tu negocio al siguiente nivel.
           </p>
         </div>
 
