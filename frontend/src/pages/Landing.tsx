@@ -274,24 +274,29 @@ function ExcelOffer({
   const excelImages = ['/assets/excel.png', '/assets/1.png', '/assets/2.png']
   const [currentImage, setCurrentImage] = useState(0)
 
-  const nextImage = () => setCurrentImage((prev) => (prev + 1) % excelImages.length)
-  const prevImage = () => setCurrentImage((prev) => (prev - 1 + excelImages.length) % excelImages.length)
+  const nextImage = () => {
+    setCurrentImage((prev) => (prev + 1) % excelImages.length)
+  }
+  const prevImage = () => {
+    setCurrentImage((prev) => (prev - 1 + excelImages.length) % excelImages.length)
+  }
 
   return (
     <section id="excel-start" className="relative overflow-hidden bg-[#0d0d1a] px-4 py-20 sm:px-6 sm:py-24">
       <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a14] via-transparent to-[#0d0d1a] opacity-50" />
 
-      <div className="relative mx-auto grid w-full max-w-6xl items-start gap-10 lg:grid-cols-2">
+      <div className="relative mx-auto grid w-full max-w-6xl items-stretch gap-10 lg:grid-cols-2">
         {/* Image side with carousel */}
-        <article className="group relative rounded-3xl border border-white/10 bg-white/5 p-2 shadow-2xl shadow-black/50">
+        <article className="group relative flex flex-col justify-center rounded-3xl border border-white/10 bg-white/5 p-2 shadow-2xl shadow-black/50">
           <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary-500/10 to-violet-500/10 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
           
           {/* Carousel */}
-          <div className="relative">
+          <div className="relative flex-1 flex items-center justify-center">
             <img
+              key={currentImage}
               src={excelImages[currentImage]}
               alt={`Vista del cotizador ${currentImage + 1}`}
-              className="relative h-auto w-full rounded-2xl border border-white/5"
+              className="max-h-[600px] w-auto rounded-2xl border border-white/5 carousel-image"
             />
             
             {/* Navigation arrows */}
@@ -299,15 +304,15 @@ function ExcelOffer({
               <>
                 <button
                   onClick={prevImage}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white transition-all hover:bg-black/70"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white transition-all hover:bg-primary-600 hover:scale-110 z-10"
                 >
-                  <ChevronLeft className="h-5 w-5" />
+                  <ChevronLeft className="h-6 w-6" />
                 </button>
                 <button
                   onClick={nextImage}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white transition-all hover:bg-black/70"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white transition-all hover:bg-primary-600 hover:scale-110 z-10"
                 >
-                  <ChevronRight className="h-5 w-5" />
+                  <ChevronRight className="h-6 w-6" />
                 </button>
                 
                 {/* Dots indicator */}
@@ -316,8 +321,10 @@ function ExcelOffer({
                     <button
                       key={idx}
                       onClick={() => setCurrentImage(idx)}
-                      className={`h-2 w-2 rounded-full transition-all ${
-                        idx === currentImage ? 'bg-primary-400' : 'bg-white/40'
+                      className={`h-2 w-2 rounded-full transition-all duration-300 ${
+                        idx === currentImage 
+                          ? 'bg-primary-400 scale-125' 
+                          : 'bg-white/40 hover:bg-white/60'
                       }`}
                     />
                   ))}
@@ -667,8 +674,8 @@ function Footer() {
 
   return (
     <footer id="contacto" className="border-t border-white/5 bg-[#080810] px-4 py-12 sm:px-6 sm:py-16">
-      <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-8 md:flex-row md:justify-between">
-        {/* Guarantees */}
+      <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-center gap-8">
+        {/* Guarantees - centered */}
         <div className="flex flex-wrap items-center justify-center gap-6 md:gap-8">
           {guarantees.map((item) => (
             <div key={item.text} className="flex items-center gap-2 text-sm text-white/40">
@@ -676,22 +683,6 @@ function Footer() {
               {item.text}
             </div>
           ))}
-        </div>
-
-        {/* Contact */}
-        <div className="flex flex-col items-center gap-4 md:items-end">
-          <p className="text-xs text-white/40">¿Tenés consultas?</p>
-          <a
-            href={WHATSAPP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 rounded-full border border-primary-500/50 bg-primary-600 px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-primary-500"
-          >
-            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.297-.297.446-.521.795-.521.297 0 .694.1.998.605.149.198.447.595.546.698.099.149.298 1.195.298 1.447 0 .297-.149.595-.447.795l-.652.652c-.223.223-.447.446-.895.446-.297 0-.694-.149-1.095-.447-.396-.297-.654-1.195-.743-1.392-.099-.298.149-.595.447-.744l1.194-1.194c.297-.198.595-.447.744-.547l.397-.397c.149-.149.297-.297.446-.496.149-.199.198-.397.198-.595 0-.297-.149-.694-.447-1.195l-1.194-1.194c-.297-.297-.595-.447-.844-.595-.198-.099-.417-.149-.595-.149zM12 22.5c-1.757 0-3.47-.463-5.023-1.352-.494-.282-.975-.595-1.404-1.027L4 21.707l1.414-1.414c.432-.43.745-.91 1.027-1.404.889-1.553 1.352-3.266 1.352-5.023 0-5.522-4.478-10-10-10S2 5.478 2 11c0 1.757.464 3.47 1.352 5.023.282.494.595.975 1.027 1.404L5.964 20l1.414 1.414c.43.432.91.745 1.404 1.027 1.553.889 3.266 1.352 5.023 1.352 5.522 0 10 4.478 10 10s-4.478 10-10 10z" />
-            </svg>
-            Consultas por WhatsApp
-          </a>
         </div>
       </div>
     </footer>
