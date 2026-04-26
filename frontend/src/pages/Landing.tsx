@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowRight, CheckCircle2, Menu, X, Zap, Shield, Users, MessageCircle } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Menu, X, Zap, Shield, Users, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import Button from '../components/ui/Button'
 
 const WHATSAPP_URL = 'https://wa.me/5492254596618'
@@ -271,19 +271,60 @@ function ExcelOffer({
     'Negocios que cotizan todos los días',
   ]
 
+  const excelImages = ['/assets/excel.png', '/assets/1.png', '/assets/2.png']
+  const [currentImage, setCurrentImage] = useState(0)
+
+  const nextImage = () => setCurrentImage((prev) => (prev + 1) % excelImages.length)
+  const prevImage = () => setCurrentImage((prev) => (prev - 1 + excelImages.length) % excelImages.length)
+
   return (
     <section id="excel-start" className="relative overflow-hidden bg-[#0d0d1a] px-4 py-20 sm:px-6 sm:py-24">
       <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a14] via-transparent to-[#0d0d1a] opacity-50" />
 
       <div className="relative mx-auto grid w-full max-w-6xl items-start gap-10 lg:grid-cols-2">
-        {/* Image side */}
+        {/* Image side with carousel */}
         <article className="group relative rounded-3xl border border-white/10 bg-white/5 p-2 shadow-2xl shadow-black/50">
           <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary-500/10 to-violet-500/10 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-          <img
-            src="/assets/excel.png"
-            alt="Vista del cotizador en Excel"
-            className="relative h-auto w-full rounded-2xl border border-white/5"
-          />
+          
+          {/* Carousel */}
+          <div className="relative">
+            <img
+              src={excelImages[currentImage]}
+              alt={`Vista del cotizador ${currentImage + 1}`}
+              className="relative h-auto w-full rounded-2xl border border-white/5"
+            />
+            
+            {/* Navigation arrows */}
+            {excelImages.length > 1 && (
+              <>
+                <button
+                  onClick={prevImage}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white transition-all hover:bg-black/70"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={nextImage}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white transition-all hover:bg-black/70"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+                
+                {/* Dots indicator */}
+                <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2">
+                  {excelImages.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCurrentImage(idx)}
+                      className={`h-2 w-2 rounded-full transition-all ${
+                        idx === currentImage ? 'bg-primary-400' : 'bg-white/40'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </article>
 
         {/* Content side */}
