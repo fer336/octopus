@@ -199,7 +199,7 @@ function Hero() {
         </p>
 
         <p className="mx-auto mt-3 max-w-xl text-base text-white/40 sm:text-lg">
-          Cuando llegué el momento escalá a un sistema completo sin empezar de cero. Crecemos con vos.
+          Cuando llegue el momento escalá a un sistema completo sin empezar de cero. Crecemos con vos.
         </p>
 
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -362,6 +362,10 @@ function ExcelOffer({
             <p className="mt-3 text-center text-xs text-white/30">
               Pago seguro • Entrega inmediata • Garantía de 30 días
             </p>
+
+            <p className="mt-4 text-center text-sm text-white/50">
+              ¿Listo para dar el siguiente paso? Cuando tus necesidades crezcan, podés migrar a nuestro sistema completo OctopusTrack y llevar tu negocio al siguiente nivel.
+            </p>
           </div>
         </article>
       </div>
@@ -510,17 +514,17 @@ function Plans({
       name: 'Negocio',
       code: 'negocio',
       price: 49,
-      description: 'El más elegido',
+      description: 'Para crecer',
       features: ['Todo lo del Básico', 'Seguimiento de entregas', 'Cuenta corriente', 'Reportes y análisis', 'Soporte prioritario'],
-      featured: true,
+      featured: false,
     },
     {
       name: 'Completo',
       code: 'completo',
       price: 119,
-      description: 'Para escalar',
+      description: 'El más elegido',
       features: ['Todo lo de Negocio', 'Facturación electrónica ARCA', 'Mantenimiento continuo', 'Soporte personalizado', 'Onboarding incluido'],
-      featured: false,
+      featured: true,
     },
   ]
 
@@ -637,16 +641,17 @@ function Footer() {
 
         {/* Contact */}
         <div className="flex flex-col items-center gap-3 md:items-end">
+          <p className="text-xs text-white/40 mb-1">¿Tenés consultas?</p>
           <a
             href={WHATSAPP_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition-all hover:bg-white/10"
+            className="flex items-center gap-2 rounded-full border border-primary-500/50 bg-primary-600 px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-primary-500"
           >
             <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
               <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.297-.297.446-.521.795-.521.297 0 .694.1.998.605.149.198.447.595.546.698.099.149.298 1.195.298 1.447 0 .297-.149.595-.447.795l-.652.652c-.223.223-.447.446-.895.446-.297 0-.694-.149-1.095-.447-.396-.297-.654-1.195-.743-1.392-.099-.298.149-.595.447-.744l1.194-1.194c.297-.198.595-.447.744-.547l.397-.397c.149-.149.297-.297.446-.496.149-.199.198-.397.198-.595 0-.297-.149-.694-.447-1.195l-1.194-1.194c-.297-.297-.595-.447-.844-.595-.198-.099-.417-.149-.595-.149zM12 22.5c-1.757 0-3.47-.463-5.023-1.352-.494-.282-.975-.595-1.404-1.027L4 21.707l1.414-1.414c.432-.43.745-.91 1.027-1.404.889-1.553 1.352-3.266 1.352-5.023 0-5.522-4.478-10-10-10S2 5.478 2 11c0 1.757.464 3.47 1.352 5.023.282.494.595.975 1.027 1.404L5.964 20l1.414 1.414c.43.432.91.745 1.404 1.027 1.553.889 3.266 1.352 5.023 1.352 5.522 0 10 4.478 10 10s-4.478 10-10 10z" />
             </svg>
-            Escribinos
+            Consultas por WhatsApp
           </a>
         </div>
       </div>
