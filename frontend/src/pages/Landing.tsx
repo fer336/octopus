@@ -362,10 +362,6 @@ function ExcelOffer({
             <p className="mt-3 text-center text-xs text-white/30">
               Pago seguro • Entrega inmediata • Garantía de 30 días
             </p>
-
-            <p className="mt-4 text-center text-sm text-white/50">
-              ¿Listo para dar el siguiente paso? Cuando tus necesidades crezcan, podés migrar a nuestro sistema completo OctopusTrack y llevar tu negocio al siguiente nivel.
-            </p>
           </div>
         </article>
       </div>
@@ -441,6 +437,9 @@ function FeaturesZigZag() {
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-white/50 sm:text-lg">
             Una solución diseñada para negocios reales del rubro sanitario, ferretería y corralón.
+          </p>
+          <p className="mx-auto mt-6 max-w-xl text-sm text-white/40">
+            ¿Listo para dar el siguiente paso? Cuando tus necesidades crezcan, podés migrar a OctopusTrack y llevar tu negocio al siguiente nivel.
           </p>
         </div>
 
