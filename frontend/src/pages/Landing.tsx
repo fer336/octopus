@@ -377,7 +377,7 @@ function ExcelOffer({
           <div className="mt-10 rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[2%] p-6">
             <div className="flex items-baseline gap-2">
               <span className="text-sm font-medium uppercase tracking-wider text-white/40">Precio</span>
-              <span className="text-4xl font-bold text-white">USD 20.99</span>
+              <span className="text-5xl font-extrabold bg-gradient-to-r from-primary-400 via-violet-400 to-primary-400 bg-clip-text text-transparent">USD 20.99</span>
             </div>
 
             <label htmlFor="buyer-email" className="mb-2 mt-5 block text-sm font-medium text-white/60">
@@ -406,7 +406,7 @@ function ExcelOffer({
             </Button>
 
             <p className="mt-3 text-center text-xs text-white/30">
-              Pago seguro • Entrega inmediata • Garantía de 30 días
+              Pago seguro • Entrega inmediata
             </p>
           </div>
         </article>
