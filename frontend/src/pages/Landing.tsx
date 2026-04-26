@@ -258,6 +258,15 @@ function ExcelOffer({
   onBuyExcel: () => void
   isCheckoutLoading: boolean
 }) {
+  const includeItems = [
+    'Excel descargable + Google Sheets',
+    'Cotizador preparador en segundos',
+    'Instrucciones paso a paso',
+    '4 planillas listas para usar',
+    'Configurá tu empresa una vez',
+    'Base de datos de productos',
+  ]
+
   const targetItems = [
     'Personas sin conocimientos técnicos',
     'Negocios que cotizan todos los días',
@@ -293,6 +302,18 @@ function ExcelOffer({
             Dejá de perder tiempo cotizando a mano. Con este cotizador vas a poder generar presupuestos
             profesionales en segundos, con tu logo, datos y precios actualizados.
           </p>
+
+          <div className="mt-8">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-white/40">Incluye</h3>
+            <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {includeItems.map((item) => (
+                <li key={item} className="flex items-center gap-3 text-sm text-white/70">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-primary-400" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
 
           <div id="independientes" className="mt-8">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-white/40">Para quién está dirigido</h3>
