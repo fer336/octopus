@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowRight, CheckCircle2, Menu, X, Zap, Shield, Users } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Menu, X, Zap, Shield, Users, MessageCircle } from 'lucide-react'
 import Button from '../components/ui/Button'
 
 const WHATSAPP_URL = 'https://wa.me/5492254596618'
@@ -652,29 +652,46 @@ function Footer() {
             Consultas por WhatsApp
           </a>
           
-          {/* Contact Form */}
-          <div className="mt-6 w-full max-w-sm rounded-xl border border-white/10 bg-white/5 p-4">
-            <p className="mb-3 text-center text-sm font-medium text-white">¿En qué podemos ayudarte?</p>
-            <input
-              type="text"
-              placeholder="Tu nombre"
-              className="mb-2 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30"
-            />
-            <input
-              type="email"
-              placeholder="Tu email"
-              className="mb-2 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30"
-            />
-            <textarea
-              placeholder="Tu mensaje"
-              rows={2}
-              className="mb-2 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30"
-            />
-            <Button className="w-full text-sm">Enviar mensaje</Button>
-          </div>
-        </div>
+          {/* Contact Form removed from footer - now in floating button */}
+
       </div>
     </footer>
+  )
+}
+
+// ========================================
+// Floating Contact Button
+// ========================================
+function FloatingContactButton() {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <>
+      <button
+        onClick={() => setIsOpen(true)}
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full border border-primary-500/50 bg-primary-600 px-5 py-3 text-sm font-medium text-white shadow-xl shadow-primary-500/30 transition-all hover:bg-primary-500"
+      >
+        <MessageCircle className="h-5 w-5" />
+        ¿En qué podemos ayudarte?
+      </button>
+
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setIsOpen(false)}>
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0d0d1a] p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white">¿En qué podemos ayudarte?</h3>
+              <button onClick={() => setIsOpen(false)} className="text-white/60 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <input type="text" placeholder="Tu nombre" className="mb-3 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30" />
+            <input type="email" placeholder="Tu email" className="mb-3 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30" />
+            <textarea placeholder="Tu mensaje" rows={3} className="mb-3 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30" />
+            <Button className="w-full">Enviar mensaje</Button>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -779,6 +796,7 @@ function LandingContent({ loginUrl }: { loginUrl: string }) {
   return (
     <>
       <Header loginUrl={loginUrl} />
+      <FloatingContactButton />
       <main>
         <Hero />
         <ExcelOffer
