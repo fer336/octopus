@@ -428,7 +428,7 @@ function FeaturesZigZag() {
       <div className="absolute left-1/2 top-1/2 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-900/10 blur-[120px]" />
 
 <div className="relative mx-auto w-full max-w-6xl">
-        <p className="mx-auto mb-6 max-w-xl text-center text-sm text-white/40">
+<p className="mx-auto mb-6 max-w-2xl text-center text-xl font-medium text-white">
           ¿Listo para dar el siguiente paso? Cuando tus necesidades crezcan, podés migrar a OctopusTrack y llevar tu negocio al siguiente nivel.
         </p>
 
