@@ -435,8 +435,8 @@ function FeaturesZigZag() {
               hacer crecer tu negocio
             </span>
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-base text-white/50 sm:text-lg">
-            Una solución diseñada para negocios reales del rubro sanitario, ferretería y corralón.
+<p className="mx-auto mt-4 max-w-2xl text-base text-white/50 sm:text-lg">
+            Una solución diseñada para todo tipo de comercios que quieren escalar sus ventas y crecer sin límites.
           </p>
           <p className="mx-auto mt-6 max-w-xl text-sm text-white/40">
             ¿Listo para dar el siguiente paso? Cuando tus necesidades crezcan, podés migrar a OctopusTrack y llevar tu negocio al siguiente nivel.
