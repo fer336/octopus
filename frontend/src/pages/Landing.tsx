@@ -110,8 +110,7 @@ function Header({ loginUrl }: { loginUrl: string }) {
   const menuItems = [
     { label: 'Características', id: 'caracteristicas' },
     { label: 'Precios', id: 'precios' },
-    { label: 'Empieza con un excel', id: 'excel-start' },
-    { label: 'Para profesionales', id: 'independientes' },
+    { label: 'Empezá con un excel', id: 'excel-start' },
     { label: 'Contacto', id: 'contacto' },
   ]
 
@@ -260,7 +259,7 @@ function ExcelOffer({
 }) {
   const includeItems = [
     'Excel descargable + Google Sheets',
-    'Cotizador preparador en segundos',
+    'Cotizador que trabaja en segundos',
     'Instrucciones paso a paso',
     '4 planillas listas para usar',
     'Configurá tu empresa una vez',
@@ -299,8 +298,7 @@ function ExcelOffer({
           </h2>
 
           <p className="mt-4 text-base text-white/60">
-            Dejá de perder tiempo cotizando a mano. Con este cotizador vas a poder generar presupuestos
-            profesionales en segundos, con tu logo, datos y precios actualizados.
+            Dejá de perder tiempo cotizando a mano. Con este cotizador vas a poder generar presupuestos profesionales en segundos, con todos tus datos y precios actualizados.
           </p>
 
           <div className="mt-8">
@@ -640,8 +638,8 @@ function Footer() {
         </div>
 
         {/* Contact */}
-        <div className="flex flex-col items-center gap-3 md:items-end">
-          <p className="text-xs text-white/40 mb-1">¿Tenés consultas?</p>
+        <div className="flex flex-col items-center gap-4 md:items-end">
+          <p className="text-xs text-white/40">¿Tenés consultas?</p>
           <a
             href={WHATSAPP_URL}
             target="_blank"
@@ -653,6 +651,27 @@ function Footer() {
             </svg>
             Consultas por WhatsApp
           </a>
+          
+          {/* Contact Form */}
+          <div className="mt-6 w-full max-w-sm rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="mb-3 text-center text-sm font-medium text-white">¿En qué podemos ayudarte?</p>
+            <input
+              type="text"
+              placeholder="Tu nombre"
+              className="mb-2 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30"
+            />
+            <input
+              type="email"
+              placeholder="Tu email"
+              className="mb-2 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30"
+            />
+            <textarea
+              placeholder="Tu mensaje"
+              rows={2}
+              className="mb-2 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30"
+            />
+            <Button className="w-full text-sm">Enviar mensaje</Button>
+          </div>
         </div>
       </div>
     </footer>
