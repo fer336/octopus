@@ -651,9 +651,7 @@ function Footer() {
             </svg>
             Consultas por WhatsApp
           </a>
-          
-          {/* Contact Form removed from footer - now in floating button */}
-
+        </div>
       </div>
     </footer>
   )
