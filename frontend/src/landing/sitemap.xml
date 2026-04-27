@@ -10,20 +10,4 @@
     <priority>1.0</priority>
   </url>
 
-  <!-- Sección Cotizador (ancla) -->
-  <url>
-    <loc>https://octopustrack.shop/#excel</loc>
-    <lastmod>2026-04-27</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-
-  <!-- Sección Sistema / Planes (ancla) -->
-  <url>
-    <loc>https://octopustrack.shop/#sistema</loc>
-    <lastmod>2026-04-27</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-
 </urlset>
