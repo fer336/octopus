@@ -39,7 +39,8 @@ interface Product {
   id: string
   code: string
   description: string
-  sale_price: number // Precio de venta final (ya calculado en productos)
+  net_price: number // Precio sin IVA (para enviar al backend)
+  sale_price: number // Precio de venta final (ya calculado con IVA)
 }
 
 interface CartItem extends Product {
@@ -122,14 +123,18 @@ const normalizeCartItems = (rawItems: unknown[]): CartItem[] => {
 
   return rawItems
     .map((raw) => {
-      const item = raw as Partial<CartItem> & { amount?: unknown; monto?: unknown }
+      const item = raw as Partial<CartItem> & { amount?: unknown; monto?: unknown; net_price?: unknown }
       const quantity = Math.max(1, Math.trunc(safeNumber(item.quantity || 1)))
+      const salePrice = safeNumber(item.sale_price)
+      // Si hay net_price, usarlo, sino calcularlo desde sale_price
+      const netPrice = item.net_price ? safeNumber(item.net_price) : salePrice / 1.21
 
       return {
         id: safeText(item.id),
         code: safeText(item.code),
         description: safeText(item.description),
-        sale_price: safeNumber(item.sale_price),
+        net_price: netPrice,
+        sale_price: salePrice,
         quantity,
         discount: safeNumber(item.discount),
       }
@@ -768,6 +773,7 @@ export default function Sales() {
       id: p.id,
       code: safeText(p.code),
       description: safeText(p.description),
+      net_price: safeNumber(p.net_price),
       sale_price: safeNumber(p.sale_price),
     }))
     .filter(p =>
@@ -829,6 +835,7 @@ export default function Sales() {
               id: d.product.id,
               code: safeText(d.product.code),
               description: safeText(d.product.description),
+              net_price: safeNumber(d.product.net_price),
               sale_price: safeNumber(d.product.sale_price),
               quantity: Math.max(1, safeNumber(d.qty ?? d.item?.qty ?? 1)),
               discount: 0,
@@ -851,6 +858,7 @@ export default function Sales() {
       id: item.productId,
       code: item.code,
       description: item.description,
+      net_price: item.unitPrice / 1.21, // Calcular precio sin IVA
       sale_price: item.unitPrice,
       quantity: item.qty,
       discount: 0,
@@ -1270,14 +1278,18 @@ export default function Sales() {
     if (voucher.items && voucher.items.length > 0) {
       const newItems: CartItem[] = voucher.items.map((item: any) => {
         const useCurrentPrice = priceStrategy === 'current'
+        // El sale_price guardado en DB incluye IVA, calculamos net_price (sin IVA)
+        const itemSalePrice = useCurrentPrice
+          ? (item.product?.sale_price ?? Number(item.unit_price))
+          : Number(item.unit_price)
+        const itemNetPrice = itemSalePrice / 1.21
         return {
           id: `${voucher.id}-${item.product_id}`,
           product_id: item.product_id,
           code: item.code,
           description: item.description,
-          sale_price: useCurrentPrice
-            ? (item.product?.sale_price ?? Number(item.unit_price))
-            : Number(item.unit_price),
+          net_price: itemNetPrice,
+          sale_price: itemSalePrice,
           quantity: Number(item.quantity),
           discount: Number(item.discount_percent),
           sourceBudgetId: voucher.id,
@@ -1427,7 +1439,7 @@ export default function Sales() {
       items: normalizedItems.map(item => ({
         product_id: item.id,
         quantity: item.quantity,
-        unit_price: item.sale_price, // Enviamos el precio base, el backend recalcula o valida
+        unit_price: item.net_price, // Enviamos el precio SIN IVA para que el backend calcule el IVA correctamente
         discount_percent: item.discount
       })),
       payments: buildPaymentsPayload(),
@@ -1473,7 +1485,7 @@ export default function Sales() {
       client: selectedClient,
       selectedOperatingClientId: voucherType === 'current_account' ? selectedOperatingClientId : undefined,
       items,
-      subtotal: subtotalAfterDiscount,
+      subtotal: subtotal,
       iva: iva,
       total: total,
       generalDiscount,
@@ -1648,6 +1660,23 @@ export default function Sales() {
     setShowConvertQuotationModal(true)
   }
 
+  // Helper: calcular total correcto desde cotización del backend
+  // unit_price en la DB no incluye IVA, por eso hay que recalcular
+  const calculateQuotationTotal = (quotation: any): number => {
+    const items = quotation.items || []
+    const itemSubtotal = items.reduce((acc: number, item: any) => {
+      const unitPrice = Number(item.unit_price) || 0
+      const qty = Number(item.quantity) || 0
+      const discount = Number(item.discount_percent) || 0
+      const itemTotal = unitPrice * qty
+      return acc + (itemTotal - itemTotal * (discount / 100))
+    }, 0)
+    const discountPercent = Number(quotation.general_discount) || 0
+    const subtotalAfterDiscount = itemSubtotal * (1 - discountPercent / 100)
+    const iva = subtotalAfterDiscount * 0.21
+    return subtotalAfterDiscount + iva
+  }
+
   // Toggle método de pago en modal de conversión
   const handleConvertTogglePayment = (methodId: string, selected: boolean) => {
     if (!selectedQuotation) return
@@ -1659,7 +1688,7 @@ export default function Sales() {
           const amountValue = Number(data.amount)
           return acc + (Number.isFinite(amountValue) ? amountValue : 0)
         }, 0)
-        const quotationTotal = Number(selectedQuotation.total)
+        const quotationTotal = calculateQuotationTotal(selectedQuotation)
         const difference = Math.max(0, quotationTotal - currentlyAssigned)
         const newAmount = (!current.amount && difference > 0) ? difference.toFixed(2) : current.amount
         return { ...prev, [methodId]: { ...current, selected, amount: newAmount, reference: current.reference || '' } }
@@ -1672,7 +1701,7 @@ export default function Sales() {
   const handleConvertPaymentAmountChange = (methodId: string, value: string) => {
     if (!selectedQuotation) return
     setConvertPaymentSelections((prev) => {
-      const quotationTotal = Number(selectedQuotation.total)
+      const quotationTotal = calculateQuotationTotal(selectedQuotation)
       const otherSelectedMethods = Object.entries(prev).filter(([id, data]) => id !== methodId && data.selected)
       const newSelections = { ...prev, [methodId]: { ...prev[methodId], amount: value } }
       if (otherSelectedMethods.length === 1) {
@@ -1728,7 +1757,21 @@ export default function Sales() {
   // Validar pagos del modal de conversión
   const validateConvertPayments = () => {
     if (!selectedQuotation) return { valid: false, message: 'No hay cotización seleccionada' }
-    const quotationTotal = Number(selectedQuotation.total)
+    
+    // Recalcular total desde los items (unit_price es sin IVA en el backend)
+    const quotationItems = selectedQuotation.items || []
+    const subtotalFromItems = quotationItems.reduce((acc, item) => {
+      const itemUnitPrice = Number(item.unit_price) || 0
+      const itemQty = Number(item.quantity) || 0
+      const itemDiscount = Number(item.discount_percent) || 0
+      const itemSubtotal = itemUnitPrice * itemQty
+      const discountAmount = itemSubtotal * (itemDiscount / 100)
+      return acc + (itemSubtotal - discountAmount)
+    }, 0)
+    const discountPercent = Number(selectedQuotation.general_discount) || 0
+    const subtotalAfterDiscount = subtotalFromItems * (1 - discountPercent / 100)
+    const ivaFromItems = subtotalAfterDiscount * 0.21
+    const quotationTotal = subtotalAfterDiscount + ivaFromItems
 
     if (paymentMethods.length === 0) {
       return { valid: false, message: 'No hay métodos de pago disponibles para facturas' }
@@ -1806,12 +1849,13 @@ export default function Sales() {
           return acc + (Number.isFinite(amountValue) ? amountValue : 0)
         }, 0)
 
-        // El total a pagar
-        const subtotalItems = items.reduce((acc, item) => acc + calculateItemTotal(item), 0)
+        // El total a pagar (sale_price ya incluye IVA, no calculamos de nuevo)
+        const subtotalItems = items.reduce((acc, item) => {
+          const itemTotal = item.sale_price * item.quantity
+          return acc + (itemTotal - itemTotal * (item.discount / 100))
+        }, 0)
         const discountAmount = subtotalItems * (generalDiscount / 100)
-        const subtotalAfterDiscount = subtotalItems - discountAmount
-        const iva = subtotalAfterDiscount * 0.21
-        const total = subtotalAfterDiscount + iva
+        const total = subtotalItems - discountAmount
 
         // La diferencia (lo que falta pagar)
         const difference = Math.max(0, total - currentlyAssigned)
@@ -1846,12 +1890,13 @@ export default function Sales() {
   // Actualizar monto de un método de pago
   const handlePaymentAmountChange = (methodId: string, value: string) => {
     setPaymentSelections((prev) => {
-      // 1. Calculamos el total de la factura
-      const subtotalItems = items.reduce((acc, item) => acc + calculateItemTotal(item), 0)
+      // 1. Calculamos el total de la factura (sale_price ya incluye IVA)
+      const subtotalItems = items.reduce((acc, item) => {
+        const itemTotal = item.sale_price * item.quantity
+        return acc + (itemTotal - itemTotal * (item.discount / 100))
+      }, 0)
       const discountAmount = subtotalItems * (generalDiscount / 100)
-      const subtotalAfterDiscount = subtotalItems - discountAmount
-      const iva = subtotalAfterDiscount * 0.21
-      const total = subtotalAfterDiscount + iva
+      const total = subtotalItems - discountAmount
 
       // 2. Buscamos si hay OTROS métodos seleccionados (que no sean el actual)
       const otherSelectedMethods = Object.entries(prev).filter(([id, data]) => id !== methodId && data.selected)
@@ -1984,13 +2029,24 @@ export default function Sales() {
     return { valid: true }
   }
 
-  // Cálculos de totales - discriminando IVA
-  const subtotalWithIva = items.reduce((acc, item) => acc + calculateItemTotal(item), 0)
-  const subtotalWithoutIva = subtotalWithIva / 1.21
-  const discountAmount = subtotalWithoutIva * (generalDiscount / 100)
-  const subtotalAfterDiscount = subtotalWithoutIva - discountAmount
-  const iva = subtotalAfterDiscount * 0.21
-  const total = subtotalAfterDiscount + iva
+  // Cálculos de totales
+  // IMPORTANTE: sale_price del producto YA CONTIENE IVA incluido (sale_price = net_price * 1.21)
+  // Por lo tanto, usamos sale_price directamente como el total sin recalcular IVA
+  const subtotal = items.reduce((acc, item) => {
+    // quantity * sale_price (que ya incluye IVA)
+    const itemTotal = item.sale_price * item.quantity
+    const discountAmount = itemTotal * (item.discount / 100)
+    return acc + (itemTotal - discountAmount)
+  }, 0)
+  
+  // Descuento general sobre el subtotal (ya incluye IVA)
+  const discountAmount = subtotal * (generalDiscount / 100)
+  const total = subtotal - discountAmount
+  
+  // Calcular IVA real para mostrar en UI (separando el IVA del precio final)
+  // El total incluye IVA, entonces: Subtotal = Total / 1.21, IVA = Total - Subtotal
+  const subtotalWithoutIva = total / 1.21
+  const iva = total - subtotalWithoutIva
   const discountedItemsCount = items.filter((item) => item.discount > 0).length
 
   const assignedPaymentsTotal = paymentMethods.reduce((acc, method) => {
@@ -2509,7 +2565,7 @@ export default function Sales() {
               
               <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
                 <span>Subtotal (sin IVA)</span>
-                <span className="font-medium">${formatNumber(subtotalAfterDiscount, undefined, { minimumFractionDigits: 2 })}</span>
+                <span className="font-medium">${formatNumber(subtotalWithoutIva, undefined, { minimumFractionDigits: 2 })}</span>
               </div>
               
               <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
@@ -3105,7 +3161,7 @@ export default function Sales() {
                 <div className="space-y-2 pt-2 border-t border-primary-200 dark:border-primary-700">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">Subtotal (sin IVA):</span>
-                    <span className="font-medium">${formatNumber(subtotalAfterDiscount, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="font-medium">${formatNumber(subtotalWithoutIva, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
 
                   {generalDiscount > 0 && (
@@ -3784,7 +3840,7 @@ export default function Sales() {
                     <tr>
                       <td colSpan={3} className="px-2 py-2 text-right font-bold text-gray-900 dark:text-white">TOTAL:</td>
                       <td className="px-2 py-2 text-right font-bold text-primary-600 dark:text-primary-400 text-sm">
-                        ${formatNumber(selectedQuotation.total, 'es-AR', { minimumFractionDigits: 2 })}
+                        ${formatNumber(calculateQuotationTotal(selectedQuotation), 'es-AR', { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
                   </tfoot>

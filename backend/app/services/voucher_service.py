@@ -253,7 +253,7 @@ class VoucherService:
         total_subtotal = Decimal(0)
         total_iva = Decimal(0)
         total_final = Decimal(0)
-        general_discount_factor = 1 - (general_discount / 100)
+        general_discount_factor = Decimal("1") - (general_discount / Decimal("100"))
 
         items_db: List[VoucherItem] = []
         for i, item_data in enumerate(items_data):
@@ -261,16 +261,23 @@ class VoucherService:
             if not product or product.business_id != business_id:
                 raise ValueError(f"Producto {item_data.product_id} no encontrado")
 
-            unit_price = product.sale_price
-            item_discount_factor = 1 - (item_data.discount_percent / 100)
+            # Usar el unit_price que envía el frontend (precio SIN IVA)
+            unit_price = item_data.unit_price if item_data.unit_price else product.net_price
+            item_discount_factor = Decimal("1") - (item_data.discount_percent / Decimal("100"))
             subtotal_line = (
                 unit_price
                 * item_data.quantity
                 * item_discount_factor
                 * general_discount_factor
             )
-            iva_line = subtotal_line * (product.iva_rate / 100)
+            iva_rate = product.iva_rate or Decimal("21")
+            iva_line = subtotal_line * (iva_rate / Decimal("100"))
             total_line = subtotal_line + iva_line
+
+            # Redondear
+            subtotal_line = self._round_money(subtotal_line)
+            iva_line = self._round_money(iva_line)
+            total_line = self._round_money(total_line)
 
             total_subtotal += subtotal_line
             total_iva += iva_line
@@ -284,7 +291,7 @@ class VoucherService:
                 unit=product.unit,
                 unit_price=unit_price,
                 discount_percent=item_data.discount_percent,
-                iva_rate=product.iva_rate,
+                iva_rate=iva_rate,
                 iva_amount=iva_line,
                 subtotal=subtotal_line,
                 total=total_line,
@@ -305,11 +312,13 @@ class VoucherService:
         source_item: VoucherItem,
         product: Product,
     ) -> tuple[Decimal, Decimal]:
-        """Resuelve precio unitario + IVA según estrategia elegida."""
+        """Resuelve precio unitario + alícuota IVA según estrategiaelegida."""
         if price_strategy == "historical":
+            # Usar el unit_price guardado en el comprobante origen (debe ser sin IVA)
             return Decimal(str(source_item.unit_price)), Decimal(str(source_item.iva_rate))
 
-        return Decimal(str(product.sale_price)), Decimal(str(product.iva_rate))
+        # Usar net_price (sin IVA) del producto para precios vigentes
+        return Decimal(str(product.net_price)), Decimal(str(product.iva_rate))
 
     async def _build_invoice_items_from_source_vouchers(
         self,
