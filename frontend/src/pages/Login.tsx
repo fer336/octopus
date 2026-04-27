@@ -63,13 +63,13 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)] px-4 py-4 overflow-y-auto">
       <div className="max-w-xs w-full mx-auto">
-        {/* Logo (sin título de texto) */}
+        {/* Logo */}
         <div className="text-center mb-3">
           <div className="flex justify-center">
             <img
-              src="/logo-tentaculo.png"
+              src="/logo-tenculo-final.png"
               alt="Octopus Track"
-              className="h-[83px] w-[83px] object-contain"
+              className="h-[83px] w-auto object-contain"
             />
           </div>
         </div>
@@ -77,11 +77,6 @@ export default function Login() {
         {/* Card de login */}
         <div className="bg-[var(--color-bg-secondary)] rounded-xl shadow-md p-4 border border-primary-200 dark:border-primary-800">
           <div className="flex items-center justify-center gap-2 mb-3">
-            <img
-              src="/logo-tentaculo.png"
-              alt="Tentáculo"
-              className="h-5 w-5 object-contain"
-            />
             <h2 className="text-lg font-semibold text-[var(--color-text-primary)] text-center">
             Iniciar sesión
             </h2>
