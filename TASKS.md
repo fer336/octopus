@@ -1,6 +1,9 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
+- [x] [SEO-SITEMAP-01] Landing: crear sitemap.xml para octopustrack.shop con URLs canonicales y priority correctos ✅ 2026-04-27
+- [x] [SEO-SITEMAP-02] Landing: actualizar robots.txt para referenciar sitemap.xml ✅ 2026-04-27
+- [x] [SEO-SITEMAP-03] Landing: agregar meta tags SEO (description, og:*) en landing.html para indexación ✅ 2026-04-27
 - [ ] [BRAND-HEADER-01] Branding/PDF: definir para qué sirve `header_text` y hacerlo visible realmente en los comprobantes o pantallas donde corresponda
 - [ ] [OPS-01] Replicar migraciones pendientes en entorno de deploy (`f1a2b3c4d5e6`, `a9b8c7d6e5f4`)
 - [ ] [FB-07] Validar flujo E2E feedback + sync a Linear con API key real (crear ticket tenant y verificar issue)
