@@ -37,7 +37,14 @@ yarn-error.log*
 
 # Build
 frontend/dist/
+frontend/dist-landing/
 frontend/build/
+frontend/modelofacturas/
+
+# Frontend public assets (se copian en build, no en git)
+frontend/public/logo-pulpo-anteojos.png
+frontend/public/robots.txt
+frontend/public/vecteezy_*/
 
 # IDE
 .idea/
