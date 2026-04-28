@@ -31,6 +31,10 @@
 
 ## 🟢 Hecho
 
+- [x] [UI-LISTAS-01] Rediseñar vistas Clientes/Proveedores/Categorías con estilo compacto moderno y mejor aprovechamiento vertical ✅ 2026-04-28
+
+- [x] [GLOBAL-LAYOUT-02] Reducir padding global del contenedor de vistas sin tocar Sales ni romper scroll ✅ 2026-04-28
+
 - [x] [SALES-LAYOUT-02] Ventas: expandir área izquierda al ancho/alto disponible y reducir espacios sobrantes ✅ 2026-04-28
 
 - [x] [SALES-LAYOUT-01] Ventas: contener pantalla en viewport sin scroll de página, con scroll interno en tablas y resumen fijo ✅ 2026-04-28

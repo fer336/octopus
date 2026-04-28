@@ -115,7 +115,11 @@ export default function MainLayout() {
           hasTourForCurrentPage={hasTourForCurrentPage}
         />
 
-        <main className="flex-1 overflow-auto p-6">
+        <main
+          className={`flex-1 overflow-auto ${
+            location.pathname.startsWith('/sales') ? 'p-6' : 'p-2'
+          }`}
+        >
           <Outlet />
         </main>
       </div>

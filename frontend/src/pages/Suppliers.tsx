@@ -3,7 +3,7 @@
  * Gestión de proveedores con base de datos.
  */
 import { useState } from 'react'
-import { Plus, Edit, Trash2, Truck, Phone, Mail, MapPin, Search } from 'lucide-react'
+import { Plus, Edit, Trash2, Truck, Phone, Mail, MapPin, Search, Inbox } from 'lucide-react'
 import { Button, Table, Pagination, Modal, Input } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -203,10 +203,13 @@ export default function Suppliers() {
       key: 'name',
       header: 'Proveedor',
       render: (item: Supplier) => (
-        <div>
-          <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-white group text-sm">
-            <Truck size={14} className="text-primary-600 shrink-0" />
-            <span className="truncate">{item.name}</span>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="h-7 w-7 shrink-0 rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 flex items-center justify-center">
+            <Truck size={13} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-white group text-sm">
+              <span className="truncate">{item.name}</span>
             <button
               onClick={() => {
                 navigator.clipboard.writeText(item.name)
@@ -217,10 +220,11 @@ export default function Suppliers() {
             >
               📋 Copiar
             </button>
-          </div>
-          <div className="text-xs text-gray-500 ml-6 space-y-0.5">
-            {item.cuit && <div>CUIT: {item.cuit}</div>}
-            {item.contact_name && <div>Contacto: {item.contact_name}</div>}
+            </div>
+            <div className="text-xs text-gray-500 space-y-0.5">
+              {item.cuit && <div>CUIT: {item.cuit}</div>}
+              {item.contact_name && <div>Contacto: {item.contact_name}</div>}
+            </div>
           </div>
         </div>
       ),
@@ -300,15 +304,15 @@ export default function Suppliers() {
   ]
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="h-full min-h-0 w-full flex flex-col gap-3">
       {/* Header estilo Categorías */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 p-6 rounded-xl border border-primary-200 dark:border-primary-800">
-        <div>
-          <h1 className="text-2xl font-bold text-primary-900 dark:text-primary-100 flex items-center gap-2">
-            <Truck className="h-7 w-7 text-primary-600 dark:text-primary-400" />
+      <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 px-3 py-2.5 rounded-lg border border-primary-200 dark:border-primary-800">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold text-primary-900 dark:text-primary-100 flex items-center gap-2 leading-none">
+            <Truck className="h-5 w-5 text-primary-600 dark:text-primary-400" />
             Proveedores
           </h1>
-          <p className="text-primary-700 dark:text-primary-300">
+          <p className="text-xs text-primary-700 dark:text-primary-300 mt-1 truncate">
             Gestión compacta de proveedores, contactos y categorías
           </p>
         </div>
@@ -323,10 +327,10 @@ export default function Suppliers() {
       </div>
 
       {/* Filtros */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 p-2.5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2.5">
           <div className="relative w-full md:max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
             <input
               type="text"
               value={search}
@@ -335,7 +339,7 @@ export default function Suppliers() {
                 setPage(1)
               }}
               placeholder="Buscar por nombre, CUIT, contacto o email..."
-              className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
+              className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
             />
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -345,11 +349,22 @@ export default function Suppliers() {
       </div>
 
       {/* Tabla */}
-      <Table
-        columns={columns}
-        data={suppliers}
-        emptyMessage="No hay proveedores para los filtros actuales"
-      />
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+        {suppliers.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400 px-6">
+            <Inbox className="h-8 w-8 mb-2 text-primary-400" />
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">No hay proveedores para mostrar</p>
+            <p className="text-xs mt-1">Probá con otro término de búsqueda o creá un proveedor nuevo.</p>
+          </div>
+        ) : (
+          <Table
+            columns={columns}
+            data={suppliers}
+            emptyMessage="No hay proveedores para los filtros actuales"
+            density="compact"
+          />
+        )}
+      </div>
 
       {/* Paginación */}
       <Pagination

@@ -3,7 +3,7 @@
  * Lista y gestión de clientes con base de datos.
  */
 import { useMemo, useState } from 'react'
-import { Plus, Edit, Trash2, Users, Search, Phone, Mail, MapPin, FileText, Settings2, UserRoundCheck } from 'lucide-react'
+import { Plus, Edit, Trash2, Users, Search, Phone, Mail, MapPin, FileText, Settings2, UserRoundCheck, Inbox } from 'lucide-react'
 import { Button, Table, Pagination, Modal, Input, Select, ConfirmModal } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { TAX_CONDITIONS, DOCUMENT_TYPES } from '../types'
@@ -337,10 +337,20 @@ const data = await clientsService.lookupCuit(cuit)
       key: 'name',
       header: 'Cliente',
       render: (item: Client) => (
-        <div>
-          <div className="font-medium text-gray-900 dark:text-white">{item.name}</div>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="h-7 w-7 shrink-0 rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 flex items-center justify-center text-[11px] font-semibold">
+            {item.name
+              .split(' ')
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((token) => token[0]?.toUpperCase())
+              .join('') || 'CL'}
+          </div>
+          <div className="min-w-0">
+            <div className="font-medium text-gray-900 dark:text-white truncate">{item.name}</div>
           <div className="text-xs text-gray-500 dark:text-gray-400">
             {item.document_type}: {item.document_number}
+          </div>
           </div>
         </div>
       ),
@@ -400,9 +410,9 @@ const data = await clientsService.lookupCuit(cuit)
         <span
           className={`font-mono font-medium ${
             item.current_balance > 0
-              ? 'text-red-600 dark:text-red-400'
-              : item.current_balance < 0
               ? 'text-green-600 dark:text-green-400'
+              : item.current_balance < 0
+              ? 'text-red-600 dark:text-red-400'
               : 'text-gray-500'
           }`}
         >
@@ -473,15 +483,15 @@ const data = await clientsService.lookupCuit(cuit)
   const clients = clientsData?.items || []
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="h-full min-h-0 w-full flex flex-col gap-3">
       {/* Header estilo Categorías */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 p-6 rounded-xl border border-primary-200 dark:border-primary-800">
-        <div>
-          <h1 className="text-2xl font-bold text-primary-900 dark:text-primary-100 flex items-center gap-2">
-            <Users className="h-7 w-7 text-primary-600 dark:text-primary-400" />
-            Clientes
+      <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 px-3 py-2.5 rounded-lg border border-primary-200 dark:border-primary-800">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold text-primary-900 dark:text-primary-100 flex items-center gap-2 leading-none">
+            <Users className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+            <span>Clientes</span>
           </h1>
-          <p className="text-primary-700 dark:text-primary-300">
+          <p className="text-xs text-primary-700 dark:text-primary-300 mt-1 truncate">
             Gestión de clientes y control de cuentas corrientes
           </p>
         </div>
@@ -509,22 +519,32 @@ const data = await clientsService.lookupCuit(cuit)
       </div>
 
       {/* Filtros */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 p-2.5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre, documento..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
+            className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
             data-tour-clients-search
           />
         </div>
       </div>
 
       {/* Tabla */}
-      <Table columns={columns} data={clients} />
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+        {clients.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400 px-6">
+            <Inbox className="h-8 w-8 mb-2 text-primary-400" />
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">No hay clientes para mostrar</p>
+            <p className="text-xs mt-1">Probá con otro término de búsqueda o creá un cliente nuevo.</p>
+          </div>
+        ) : (
+          <Table columns={columns} data={clients} density="compact" />
+        )}
+      </div>
 
       {/* Paginación */}
       <Pagination

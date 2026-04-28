@@ -3,7 +3,7 @@
  * Gestión de categorías de productos.
  */
 import { useState } from 'react'
-import { Plus, Edit, Trash2, FolderTree, Search, Layers } from 'lucide-react'
+import { Plus, Edit, Trash2, FolderTree, Search, Layers, Inbox } from 'lucide-react'
 import { Button, Table, Modal, Input } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -163,9 +163,11 @@ export default function Categories() {
       key: 'name',
       header: 'Nombre',
       render: (item: Category) => (
-        <div className="flex items-center gap-2 group">
-          <FolderTree size={16} className="text-primary-600" />
-          <span className="font-medium text-gray-900 dark:text-white">{item.name}</span>
+        <div className="flex items-center gap-2.5 group min-w-0">
+          <div className="h-7 w-7 shrink-0 rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 flex items-center justify-center">
+            <FolderTree size={13} />
+          </div>
+          <span className="font-medium text-gray-900 dark:text-white truncate">{item.name}</span>
           <button
             onClick={() => {
               navigator.clipboard.writeText(item.name)
@@ -214,15 +216,15 @@ export default function Categories() {
   ]
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="h-full min-h-0 w-full flex flex-col gap-3">
       {/* Header con color azul */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 p-6 rounded-xl border border-primary-200 dark:border-primary-800">
-        <div>
-          <h1 className="text-2xl font-bold text-primary-900 dark:text-primary-100 flex items-center gap-2">
-            <FolderTree className="h-7 w-7 text-primary-600 dark:text-primary-400" />
+      <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 px-3 py-2.5 rounded-lg border border-primary-200 dark:border-primary-800">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold text-primary-900 dark:text-primary-100 flex items-center gap-2 leading-none">
+            <FolderTree className="h-5 w-5 text-primary-600 dark:text-primary-400" />
             Categorías
           </h1>
-          <p className="text-primary-700 dark:text-primary-300">
+          <p className="text-xs text-primary-700 dark:text-primary-300 mt-1 truncate">
             Organiza tu inventario por familias de productos
           </p>
         </div>
@@ -236,25 +238,36 @@ export default function Categories() {
       </div>
 
       {/* Barra de búsqueda */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 p-2.5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar categorías..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
+            className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
           />
         </div>
       </div>
 
       {/* Tabla */}
-      <Table 
-        columns={columns} 
-        data={filteredCategories}
-        emptyMessage="No se encontraron categorías."
-      />
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+        {filteredCategories.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400 px-6">
+            <Inbox className="h-8 w-8 mb-2 text-primary-400" />
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">No hay categorías para mostrar</p>
+            <p className="text-xs mt-1">Probá con otro término de búsqueda o creá una categoría nueva.</p>
+          </div>
+        ) : (
+          <Table 
+            columns={columns} 
+            data={filteredCategories}
+            emptyMessage="No se encontraron categorías."
+            density="compact"
+          />
+        )}
+      </div>
 
       {/* Modal */}
       <Modal
