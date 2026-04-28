@@ -25,6 +25,7 @@
 
 ## 🟡 En progreso
 
+- [/] [DEVOPS-LANDING-04] Pipeline landing: probar build solo amd64 para evitar falla QEMU arm64 y validar deploy
 
 
 
