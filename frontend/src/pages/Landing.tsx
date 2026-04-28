@@ -124,8 +124,8 @@ function Header({ loginUrl }: { loginUrl: string }) {
         <div className="flex items-center gap-3">
           <Button
             size="sm"
-            variant="ghost"
-            className="hidden text-white/70 hover:text-white sm:block"
+            variant="outline"
+            className="hidden border-white/20 bg-white/5 text-white/85 hover:border-white/35 hover:bg-white/10 hover:text-white sm:block"
             onClick={() => (window.location.href = loginUrl)}
           >
             Iniciar sesión
@@ -850,7 +850,7 @@ function LandingContent({ loginUrl }: { loginUrl: string }) {
   )
 }
 
-export default function Landing({ loginUrl = '/login' }: LandingProps) {
+export default function Landing({ loginUrl = '/acceder' }: LandingProps) {
   const isThankYou = useMemo(() => shouldShowThankYou(), [])
   if (isThankYou) return <ThankYouPage />
 

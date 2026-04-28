@@ -31,6 +31,20 @@
 
 ## 🟢 Hecho
 
+- [x] [MKT-LOGIN-SELECT-06] Landing acceso: simplificar CTA de retorno del header a botón ícono flecha sin texto ✅ 2026-04-28
+
+- [x] [MKT-LOGIN-SELECT-05] Landing acceso: agregar header con navegación de regreso a la web principal ✅ 2026-04-28
+
+- [x] [MKT-LOGIN-SELECT-04] Landing acceso: aplicar botón azul en card de OctopusFlow para consistencia de marca ✅ 2026-04-28
+
+- [x] [MKT-LOGIN-BTN-01] Landing header: corregir estilo del botón "Iniciar sesión" para evitar fondo blanco y mejorar contraste en dark ✅ 2026-04-28
+
+- [x] [MKT-LOGIN-SELECT-03] Landing acceso: agrandar contenedor visual de cards para mejorar proporción de imágenes ✅ 2026-04-28
+
+- [x] [MKT-LOGIN-SELECT-02] Landing acceso: ajustar tamaño/encuadre de imágenes en cards de selección para que se vean completas ✅ 2026-04-28
+
+- [x] [MKT-LOGIN-SELECT-01] Landing: crear página de selección de producto (OctopusTrack/OctopusFlow) y redirigir botón "Iniciar Sesión" a esa ruta ✅ 2026-04-28
+
 - [x] [UI-LISTAS-01] Rediseñar vistas Clientes/Proveedores/Categorías con estilo compacto moderno y mejor aprovechamiento vertical ✅ 2026-04-28
 
 - [x] [GLOBAL-LAYOUT-02] Reducir padding global del contenedor de vistas sin tocar Sales ni romper scroll ✅ 2026-04-28
