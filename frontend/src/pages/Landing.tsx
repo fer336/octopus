@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, CheckCircle2, Menu, X, Zap, Shield, Users, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import Button from '../components/ui/Button'
+import AnimatedTentacleLogo from '../components/ui/AnimatedTentacleLogo'
 
 const WHATSAPP_URL = 'https://wa.me/5492254596618'
 const CHECKOUT_URL = import.meta.env.VITE_LANDING_CHECKOUT_URL || '#checkout-no-configured'
@@ -233,7 +234,7 @@ function Header({ loginUrl }: { loginUrl: string }) {
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#0d0d1a]/60 backdrop-blur-2xl">
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         <a href="#inicio" className="flex items-center transition-transform duration-300 hover:scale-[1.02]">
-          <img src="/logo-tenculo-final.png" alt="OctopusTrack" className="h-12 w-auto" />
+          <AnimatedTentacleLogo className="h-[52px] w-[52px]" alt="OctopusTrack" />
         </a>
 
         <div className="flex items-center gap-3">

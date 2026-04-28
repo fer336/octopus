@@ -33,6 +33,16 @@
 
 ## 🟢 Hecho
 
+- [x] [MKT-LOGO-SIZE-01] Landing/UI: aumentar apenas tamaño del logo tentáculo animado ✅ 2026-04-28
+
+- [x] [MKT-LOGO-MOTION-04] Landing/UI: dejar logo solo flotante, sin enrosque/desenrosque ✅ 2026-04-28
+
+- [x] [MKT-LOGO-MOTION-03] Landing/UI: revertir tentáculo a animación anterior y aumentar tamaño +2px ✅ 2026-04-28
+
+- [x] [MKT-LOGO-MOTION-02] Landing/UI: intensificar animación GSAP del tentáculo (enrosque/desenrosque más orgánico) ✅ 2026-04-28
+
+- [x] [MKT-LOGO-MOTION-01] Landing/UI: animar tentáculo SVG con GSAP (enrollar/desenrollar + movimiento suave) usando `logo-tenculo-final.svg` ✅ 2026-04-28
+
 - [x] [MKT-LOGIN-BTN-05] Landing header: igualar estilo de "Iniciar sesión" al botón "Cotizá con Excel" ✅ 2026-04-28
 
 - [x] [MKT-LOGIN-BTN-04] Landing header: quitar halo/borde blanco residual del botón "Iniciar sesión" ✅ 2026-04-28
@@ -332,6 +342,8 @@
 - [x] Corregir visibilidad del Agente IA en frontend tenant según feature flag ✅ 2026-04-12
 
 ## 🚧 Bloqueado
+
+- [x] [MKT-LOTTIE-01] Landing: falta asset `tentaculo.json` (Lottie) o fuente final de animación; se cambia estrategia a GSAP sobre SVG existente ✅ 2026-04-28
 - [!] [MKT-20] N8N: definir e implementar workflow de retorno HTML (GET) + completar workflow de notificación (POST) para envío automático por Gmail 🚧 Definición técnica lista en `docs/n8n-octopus-mp-flujos.md`; pendiente aplicar cambios manuales en n8n UI (MCP no permite editar nodos)
 - [!] [MKT-19] N8N: mostrar página HTML post-pago con botones Excel/Sheets 🚧 Debe implementarse en endpoint de retorno GET (back_urls), no en webhook de notificación POST de MercadoPago
 - [!] [MKT-18] N8N/MP: usar mismo endpoint `octopus-notification` para `notification_url` y `back_urls` 🚧 El webhook actual acepta solo POST; `back_urls` de MercadoPago redirigen por GET y hoy devuelve 404

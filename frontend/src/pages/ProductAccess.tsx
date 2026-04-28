@@ -1,5 +1,6 @@
 import Button from '../components/ui/Button'
 import { ArrowLeft } from 'lucide-react'
+import AnimatedTentacleLogo from '../components/ui/AnimatedTentacleLogo'
 
 const products = [
   {
@@ -31,7 +32,7 @@ export default function ProductAccess() {
       <header className="animate-fade-in-up fixed left-0 right-0 top-0 z-30 border-b border-white/10 bg-[#0d0d1a]/80 backdrop-blur-2xl">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
           <a href="/landing" className="flex items-center gap-2 text-sm font-medium text-white/90 transition hover:text-white">
-            <img src="/logo-tenculo-final.png" alt="OctopusTrack" className="h-8 w-auto" />
+            <AnimatedTentacleLogo className="h-[36px] w-[36px]" alt="OctopusTrack" />
             <span>OctopusTrack</span>
           </a>
 
