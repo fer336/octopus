@@ -250,8 +250,8 @@
     <thead>
       <tr>
         <th>Método</th>
-        <th class="right">Ventas</th>
-        <th class="right">Cobros CC</th>
+        <th class="right">Facturado</th>
+        <th class="right">Cta. Corriente</th>
         <th class="right">Ingresos</th>
         <th class="right">Egresos</th>
         <th class="right">Neto</th>
@@ -312,6 +312,33 @@
     <strong>Motivo de la diferencia:</strong>
     {{ difference_reason }}
   </div>
+  {% endif %}
+
+  <!-- ── Comprobantes emitidos ─────────────────────────────── -->
+  {% if vouchers %}
+  <div class="section-title">Comprobantes Emitidos</div>
+  <table class="vouchers-table">
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Comprobante</th>
+        <th>Tipo</th>
+        <th>Cliente</th>
+        <th class="right">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in vouchers %}
+      <tr>
+        <td>{{ v.date }}</td>
+        <td>{{ v.number }}</td>
+        <td>{{ v.type }}</td>
+        <td>{{ v.client_name }}</td>
+        <td class="right">{{ v.total_fmt }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
   {% endif %}
 
   <!-- ── Movimientos del día ───────────────────────────────── -->

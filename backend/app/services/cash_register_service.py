@@ -8,10 +8,11 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, and_, desc
+from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.business import Business
 from app.models.cash_register import (
     CashMovement,
     CashMovementType,
@@ -19,6 +20,7 @@ from app.models.cash_register import (
     CashRegister,
     CashRegisterStatus,
 )
+from app.models.client import Client
 from app.models.user import User
 from app.schemas.cash_register import (
     CashCloseRequest,
@@ -39,6 +41,47 @@ def _is_expired(cash_register: CashRegister) -> bool:
         return False
     threshold = datetime.utcnow() - timedelta(hours=EXPIRED_THRESHOLD_HOURS)
     return cash_register.opened_at < threshold
+
+
+async def get_open_cash_register(
+    db: AsyncSession,
+    business_id: UUID,
+) -> Optional[CashRegister]:
+    """Retorna la caja actualmente abierta del negocio, o None si no hay."""
+    result = await db.execute(
+        select(CashRegister)
+        .options(selectinload(CashRegister.movements))
+        .where(
+            and_(
+                CashRegister.business_id == business_id,
+                CashRegister.status == CashRegisterStatus.OPEN,
+                CashRegister.deleted_at.is_(None),
+            )
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_status(
+    db: AsyncSession,
+    business_id: UUID,
+) -> Optional[dict]:
+    """
+    Retorna el estado de la caja del día:
+    - None si no hay caja abierta
+    - {status: "OPEN" | "CLOSED" | "EXPIRED", register: CashRegisterResponse}
+    """
+    register = await get_open_cash_register(db, business_id)
+    if not register:
+        return None
+
+    is_expired = _is_expired(register)
+    status_value = "EXPIRED" if is_expired else "OPEN"
+
+    return {
+        "status": status_value,
+        "register": _to_response(register),
+    }
 
 
 def _to_response(cash_register: CashRegister, with_movements: bool = True) -> CashRegisterResponse:
@@ -78,63 +121,44 @@ def _to_response(cash_register: CashRegister, with_movements: bool = True) -> Ca
     )
 
 
-async def get_open_cash_register(
-    db: AsyncSession,
-    business_id: UUID,
-) -> Optional[CashRegister]:
-    """Retorna la caja actualmente abierta del negocio, o None si no hay."""
-    result = await db.execute(
-        select(CashRegister)
-        .options(selectinload(CashRegister.movements))
-        .where(
-            and_(
-                CashRegister.business_id == business_id,
-                CashRegister.status == CashRegisterStatus.OPEN,
-                CashRegister.deleted_at.is_(None),
-            )
-        )
-    )
-    return result.scalar_one_or_none()
-
-
-async def get_current(
-    db: AsyncSession,
-    business_id: UUID,
-) -> Optional[CashRegisterResponse]:
-    """
-    Retorna el estado de la caja del día:
-    - Caja abierta (con movimientos)
-    - None si no hay caja abierta
-    """
-    register = await get_open_cash_register(db, business_id)
-    if not register:
-        return None
-    return _to_response(register, with_movements=True)
-
-
 async def open_cash(
     db: AsyncSession,
     business_id: UUID,
     current_user: User,
     data: CashOpenRequest,
+    auto_close_expired: bool = True,
 ) -> CashRegisterResponse:
     """
     Abre una nueva caja para el negocio.
     Reglas:
     - Solo puede haber una caja abierta a la vez.
-    - Si hay una caja vencida (>24hs), el operador debe cerrarla primero.
+    - Si hay una caja vencida (>24hs), por defecto se cierra automáticamente.
     """
     existing = await get_open_cash_register(db, business_id)
     if existing:
         if _is_expired(existing):
+            if auto_close_expired:
+                # Cerrar automáticamente la caja vencida
+                existing.status = CashRegisterStatus.CLOSED
+                existing.closed_by = current_user.id
+                existing.closed_at = datetime.utcnow()
+                # Calcular diferencia con los movimientos actuales
+                summary = _calculate_summary(existing)
+                expected_cash = summary.expected_cash
+                difference = existing.opening_amount + summary.cash_net - expected_cash
+                existing.counted_cash = existing.opening_amount + summary.cash_net
+                existing.difference = difference
+                existing.difference_reason = "Cierre automático por vencimiento (>24hs)"
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Hay una caja vencida (más de 24hs abierta). Cerrala antes de abrir una nueva.",
+                )
+        else:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Hay una caja vencida (más de 24hs abierta). Cerrala antes de abrir una nueva.",
+                detail="Ya hay una caja abierta. Cerrala antes de abrir una nueva.",
             )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Ya hay una caja abierta. Cerrala antes de abrir una nueva.",
-        )
 
     register = CashRegister(
         business_id=business_id,
@@ -167,9 +191,8 @@ async def close_cash(
     Cierra la caja activa.
     Reglas:
     - Debe haber una caja abierta.
+    - Si counted_cash no se pasa, usa el efectivo esperado automáticamente.
     - Si hay diferencia != 0, el motivo es obligatorio.
-    - Calcula la diferencia automáticamente.
-    - Una vez cerrada, no puede reabrirse.
     """
     register = await get_open_cash_register(db, business_id)
     if not register:
@@ -182,8 +205,11 @@ async def close_cash(
     summary = _calculate_summary(register)
     expected_cash = summary.expected_cash
 
+    # Usar counted_cash si se pasa, si no usar el esperado
+    counted = data.counted_cash if data.counted_cash is not None else expected_cash
+
     # Calcular diferencia
-    difference = data.counted_cash - expected_cash
+    difference = counted - expected_cash
 
     # Validar motivo si hay diferencia
     if difference != 0 and not data.difference_reason:
@@ -195,7 +221,7 @@ async def close_cash(
     register.status = CashRegisterStatus.CLOSED
     register.closed_by = current_user.id
     register.closed_at = datetime.utcnow()
-    register.counted_cash = data.counted_cash
+    register.counted_cash = counted
     register.difference = difference
     register.difference_reason = data.difference_reason
 
@@ -219,8 +245,6 @@ async def add_movement(
 ) -> CashMovementResponse:
     """
     Registra un movimiento manual (INCOME o EXPENSE) en la caja activa.
-    Reglas:
-    - Debe haber una caja abierta y no vencida.
     """
     register = await get_open_cash_register(db, business_id)
     if not register:
@@ -228,6 +252,7 @@ async def add_movement(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No hay ninguna caja abierta para registrar movimientos.",
         )
+
     if _is_expired(register):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -263,9 +288,7 @@ async def get_summary(
     business_id: UUID,
     cash_register_id: UUID,
 ) -> CashSummaryResponse:
-    """
-    Calcula el resumen de totales de una caja agrupado por método de pago.
-    """
+    """Calcula el resumen de totales de una caja agrupado por método de pago."""
     result = await db.execute(
         select(CashRegister)
         .options(selectinload(CashRegister.movements))
@@ -279,21 +302,23 @@ async def get_summary(
     )
     register = result.scalar_one_or_none()
     if not register:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Caja no encontrada.",
-        )
+        raise HTTPException(status_code=404, detail="Caja no encontrada.")
 
     return _calculate_summary(register)
 
 
 def _calculate_summary(register: CashRegister) -> CashSummaryResponse:
-    """Calcula totales por método de pago a partir de los movimientos."""
-    # Inicializar acumuladores por método
-    by_method: dict[CashPaymentMethod, PaymentMethodSummary] = {
-        method: PaymentMethodSummary(payment_method=method)
-        for method in CashPaymentMethod
-    }
+    """Calcula el resumen de totales de una caja."""
+    by_method = {}
+    for pm in CashPaymentMethod:
+        by_method[pm] = PaymentMethodSummary(
+            payment_method=pm,
+            total_sales=Decimal("0"),
+            total_payments_received=Decimal("0"),
+            total_income=Decimal("0"),
+            total_expense=Decimal("0"),
+            net=Decimal("0"),
+        )
 
     for mv in register.movements:
         summary = by_method[mv.payment_method]
@@ -306,10 +331,12 @@ def _calculate_summary(register: CashRegister) -> CashSummaryResponse:
         elif mv.type == CashMovementType.EXPENSE:
             summary.total_expense += mv.amount
 
-    # Calcular neto por método
-    for summary in by_method.values():
-        inflows = summary.total_sales + summary.total_payments_received + summary.total_income
-        summary.net = inflows - summary.total_expense
+        summary.net = (
+            summary.total_sales
+            + summary.total_payments_received
+            + summary.total_income
+            - summary.total_expense
+        )
 
     # Neto en efectivo + fondo inicial = efectivo esperado al cierre
     cash_net = by_method[CashPaymentMethod.CASH].net
@@ -333,10 +360,7 @@ async def create_automatic_movement(
     created_by: UUID,
     voucher_id: Optional[UUID] = None,
 ) -> CashMovement:
-    """
-    Crea un movimiento automático (SALE o PAYMENT_RECEIVED).
-    Usado internamente por el servicio de vouchers y de pagos.
-    """
+    """Crea un movimiento automático (SALE o PAYMENT_RECEIVED)."""
     movement = CashMovement(
         cash_register_id=cash_register.id,
         type=movement_type,
@@ -347,7 +371,6 @@ async def create_automatic_movement(
         created_by=created_by,
     )
     db.add(movement)
-    # No hace commit: el caller es responsable
     return movement
 
 
@@ -356,10 +379,7 @@ async def get_history(
     business_id: UUID,
     limit: int = 30,
 ) -> List[CashRegister]:
-    """
-    Retorna el historial de cajas cerradas del negocio,
-    ordenadas de más reciente a más antigua.
-    """
+    """Retorna el historial de cajas cerradas del negocio."""
     result = await db.execute(
         select(CashRegister)
         .where(
@@ -380,16 +400,11 @@ async def generate_closure_pdf(
     business_id: UUID,
     cash_register_id: UUID,
 ) -> bytes:
-    """
-    Genera el PDF de cierre de una caja.
-    Funciona tanto para cajas recién cerradas como para histórico.
-    """
+    """Genera el PDF de cierre de una caja."""
     from pathlib import Path
     from jinja2 import Environment, FileSystemLoader
     from weasyprint import HTML
-    from sqlalchemy import select
-    from app.models.business import Business
-    from app.models.user import User
+    from app.models.voucher import Voucher
 
     # Obtener la caja con sus movimientos
     result = await db.execute(
@@ -408,23 +423,11 @@ async def generate_closure_pdf(
         raise HTTPException(status_code=404, detail="Caja no encontrada.")
 
     # Obtener datos del negocio
-    biz_result = await db.execute(
-        select(Business).where(Business.id == business_id)
-    )
-    business = biz_result.scalar_one_or_none()
+    business = await db.get(Business, business_id)
 
-    # Obtener nombres de operadores
-    opener_result = await db.execute(
-        select(User).where(User.id == register.opened_by)
-    )
-    opener = opener_result.scalar_one_or_none()
-
-    closer = None
-    if register.closed_by:
-        closer_result = await db.execute(
-            select(User).where(User.id == register.closed_by)
-        )
-        closer = closer_result.scalar_one_or_none()
+    # Obtener operadores
+    opener = await db.get(User, register.opened_by)
+    closer = await db.get(User, register.closed_by) if register.closed_by else None
 
     # Calcular summary
     summary = _calculate_summary(register)
@@ -437,14 +440,13 @@ async def generate_closure_pdf(
         "OTHER": "Otro",
     }
     TYPE_LABELS = {
-        "SALE": "Venta",
-        "PAYMENT_RECEIVED": "Cobro cta. cte.",
-        "INCOME": "Ingreso manual",
-        "EXPENSE": "Egreso manual",
+        "SALE": "Facturación",
+        "PAYMENT_RECEIVED": "Cta. Corriente",
+        "INCOME": "Ingreso",
+        "EXPENSE": "Egreso",
     }
 
     def fmt(value) -> str:
-        """Formatea un número como moneda argentina."""
         return f"$ {float(value):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
     # Preparar datos por método
@@ -488,7 +490,22 @@ async def generate_closure_pdf(
             "is_expense": is_expense,
         })
 
-    # Fechas formateadas
+    # Obtener comprobantes únicos emitidos
+    voucher_ids = list(set(m.voucher_id for m in register.movements if m.voucher_id))
+    vouchers_data = []
+    if voucher_ids:
+        for vid in voucher_ids:
+            voucher = await db.get(Voucher, vid)
+            if voucher:
+                client = await db.get(Client, voucher.client_id)
+                vouchers_data.append({
+                    "number": voucher.full_number,
+                    "type": voucher.voucher_type.value,
+                    "client_name": client.name if client else "—",
+                    "total_fmt": fmt(voucher.total),
+                    "date": voucher.date.strftime("%d/%m/%Y"),
+                })
+
     def fmt_dt(dt) -> str:
         if not dt:
             return "—"
@@ -525,11 +542,135 @@ async def generate_closure_pdf(
         "difference_fmt": fmt(difference),
         "difference_reason": register.difference_reason or "",
         "movements": movements_data,
+        "vouchers": vouchers_data,
     }
 
-    # Renderizar con Jinja2 y WeasyPrint
+    # Renderizar
     TEMPLATE_DIR = Path(__file__).parent.parent / "templates" / "pdf"
     jinja_env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
     template = jinja_env.get_template("cash_register_closure.html")
+    html_content = template.render(**context)
+    return HTML(string=html_content).write_pdf()
+
+
+async def generate_sales_pdf(
+    db: AsyncSession,
+    business_id: UUID,
+    cash_register_id: UUID,
+) -> bytes:
+    """Genera el PDF de ventas diarias de una caja."""
+    from pathlib import Path
+    from jinja2 import Environment, FileSystemLoader
+    from weasyprint import HTML
+    from sqlalchemy import and_
+    from app.models.voucher import Voucher
+
+    # Obtener la caja
+    result = await db.execute(
+        select(CashRegister)
+        .options(selectinload(CashRegister.movements))
+        .where(
+            and_(
+                CashRegister.id == cash_register_id,
+                CashRegister.business_id == business_id,
+                CashRegister.deleted_at.is_(None),
+            )
+        )
+    )
+    register = result.scalar_one_or_none()
+    if not register:
+        raise HTTPException(status_code=404, detail="Caja no encontrada.")
+
+    business = await db.get(Business, business_id)
+    opener = await db.get(User, register.opened_by)
+    closer = await db.get(User, register.closed_by) if register.closed_by else None
+
+    # Obtener IDs de vouchers únicos
+    voucher_ids = list(set(m.voucher_id for m in register.movements if m.voucher_id))
+
+    vouchers = []
+    total_vendido = Decimal("0")
+    if voucher_ids:
+        for vid in voucher_ids:
+            voucher = await db.get(Voucher, vid)
+            if voucher:
+                vouchers.append(voucher)
+                total_vendido += voucher.total
+
+    TYPE_LABELS = {
+        "QUOTATION": "Cotización",
+        "RECEIPT": "Remito",
+        "INVOICE_A": "Factura A",
+        "INVOICE_B": "Factura B",
+        "INVOICE_C": "Factura C",
+    }
+
+    def fmt(value) -> str:
+        return f"$ {float(value):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def fmt_dt(dt) -> str:
+        if not dt:
+            return "—"
+        return dt.strftime("%d/%m/%Y %H:%M")
+
+    # Preparar datos de vouchers
+    vouchers_data = []
+    for v in vouchers:
+        client = await db.get(Client, v.client_id) if v.client_id else None
+        vouchers_data.append({
+            "number": v.full_number,
+            "type": TYPE_LABELS.get(v.voucher_type.value, v.voucher_type.value),
+            "client_name": client.name if client else "—",
+            "client_doc": client.document_number if client else "—",
+            "total_fmt": fmt(v.total),
+            "date": v.date.strftime("%d/%m/%Y"),
+            "time": v.created_at.strftime("%H:%M") if v.created_at else "—",
+        })
+
+    vouchers_data.sort(key=lambda x: (x["date"], x["time"]), reverse=True)
+
+    # Totales por tipo
+    totals_by_type = {}
+    for v in vouchers:
+        t = TYPE_LABELS.get(v.voucher_type.value, v.voucher_type.value)
+        if t not in totals_by_type:
+            totals_by_type[t] = {"count": 0, "total": Decimal("0")}
+        totals_by_type[t]["count"] += 1
+        totals_by_type[t]["total"] += v.total
+
+    totals_by_type_data = []
+    for t, data in totals_by_type.items():
+        totals_by_type_data.append({
+            "type": t,
+            "count": data["count"],
+            "total_fmt": fmt(data["total"]),
+        })
+
+    closed_date = register.closed_at.strftime("%d/%m/%Y") if register.closed_at else "—"
+
+    context = {
+        "business": {
+            "name": business.name if business else "Mi Negocio",
+            "cuit": business.cuit if business else "—",
+            "address": business.address if business else "",
+            "city": business.city if business else "",
+            "phone": business.phone if business else "",
+        },
+        "closed_date": closed_date,
+        "generated_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        "opened_at": fmt_dt(register.opened_at),
+        "closed_at": fmt_dt(register.closed_at),
+        "opener_name": opener.name if opener else "—",
+        "closer_name": closer.name if closer else "—",
+        "total_vendido_fmt": fmt(total_vendido),
+        "total_comprobantes": len(vouchers),
+        "vouchers": vouchers_data,
+        "totals_by_type": totals_by_type_data,
+    }
+
+    # Renderizar
+    TEMPLATE_DIR = Path(__file__).parent.parent / "templates" / "pdf"
+    jinja_env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
+    template = jinja_env.get_template("sales_report.html")
     html_content = template.render(**context)
     return HTML(string=html_content).write_pdf()

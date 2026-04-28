@@ -308,6 +308,10 @@ class VoucherResponse(BaseResponse):
     withdrawal_client_name: Optional[str] = None
     general_discount: Decimal
 
+    # Vendedor que emitió el comprobante
+    created_by: Optional[UUID] = None
+    created_by_name: Optional[str] = None
+
     subtotal: Decimal
     iva_amount: Decimal
     total: Decimal

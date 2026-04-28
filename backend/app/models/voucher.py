@@ -126,6 +126,7 @@ class Voucher(BaseModel):
     billing_client = relationship("Client", foreign_keys=[billing_client_id])
     operating_client = relationship("Client", foreign_keys=[operating_client_id])
     deleted_by_user = relationship("User", foreign_keys=[deleted_by])
+    created_by_user = relationship("User", foreign_keys=[created_by], lazy="selectin")
     items = relationship(
         "VoucherItem",
         back_populates="voucher",

@@ -244,6 +244,9 @@
                     <br>
                     <div class="info-line"><strong>Período Facturado Desde:</strong> {{ voucher.date }}</div>
                     <div class="info-line"><strong>Hasta:</strong> {{ voucher.date }}</div>
+                    {% if voucher.seller %}
+                    <div class="info-line"><strong>Vendedor:</strong> {{ voucher.seller }}</div>
+                    {% endif %}
                 </td>
                 <td class="header-col-right">
                     <div class="invoice-title">{{ voucher.type_name }}</div>

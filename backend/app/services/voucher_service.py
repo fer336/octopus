@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.business import Business
+from app.models.cash_register import CashMovement, CashMovementType, CashPaymentMethod
 from app.models.client import Client
 from app.models.client_authorization import ClientAuthorization
 from app.models.payment_method import PaymentMethodCatalog
@@ -190,8 +191,30 @@ class VoucherService:
         total_expected: Decimal,
         *,
         require_payments: bool = False,
+        cash_register_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
+        voucher_full_number: str = "",
     ) -> None:
-        """Valida y crea los pagos asociados a un comprobante."""
+        """Valida y crea los pagos asociados a un comprobante.
+
+        También crea los movimientos de caja automáticamente si hay caja abierta.
+        """
+
+        # Mapear códigos de PaymentMethodCatalog a CashPaymentMethod
+        CASH_METHOD_MAP = {
+            "CASH": CashPaymentMethod.CASH,
+            "DEBIT": CashPaymentMethod.CARD,
+            "CREDIT": CashPaymentMethod.CARD,
+            "TRANSFER": CashPaymentMethod.TRANSFER,
+            "CHECK": CashPaymentMethod.CHECK,
+            "MERCADOPAGO": CashPaymentMethod.OTHER,
+            "OTHER": CashPaymentMethod.OTHER,
+        }
+
+        def _map_payment_method(code: str) -> CashPaymentMethod:
+            """Mappea el código del método de pago al enum de caja."""
+            code_upper = code.upper() if code else "OTHER"
+            return CASH_METHOD_MAP.get(code_upper, CashPaymentMethod.OTHER)
 
         normalized_payments = payments or []
 
@@ -241,6 +264,21 @@ class VoucherService:
                     reference=reference,
                 )
             )
+
+            # Crear movimiento de caja automáticamente si hay caja abierta
+            if cash_register_id and user_id:
+                cash_method = _map_payment_method(payment_method.code)
+                self.db.add(
+                    CashMovement(
+                        cash_register_id=cash_register_id,
+                        type=CashMovementType.SALE,
+                        payment_method=cash_method,
+                        amount=Decimal(str(payment_data["amount"])),
+                        description=f"{voucher_full_number} - {payment_method.name}",
+                        voucher_id=voucher_id,
+                        created_by=user_id,
+                    )
+                )
 
     async def _build_items_and_totals(
         self,
@@ -420,7 +458,8 @@ class VoucherService:
         )
 
     async def create(
-        self, business_id: UUID, data: VoucherCreate, user_id: UUID
+        self, business_id: UUID, data: VoucherCreate, user_id: UUID,
+        cash_register_id: Optional[UUID] = None,
     ) -> Voucher:
         """Crea un nuevo comprobante."""
 
@@ -528,6 +567,9 @@ class VoucherService:
                 VoucherType.INVOICE_B,
                 VoucherType.INVOICE_C,
             },
+            cash_register_id=cash_register_id,
+            user_id=user_id,
+            voucher_full_number=voucher.full_number,
         )
 
         await self.db.commit()
@@ -609,10 +651,7 @@ class VoucherService:
             .options(
                 selectinload(Voucher.items),
                 selectinload(Voucher.client),
-                selectinload(Voucher.billing_client),
-                selectinload(Voucher.operating_client),
-                selectinload(Voucher.business),
-                selectinload(Voucher.credit_notes),  # Requerido por has_credit_note
+                selectinload(Voucher.created_by_user),
             )
             .where(Voucher.id == voucher_id, Voucher.business_id == business_id)
         )
@@ -649,6 +688,7 @@ class VoucherService:
                 selectinload(Voucher.billing_client),
                 selectinload(Voucher.operating_client),
                 selectinload(Voucher.credit_notes),  # Requerido por has_credit_note
+                selectinload(Voucher.created_by_user),
             )
             .where(
                 Voucher.business_id == business_id,
@@ -715,6 +755,7 @@ class VoucherService:
                 selectinload(Voucher.operating_client),
                 selectinload(Voucher.items),
                 selectinload(Voucher.credit_notes),  # Requerido por has_credit_note
+                selectinload(Voucher.created_by_user),
             )
             .where(*base_conditions)
             .order_by(desc(Voucher.created_at))
@@ -918,6 +959,9 @@ class VoucherService:
                     else "-"
                 ),
                 "qr_data": qr_data,
+                # Vendedor que emitió el comprobante
+                "seller": voucher.created_by_user.name if voucher.created_by_user else None,
+                "seller_email": voucher.created_by_user.email if voucher.created_by_user else None,
             },
             "items": [
                 {
@@ -1077,6 +1121,8 @@ class VoucherService:
                 "letter": letter,
                 "code_type": "000",
                 "type_name": type_name,
+                "sale_point": voucher.sale_point,
+                "comp_number": voucher.number,
                 "number": f"{voucher.sale_point}-{voucher.number}",
                 "date": voucher.date.strftime("%d/%m/%Y"),
                 "show_prices": voucher.show_prices == "S",
@@ -1090,6 +1136,9 @@ class VoucherService:
                 if voucher.cae_expiration
                 else None,
                 "qr_data": voucher.qr_data if hasattr(voucher, "qr_data") else None,
+                # Vendedor que emitió el comprobante
+                "seller": voucher.created_by_user.name if voucher.created_by_user else None,
+                "seller_email": voucher.created_by_user.email if voucher.created_by_user else None,
             },
             "items": [
                 {
@@ -1197,6 +1246,7 @@ class VoucherService:
                 selectinload(
                     Voucher.credit_notes
                 ),  # Requerido por has_credit_note en VoucherResponse
+                selectinload(Voucher.created_by_user),
             )
             .where(*base_conditions)
             .order_by(desc(Voucher.created_at))
@@ -1301,6 +1351,7 @@ class VoucherService:
             .options(
                 selectinload(Voucher.operating_client),
                 selectinload(Voucher.items),
+                selectinload(Voucher.created_by_user),
             )
             .where(*base_conditions)
             .order_by(Voucher.date.asc(), Voucher.created_at.asc())
@@ -1491,6 +1542,7 @@ general_discount=final_discount,
             select(Voucher)
             .options(
                 selectinload(Voucher.items),
+                selectinload(Voucher.created_by_user),
             )
             .where(
                 Voucher.business_id == business_id,
@@ -1567,6 +1619,7 @@ general_discount=final_discount,
         fiscal_client_id: Optional[UUID],
         user_id: UUID,
         price_strategy: Literal["historical", "current"] = "historical",
+        cash_register_id: Optional[UUID] = None,
     ) -> Voucher:
         """
         Convierte una cotización existente en una factura.
@@ -1585,6 +1638,7 @@ general_discount=final_discount,
             fiscal_client_id: Cliente fiscal final (opcional)
             price_strategy: Estrategia de precios ('historical' | 'current')
             user_id: ID del usuario que realiza la conversión
+            cash_register_id: ID de la caja abierta (para registrar movimientos)
 
         Returns:
             El nuevo Voucher de factura creado
@@ -1713,6 +1767,9 @@ general_discount=final_discount,
             payments=payments,
             total_expected=total_final,
             require_payments=True,
+            cash_register_id=cash_register_id,
+            user_id=user_id,
+            voucher_full_number=invoice.full_number,
         )
 
         # 10. Marcar la cotización como facturada
@@ -1732,6 +1789,7 @@ general_discount=final_discount,
         price_strategy: Literal["historical", "current"] = "historical",
         general_discount: Decimal = Decimal("0"),
         user_id: UUID = None,
+        cash_register_id: Optional[UUID] = None,
     ) -> Voucher:
         """
         Compila comprobantes (cotizaciones/remitos) en una sola factura.
@@ -1749,6 +1807,7 @@ general_discount=final_discount,
             price_strategy: Estrategia de precios ('historical' | 'current')
             general_discount: Descuento general (%) override. Si es 0, usa max de cotizaciones.
             user_id: ID del usuario que realiza la compilación
+            cash_register_id: ID de la caja abierta (para registrar movimientos)
 
         Returns:
             El nuevo Voucher de factura creado
@@ -1930,6 +1989,7 @@ general_discount=final_discount,
         reason: str,
         items_data: List[Dict[str, Any]],
         user_id: UUID,
+        cash_register_id: Optional[UUID] = None,
     ) -> Voucher:
         """
         Crea una Nota de Crédito a partir de una factura original.
@@ -1940,6 +2000,7 @@ general_discount=final_discount,
             reason: Motivo de la NC
             items_data: Lista de items a devolver
             user_id: ID del usuario que crea la NC
+            cash_register_id: ID de la caja abierta (para registrar movimientos)
 
         Returns:
             Voucher de tipo CREDIT_NOTE creado

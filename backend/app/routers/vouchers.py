@@ -45,6 +45,17 @@ from app.utils.security import (
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
+
+def serialize_voucher(voucher: Voucher) -> dict:
+    """Serializa un comprobante a dict con información del vendedor."""
+    data = VoucherResponse.model_validate(voucher).model_dump()
+    # Agregar info del vendedor
+    if voucher.created_by_user:
+        data["created_by"] = voucher.created_by_user.id
+        data["created_by_name"] = voucher.created_by_user.name or voucher.created_by_user.email
+    return data
+
+
 logger = logging.getLogger(__name__)
 
 # Tipos de comprobante que requieren caja abierta para emitirse
@@ -199,7 +210,7 @@ async def list_vouchers(
     pages = (total + per_page - 1) // per_page if per_page else 0
 
     return PaginatedResponse(
-        items=[VoucherResponse.model_validate(v) for v in vouchers],
+        items=[serialize_voucher(v) for v in vouchers],
         total=total,
         page=page,
         per_page=per_page,
@@ -232,7 +243,15 @@ async def create_voucher(
 
     service = VoucherService(db)
     try:
-        voucher = await service.create(business_id, data, current_user.id)
+        # Obtener caja abierta para registrar movimientos
+        open_register = await get_open_cash_register(db, business_id) if data.voucher_type in INVOICE_TYPES else None
+
+        voucher = await service.create(
+            business_id,
+            data,
+            current_user.id,
+            cash_register_id=open_register.id if open_register else None,
+        )
 
         await _log_audit(
             db=db,
@@ -247,7 +266,7 @@ async def create_voucher(
             },
         )
 
-        return VoucherResponse.model_validate(voucher)
+        return serialize_voucher(voucher)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -342,7 +361,7 @@ async def update_voucher(
             },
         )
 
-        return VoucherResponse.model_validate(voucher)
+        return serialize_voucher(voucher)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -374,7 +393,7 @@ async def get_voucher_by_code(
             detail=f"La cotización ya fue convertida a factura",
         )
 
-    return VoucherResponse.model_validate(voucher)
+    return serialize_voucher(voucher)
 
 
 @router.get("/by-code/{code}/check-prices")
@@ -564,7 +583,7 @@ async def list_pending_quotations(
     pages = (total + per_page - 1) // per_page if per_page else 0
 
     return PaginatedResponse(
-        items=[VoucherResponse.model_validate(v) for v in vouchers],
+        items=[serialize_voucher(v) for v in vouchers],
         total=total,
         page=page,
         per_page=per_page,
@@ -610,7 +629,7 @@ async def close_current_account(
             },
         )
 
-        return VoucherResponse.model_validate(closure_voucher)
+        return serialize_voucher(closure_voucher)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -771,7 +790,7 @@ async def list_current_account_receipts(
 
     pages = (total + per_page - 1) // per_page if per_page else 0
     return PaginatedResponse(
-        items=[VoucherResponse.model_validate(v) for v in vouchers],
+        items=[serialize_voucher(v) for v in vouchers],
         total=total,
         page=page,
         per_page=per_page,
@@ -833,6 +852,9 @@ async def convert_quotation_to_invoice(
         if data.payments:
             payments_raw = [p.model_dump() for p in data.payments]
 
+        # Obtener caja abierta para registrar movimientos
+        open_register = await get_open_cash_register(db, business_id)
+
         invoice = await service.convert_quotation_to_invoice(
             business_id=business_id,
             quotation_id=quotation_id,
@@ -840,6 +862,7 @@ async def convert_quotation_to_invoice(
             fiscal_client_id=data.fiscal_client_id,
             user_id=current_user.id,
             price_strategy=data.price_strategy,
+            cash_register_id=open_register.id if open_register else None,
         )
 
         await _log_audit(
@@ -859,7 +882,7 @@ async def convert_quotation_to_invoice(
             },
         )
 
-        return VoucherResponse.model_validate(invoice)
+        return serialize_voucher(invoice)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -1044,6 +1067,9 @@ async def compile_quotations_to_invoice(
         if data.payments:
             payments_raw = [p.model_dump() for p in data.payments]
 
+        # Obtener caja abierta para registrar movimientos
+        open_register = await get_open_cash_register(db, business_id)
+
         invoice = await service.compile_quotations_to_invoice(
             business_id=business_id,
             quotation_ids=data.quotation_ids,
@@ -1052,6 +1078,7 @@ async def compile_quotations_to_invoice(
             price_strategy=data.price_strategy,
             general_discount=data.general_discount,
             user_id=current_user.id,
+            cash_register_id=open_register.id if open_register else None,
         )
 
         await _log_audit(
@@ -1071,7 +1098,7 @@ async def compile_quotations_to_invoice(
             },
         )
 
-        return VoucherResponse.model_validate(invoice)
+        return serialize_voucher(invoice)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -1142,6 +1169,7 @@ async def create_credit_note(
             reason=data.reason,
             items_data=items_data,
             user_id=current_user.id,
+            cash_register_id=open_register.id if open_register else None,
         )
 
         # 2. Obtener business y cliente para emitir en AFIP

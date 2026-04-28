@@ -71,3 +71,13 @@ export async function openClosurePdf(cashRegisterId: string): Promise<void> {
   // Limpiamos después de un momento para darle tiempo al navegador de cargar el blob
   setTimeout(() => window.URL.revokeObjectURL(url), 10_000)
 }
+
+/** Abre el PDF de ventas del día en una pestaña nueva del navegador. */
+export async function openSalesPdf(cashRegisterId: string): Promise<void> {
+  const response = await httpClient.get(`/cash/${cashRegisterId}/sales-pdf`, {
+    responseType: 'blob',
+  })
+  const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
+  window.open(url, '_blank')
+  setTimeout(() => window.URL.revokeObjectURL(url), 10_000)
+}

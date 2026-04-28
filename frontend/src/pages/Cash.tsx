@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAddMovement, useCloseCash, useCurrentCash, useOpenCash, useCashSummary, useCashHistory } from '../hooks/useCash'
-import { openClosurePdf } from '../api/cashService'
+import { openClosurePdf, openSalesPdf } from '../api/cashService'
 import type {
   CashMovement,
   CashPaymentMethod,
@@ -457,6 +457,17 @@ function CashHistory() {
     }
   }
 
+  const handleOpenSales = async (id: string) => {
+    setLoading(id)
+    try {
+      await openSalesPdf(id)
+    } catch {
+      toast.error('Error al generar el PDF de ventas')
+    } finally {
+      setLoading(null)
+    }
+  }
+
   if (isLoading) return null
   if (!history || history.length === 0) return null
 
@@ -474,7 +485,7 @@ function CashHistory() {
               <th className="py-2.5">Fecha cierre</th>
               <th className="py-2.5 text-right">Fondo inicial</th>
               <th className="py-2.5 text-right">Diferencia</th>
-              <th className="py-2.5 pr-4 text-right">PDF</th>
+              <th className="py-2.5 text-right">PDF</th>
             </tr>
           </thead>
           <tbody>
@@ -496,16 +507,27 @@ function CashHistory() {
                     {hasDiff ? (diff > 0 ? '+' : '') + formatCurrency(diff) : '✓ Cuadra'}
                   </td>
                   <td className="py-2.5 pr-4 text-right">
-                    <button
-                      onClick={() => handleOpen(r.id)}
-                      disabled={loading === r.id}
-                      title="Ver PDF"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700 hover:bg-primary-100 disabled:opacity-60 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-400"
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                      {loading === r.id ? 'Generando...' : 'Ver PDF'}
-                    </button>
-                  </td>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleOpen(r.id)}
+                          disabled={loading === r.id}
+                          title="Ver PDF"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700 hover:bg-primary-100 disabled:opacity-60 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-400"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          {loading === r.id ? 'Generando...' : 'Cierre'}
+                        </button>
+                        <button
+                          onClick={() => handleOpenSales(r.id)}
+                          disabled={loading === r.id}
+                          title="Ver PDF de Ventas"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 disabled:opacity-60 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Ventas
+                        </button>
+                      </div>
+                    </td>
                 </tr>
               )
             })}

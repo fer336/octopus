@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Ventas del Día — {{ closed_date }}</title>
+  <style type="text/css">
+    @page {
+      size: A4;
+      margin: 15mm 15mm 15mm 15mm;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Courier New", Courier, monospace;
+      font-size: 11px;
+      color: #000;
+      background: #fff;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────── */
+    .header {
+      border-bottom: 2px solid #000;
+      padding-bottom: 8px;
+      margin-bottom: 15px;
+    }
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .header-table td {
+      vertical-align: top;
+      padding: 0;
+    }
+    .business-name {
+      font-size: 16px;
+      font-weight: bold;
+      color: #000;
+      text-transform: uppercase;
+    }
+    .business-info {
+      font-size: 10px;
+      color: #000;
+      margin-top: 2px;
+      line-height: 1.5;
+    }
+    .report-title {
+      font-size: 15px;
+      font-weight: bold;
+      color: #000;
+      text-align: right;
+      text-transform: uppercase;
+    }
+    .report-subtitle {
+      font-size: 10px;
+      color: #000;
+      text-align: right;
+      margin-top: 2px;
+    }
+
+    /* ─── Totales ─────────────────────────────────────────────── */
+    .totals-box {
+      border: 2px solid #000;
+      padding: 12px 15px;
+      margin-bottom: 15px;
+      background: #f5f5f5;
+    }
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+      font-size: 14px;
+    }
+    .totals-row.main {
+      font-size: 18px;
+      font-weight: bold;
+      border-top: 1px solid #000;
+      padding-top: 8px;
+      margin-top: 5px;
+    }
+    .totals-value {
+      font-family: "Courier New", Courier, monospace;
+    }
+
+    /* ─── Sección título ────────────────────────────────────── */
+    .section-title {
+      font-size: 11px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #000;
+      border-bottom: 1px solid #000;
+      padding-bottom: 4px;
+      margin-bottom: 8px;
+      margin-top: 15px;
+    }
+
+    /* ─── Tabla de comprobantes ─────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10px;
+    }
+    thead tr {
+      background-color: #000;
+      color: #fff;
+    }
+    thead th {
+      padding: 6px 8px;
+      text-align: left;
+      font-weight: bold;
+      font-size: 9px;
+      text-transform: uppercase;
+    }
+    thead th.right { text-align: right; }
+    tbody tr { border-bottom: 1px solid #ccc; }
+    tbody td {
+      padding: 5px 8px;
+      color: #000;
+    }
+    tbody td.right {
+      text-align: right;
+      font-family: "Courier New", Courier, monospace;
+    }
+    tfoot tr {
+      background-color: #f5f5f5;
+      color: #000;
+    }
+    tfoot td {
+      padding: 6px 8px;
+      font-weight: bold;
+      font-size: 11px;
+      border: 1px solid #000;
+    }
+    tfoot td.right {
+      text-align: right;
+      font-family: "Courier New", Courier, monospace;
+    }
+
+    /* ─── Totales por tipo ───────────────────────────── */
+    .type-summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .type-card {
+      border: 1px solid #000;
+      padding: 8px 10px;
+    }
+    .type-card-title {
+      font-size: 9px;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: #000;
+      margin-bottom: 3px;
+    }
+    .type-card-value {
+      font-size: 14px;
+      font-weight: bold;
+      color: #000;
+    }
+    .type-card-count {
+      font-size: 10px;
+      color: #000;
+    }
+
+    /* ─── Footer ───────────────────────────────────────── */
+    .footer {
+      margin-top: 20px;
+      border-top: 1px solid #000;
+      padding-top: 6px;
+    }
+    .footer-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .footer-table td {
+      font-size: 9px;
+      color: #000;
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <table class="header-table">
+      <tr>
+        <td style="width: 55%;">
+          <div class="business-name">{{ business.name }}</div>
+          <div class="business-info">
+            CUIT: {{ business.cuit }}<br>
+            {% if business.address %}{{ business.address }}{% if business.city %}, {{ business.city }}{% endif %}<br>{% endif %}
+            {% if business.phone %}Tel: {{ business.phone }}{% endif %}
+          </div>
+        </td>
+        <td style="width: 45%;">
+          <div class="report-title">Ventas del Día</div>
+          <div class="report-subtitle">{{ closed_date }}</div>
+          <div class="report-subtitle">Generado: {{ generated_at }}</div>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Totales generales -->
+  <div class="totals-box">
+    <div class="totals-row">
+      <span>Comprobantes emitidos</span>
+      <span class="totals-value">{{ total_comprobantes }}</span>
+    </div>
+    <div class="totals-row main">
+      <span>Total Vendido</span>
+      <span class="totals-value">{{ total_vendido_fmt }}</span>
+    </div>
+  </div>
+
+  <!-- Totales por tipo de comprobante -->
+  {% if totals_by_type %}
+  <div class="section-title">Totales por Tipo</div>
+  <div class="type-summary">
+    {% for t in totals_by_type %}
+    <div class="type-card">
+      <div class="type-card-title">{{ t.type }}</div>
+      <div class="type-card-value">{{ t.total_fmt }}</div>
+      <div class="type-card-count">{{ t.count }} comprobante(s)</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Lista de comprobantes -->
+  {% if vouchers %}
+  <div class="section-title">Detalle de Comprobantes</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Hora</th>
+        <th>Comprobante</th>
+        <th>Tipo</th>
+        <th>Cliente</th>
+        <th>Documento</th>
+        <th class="right">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in vouchers %}
+      <tr>
+        <td>{{ v.date }}</td>
+        <td>{{ v.time }}</td>
+        <td>{{ v.number }}</td>
+        <td>{{ v.type }}</td>
+        <td>{{ v.client_name }}</td>
+        <td>{{ v.client_doc }}</td>
+        <td class="right">{{ v.total_fmt }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="6">TOTAL</td>
+        <td class="right">{{ total_vendido_fmt }}</td>
+      </tr>
+    </tfoot>
+  </table>
+  {% endif %}
+
+  <!-- Footer -->
+  <div class="footer">
+    <table class="footer-table">
+      <tr>
+        <td>{{ business.name }} — Sistema OctopusTrack</td>
+        <td style="text-align: right;">Reporte generado el {{ generated_at }}</td>
+      </tr>
+    </table>
+  </div>
+
+</body>
+</html>

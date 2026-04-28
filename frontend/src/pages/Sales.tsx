@@ -2061,9 +2061,9 @@ export default function Sales() {
   const isPaymentBalanced = shouldShowPaymentDifference ? Math.abs(Number(total.toFixed(2)) - Number(assignedPaymentsTotal.toFixed(2))) <= 0.01 : true
 
   return (
-    <div className="-mt-4 space-y-2.5" data-tour-sales-root data-tour-sales-mode={voucherType}>
+    <div className="-m-6 h-[calc(100%+3rem)] max-h-[calc(100%+3rem)] overflow-hidden flex flex-col p-2" data-tour-sales-root data-tour-sales-mode={voucherType}>
       {/* Header compacto */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-2.5 shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="flex-shrink-0 bg-white dark:bg-gray-800 rounded-lg p-2 shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowClientModal(true)} title="Nuevo cliente" className="px-2 py-1" data-tour-sales-new-client>
               <Plus size={18} />
@@ -2313,11 +2313,11 @@ export default function Sales() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_288px] gap-3">
-        {/* Panel principal - Tablas */}
-        <div className="space-y-3 min-w-0">
+      <div className="flex-1 min-h-0 w-full flex gap-2 overflow-hidden pt-2">
+        {/* Panel izquierdo - Tablas */}
+        <div className="flex-1 w-full min-w-0 min-h-0 h-full flex flex-col gap-2 overflow-hidden">
           {/* TABLA SUPERIOR - Carrito */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700" data-tour-sales-cart-table>
+          <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-hidden" data-tour-sales-cart-table>
             <div className="p-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
@@ -2344,7 +2344,7 @@ export default function Sales() {
                 </div>
               </div>
             </div>
-            <div className="overflow-x-auto max-h-[35vh] overflow-y-auto">
+            <div className="w-full overflow-x-auto max-h-[192px] overflow-y-auto">
               <table className="w-full transition-all duration-200" style={{ fontSize: `${0.875 * zoomLevel}rem` }}>
                 <thead className="bg-gray-100 dark:bg-gray-900 sticky top-0">
                   <tr>
@@ -2416,7 +2416,7 @@ export default function Sales() {
           </div>
 
           {/* TABLA INFERIOR - Búsqueda */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 flex-1 min-h-0 flex flex-col overflow-hidden">
             <div className="p-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <Search size={14} className="text-gray-400" />
@@ -2464,7 +2464,7 @@ export default function Sales() {
                 </div>
               </div>
             )}
-            <div ref={productListRef} className="overflow-x-auto max-h-[30vh] overflow-y-auto">
+            <div ref={productListRef} className="overflow-auto flex-1 min-h-0">
               <table className="w-full text-sm">
                 <thead className="bg-gray-100 dark:bg-gray-900 sticky top-0">
                   <tr>
@@ -2529,33 +2529,13 @@ export default function Sales() {
         </div>
 
         {/* Panel lateral - Resumen */}
-        <div className="w-full self-stretch">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-200 dark:border-gray-700 h-full flex flex-col">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+        <div className="w-72 flex-shrink-0 h-full min-h-0 overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-200 dark:border-gray-700 h-full max-h-full flex flex-col overflow-hidden">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex-shrink-0">
               Resumen
             </h3>
 
-            {/* Input de descuento general */}
-            <div className="mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
-                Descuento General
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  value={generalDiscount}
-                  onChange={(e) => setGeneralDiscount(parseFloat(e.target.value) || 0)}
-                  className="flex-1 px-3 py-2 text-sm text-right border rounded-lg dark:bg-gray-700 dark:border-gray-600 font-medium"
-                  min={0}
-                  max={100}
-                  step={0.1}
-                  placeholder="0"
-                />
-                <span className="text-sm font-medium text-gray-500">%</span>
-              </div>
-            </div>
-
-            <div className="space-y-2 mb-4 text-xs">
+            <div className="space-y-2 text-xs flex-shrink-0">
               {generalDiscount > 0 && (
                 <div className="flex justify-between text-sm text-red-600 dark:text-red-400">
                   <span>Descuento ({generalDiscount}%)</span>
@@ -2576,6 +2556,26 @@ export default function Sales() {
               <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white pt-2 border-t-2 border-gray-300 dark:border-gray-600">
                 <span>TOTAL</span>
                 <span>${formatNumber(total)}</span>
+              </div>
+            </div>
+
+            {/* Input de descuento general */}
+            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                Descuento General
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={generalDiscount}
+                  onChange={(e) => setGeneralDiscount(parseFloat(e.target.value) || 0)}
+                  className="flex-1 px-3 py-2 text-sm text-right border rounded-lg dark:bg-gray-700 dark:border-gray-600 font-medium"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  placeholder="0"
+                />
+                <span className="text-sm font-medium text-gray-500">%</span>
               </div>
             </div>
 
@@ -3182,6 +3182,26 @@ export default function Sales() {
                     <span className="font-bold text-xl text-primary-600 dark:text-primary-400">
                       ${formatNumber(total, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
+                  </div>
+                </div>
+
+                {/* Descuento General - después del TOTAL */}
+                <div className="pt-3 border-t border-primary-200 dark:border-primary-700">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                    Descuento General
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={generalDiscount}
+                      onChange={(e) => setGeneralDiscount(parseFloat(e.target.value) || 0)}
+                      className="flex-1 px-3 py-2 text-sm text-right border rounded-lg dark:bg-gray-700 dark:border-gray-600 font-medium"
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      placeholder="0"
+                    />
+                    <span className="text-sm font-medium text-gray-500">%</span>
                   </div>
                 </div>
               </div>

@@ -45,7 +45,10 @@ async def get_current_cash(
     Si no hay caja abierta, retorna null.
     El campo `is_expired` indica si lleva más de 24hs abierta.
     """
-    return await service.get_current(db, business_id)
+    result = await service.get_status(db, business_id)
+    if result is None:
+        return None
+    return result["register"]
 
 
 @router.post(
@@ -215,5 +218,25 @@ async def get_closure_pdf(
         media_type="application/pdf",
         headers={
             "Content-Disposition": f'attachment; filename="cierre_caja_{cash_register_id}.pdf"'
+        },
+    )
+
+
+@router.get("/{cash_register_id}/sales-pdf")
+async def get_sales_pdf(
+    cash_register_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """
+    Genera y descarga el PDF de ventas del día.
+    Incluye detalle de todos los comprobantes emitidos.
+    """
+    pdf_bytes = await service.generate_sales_pdf(db, business_id, cash_register_id)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="ventas_dia_{cash_register_id}.pdf"'
         },
     )

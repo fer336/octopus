@@ -23,10 +23,12 @@ class CashOpenRequest(BaseModel):
 
 
 class CashCloseRequest(BaseModel):
-    """Cuerpo para cerrar la caja."""
-    counted_cash: Decimal = Field(
+    """Cierre automático de caja (sin contar efectivo manualmente)."""
+    # counted_cash es opcional: si no se pasa, usa el efectivo esperado
+    counted_cash: Optional[Decimal] = Field(
+        default=None,
         ge=0,
-        description="Efectivo físico contado al cierre",
+        description="Efectivo físico contado. Si no se pasa, se usa el esperado automáticamente",
     )
     difference_reason: Optional[str] = Field(
         default=None,

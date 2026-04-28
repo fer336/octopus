@@ -31,6 +31,10 @@
 
 ## 🟢 Hecho
 
+- [x] [SALES-LAYOUT-02] Ventas: expandir área izquierda al ancho/alto disponible y reducir espacios sobrantes ✅ 2026-04-28
+
+- [x] [SALES-LAYOUT-01] Ventas: contener pantalla en viewport sin scroll de página, con scroll interno en tablas y resumen fijo ✅ 2026-04-28
+
 - [x] [ARCA-CLEAN-02] Remover referencias activas restantes a proveedor legado de facturación en CMS/API/docs fuente ✅ 2026-04-28
 
 - [x] [CMS-TENANT-USER-05] CMS Tenant Detail: permitir quitar/desasignar usuarios de un comercio y evaluar eliminación segura ✅ 2026-04-28
