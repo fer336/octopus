@@ -33,6 +33,14 @@
 
 ## 🟢 Hecho
 
+- [x] [MKT-CARD-LABEL-02] Landing: aumentar tamaño de "OctopusTool" en card slider (+5/+6px) ✅ 2026-04-28
+
+- [x] [MKT-CARD-LABEL-01] Landing: agregar texto centrado "OctopusTool" dentro del card del slider ✅ 2026-04-28
+
+- [x] [MKT-COPY-EMPHASIS-02] Landing: aumentar 2px extra y pasar "OctopusTrack" a blanco ✅ 2026-04-28
+
+- [x] [MKT-COPY-EMPHASIS-01] Landing: destacar "OctopusTrack" en copy de migración (+2px y negrita) ✅ 2026-04-28
+
 - [x] [MKT-LOGO-SIZE-01] Landing/UI: aumentar apenas tamaño del logo tentáculo animado ✅ 2026-04-28
 
 - [x] [MKT-LOGO-MOTION-04] Landing/UI: dejar logo solo flotante, sin enrosque/desenrosque ✅ 2026-04-28
