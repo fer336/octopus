@@ -394,7 +394,7 @@ function ExcelOffer({
         {/* Image side with carousel */}
         <article className="group relative flex flex-col justify-center rounded-3xl border border-white/10 bg-white/5 p-2 shadow-2xl shadow-black/50">
           <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary-500/10 to-violet-500/10 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-          <div className="pointer-events-none absolute left-1/2 top-8 z-10 -translate-x-1/2 rounded-full border border-white/15 bg-black/35 px-4 py-1 text-center text-[20px] font-bold tracking-wide text-white/95 backdrop-blur-sm">
+          <div className="pointer-events-none absolute left-1/2 top-8 z-10 hidden -translate-x-1/2 rounded-full border border-white/15 bg-black/35 px-4 py-1 text-center text-[20px] font-bold tracking-wide text-white/95 backdrop-blur-sm sm:block">
             OctopusTool
           </div>
           

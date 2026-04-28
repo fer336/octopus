@@ -1,6 +1,11 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
+- [ ] [SEO-TECH-05] Habilitar compresión Brotli/Gzip en Nginx para HTML/CSS/JS (actualmente respuestas sin `content-encoding`)
+- [ ] [SEO-TECH-06] Reducir peso de branding images (`favicon.ico` y `logo-tenculo-final.png` ~320KB) y generar variantes optimizadas
+- [ ] [SEO-ONPAGE-07] Ajustar Schema.org: revisar `AggregateRating` (evitar rich snippets inválidos si no hay evidencia pública verificable)
+- [ ] [SEO-ONPAGE-08] Definir estrategia de indexación para `/acceder` (noindex/follow o canonical específico) para evitar canibalización con landing principal
+- [ ] [SEO-CONTENT-09] Crear 3 landings SEO por intención (`cotizador ferretería`, `cotizador sanitarios`, `software corralón`) con títulos/H1/meta específicos
 - [ ] [MKT-LANDING-MOTION-01] Landing/UI: incorporar animaciones de entrada, scroll reveal, hover interactivo y transición en /acceder
 - [x] [SEO-SITEMAP-01] Landing: crear sitemap.xml para octopustrack.shop con URLs canonicales y priority correctos ✅ 2026-04-27
 - [x] [SEO-SITEMAP-02] Landing: actualizar robots.txt para referenciar sitemap.xml ✅ 2026-04-27
@@ -32,6 +37,19 @@
 
 
 ## 🟢 Hecho
+
+- [x] [SEO-INDEX-13] SEO: excluir rutas de acceso (`/acceder`, `admin`, `tenant`) de indexación y actualizar `sitemap.xml`/`robots.txt` para reindexado limpio ✅ 2026-04-28
+
+- [x] [SEO-ARCH-12] Definir mapa SEO de indexación (rutas indexables/noindex/canonical) para separar adquisición vs acceso ✅ 2026-04-28
+
+- [x] [SEO-ASSETS-11] Actualizar referencias en `landing.html`, `index.html`, `admin.html`, `tenant.html`, `manifest.json` y componentes React a nuevas rutas en `/images/*` ✅ 2026-04-28
+- [x] [SEO-ASSETS-10] 🐛 Estructura nueva de imágenes normalizada (`images/og` + `logo-header@2x.png`) y referenciada correctamente ✅ 2026-04-28
+
+- [x] [SEO-ASSETS-12] Verificar estructura final de imágenes SEO (`favicon`, `logos`, `og`) y detectar referencias legacy activas ✅ 2026-04-28
+
+- [x] [SEO-AUDIT-04] Ejecutar auditoría SEO completa de octopustrack.shop (indexación, on-page, técnico, contenido y quick wins) ✅ 2026-04-28
+
+- [x] [SKILL-SEO-01] Instalar skill `mysticaltech/marketingskills` para habilitar auditoría SEO ✅ 2026-04-28
 
 - [x] [MKT-CARD-LABEL-02] Landing: aumentar tamaño de "OctopusTool" en card slider (+5/+6px) ✅ 2026-04-28
 

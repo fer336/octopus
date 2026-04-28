@@ -67,7 +67,7 @@ export default function Login() {
         <div className="text-center mb-3">
           <div className="flex justify-center">
             <img
-              src="/logo-tenculo-final.png"
+              src="/images/logos/logo-header@2x.png"
               alt="Octopus Track"
               className="h-[83px] w-auto object-contain"
             />

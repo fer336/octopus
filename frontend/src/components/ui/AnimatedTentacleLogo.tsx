@@ -18,7 +18,7 @@ export default function AnimatedTentacleLogo({ className = 'h-12 w-auto', alt = 
   useEffect(() => {
     let mounted = true
 
-    fetch('/logo-tenculo-final.svg')
+    fetch('/images/logos/logo-header.svg')
       .then((response) => response.text())
       .then((text) => {
         if (mounted) setSvgMarkup(text)
@@ -63,7 +63,7 @@ export default function AnimatedTentacleLogo({ className = 'h-12 w-auto', alt = 
   }, [svgMarkup])
 
   if (!svgMarkup) {
-    return <img src="/logo-tenculo-final.png" alt={alt} className={className} />
+    return <img src="/images/logos/logo-header@2x.png" alt={alt} className={className} />
   }
 
   return (
