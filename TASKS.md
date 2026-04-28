@@ -38,6 +38,10 @@
 
 ## 🟢 Hecho
 
+- [x] [MKT-OG-WHATSAPP-01] Ajustar preview de compartido (OG/Twitter) para mostrar solo "OctopusTrack-ERP -- Sistema Integral" ✅ 2026-04-28
+
+- [x] [MKT-ANCHOR-VER-SISTEMA-01] Landing: bajar un poco más el anclaje del botón "Ver sistema completo" para alinear inicio visual de sección ✅ 2026-04-28
+
 - [x] [SEO-INDEX-13] SEO: excluir rutas de acceso (`/acceder`, `admin`, `tenant`) de indexación y actualizar `sitemap.xml`/`robots.txt` para reindexado limpio ✅ 2026-04-28
 
 - [x] [SEO-ARCH-12] Definir mapa SEO de indexación (rutas indexables/noindex/canonical) para separar adquisición vs acceso ✅ 2026-04-28

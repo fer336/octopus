@@ -323,7 +323,7 @@ function Hero() {
               <ArrowRight className="h-4 w-4" />
             </Button>
           </a>
-          <a href="#caracteristicas" onClick={(event) => scrollToId('caracteristicas', event, 100, 92)}>
+          <a href="#caracteristicas" onClick={(event) => scrollToId('caracteristicas', event, 72, 64)}>
             <Button
               size="lg"
               variant="outline"
