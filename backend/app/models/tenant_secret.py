@@ -1,6 +1,6 @@
 """
 Modelo de secretos cifrados por tenant.
-Los datos sensibles (ARCA, AFIP, MrBot) se almacenan cifrados aquí
+Los datos sensibles de ARCA/AFIP se almacenan cifrados aquí
 en lugar de en la tabla businesses.
 """
 
@@ -30,8 +30,7 @@ class TenantSecret(BaseModel):
 
     secret_type = Column(String(100), nullable=False, index=True)
     # Valores: "arca_token", "arca_sign", "arca_email", "arca_cuit_representante",
-    #          "arca_environment", "mrbot_email", "mrbot_api_key",
-    #          "afipsdk_access_token", "afip_cert", "afip_key"
+    #          "arca_environment", "afipsdk_access_token", "afip_cert", "afip_key"
 
     encrypted_value = Column(Text, nullable=True)
     # Valor cifrado con Fernet. Puede ser None si solo es metadata.

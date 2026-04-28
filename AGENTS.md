@@ -242,19 +242,18 @@ weasyprint o reportlab, jinja2, qrcode, python-barcode, matplotlib (gráficos)
 
 ---
 
-### 🧾 AGENTE 4: Especialista en Facturación Electrónica (MrBot API + ARCA/AFIP)
+### 🧾 AGENTE 4: Especialista en Facturación Electrónica (ARCA/AFIP)
 
-**Rol:** Integra el sistema con MrBot API para emitir comprobantes electrónicos conectándose directamente con los Web Services de ARCA/AFIP.
+**Rol:** Integra el sistema con ARCA/AFIP para emitir comprobantes electrónicos usando AFIP SDK y/o Web Services oficiales.
 
-**Stack:** REST API de MrBot, pyafipws (WSAA), httpx/requests, cryptography
+**Stack:** AFIP SDK, pyafipws (WSAA), httpx/requests, cryptography
 
 **Responsabilidades:**
-- Implementar cliente HTTP para MrBot API (https://api-facturacion-electronica.mrbot.com.ar)
 - Implementar servicio WSAA para obtención de Token y Sign de ARCA/AFIP
 - Gestionar certificados digitales (.crt, .key) de forma segura
 - Renovar automáticamente Token y Sign cada 12 horas
 - Implementar emisión de Factura A, B, C según condición fiscal
-- Construir el JSON de facturación según la estructura requerida por MrBot/ARCA
+- Construir el payload de facturación según la estructura requerida por ARCA/AFIP
 - Parsear la respuesta y almacenar CAE, número de comprobante, fecha de vencimiento CAE
 - Consultar comprobantes existentes
 - Obtener el último número de comprobante emitido
@@ -265,11 +264,10 @@ weasyprint o reportlab, jinja2, qrcode, python-barcode, matplotlib (gráficos)
 
 **Reglas específicas:**
 - Los certificados (.crt, .key) NUNCA se commitean al repositorio; se almacenan en rutas seguras configuradas en `.env`
-- Las credenciales de MrBot (email, api_key) se leen de `.env`
 - El Token y Sign de WSAA deben renovarse automáticamente cada 12 horas
 - Implementar caché del Token/Sign en memoria o base de datos con timestamp de expiración
 - Siempre validar los datos del comprobante antes de enviarlo
-- Almacenar el response completo de MrBot/ARCA en la base de datos (CAE, fecha vencimiento, errores, eventos)
+- Almacenar el response completo de ARCA/AFIP en la base de datos (CAE, fecha vencimiento, errores, eventos)
 - Implementar reintentos con backoff exponencial para fallas de conexión (timeout, 500, etc)
 - Logs detallados de cada transacción: request JSON enviado, response recibido, errores
 - Para testing usar certificados autofirmados; para producción usar certificados oficiales de ARCA
@@ -279,26 +277,14 @@ weasyprint o reportlab, jinja2, qrcode, python-barcode, matplotlib (gráficos)
 
 **Archivos clave:**
 ```
-backend/app/services/mrbot_service.py
 backend/app/services/wsaa_service.py
 backend/app/utils/arca_helpers.py
-backend/app/schemas/mrbot_schemas.py
 backend/app/certs/              # Directorio para certificados (en .gitignore)
 ```
 
 **Dependencias principales:**
 ```
 httpx, pydantic, tenacity (reintentos), pyafipws (WSAA), cryptography, lxml, zeep (SOAP)
-```
-
-**Endpoints de MrBot API a utilizar:**
-```
-POST /api/v1/usuarios/                         - Crear usuario (registro gratuito)
-GET  /api/v1/check_user/                       - Verificar usuario
-POST /api/v1/factura/                          - Solicitar factura electrónica
-POST /api/v1/consulta_comprobante/             - Consultar comprobante
-POST /api/v1/obtener_nro_ultimo_comprobante/   - Obtener último número
-POST /api/v1/logs/                             - Recuperar logs
 ```
 
 **Estructura JSON base para Factura B:**

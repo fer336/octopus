@@ -1188,7 +1188,7 @@ GET    /purchase-orders/{id}/pdf       — Descargar PDF de la orden de pedido
 - Modo claro/oscuro
 
 ### Fase 2 — Facturación y Cuentas
-- Integración con MrBot API para facturación electrónica (ARCA/AFIP)
+- Integración directa con ARCA/AFIP para facturación electrónica mediante AFIP SDK/WSAA
 - Implementación de WSAA para obtención de Token y Sign
 - Cuentas corrientes de clientes
 - Importación masiva de productos desde Excel

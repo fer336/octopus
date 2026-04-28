@@ -21,8 +21,6 @@ interface FormData {
   arca_sign: string
   arca_email: string
   arca_cuit_representante: string
-  mrbot_email: string
-  mrbot_api_key: string
 }
 
 const initialFormData: FormData = {
@@ -34,8 +32,6 @@ const initialFormData: FormData = {
   arca_sign: '',
   arca_email: '',
   arca_cuit_representante: '',
-  mrbot_email: '',
-  mrbot_api_key: '',
 }
 
 // ============================================================================
@@ -464,29 +460,6 @@ export default function ArcaManagement() {
               field="arca_cuit_representante"
               value={form.arca_cuit_representante}
               status={secrets.arca_cuit_representante}
-              onChange={handleChange}
-            />
-          </div>
-        </div>
-
-        {/* MrBot section */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Credenciales MrBot
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <SecretField
-              label="Email MrBot"
-              field="mrbot_email"
-              value={form.mrbot_email}
-              status={secrets.mrbot_email}
-              onChange={handleChange}
-            />
-            <SecretField
-              label="API Key MrBot"
-              field="mrbot_api_key"
-              value={form.mrbot_api_key}
-              status={secrets.mrbot_api_key}
               onChange={handleChange}
             />
           </div>

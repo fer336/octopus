@@ -15,6 +15,12 @@ export interface Tenant {
   tax_condition: string
   owner_email: string
   created_at: string
+  can_delete?: boolean
+  subscription_status?: 'active' | 'suspended' | 'expired'
+  subscription_starts_at?: string | null
+  subscription_ends_at?: string | null
+  subscription_days_remaining?: number | null
+  subscription_blocked_reason?: string | null
 }
 
 export interface TenantListResponse {
@@ -23,6 +29,34 @@ export interface TenantListResponse {
   page: number
   per_page: number
   total_pages: number
+}
+
+export interface CreateTenantPayload {
+  name: string
+  cuit: string
+  tax_condition?: string
+  owner_email?: string
+  address?: string
+  city?: string
+  province?: string
+  postal_code?: string
+  phone?: string
+  email?: string
+}
+
+export interface DeleteTenantResponse {
+  tenant_id: string
+  deleted: boolean
+  message: string
+}
+
+export interface RenewTenantSubscriptionPayload {
+  days?: number
+}
+
+export interface UpdateTenantSubscriptionAccessPayload {
+  subscription_status: 'active' | 'suspended'
+  blocked_reason?: string
 }
 
 export interface SecretStatus {
@@ -42,8 +76,6 @@ export interface ArcaSecretsUpdate {
   arca_email?: string
   arca_cuit_representante?: string
   arca_environment?: string
-  mrbot_email?: string
-  mrbot_api_key?: string
   afipsdk_access_token?: string
   afip_cert?: string
   afip_key?: string
@@ -231,6 +263,32 @@ const adminAPI = {
     return response.data
   },
 
+  async createTenant(data: CreateTenantPayload): Promise<Tenant> {
+    const response = await adminHttpClient.post(`/tenants`, data)
+    return response.data
+  },
+
+  async deleteTenant(businessId: string): Promise<DeleteTenantResponse> {
+    const response = await adminHttpClient.delete(`/tenants/${businessId}`)
+    return response.data
+  },
+
+  async renewTenantSubscription(
+    businessId: string,
+    data: RenewTenantSubscriptionPayload = { days: 30 },
+  ): Promise<Tenant> {
+    const response = await adminHttpClient.post(`/tenants/${businessId}/subscription/renew`, data)
+    return response.data
+  },
+
+  async updateTenantSubscriptionAccess(
+    businessId: string,
+    data: UpdateTenantSubscriptionAccessPayload,
+  ): Promise<Tenant> {
+    const response = await adminHttpClient.patch(`/tenants/${businessId}/subscription/access`, data)
+    return response.data
+  },
+
   // ARCA Secrets
   async getArcaSecrets(businessId: string): Promise<ArcaSecretsResponse> {
     const response = await adminHttpClient.get(`/tenants/${businessId}/arca-secrets`)
@@ -324,6 +382,10 @@ const adminAPI = {
   ): Promise<AssignTenantUserResponse> {
     const response = await adminHttpClient.post(`/tenants/${businessId}/users`, data)
     return response.data
+  },
+
+  async removeUserFromTenant(businessId: string, userId: string): Promise<void> {
+    await adminHttpClient.delete(`/tenants/${businessId}/users/${userId}`)
   },
 
   async activateTenantUserTrial(

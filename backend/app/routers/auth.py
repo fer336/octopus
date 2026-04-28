@@ -250,7 +250,7 @@ async def login_with_google(
     """
     Login con Google OAuth 2.0.
     Recibe el ID Token de Google y retorna JWT de acceso.
-    Si el usuario no existe, lo crea automáticamente.
+    Si el usuario no existe, lo crea automáticamente sin asignarle negocio.
     """
     service = AuthService(db)
     result = await service.login_with_google(request.token)
@@ -453,16 +453,6 @@ async def dev_login(
             await db.commit()
             await db.refresh(user)
 
-            from app.models.business import Business
-
-            business = Business(
-                owner_id=user.id,
-                name="Mi Negocio",
-                cuit="00-00000000-0",
-                tax_condition="Monotributista",
-            )
-            db.add(business)
-            await db.commit()
     elif email:
         user = await get_active_user_by_email(email)
 
@@ -478,16 +468,6 @@ async def dev_login(
             await db.commit()
             await db.refresh(user)
 
-            from app.models.business import Business
-
-            business = Business(
-                owner_id=user.id,
-                name="Mi Negocio",
-                cuit="00-00000000-0",
-                tax_condition="Monotributista",
-            )
-            db.add(business)
-            await db.commit()
     else:
         user = await get_first_active_user()
 

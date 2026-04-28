@@ -31,6 +31,24 @@
 
 ## 🟢 Hecho
 
+- [x] [ARCA-CLEAN-02] Remover referencias activas restantes a proveedor legado de facturación en CMS/API/docs fuente ✅ 2026-04-28
+
+- [x] [CMS-TENANT-USER-05] CMS Tenant Detail: permitir quitar/desasignar usuarios de un comercio y evaluar eliminación segura ✅ 2026-04-28
+
+- [x] [CMS-LOGIN-01] Admin Login: unificar branding, íconos y paleta con login tenant ✅ 2026-04-28
+
+- [x] [CMS-TENANT-BILLING-02] 🐛 Auth: quitar bloqueo legacy por estado de membresía para que el acceso dependa del comercio ✅ 2026-04-28
+
+- [x] [CMS-TENANT-BILLING-01] CMS Tenants: mover vencimiento/bloqueo mensual de usuario a comercio con días restantes y renovación 30 días ✅ 2026-04-28
+
+- [x] [CMS-TENANT-USER-04] CMS Tenant Detail: reemplazar input de asignar usuario por combobox con lupita y búsqueda de correos existentes ✅ 2026-04-28
+
+- [x] [CMS-TENANT-USER-03] CMS Tenants: reemplazar texto de owner por combobox con lupita para buscar correos existentes ✅ 2026-04-28
+
+- [x] [CMS-TENANT-USER-02] CMS Tenants: agregar buscador de owner inicial, asignación owner segura y eliminación manual de comercios vacíos/automáticos ✅ 2026-04-28
+
+- [x] [CMS-TENANT-USER-01] CMS/Auth: evitar creación automática de comercios al registrar usuarios; permitir crear comercio manualmente desde Tenant y asignar usuarios ✅ 2026-04-28
+
 - [x] [MKT-WHATSAPP-HARDCODE-01] Landing: hardcodear WhatsApp comercial en código y remover override del pipeline de deploy ✅ 2026-04-24
 
 - [x] [MKT-WHATSAPP-CTA-01] Landing: configurar botón "Probar sistema" con WhatsApp real y mensaje directo ✅ 2026-04-24
@@ -100,7 +118,7 @@
 
 - [x] [TAX-STD-01] Fiscal: normalizar condición fiscal en todo el sistema con dropdown único y opciones predeterminadas consistentes para backend/frontend/AFIP SDK ✅ 2026-04-22
 
-- [x] [ARCA-CLEAN-01] Remover referencias activas a MrBot del CMS y documentación para dejar AFIP SDK como integración vigente ✅ 2026-04-22
+- [x] [ARCA-CLEAN-01] Remover referencias activas a proveedor legado del CMS y documentación para dejar AFIP SDK como integración vigente ✅ 2026-04-22
 
 - [x] [CMS-ARCA-01] CMS: aclarar onboarding de facturación electrónica para recordar qué pedir al cliente (token, acceso ARCA/certificados, test) ✅ 2026-04-22
 

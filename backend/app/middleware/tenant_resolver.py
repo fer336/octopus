@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.utils.security import get_current_user
+from app.utils.security import ensure_business_subscription_active, get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +72,7 @@ async def get_tenant_context(
     4. Retornar TenantContext con tenant_id y membership_role
     """
     from app.models.tenant_membership import TenantMembership
+    from app.models.business import Business
 
     # Intentar resolver desde host
     tenant_slug = await resolve_tenant_from_host(request)
@@ -95,6 +96,13 @@ async def get_tenant_context(
     # Si hay una sola membresía, usar esa
     if len(memberships) == 1:
         membership = memberships[0]
+        business = await db.get(Business, membership.business_id)
+        if not business or business.deleted_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tenés acceso a ningún negocio activo. Contactá al administrador.",
+            )
+        await ensure_business_subscription_active(db, business)
         return TenantContext(
             tenant_id=membership.business_id,
             membership_role=membership.role,
@@ -104,6 +112,13 @@ async def get_tenant_context(
     # Si hay múltiples, usar la de rol más alto (owner > manager > seller)
     role_priority = {"owner": 3, "manager": 2, "seller": 1}
     best_membership = max(memberships, key=lambda m: role_priority.get(m.role, 0))
+    business = await db.get(Business, best_membership.business_id)
+    if not business or business.deleted_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tenés acceso a ningún negocio activo. Contactá al administrador.",
+        )
+    await ensure_business_subscription_active(db, business)
 
     return TenantContext(
         tenant_id=best_membership.business_id,

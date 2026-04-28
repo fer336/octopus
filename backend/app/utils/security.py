@@ -28,6 +28,37 @@ PASSWORD_SCHEME = "pbkdf2_sha256"
 PASSWORD_ITERATIONS = 390000
 
 
+async def ensure_business_subscription_active(db: AsyncSession, business) -> None:
+    """Valida que el comercio tenga suscripción activa; bloquea si venció o está suspendido."""
+    status_value = (business.subscription_status or "active").lower()
+
+    if status_value == "suspended":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=business.subscription_blocked_reason
+            or "El comercio está bloqueado por falta de pago. Contactá al administrador.",
+        )
+
+    if status_value == "expired":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=business.subscription_blocked_reason
+            or "El comercio está vencido por falta de pago. Contactá al administrador.",
+        )
+
+    if business.subscription_ends_at and datetime.utcnow() > business.subscription_ends_at:
+        business.subscription_status = "expired"
+        business.subscription_blocked_reason = "Pago mensual vencido"
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El comercio está vencido por falta de pago. Contactá al administrador.",
+        )
+
+
 def create_access_token(
     user_id: UUID, email: str, platform_role: str = "tenant_user"
 ) -> str:
@@ -174,10 +205,7 @@ async def get_current_business(
 
     try:
         from app.models.business import Business
-        from app.models.tenant_membership import (
-            MembershipAccessStatus,
-            TenantMembership,
-        )
+        from app.models.tenant_membership import TenantMembership
 
         current_user_id = UUID(str(current_user.id))
         logger.info(f"Getting business for user {current_user_id}")
@@ -205,7 +233,6 @@ async def get_current_business(
                 raise
 
         if memberships:
-            now = datetime.utcnow()
             role_priority = {"owner": 3, "manager": 2, "seller": 1}
             ordered_memberships = sorted(
                 memberships,
@@ -214,44 +241,16 @@ async def get_current_business(
             )
 
             first_blocked_detail = None
-            updated_expired = False
 
             for membership in ordered_memberships:
-                status_value = (
-                    membership.access_status or MembershipAccessStatus.ACTIVE
-                ).lower()
-
-                if status_value == MembershipAccessStatus.ACTIVE:
-                    return UUID(str(membership.business_id))
-
-                if status_value == MembershipAccessStatus.SUSPENDED:
-                    first_blocked_detail = (
-                        membership.blocked_reason or "Acceso suspendido"
-                    )
+                business = await db.get(Business, membership.business_id)
+                if not business or business.deleted_at is not None:
+                    first_blocked_detail = "Negocio no encontrado"
                     continue
 
-                if status_value == MembershipAccessStatus.EXPIRED:
-                    if not first_blocked_detail:
-                        first_blocked_detail = "Tu acceso venció"
-                    continue
-
-                if status_value == MembershipAccessStatus.TRIAL:
-                    if membership.access_ends_at and now > membership.access_ends_at:
-                        membership.access_status = MembershipAccessStatus.EXPIRED
-                        if not membership.blocked_reason:
-                            membership.blocked_reason = "Trial vencido"
-                        updated_expired = True
-                        first_blocked_detail = "Tu acceso de prueba venció"
-                        continue
-                    return UUID(str(membership.business_id))
-
-                first_blocked_detail = "Tu membresía no está activa"
-
-            if updated_expired:
-                try:
-                    await db.commit()
-                except Exception:
-                    await db.rollback()
+                # La membresía define pertenencia/rol. El bloqueo por pago vive en el comercio.
+                await ensure_business_subscription_active(db, business)
+                return UUID(str(membership.business_id))
 
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -275,6 +274,7 @@ async def get_current_business(
             )
 
         business_id = business.id
+        await ensure_business_subscription_active(db, business)
         logger.info(f"Business found: {business_id}, type: {type(business_id)}")
 
         # SIEMPRE convertir a Python UUID para evitar problemas con asyncpg

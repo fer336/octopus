@@ -25,16 +25,10 @@ def upgrade() -> None:
     op.add_column('businesses', sa.Column('arca_token_expiration', sa.String(length=30), nullable=True))
     op.add_column('businesses', sa.Column('arca_cuit_representante', sa.String(length=13), nullable=True))
     op.add_column('businesses', sa.Column('arca_environment', sa.String(length=20), nullable=True, server_default='testing'))
-    
-    # Agregar campos de configuración MrBot API
-    op.add_column('businesses', sa.Column('mrbot_email', sa.String(length=255), nullable=True))
-    op.add_column('businesses', sa.Column('mrbot_api_key', sa.String(length=500), nullable=True))
 
 
 def downgrade() -> None:
     # Eliminar campos en caso de rollback
-    op.drop_column('businesses', 'mrbot_api_key')
-    op.drop_column('businesses', 'mrbot_email')
     op.drop_column('businesses', 'arca_environment')
     op.drop_column('businesses', 'arca_cuit_representante')
     op.drop_column('businesses', 'arca_token_expiration')

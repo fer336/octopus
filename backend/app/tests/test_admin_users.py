@@ -4,6 +4,7 @@ Tests mínimos del módulo de usuarios en CMS admin.
 
 import pytest
 from datetime import timedelta
+from uuid import UUID
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.business import Business
 from app.models.tenant_membership import TenantMembership
 from app.models.user import User
+from app.services.auth_service import AuthService
 from app.tests.conftest import make_auth_header
 
 
@@ -70,6 +72,88 @@ async def test_superadmin_can_create_user_and_handle_duplicate_email(
         json={"email": "nuevo_usuario@test.com", "password": "claveSegura123"},
     )
     assert duplicate_response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_google_user_registration_does_not_create_business(
+    db: AsyncSession,
+):
+    service = AuthService(db)
+
+    user = await service.get_or_create_user(
+        {
+            "google_id": "google_new_without_business",
+            "email": "sin_comercio@test.com",
+            "name": "Sin Comercio",
+            "picture": "",
+        }
+    )
+
+    assert user.email == "sin_comercio@test.com"
+
+    businesses_result = await db.execute(
+        select(Business).where(Business.owner_id == user.id)
+    )
+    assert businesses_result.scalars().all() == []
+
+    memberships_result = await db.execute(
+        select(TenantMembership).where(TenantMembership.user_id == user.id)
+    )
+    assert memberships_result.scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_superadmin_can_create_tenant_without_owner_and_assign_later(
+    client: AsyncClient,
+    superadmin_user: User,
+    user_b: User,
+    db: AsyncSession,
+):
+    headers = make_auth_header(superadmin_user)
+
+    create_response = await client.post(
+        "/api/admin/tenants",
+        headers=headers,
+        json={
+            "name": "Comercio Manual",
+            "cuit": "30-33333333-3",
+            "tax_condition": "Monotributista",
+        },
+    )
+    assert create_response.status_code == 201
+    tenant_payload = create_response.json()
+    assert tenant_payload["owner_email"] == "Sin usuario asignado"
+
+    tenant_id = tenant_payload["id"]
+    business_result = await db.execute(select(Business).where(Business.id == UUID(tenant_id)))
+    business = business_result.scalar_one()
+    assert business.owner_id is None
+
+    assign_response = await client.post(
+        f"/api/admin/tenants/{tenant_id}/users",
+        headers=headers,
+        json={"email": user_b.email, "role": "owner"},
+    )
+    assert assign_response.status_code == 201
+    assert assign_response.json()["user"]["membership_role"] == "owner"
+
+    await db.refresh(business)
+    assert business.owner_id == user_b.id
+
+    delete_response = await client.delete(
+        f"/api/admin/tenants/{tenant_id}",
+        headers=headers,
+    )
+    assert delete_response.status_code == 200
+    assert delete_response.json()["deleted"] is True
+
+    await db.refresh(business)
+    assert business.deleted_at is not None
+
+    memberships_result = await db.execute(
+        select(TenantMembership).where(TenantMembership.business_id == UUID(tenant_id))
+    )
+    assert memberships_result.scalars().all() == []
 
 
 @pytest.mark.asyncio

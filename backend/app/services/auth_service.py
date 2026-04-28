@@ -12,7 +12,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.models.business import Business
 from app.models.user import User, PlatformRole
 from app.utils.security import (
     create_access_token,
@@ -73,7 +72,7 @@ class AuthService:
     async def get_or_create_user(self, google_data: dict) -> User:
         """
         Obtiene o crea un usuario basado en datos de Google.
-        Si es nuevo, también crea un negocio por defecto.
+        El registro de usuario no crea negocios automáticamente.
         """
         normalized_email = google_data["email"].strip().lower()
 
@@ -101,16 +100,6 @@ class AuthService:
             self.db.add(user)
             await self.db.commit()
             await self.db.refresh(user)
-
-            # Crear negocio por defecto para el nuevo usuario
-            business = Business(
-                owner_id=user.id,
-                name="Mi Negocio",
-                cuit="00-00000000-0",
-                tax_condition="Monotributista",
-            )
-            self.db.add(business)
-            await self.db.commit()
 
         return user
 

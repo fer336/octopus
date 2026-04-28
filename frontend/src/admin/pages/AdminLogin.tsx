@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Shield } from 'lucide-react'
+import { KeyRound, ShieldCheck, UsersRound } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import { useAuthStore } from '../../stores/authStore'
 import authService from '../../api/authService'
@@ -26,24 +26,46 @@ export default function AdminLogin() {
   const hasMissingCode = searchParams.get('error') === 'no_code'
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="p-4 bg-primary-100 dark:bg-primary-900/30 rounded-2xl">
-              <Shield className="h-14 w-14 text-primary-600 dark:text-primary-400" />
-            </div>
+    <div className="min-h-screen bg-[var(--color-bg-primary)] px-4 py-4 overflow-y-auto">
+      <div className="max-w-xs w-full mx-auto">
+        <div className="text-center mb-3">
+          <div className="flex justify-center">
+            <img
+              src="/logo-tenculo-final.png"
+              alt="OctopusTrack"
+              className="h-[83px] w-auto object-contain"
+            />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Octopus Admin</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Ingreso exclusivo para superadministradores
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--color-text-primary)]">
+            OctopusTrack
+          </h1>
+          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary-600 dark:text-primary-300">
+            Panel administrador
           </p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 text-center">
+        <div className="bg-[var(--color-bg-secondary)] rounded-xl shadow-md p-4 border border-primary-200 dark:border-primary-800">
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="rounded-xl border border-primary-200 bg-primary-50/70 p-2 text-center dark:border-primary-800 dark:bg-primary-900/20">
+              <ShieldCheck className="mx-auto h-5 w-5 text-primary-600 dark:text-primary-300" />
+              <p className="mt-1 text-[10px] font-medium text-[var(--color-text-secondary)]">Tenants</p>
+            </div>
+            <div className="rounded-xl border border-primary-200 bg-primary-50/70 p-2 text-center dark:border-primary-800 dark:bg-primary-900/20">
+              <UsersRound className="mx-auto h-5 w-5 text-primary-600 dark:text-primary-300" />
+              <p className="mt-1 text-[10px] font-medium text-[var(--color-text-secondary)]">Usuarios</p>
+            </div>
+            <div className="rounded-xl border border-primary-200 bg-primary-50/70 p-2 text-center dark:border-primary-800 dark:bg-primary-900/20">
+              <KeyRound className="mx-auto h-5 w-5 text-primary-600 dark:text-primary-300" />
+              <p className="mt-1 text-[10px] font-medium text-[var(--color-text-secondary)]">Acceso</p>
+            </div>
+          </div>
+
+          <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-1 text-center">
             Iniciar sesión
           </h2>
+          <p className="mb-3 text-center text-xs text-gray-500 dark:text-gray-400">
+            Ingreso exclusivo para superadministradores
+          </p>
 
           {hasDeniedAccess && (
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300">
@@ -63,7 +85,7 @@ export default function AdminLogin() {
             </div>
           )}
 
-          <Button onClick={handleGoogleLogin} variant="outline" size="lg" className="w-full">
+          <Button onClick={handleGoogleLogin} variant="outline" size="md" className="w-full">
             <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
               <path
                 fill="currentColor"
@@ -84,7 +106,15 @@ export default function AdminLogin() {
             </svg>
             Continuar con Google
           </Button>
+
+          <p className="mt-3 text-center text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
+            Usá una cuenta habilitada como superadministrador.
+          </p>
         </div>
+
+        <p className="mt-3 text-center text-[11px] text-gray-500 dark:text-gray-400">
+          © {new Date().getFullYear()} OctopusTrack. Todos los derechos reservados.
+        </p>
       </div>
     </div>
   )

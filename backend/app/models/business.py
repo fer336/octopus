@@ -3,7 +3,7 @@ Modelo del Negocio/Empresa.
 Contiene los datos del comercio para el membrete y facturación.
 """
 
-from sqlalchemy import Boolean, Column, ForeignKey, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -21,7 +21,7 @@ class Business(BaseModel):
     owner_id = Column(
         UUID(as_uuid=True),
         ForeignKey("users.id"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
 
@@ -60,6 +60,12 @@ class Business(BaseModel):
     price_update_enabled = Column(Boolean, nullable=False, default=True)
     reports_enabled = Column(Boolean, nullable=False, default=True)
     sql_backup_enabled = Column(Boolean, nullable=False, default=False)
+
+    # Suscripción / bloqueo comercial por tenant
+    subscription_starts_at = Column(DateTime, nullable=True)
+    subscription_ends_at = Column(DateTime, nullable=True)
+    subscription_status = Column(String(20), nullable=False, default="active")
+    subscription_blocked_reason = Column(String(255), nullable=True)
 
     # Configuración ARCA/AFIP
     arca_token = Column(Text, nullable=True)  # Token del WSAA

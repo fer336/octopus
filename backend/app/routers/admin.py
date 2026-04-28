@@ -10,7 +10,7 @@ from typing import Optional, List, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -51,8 +51,6 @@ SECRET_TYPES = [
     "arca_email",
     "arca_cuit_representante",
     "arca_environment",
-    "mrbot_email",
-    "mrbot_api_key",
     "afipsdk_access_token",
     "afip_cert",
     "afip_key",
@@ -87,8 +85,6 @@ class ArcaSecretsUpdate(BaseModel):
     arca_email: Optional[str] = None
     arca_cuit_representante: Optional[str] = None
     arca_environment: Optional[str] = None
-    mrbot_email: Optional[str] = None
-    mrbot_api_key: Optional[str] = None
     afipsdk_access_token: Optional[str] = None
     afip_cert: Optional[str] = None
     afip_key: Optional[str] = None
@@ -180,6 +176,12 @@ class TenantResponse(BaseModel):
     tax_condition: str
     owner_email: str
     created_at: datetime
+    can_delete: bool = True
+    subscription_status: str = "active"
+    subscription_starts_at: Optional[datetime] = None
+    subscription_ends_at: Optional[datetime] = None
+    subscription_days_remaining: Optional[int] = None
+    subscription_blocked_reason: Optional[str] = None
 
 
 class TenantListResponse(BaseModel):
@@ -190,6 +192,42 @@ class TenantListResponse(BaseModel):
     page: int
     per_page: int
     total_pages: int
+
+
+class TenantCreateRequest(BaseModel):
+    """Payload para crear manualmente un comercio desde CMS admin."""
+
+    name: str = Field(..., min_length=2, max_length=255)
+    cuit: str = Field(..., min_length=7, max_length=13)
+    tax_condition: str = Field(default="Monotributista", max_length=50)
+    owner_email: Optional[str] = Field(default=None, max_length=255)
+    address: Optional[str] = Field(default=None, max_length=500)
+    city: Optional[str] = Field(default=None, max_length=100)
+    province: Optional[str] = Field(default=None, max_length=100)
+    postal_code: Optional[str] = Field(default=None, max_length=10)
+    phone: Optional[str] = Field(default=None, max_length=50)
+    email: Optional[str] = Field(default=None, max_length=255)
+
+
+class TenantDeleteResponse(BaseModel):
+    """Resultado de eliminación segura de comercio vacío."""
+
+    tenant_id: str
+    deleted: bool
+    message: str
+
+
+class TenantSubscriptionRenewRequest(BaseModel):
+    """Renueva la suscripción mensual del comercio."""
+
+    days: int = Field(default=30, ge=1, le=365)
+
+
+class TenantSubscriptionAccessUpdateRequest(BaseModel):
+    """Actualiza estado de acceso del comercio completo."""
+
+    subscription_status: Literal["active", "suspended"]
+    blocked_reason: Optional[str] = Field(default=None, max_length=255)
 
 
 class UserResponse(BaseModel):
@@ -358,7 +396,9 @@ class PurgeTenantResponse(BaseModel):
 
 async def get_business_or_404(tenant_id: UUID, db: AsyncSession) -> Business:
     """Obtiene un business por ID o lanza 404."""
-    result = await db.execute(select(Business).where(Business.id == tenant_id))
+    result = await db.execute(
+        select(Business).where(Business.id == tenant_id, Business.deleted_at.is_(None))
+    )
     business = result.scalar_one_or_none()
     if not business:
         raise HTTPException(
@@ -448,6 +488,57 @@ def _serialize_user(user: User) -> UserResponse:
     )
 
 
+def _serialize_tenant(business: Business, can_delete: bool = True) -> TenantResponse:
+    """Convierte un Business al resumen de tenant para CMS."""
+    return TenantResponse(
+        id=str(business.id),
+        name=business.name,
+        cuit=business.cuit,
+        tax_condition=business.tax_condition,
+        owner_email=business.owner.email if business.owner else "Sin usuario asignado",
+        created_at=business.created_at,
+        can_delete=can_delete,
+        subscription_status=business.subscription_status or "active",
+        subscription_starts_at=business.subscription_starts_at,
+        subscription_ends_at=business.subscription_ends_at,
+        subscription_days_remaining=_calculate_days_remaining(
+            business.subscription_ends_at
+        ),
+        subscription_blocked_reason=business.subscription_blocked_reason,
+    )
+
+
+async def _tenant_operational_counts(
+    db: AsyncSession, tenant_id: UUID
+) -> dict[str, int]:
+    """Cuenta datos operativos que bloquean la eliminación manual del comercio."""
+    checks = {
+        "productos": "SELECT COUNT(*) FROM products WHERE business_id = :tenant_id AND deleted_at IS NULL",
+        "clientes": "SELECT COUNT(*) FROM clients WHERE business_id = :tenant_id AND deleted_at IS NULL",
+        "proveedores": "SELECT COUNT(*) FROM suppliers WHERE business_id = :tenant_id AND deleted_at IS NULL",
+        "categorias": "SELECT COUNT(*) FROM categories WHERE business_id = :tenant_id AND deleted_at IS NULL",
+        "comprobantes": "SELECT COUNT(*) FROM vouchers WHERE business_id = :tenant_id AND deleted_at IS NULL",
+        "pagos": "SELECT COUNT(*) FROM payments WHERE business_id = :tenant_id AND deleted_at IS NULL",
+        "cajas": "SELECT COUNT(*) FROM cash_registers WHERE business_id = :tenant_id AND deleted_at IS NULL",
+        "ordenes_pedido": "SELECT COUNT(*) FROM purchase_orders WHERE business_id = :tenant_id AND deleted_at IS NULL",
+        "borradores_precios": "SELECT COUNT(*) FROM price_update_drafts WHERE business_id = :tenant_id AND deleted_at IS NULL",
+        "feedback": "SELECT COUNT(*) FROM feedback_tickets WHERE business_id = :tenant_id",
+    }
+
+    counts: dict[str, int] = {}
+    for label, sql in checks.items():
+        result = await db.execute(text(sql), {"tenant_id": str(tenant_id)})
+        count = result.scalar() or 0
+        counts[label] = int(count)
+    return counts
+
+
+async def _tenant_can_be_deleted(db: AsyncSession, tenant_id: UUID) -> bool:
+    """Indica si el comercio no tiene datos operativos cargados."""
+    counts = await _tenant_operational_counts(db, tenant_id)
+    return not any(counts.values())
+
+
 def _calculate_days_remaining(access_ends_at: Optional[datetime]) -> Optional[int]:
     """Calcula días restantes de acceso redondeando hacia arriba."""
     if access_ends_at is None:
@@ -520,11 +611,7 @@ async def list_tenants(
     """
     Lista todos los tenants (negocios) con paginación y búsqueda.
     """
-    base_query = (
-        select(Business)
-        .join(User, Business.owner_id == User.id)
-        .options(selectinload(Business.owner))
-    )
+    base_query = select(Business).where(Business.deleted_at.is_(None)).options(selectinload(Business.owner))
 
     if search:
         base_query = base_query.where(Business.name.ilike(f"%{search}%"))
@@ -543,15 +630,11 @@ async def list_tenants(
     businesses = result.scalars().all()
 
     tenants = [
-        TenantResponse(
-            id=str(b.id),
-            name=b.name,
-            cuit=b.cuit,
-            tax_condition=b.tax_condition,
-            owner_email=b.owner.email if b.owner else "",
-            created_at=b.created_at,
+        _serialize_tenant(
+            business,
+            can_delete=await _tenant_can_be_deleted(db, UUID(str(business.id))),
         )
-        for b in businesses
+        for business in businesses
     ]
 
     return TenantListResponse(
@@ -560,6 +643,230 @@ async def list_tenants(
         page=page,
         per_page=per_page,
         total_pages=total_pages,
+    )
+
+
+@router.post("/tenants", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
+async def create_tenant(
+    data: TenantCreateRequest,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Crea manualmente un comercio; asignar usuario es un paso separado."""
+    normalized_cuit = data.cuit.strip()
+    existing_result = await db.execute(
+        select(Business).where(
+            Business.cuit == normalized_cuit,
+            Business.deleted_at.is_(None),
+        )
+    )
+    if existing_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya existe un comercio con ese CUIT",
+        )
+
+    owner: Optional[User] = None
+    if data.owner_email:
+        normalized_owner_email = data.owner_email.strip().lower()
+        owner_result = await db.execute(
+            select(User).where(User.email == normalized_owner_email)
+        )
+        owner = owner_result.scalar_one_or_none()
+        if owner is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No existe un usuario con ese email para asignarlo como owner",
+            )
+
+    business = Business(
+        owner_id=owner.id if owner else None,
+        name=data.name.strip(),
+        cuit=normalized_cuit,
+        tax_condition=data.tax_condition.strip() or "Monotributista",
+        address=data.address,
+        city=data.city,
+        province=data.province,
+        postal_code=data.postal_code,
+        phone=data.phone,
+        email=data.email,
+        subscription_starts_at=datetime.utcnow(),
+        subscription_ends_at=datetime.utcnow() + timedelta(days=30),
+        subscription_status="active",
+    )
+    db.add(business)
+    await db.flush()
+
+    if owner:
+        membership = TenantMembership(
+            user_id=owner.id,
+            business_id=business.id,
+            role=MembershipRole.OWNER,
+            module_permissions=dump_module_permissions(
+                default_module_permissions(MembershipRole.OWNER),
+                MembershipRole.OWNER,
+            ),
+        )
+        db.add(membership)
+
+    await db.commit()
+    await db.refresh(business)
+    await db.refresh(business, attribute_names=["owner"])
+
+    await log_audit(
+        db=db,
+        user_id=admin.user_id,
+        business_id=business.id,
+        action="create",
+        resource_type="tenant",
+        resource_id=business.id,
+        details={
+            "description": "Comercio creado manualmente desde CMS",
+            "assigned_owner_email": owner.email if owner else None,
+        },
+    )
+    await db.commit()
+
+    return _serialize_tenant(business)
+
+
+@router.post(
+    "/tenants/{tenant_id}/subscription/renew",
+    response_model=TenantResponse,
+)
+async def renew_tenant_subscription(
+    tenant_id: UUID,
+    data: TenantSubscriptionRenewRequest,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Renueva el comercio por N días; pago mensual típico = 30 días."""
+    business = await get_business_or_404(tenant_id, db)
+    now = datetime.utcnow()
+    business.subscription_starts_at = now
+    business.subscription_ends_at = now + timedelta(days=data.days)
+    business.subscription_status = "active"
+    business.subscription_blocked_reason = None
+
+    await log_audit(
+        db=db,
+        user_id=admin.user_id,
+        business_id=tenant_id,
+        action="renew",
+        resource_type="tenant_subscription",
+        resource_id=tenant_id,
+        details={
+            "description": "Suscripción del comercio renovada desde CMS",
+            "days": data.days,
+            "subscription_ends_at": business.subscription_ends_at.isoformat(),
+        },
+    )
+    await db.commit()
+    await db.refresh(business)
+    await db.refresh(business, attribute_names=["owner"])
+
+    return _serialize_tenant(
+        business,
+        can_delete=await _tenant_can_be_deleted(db, tenant_id),
+    )
+
+
+@router.patch(
+    "/tenants/{tenant_id}/subscription/access",
+    response_model=TenantResponse,
+)
+async def update_tenant_subscription_access(
+    tenant_id: UUID,
+    data: TenantSubscriptionAccessUpdateRequest,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Bloquea o reactiva manualmente el acceso de todo el comercio."""
+    business = await get_business_or_404(tenant_id, db)
+    business.subscription_status = data.subscription_status
+    business.subscription_blocked_reason = (
+        data.blocked_reason if data.subscription_status == "suspended" else None
+    )
+
+    await log_audit(
+        db=db,
+        user_id=admin.user_id,
+        business_id=tenant_id,
+        action="update_access",
+        resource_type="tenant_subscription",
+        resource_id=tenant_id,
+        details={
+            "description": "Acceso del comercio actualizado desde CMS",
+            "subscription_status": data.subscription_status,
+            "blocked_reason": business.subscription_blocked_reason,
+        },
+    )
+    await db.commit()
+    await db.refresh(business)
+    await db.refresh(business, attribute_names=["owner"])
+
+    return _serialize_tenant(
+        business,
+        can_delete=await _tenant_can_be_deleted(db, tenant_id),
+    )
+
+
+@router.delete("/tenants/{tenant_id}", response_model=TenantDeleteResponse)
+async def delete_empty_tenant(
+    tenant_id: UUID,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Elimina manualmente un comercio sin datos operativos cargados."""
+    business = await get_business_or_404(tenant_id, db)
+    counts = await _tenant_operational_counts(db, tenant_id)
+    blocking_counts = {label: count for label, count in counts.items() if count > 0}
+
+    if blocking_counts:
+        detail = ", ".join(
+            f"{label}: {count}" for label, count in blocking_counts.items()
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"No se puede eliminar el comercio porque tiene datos cargados ({detail}). Usá purga controlada si realmente querés vaciarlo.",
+        )
+
+    # Remover accesos/configuración asociados para que el comercio deje de aparecer.
+    await db.execute(
+        text("DELETE FROM tenant_memberships WHERE business_id = :tenant_id"),
+        {"tenant_id": str(tenant_id)},
+    )
+    await db.execute(
+        text("DELETE FROM tenant_secrets WHERE business_id = :tenant_id"),
+        {"tenant_id": str(tenant_id)},
+    )
+    await db.execute(
+        text("DELETE FROM ai_provider_configs WHERE business_id = :tenant_id"),
+        {"tenant_id": str(tenant_id)},
+    )
+
+    business.owner_id = None
+    business.deleted_at = datetime.utcnow()
+
+    await log_audit(
+        db=db,
+        user_id=admin.user_id,
+        business_id=tenant_id,
+        action="delete",
+        resource_type="tenant",
+        resource_id=tenant_id,
+        details={
+            "description": "Comercio vacío eliminado manualmente desde CMS",
+            "business_name": business.name,
+            "business_cuit": business.cuit,
+        },
+    )
+    await db.commit()
+
+    return TenantDeleteResponse(
+        tenant_id=str(tenant_id),
+        deleted=True,
+        message="Comercio eliminado correctamente",
     )
 
 
@@ -704,7 +1011,7 @@ async def assign_user_to_tenant(
     db: AsyncSession = Depends(get_db),
 ):
     """Asigna usuario existente a tenant. Es idempotente para evitar duplicados."""
-    await get_business_or_404(tenant_id, db)
+    business = await get_business_or_404(tenant_id, db)
 
     user: Optional[User] = None
     if data.user_id:
@@ -729,6 +1036,22 @@ async def assign_user_to_tenant(
     )
     existing_membership = membership_result.scalar_one_or_none()
     if existing_membership:
+        should_update_membership = False
+        if existing_membership.role != data.role:
+            existing_membership.role = data.role
+            existing_membership.module_permissions = dump_module_permissions(
+                default_module_permissions(data.role),
+                data.role,
+            )
+            should_update_membership = True
+
+        if data.role == MembershipRole.OWNER and business.owner_id != user.id:
+            business.owner_id = user.id
+            should_update_membership = True
+
+        if should_update_membership:
+            await db.commit()
+            await db.refresh(existing_membership)
         response.status_code = status.HTTP_200_OK
         return TenantUserAssignResponse(
             user=_serialize_tenant_user(user, existing_membership),
@@ -745,6 +1068,8 @@ async def assign_user_to_tenant(
         ),
     )
     db.add(membership)
+    if data.role == MembershipRole.OWNER:
+        business.owner_id = user.id
     await db.commit()
 
     return TenantUserAssignResponse(
@@ -850,6 +1175,58 @@ async def update_tenant_user_permissions(
         )
 
     return _serialize_tenant_user(user, membership)
+
+
+@router.delete(
+    "/tenants/{tenant_id}/users/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_user_from_tenant(
+    tenant_id: UUID,
+    user_id: UUID,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Quita la membresía de un usuario dentro de un tenant sin eliminar su identidad global.
+
+    En un sistema multi-tenant, borrar la relación usuario↔comercio es distinto a
+    borrar el usuario completo: el mismo usuario puede pertenecer a otros comercios.
+    """
+    business = await get_business_or_404(tenant_id, db)
+    membership = await _get_membership_or_404(db, tenant_id, user_id)
+
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado",
+        )
+
+    removed_role = membership.role
+    cleared_owner = business.owner_id == user_id
+    if cleared_owner:
+        business.owner_id = None
+
+    await db.delete(membership)
+
+    await log_audit(
+        db=db,
+        user_id=admin.user_id,
+        business_id=tenant_id,
+        action="delete",
+        resource_type="tenant_membership",
+        resource_id=user_id,
+        details={
+            "description": "Usuario quitado del comercio desde CMS",
+            "removed_user_email": user.email,
+            "removed_role": removed_role,
+            "cleared_owner": cleared_owner,
+        },
+    )
+    await db.commit()
+    return None
 
 
 @router.get("/tenants/{tenant_id}/arca-secrets", response_model=ArcaSecretsResponse)
@@ -1258,7 +1635,7 @@ async def purge_tenant_data(
     business = await get_business_or_404(tenant_id, db)
 
     logger.warning(
-        f"=== TENANT PURGE REQUESTED === Tenant: {tenant_id}, Admin: {admin.user.email}, Reason: {data.reason}"
+        f"=== TENANT PURGE REQUESTED === Tenant: {tenant_id}, Admin: {admin.user_id}, Reason: {data.reason}"
     )
 
     purged_tables = {}
@@ -1555,13 +1932,13 @@ async def purge_tenant_data(
     executed_at = datetime.utcnow()
 
     logger.warning(
-        f"=== TENANT PURGE COMPLETED === Tenant: {tenant_id}, Records: {sum(purged_tables.values())}, Admin: {admin.user.email}"
+        f"=== TENANT PURGE COMPLETED === Tenant: {tenant_id}, Records: {sum(purged_tables.values())}, Admin: {admin.user_id}"
     )
 
     return PurgeTenantResponse(
         tenant_id=str(tenant_id),
         purged_tables=purged_tables,
         reason=data.reason,
-        executed_by=admin.user.email,
+        executed_by=str(admin.user_id),
         executed_at=executed_at,
     )

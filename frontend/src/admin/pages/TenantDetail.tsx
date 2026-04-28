@@ -1,12 +1,12 @@
 /**
  * Detalle de un tenant — muestra info general, branding y acceso a config ARCA.
  */
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
-import { Ban, Clock3, ShieldCheck, UserRoundCog } from 'lucide-react'
-import adminAPI, { type BrandingUpdate } from '../../api/adminService'
+import { UserMinus, UserRoundCog } from 'lucide-react'
+import adminAPI, { type AdminUser, type BrandingUpdate } from '../../api/adminService'
 
 type Tab = 'general' | 'branding' | 'features' | 'users'
 
@@ -633,20 +633,16 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
 function UsersTab({ tenantId }: { tenantId: string }) {
   const queryClient = useQueryClient()
   const [email, setEmail] = useState('')
+  const [userSearch, setUserSearch] = useState('')
+  const [debouncedUserSearch, setDebouncedUserSearch] = useState('')
+  const [isUserPickerOpen, setIsUserPickerOpen] = useState(false)
+  const [role, setRole] = useState<'owner' | 'manager' | 'seller'>('seller')
   const [permissionsEditorUserId, setPermissionsEditorUserId] = useState<string | null>(null)
 
-  const formatDate = (value?: string | null) => {
-    if (!value) return '-'
-    const date = new Date(value)
-    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('es-AR')
-  }
-
-  const accessStatusLabel: Record<string, string> = {
-    active: 'Activo',
-    trial: 'Trial',
-    suspended: 'Suspendido',
-    expired: 'Vencido',
-  }
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedUserSearch(userSearch), 250)
+    return () => clearTimeout(timer)
+  }, [userSearch])
 
   const usersQuery = useQuery({
     queryKey: ['admin-tenant-users', tenantId],
@@ -656,6 +652,12 @@ function UsersTab({ tenantId }: { tenantId: string }) {
   const flagsQuery = useQuery({
     queryKey: ['admin-feature-flags', tenantId],
     queryFn: () => adminAPI.getFeatureFlags(tenantId),
+  })
+
+  const userSearchQuery = useQuery({
+    queryKey: ['admin-users-tenant-assign-search', tenantId, debouncedUserSearch],
+    queryFn: () => adminAPI.listUsers(1, 8, debouncedUserSearch),
+    enabled: isUserPickerOpen && debouncedUserSearch.trim().length >= 2,
   })
 
   const currentAccountEnabled = (flagsQuery.data?.current_account_mode ?? 'disabled') !== 'disabled'
@@ -675,43 +677,18 @@ function UsersTab({ tenantId }: { tenantId: string }) {
   })
 
   const assignMutation = useMutation({
-    mutationFn: () => adminAPI.assignUserToTenant(tenantId, { email: email.trim() }),
+    mutationFn: () => adminAPI.assignUserToTenant(tenantId, { email: email.trim(), role }),
     onSuccess: (data) => {
       toast.success(data.created ? 'Usuario asignado al tenant' : 'El usuario ya estaba asignado')
       setEmail('')
+      setUserSearch('')
+      setIsUserPickerOpen(false)
+      setRole('seller')
       queryClient.invalidateQueries({ queryKey: ['admin-tenant-users', tenantId] })
     },
     onError: (error: any) => {
       const detail = error?.response?.data?.detail
       toast.error(typeof detail === 'string' ? detail : 'Error al asignar usuario')
-    },
-  })
-
-  const trialMutation = useMutation({
-    mutationFn: (userId: string) => adminAPI.activateTenantUserTrial(tenantId, userId, { days: 30 }),
-    onSuccess: () => {
-      toast.success('Trial de 30 días activado')
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-users', tenantId] })
-    },
-    onError: (error: any) => {
-      const detail = error?.response?.data?.detail
-      toast.error(typeof detail === 'string' ? detail : 'No se pudo activar el trial')
-    },
-  })
-
-  const accessMutation = useMutation({
-    mutationFn: ({ userId, accessStatus }: { userId: string; accessStatus: 'active' | 'suspended' }) =>
-      adminAPI.updateTenantUserAccess(tenantId, userId, {
-        access_status: accessStatus,
-        blocked_reason: accessStatus === 'suspended' ? 'Suspendido desde CMS admin' : undefined,
-      }),
-    onSuccess: (_, variables) => {
-      toast.success(variables.accessStatus === 'suspended' ? 'Membresía suspendida' : 'Membresía reactivada')
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-users', tenantId] })
-    },
-    onError: (error: any) => {
-      const detail = error?.response?.data?.detail
-      toast.error(typeof detail === 'string' ? detail : 'No se pudo actualizar el acceso')
     },
   })
 
@@ -730,6 +707,21 @@ function UsersTab({ tenantId }: { tenantId: string }) {
     },
   })
 
+  const removeUserMutation = useMutation({
+    mutationFn: ({ userId }: { userId: string }) => adminAPI.removeUserFromTenant(tenantId, userId),
+    onSuccess: () => {
+      toast.success('Usuario quitado del comercio')
+      setPermissionsEditorUserId(null)
+      queryClient.invalidateQueries({ queryKey: ['admin-tenant-users', tenantId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-tenants'] })
+    },
+    onError: (error: any) => {
+      const detail = error?.response?.data?.detail
+      toast.error(typeof detail === 'string' ? detail : 'No se pudo quitar el usuario del comercio')
+    },
+  })
+
   const handleAssign = (e: React.FormEvent) => {
     e.preventDefault()
     if (!email.trim()) {
@@ -737,6 +729,21 @@ function UsersTab({ tenantId }: { tenantId: string }) {
       return
     }
     assignMutation.mutate()
+  }
+
+  const handleSelectUser = (user: AdminUser) => {
+    setEmail(user.email)
+    setUserSearch(user.email)
+    setIsUserPickerOpen(false)
+  }
+
+  const handleRemoveUser = (user: AdminUser) => {
+    const confirmed = window.confirm(
+      `¿Quitar a ${user.email} de este comercio?\n\nLa cuenta del usuario NO se elimina globalmente; solo pierde acceso a este tenant.`,
+    )
+
+    if (!confirmed) return
+    removeUserMutation.mutate({ userId: user.id })
   }
 
   const users = usersQuery.data?.users ?? []
@@ -748,13 +755,90 @@ function UsersTab({ tenantId }: { tenantId: string }) {
           Asignar usuario existente
         </h3>
         <form onSubmit={handleAssign} className="flex flex-col sm:flex-row gap-3">
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email del usuario"
-            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-          />
+          <div className="relative flex-1">
+            <div className="flex rounded-lg border border-gray-300 bg-white shadow-sm focus-within:ring-2 focus-within:ring-primary-500 dark:border-gray-600 dark:bg-gray-800">
+              <input
+                type="email"
+                value={email}
+                readOnly
+                placeholder="Seleccionar usuario existente"
+                className="min-w-0 flex-1 rounded-l-lg bg-transparent px-3 py-2 text-gray-900 outline-none dark:text-white"
+              />
+              {email && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('')
+                    setUserSearch('')
+                  }}
+                  className="border-l border-gray-200 px-2 text-sm text-gray-400 hover:text-gray-700 dark:border-gray-700 dark:hover:text-gray-200"
+                  aria-label="Limpiar usuario seleccionado"
+                >
+                  ×
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsUserPickerOpen((current) => !current)}
+                className="rounded-r-lg border-l border-gray-200 px-3 text-gray-600 transition hover:bg-gray-50 hover:text-gray-950 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+                aria-label="Buscar usuario para asignar"
+              >
+                🔎
+              </button>
+            </div>
+
+            {isUserPickerOpen && (
+              <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                <div className="border-b border-gray-100 p-2 dark:border-gray-700">
+                  <input
+                    type="search"
+                    autoFocus
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-transparent focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                    placeholder="Buscar correo creado..."
+                  />
+                </div>
+
+                <div className="max-h-52 overflow-y-auto py-1">
+                  {debouncedUserSearch.trim().length < 2 ? (
+                    <p className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400">
+                      Escribí al menos 2 caracteres para buscar usuarios.
+                    </p>
+                  ) : userSearchQuery.isLoading ? (
+                    <p className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400">Buscando usuarios...</p>
+                  ) : (userSearchQuery.data?.users ?? []).length > 0 ? (
+                    userSearchQuery.data?.users.map((user) => (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => handleSelectUser(user)}
+                        className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+                      >
+                        <span className="block font-medium text-gray-900 dark:text-white">{user.email}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {user.name} · {user.businesses?.length ? `${user.businesses.length} comercio(s)` : 'Sin comercio'}
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400">
+                      No hay usuarios con ese email. Crealo primero en Usuarios.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as 'owner' | 'manager' | 'seller')}
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          >
+            <option value="seller">Vendedor</option>
+            <option value="manager">Encargado</option>
+            <option value="owner">Owner</option>
+          </select>
           <button
             type="submit"
             disabled={assignMutation.isPending}
@@ -786,18 +870,6 @@ function UsersTab({ tenantId }: { tenantId: string }) {
                   Estado
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Estado acceso
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Inicio acceso
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Vencimiento
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Días restantes
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
@@ -805,7 +877,7 @@ function UsersTab({ tenantId }: { tenantId: string }) {
             {usersQuery.isLoading ? (
               <tbody>
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     Cargando usuarios...
                   </td>
                 </tr>
@@ -813,7 +885,7 @@ function UsersTab({ tenantId }: { tenantId: string }) {
             ) : users.length === 0 ? (
               <tbody>
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No hay usuarios asignados a este tenant
                   </td>
                 </tr>
@@ -833,52 +905,7 @@ function UsersTab({ tenantId }: { tenantId: string }) {
                           {user.is_active ? 'Activo' : 'Inactivo'}
                         </td>
                         <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
-                          {accessStatusLabel[user.access_status] ?? user.access_status}
-                        </td>
-                        <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
-                          {formatDate(user.access_starts_at)}
-                        </td>
-                        <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
-                          {formatDate(user.access_ends_at)}
-                        </td>
-                        <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
-                          {user.days_remaining ?? '-'}
-                        </td>
-                        <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
                           <div className="flex items-center gap-1.5 whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => trialMutation.mutate(user.id)}
-                              disabled={trialMutation.isPending || accessMutation.isPending}
-                              title="Dar trial 30 días"
-                              aria-label="Dar trial 30 días"
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-primary-500 text-primary-600 hover:bg-primary-50 disabled:opacity-50"
-                            >
-                              <Clock3 size={15} />
-                            </button>
-                            {user.access_status === 'suspended' ? (
-                              <button
-                                type="button"
-                                onClick={() => accessMutation.mutate({ userId: user.id, accessStatus: 'active' })}
-                                disabled={trialMutation.isPending || accessMutation.isPending}
-                                title="Reactivar acceso"
-                                aria-label="Reactivar acceso"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-primary-500 text-primary-600 hover:bg-primary-50 disabled:opacity-50"
-                              >
-                                <ShieldCheck size={15} />
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => accessMutation.mutate({ userId: user.id, accessStatus: 'suspended' })}
-                                disabled={trialMutation.isPending || accessMutation.isPending}
-                                title="Suspender acceso"
-                                aria-label="Suspender acceso"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-amber-500 text-amber-600 hover:bg-amber-50 disabled:opacity-50"
-                              >
-                                <Ban size={15} />
-                              </button>
-                            )}
                             <button
                               type="button"
                               onClick={() =>
@@ -890,13 +917,23 @@ function UsersTab({ tenantId }: { tenantId: string }) {
                             >
                               <UserRoundCog size={15} />
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveUser(user)}
+                              disabled={removeUserMutation.isPending}
+                              title="Quitar del comercio"
+                              aria-label="Quitar del comercio"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-300 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/30"
+                            >
+                              <UserMinus size={15} />
+                            </button>
                           </div>
                         </td>
                       </tr>
 
                       {isPermissionsEditorOpen && (
                         <tr className="border-t border-gray-100 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/40">
-                          <td colSpan={9} className="px-3 py-3">
+                          <td colSpan={5} className="px-3 py-3">
                             <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
                               <div className="flex items-center justify-between mb-2">
                                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">
