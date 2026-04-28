@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, CheckCircle2, Menu, X, Zap, Shield, Users, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import Button from '../components/ui/Button'
 
@@ -46,6 +46,121 @@ function scrollToId(id: string, event?: { preventDefault?: () => void }, desktop
   const offset = window.innerWidth >= 768 ? desktopOffset : mobileOffset
   const top = element.getBoundingClientRect().top + window.scrollY - offset
   window.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' })
+}
+
+function useScrollReveal() {
+  useEffect(() => {
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>('.reveal-on-scroll'))
+    if (nodes.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible')
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.16, rootMargin: '0px 0px -8% 0px' },
+    )
+
+    nodes.forEach((node) => observer.observe(node))
+    return () => observer.disconnect()
+  }, [])
+}
+
+function CountUp({ value, suffix = '', duration = 900 }: { value: number; suffix?: string; duration?: number }) {
+  const [display, setDisplay] = useState(0)
+  const [started, setStarted] = useState(false)
+
+  useEffect(() => {
+    if (!started) return
+    let raf = 0
+    const start = performance.now()
+
+    const tick = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplay(Math.round(value * eased))
+      if (progress < 1) raf = requestAnimationFrame(tick)
+    }
+
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [duration, started, value])
+
+  return (
+    <span
+      ref={(el) => {
+        if (!el || started) return
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                setStarted(true)
+                observer.disconnect()
+              }
+            })
+          },
+          { threshold: 0.4 },
+        )
+        observer.observe(el)
+      }}
+    >
+      {display}
+      {suffix}
+    </span>
+  )
+}
+
+function PriceTicker({ value, duration = 1400 }: { value: number; duration?: number }) {
+  const [display, setDisplay] = useState(0)
+  const [started, setStarted] = useState(false)
+
+  useEffect(() => {
+    if (!started) return
+    let raf = 0
+    const start = performance.now()
+
+    const tick = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 4)
+      setDisplay(value * eased)
+      if (progress < 1) raf = requestAnimationFrame(tick)
+    }
+
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [duration, started, value])
+
+  const formatted = display.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+
+  return (
+    <span
+      ref={(el) => {
+        if (!el || started) return
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                setStarted(true)
+                observer.disconnect()
+              }
+            })
+          },
+          { threshold: 0.45 },
+        )
+        observer.observe(el)
+      }}
+      className="tabular-nums"
+    >
+      {formatted}
+    </span>
+  )
 }
 
 function shouldShowThankYou() {
@@ -124,8 +239,7 @@ function Header({ loginUrl }: { loginUrl: string }) {
         <div className="flex items-center gap-3">
           <Button
             size="sm"
-            variant="outline"
-            className="hidden border-white/20 bg-white/5 text-white/85 hover:border-white/35 hover:bg-white/10 hover:text-white sm:block"
+            className="hidden gap-2 shadow-lg shadow-primary-500/25 transition-transform duration-200 hover:scale-[1.03] sm:block"
             onClick={() => (window.location.href = loginUrl)}
           >
             Iniciar sesión
@@ -163,7 +277,7 @@ function Header({ loginUrl }: { loginUrl: string }) {
           ))}
           <a
             href={loginUrl}
-            className="mt-2 rounded-lg bg-primary-600 px-4 py-2.5 text-center text-sm font-semibold text-white transition-all duration-200 hover:bg-primary-500"
+            className="mt-2 rounded-lg bg-primary-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-lg shadow-primary-500/25 transition-all duration-200 hover:bg-primary-500"
           >
             Iniciar sesión
           </a>
@@ -224,16 +338,6 @@ function Hero() {
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-primary-400" />
             <span>Configuración en 2 minutos</span>
-          </div>
-          <div className="h-1 w-1 rounded-full bg-white/20" />
-          <div className="flex items-center gap-2">
-            <Shield className="h-4 w-4 text-primary-400" />
-            <span>Garantía de por vida</span>
-          </div>
-          <div className="h-1 w-1 rounded-full bg-white/20" />
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary-400" />
-            <span>+500 negocios</span>
           </div>
         </div>
       </div>
@@ -374,13 +478,19 @@ function ExcelOffer({
           </div>
 
           {/* Price card */}
-          <div className="mt-10 rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[2%] p-6">
-            <div className="flex items-baseline gap-2">
-              <span className="text-sm font-medium uppercase tracking-wider text-white/40">Precio</span>
-              <span className="text-5xl font-extrabold bg-gradient-to-r from-primary-400 via-violet-400 to-primary-400 bg-clip-text text-transparent">USD 20.99</span>
+          <div className="mt-10 rounded-2xl border border-white/10 bg-gradient-to-br from-[#17172a]/90 via-[#1b1b33]/80 to-[#141428]/90 p-6 shadow-[0_20px_60px_rgba(93,63,211,0.16)] backdrop-blur-sm">
+            <div className="mx-auto mb-2 inline-flex rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">
+              Precio
             </div>
 
-            <label htmlFor="buyer-email" className="mb-2 mt-5 block text-sm font-medium text-white/60">
+            <div className="flex items-end justify-center gap-2 text-center">
+              <span className="text-xl font-semibold text-primary-300/85 sm:text-2xl">USD</span>
+              <span className="bg-gradient-to-r from-primary-300 via-violet-300 to-primary-400 bg-clip-text text-5xl font-black leading-none text-transparent drop-shadow-[0_0_18px_rgba(157,132,191,0.3)] sm:text-6xl">
+                <PriceTicker value={20.99} />
+              </span>
+            </div>
+
+            <label htmlFor="buyer-email" className="mb-2 mt-6 block text-center text-sm font-medium text-white/65">
               Tu correo electrónico
             </label>
             <input
@@ -389,14 +499,14 @@ function ExcelOffer({
               placeholder="tu@email.com"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-primary-500 focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-primary-400 focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-primary-500"
             />
             {!isEmailValid && email.trim().length > 0 && (
               <p className="mt-2 text-xs text-red-400">Ingresá un correo válido para comprar.</p>
             )}
 
             <Button
-              className="mt-5 w-full gap-2 py-3"
+              className="cta-shimmer mt-5 w-full gap-2 py-3"
               onClick={onBuyExcel}
               isLoading={isCheckoutLoading}
               disabled={!isEmailValid}
@@ -494,7 +604,8 @@ function FeaturesZigZag() {
           {features.map((feature, index) => (
             <article
               key={feature.image}
-              className={`mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-2 ${
+              style={{ ['--reveal-delay' as string]: `${index * 90}ms` }}
+              className={`reveal-on-scroll mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-2 ${
                 index % 2 === 1 ? 'lg:[&>*:first-child]:order-2' : ''
               }`}
             >
@@ -611,15 +722,16 @@ function Plans({
 
         {/* Plans grid */}
         <div className="mt-10 grid gap-6 md:grid-cols-3">
-          {plans.map((plan) => (
+          {plans.map((plan, index) => (
             <article
-              key={plan.name}
-              className={`relative flex flex-col rounded-3xl border p-6 transition-all duration-300 ${
-                plan.featured
-                  ? 'border-primary-500/50 bg-gradient-to-b from-primary-900/30 to-[#0d0d1a] shadow-xl shadow-primary-500/10 scale-105'
-                  : 'border-white/10 bg-white/5 hover:border-white/20'
-              }`}
-            >
+                key={plan.name}
+                style={{ ['--reveal-delay' as string]: `${(index + 1) * 100}ms` }}
+                className={`reveal-on-scroll relative flex flex-col rounded-3xl border p-6 transition-all duration-300 hover:-translate-y-1 ${
+                  plan.featured
+                    ? 'border-primary-500/50 bg-gradient-to-b from-primary-900/30 to-[#0d0d1a] shadow-xl shadow-primary-500/10 scale-105'
+                    : 'border-white/10 bg-white/5 hover:border-white/20'
+                }`}
+              >
               {plan.featured && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-primary-600 to-violet-600 px-4 py-1 text-xs font-semibold text-white">
                   Más elegido
@@ -630,7 +742,7 @@ function Plans({
               <p className="mt-1 text-sm text-white/50">{plan.description}</p>
 
               <div className="mt-6 flex items-baseline gap-1">
-                <span className="text-5xl font-bold text-white">${plan.price}</span>
+                <span className="text-5xl font-bold text-white">$<CountUp value={plan.price} /></span>
                 <span className="text-sm text-white/50">USD/mes</span>
               </div>
 
@@ -678,8 +790,8 @@ function Footer() {
         {/* Guarantees - centered */}
         <div className="flex flex-wrap items-center justify-center gap-6 md:gap-8">
           {guarantees.map((item) => (
-            <div key={item.text} className="flex items-center gap-2 text-sm text-white/40">
-              <item.icon className="h-4 w-4 text-primary-400" />
+            <div key={item.text} className="group flex items-center gap-2 text-sm text-white/40">
+              <item.icon className="h-4 w-4 text-primary-400 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6" />
               {item.text}
             </div>
           ))}
@@ -693,35 +805,16 @@ function Footer() {
 // Floating Contact Button
 // ========================================
 function FloatingContactButton() {
-  const [isOpen, setIsOpen] = useState(false)
-
   return (
-    <>
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full border border-primary-500/50 bg-primary-600 px-5 py-3 text-sm font-medium text-white shadow-xl shadow-primary-500/30 transition-all hover:bg-primary-500"
-      >
+    <a
+      href={WHATSAPP_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Comunicate con nosotros por WhatsApp"
+      className="fixed bottom-6 right-6 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full border border-primary-500/50 bg-primary-600 text-white shadow-xl shadow-primary-500/30 transition-all hover:scale-105 hover:bg-primary-500"
+    >
         <MessageCircle className="h-5 w-5" />
-        ¿En qué podemos ayudarte?
-      </button>
-
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setIsOpen(false)}>
-          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0d0d1a] p-5" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white">¿En qué podemos ayudarte?</h3>
-              <button onClick={() => setIsOpen(false)} className="text-white/60 hover:text-white">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <input type="text" placeholder="Tu nombre" className="mb-3 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30" />
-            <input type="email" placeholder="Tu email" className="mb-3 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30" />
-            <textarea placeholder="Tu mensaje" rows={3} className="mb-3 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30" />
-            <Button className="w-full">Enviar mensaje</Button>
-          </div>
-        </div>
-      )}
-    </>
+    </a>
   )
 }
 
@@ -775,6 +868,8 @@ function ThankYouPage() {
 // Main Landing Component
 // ========================================
 function LandingContent({ loginUrl }: { loginUrl: string }) {
+  useScrollReveal()
+
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
   const [buyerEmail, setBuyerEmail] = useState('')
 

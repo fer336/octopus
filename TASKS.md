@@ -1,6 +1,7 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
+- [ ] [MKT-LANDING-MOTION-01] Landing/UI: incorporar animaciones de entrada, scroll reveal, hover interactivo y transición en /acceder
 - [x] [SEO-SITEMAP-01] Landing: crear sitemap.xml para octopustrack.shop con URLs canonicales y priority correctos ✅ 2026-04-27
 - [x] [SEO-SITEMAP-02] Landing: actualizar robots.txt para referenciar sitemap.xml ✅ 2026-04-27
 - [x] [SEO-SITEMAP-03] Landing: agregar meta tags SEO (description, og:*) en landing.html para indexación ✅ 2026-04-27
@@ -31,6 +32,28 @@
 
 
 ## 🟢 Hecho
+
+- [x] [MKT-LOGIN-BTN-05] Landing header: igualar estilo de "Iniciar sesión" al botón "Cotizá con Excel" ✅ 2026-04-28
+
+- [x] [MKT-LOGIN-BTN-04] Landing header: quitar halo/borde blanco residual del botón "Iniciar sesión" ✅ 2026-04-28
+
+- [x] [MKT-LOGIN-BTN-03] Landing header: refinar botón "Iniciar sesión" a estilo sobrio monocromático violeta ✅ 2026-04-28
+
+- [x] [MKT-LOGIN-BTN-02] Landing header: aplicar estilo morado con gradiente luminoso tenue al botón "Iniciar sesión" ✅ 2026-04-28
+
+- [x] [MKT-LANDING-PRICEFX-01] Landing: modernizar card de precio (glass/gradient) y animar valor USD con efecto numérico progresivo al entrar en viewport ✅ 2026-04-28
+
+- [x] [MKT-LANDING-CARD-CTA-01] Landing: achicar/centrar tipografía en card de precio Excel y simplificar CTA de contacto a botón flotante único (sin modal) ✅ 2026-04-28
+
+- [x] [MKT-TYPO-02] Landing/UI: actualizar tipografía global a `Ubuntu, Segoe UI, sans-serif` por preferencia de marca ✅ 2026-04-28
+
+- [x] [MKT-TYPO-01] Landing/UI: cambiar tipografía global a stack estilo macOS (`-apple-system`) para look más nativo ✅ 2026-04-28
+
+- [x] [MKT-LANDING-MOTION-02-BUG] 🐛 Landing: corregir pantalla en blanco por íconos `Shield/Users` usados en Footer pero no importados tras refactor de hero ✅ 2026-04-28
+
+- [x] [MKT-LANDING-MOTION-01] Landing/UI: incorporar animaciones de entrada, scroll reveal, hover interactivo y transición en /acceder ✅ 2026-04-28
+
+- [x] [MKT-LANDING-TRUST-01] Landing: quitar claims de social proof "Garantía de por vida" y "+500 negocios" del hero ✅ 2026-04-28
 
 - [x] [MKT-LOGIN-SELECT-06] Landing acceso: simplificar CTA de retorno del header a botón ícono flecha sin texto ✅ 2026-04-28
 

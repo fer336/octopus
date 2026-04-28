@@ -55,7 +55,7 @@ html {
 }
 
 body {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Ubuntu', 'Segoe UI', sans-serif;
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
   transition: background-color 0.2s ease, color 0.2s ease;
@@ -188,4 +188,62 @@ body {
 
 .carousel-image {
   animation: carouselFadeIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Scroll reveal + stagger */
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(22px);
+  filter: blur(3px);
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1), transform 0.7s cubic-bezier(0.22, 1, 0.36, 1), filter 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: transform, opacity, filter;
+}
+
+.reveal-on-scroll.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+
+/* CTA shimmer */
+@keyframes shimmerMove {
+  0% { transform: translateX(-140%); }
+  100% { transform: translateX(180%); }
+}
+
+.cta-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-shimmer::after {
+  content: '';
+  position: absolute;
+  top: -40%;
+  left: 0;
+  width: 42%;
+  height: 180%;
+  background: linear-gradient(100deg, transparent 0%, rgba(255,255,255,0.28) 45%, transparent 100%);
+  transform: translateX(-140%);
+  animation: shimmerMove 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Respect reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-on-scroll,
+  .reveal-on-scroll.is-visible,
+  .cta-shimmer::after,
+  .animate-fade-in-up,
+  .animate-fade-in-up-delay-1,
+  .animate-fade-in-up-delay-2,
+  .animate-fade-in-up-delay-3,
+  .carousel-image {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
 }

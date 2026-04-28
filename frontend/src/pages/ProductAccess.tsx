@@ -28,7 +28,7 @@ export default function ProductAccess() {
         <div className="absolute bottom-[-160px] right-[12%] h-[280px] w-[280px] rounded-full bg-violet-500/10 blur-[100px]" />
       </div>
 
-      <header className="fixed left-0 right-0 top-0 z-30 border-b border-white/10 bg-[#0d0d1a]/80 backdrop-blur-2xl">
+      <header className="animate-fade-in-up fixed left-0 right-0 top-0 z-30 border-b border-white/10 bg-[#0d0d1a]/80 backdrop-blur-2xl">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
           <a href="/landing" className="flex items-center gap-2 text-sm font-medium text-white/90 transition hover:text-white">
             <img src="/logo-tenculo-final.png" alt="OctopusTrack" className="h-8 w-auto" />
@@ -56,7 +56,8 @@ export default function ProductAccess() {
           {products.map((product) => (
             <article
               key={product.name}
-              className="group rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_12px_32px_rgba(8,8,16,0.35)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary-400/40 hover:shadow-[0_20px_48px_rgba(41,57,253,0.22)] sm:p-6"
+              style={{ animationDelay: product.name === 'OctopusTrack' ? '120ms' : '240ms' }}
+              className="group animate-fade-in-up rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_12px_32px_rgba(8,8,16,0.35)] transition-all duration-300 hover:-translate-y-1 hover:border-primary-400/40 hover:shadow-[0_20px_48px_rgba(41,57,253,0.22)] sm:p-6"
             >
               <div className="flex h-[260px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[#111122]/85 p-3 sm:h-[320px]">
                 <img
@@ -69,7 +70,7 @@ export default function ProductAccess() {
               <div className="mt-4 flex items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-white sm:text-xl">{product.name}</h2>
                 <a href={product.href} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                  <Button className={`min-w-[150px] ${product.buttonClassName}`.trim()}>Iniciar Sesión</Button>
+                  <Button className={`cta-shimmer min-w-[150px] transition-transform duration-200 hover:scale-[1.03] ${product.buttonClassName}`.trim()}>Iniciar Sesión</Button>
                 </a>
               </div>
             </article>
