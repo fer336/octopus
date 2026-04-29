@@ -2336,7 +2336,7 @@ export default function Sales() {
       {/* Contenido mobile por pasos (exacto referencia) */}
       <div className="lg:hidden flex-1 min-h-0 overflow-hidden">
         {mobileSection === 'items' && (
-          <div className="h-full space-y-3 overflow-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+          <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-800">
             {/* Botones de acción: Nuevo cliente + Borradores */}
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => setShowClientModal(true)} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-2 py-2.5 text-xs font-medium text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
@@ -2424,7 +2424,7 @@ export default function Sales() {
         )}
 
         {mobileSection === 'products' && (
-          <div className="h-full space-y-3 overflow-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+          <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-800">
             {/* Botón flotante para configurar productos seleccionados (solo mobile) */}
             {tempSelectedProducts.length > 0 && (
               <button type="button" onClick={() => setShowQuantityModal(true)} className="fixed bottom-20 right-4 z-20 flex items-center gap-1.5 rounded-full border border-primary-300 bg-primary-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg hover:bg-primary-700 dark:border-primary-700 dark:bg-primary-700 dark:hover:bg-primary-600">
@@ -2480,7 +2480,7 @@ export default function Sales() {
         )}
 
         {mobileSection === 'summary' && (
-          <div className="h-full space-y-3 overflow-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+          <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-800">
             <p className="text-[11px] font-semibold tracking-wide text-gray-500 dark:text-gray-400">PRODUCTOS SELECCIONADOS</p>
             <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-600 dark:bg-gray-700">
               {items.length === 0 ? (
