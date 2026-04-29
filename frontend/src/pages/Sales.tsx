@@ -3,7 +3,7 @@
  * Permite crear cotizaciones, remitos y facturas.
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings } from 'lucide-react'
+import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings, MoreVertical } from 'lucide-react'
 import { Button, Modal, Select, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import productsService from '../api/productsService'
@@ -2339,15 +2339,15 @@ export default function Sales() {
           <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white py-2 px-4 dark:border-gray-700 dark:bg-gray-800">
             {/* Botones de acción: Nuevo cliente + Borradores */}
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setShowClientModal(true)} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-2 py-2.5 text-xs font-medium text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
-                <Plus size={14} />
+              <button type="button" onClick={() => setShowClientModal(true)} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-1.5 py-1.5 text-[10px] font-medium text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+                <Plus size={12} />
                 Nuevo cliente
               </button>
-              <button type="button" onClick={() => setShowDraftsModal(true)} className="relative flex flex-1 items-center justify-center gap-1 rounded-lg border border-gray-300 px-2 py-2.5 text-xs font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
-                <FileText size={14} />
+              <button type="button" onClick={() => setShowDraftsModal(true)} className="relative flex flex-1 items-center justify-center gap-1 rounded-lg border border-gray-300 px-1.5 py-1.5 text-[10px] font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
+                <FileText size={12} />
                 Borradores
                 {drafts.length > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-600 px-1 text-[9px] font-bold leading-none text-white">{drafts.length}</span>
+                  <span className="absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary-600 px-1 text-[8px] font-bold leading-none text-white">{drafts.length}</span>
                 )}
               </button>
             </div>
@@ -2936,60 +2936,82 @@ export default function Sales() {
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-20 mt-2 border-t border-gray-200 bg-white/95 px-2 py-2 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 lg:hidden">
-        <div className="flex items-center gap-2">
-          {mobileStepIndex > 0 && (
-            <Button variant="outline" size="sm" onClick={goToPrevMobileStep} className="px-3">
+      <div className="sticky bottom-0 z-20 mt-2 border-t border-gray-200 bg-white/95 px-3 py-2 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 lg:hidden">
+        <div className="flex items-center justify-between gap-2">
+          {/* Botón Atrás (solo si no es el primer paso) */}
+          {mobileStepIndex > 0 ? (
+            <button type="button" onClick={goToPrevMobileStep} className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-2 text-xs font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
               Atrás
-            </Button>
-          )}
+            </button>
+          ) : null}
 
-          {mobileSection !== 'summary' ? (
-            <Button variant="primary" size="sm" onClick={goToNextMobileStep} className="flex-1">
-              Continuar
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleGenerateClick}
-              disabled={isGenerating}
-              className="flex-1"
-            >
-              {isGenerating ? 'Procesando...' : 'Emitir comprobante'}
-            </Button>
-          )}
-
-          {mobileSection === 'summary' && (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowMobileVoucherMenu((prev) => !prev)}
-                className="h-9 w-9 rounded-lg border border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
-                aria-label="Cambiar tipo de comprobante"
-              >
-                ⋯
+          {/* Paso 1: Continuar + Configurar */}
+          {mobileSection === 'items' && (
+            <>
+              <button type="button" onClick={goToNextMobileStep} className="flex-1 rounded-lg border border-primary-200 bg-primary-600 px-2 py-2 text-xs font-medium text-white dark:border-primary-700 dark:bg-primary-600">
+                Continuar
               </button>
-              {showMobileVoucherMenu && (
-                <div className="absolute bottom-11 right-0 z-30 w-44 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
-                  {salesMenuModes.map((mode) => (
-                    <button
-                      key={mode.value}
-                      type="button"
-                      onClick={() => {
-                        if (!mode.comingSoon) {
-                          handleVoucherTypeChange(mode.value)
-                        }
-                        setShowMobileVoucherMenu(false)
-                      }}
-                      className="block w-full border-b border-gray-100 px-3 py-2 text-left text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
-                    >
-                      {mode.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+              <button type="button" onClick={() => setShowQuantityModal(true)} disabled={tempSelectedProducts.length === 0} className={`flex-shrink-0 rounded-lg border px-2 py-2 text-xs font-medium ${tempSelectedProducts.length === 0 ? 'border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-500' : 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300'}`}>
+                <Settings size={12} className="mr-1" />
+                {tempSelectedProducts.length > 0 ? `(${tempSelectedProducts.length})` : 'Configurar'}
+              </button>
+            </>
+          )}
+
+          {/* Paso 2: Atrás + Continuar (si hay productos) */}
+          {mobileSection === 'products' && (
+            <>
+              <button type="button" onClick={goToPrevMobileStep} className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-2 text-xs font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                Atrás
+              </button>
+              <button type="button" onClick={goToNextMobileStep} className="flex-1 rounded-lg border border-primary-200 bg-primary-600 px-2 py-2 text-xs font-medium text-white dark:border-primary-700 dark:bg-primary-600">
+                Continuar
+              </button>
+            </>
+          )}
+
+          {/* Paso 3: Atrás + Emitir + Más opciones */}
+          {mobileSection === 'summary' && (
+            <>
+              <button type="button" onClick={goToPrevMobileStep} className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-2 text-xs font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                Atrás
+              </button>
+              <button type="button" onClick={handleGenerateClick} disabled={isGenerating} className="flex-1 rounded-lg border border-primary-200 bg-primary-600 px-2 py-2 text-xs font-medium text-white dark:border-primary-700 dark:bg-primary-600">
+                {isGenerating ? 'Procesando...' : 'Emitir comprobante'}
+              </button>
+              <div className="relative flex-shrink-0">
+                <button type="button" onClick={() => setShowMobileVoucherMenu((prev) => !prev)} className="flex h-full w-9 items-center justify-center rounded-lg border border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" aria-label="Más opciones">
+                  <MoreVertical size={14} />
+                </button>
+                {showMobileVoucherMenu && (
+                  <div className="absolute bottom-11 right-0 z-30 w-44 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                    {salesMenuModes.map((mode) => (
+                      <button
+                        key={mode.value}
+                        type="button"
+                        onClick={() => {
+                          if (!mode.comingSoon) {
+                            handleVoucherTypeChange(mode.value)
+                          }
+                          setShowMobileVoucherMenu(false)
+                        }}
+                        className={`w-full px-3 py-2 text-left text-xs ${
+                          mode.comingSoon
+                            ? 'cursor-not-allowed text-gray-400'
+                            : voucherType === mode.value
+                              ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                              : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
+                        disabled={mode.comingSoon}
+                      >
+                        {mode.label}
+                        {mode.comingSoon && ' (pronto)'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+</>
           )}
         </div>
       </div>
