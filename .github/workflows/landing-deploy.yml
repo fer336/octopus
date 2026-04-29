@@ -9,6 +9,7 @@ on:
       - 'frontend/landing.html'
       - 'frontend/src/landing/**'
       - 'frontend/src/pages/Landing.tsx'
+      - 'frontend/src/pages/ProductAccess.tsx'
       - 'frontend/src/components/ui/Button.tsx'
       - 'frontend/src/styles/**'
       - 'frontend/public/**'
@@ -64,6 +65,8 @@ jobs:
           no-cache: true
           build-args: |
             VITE_TENANT_LOGIN_URL=${{ vars.VITE_TENANT_LOGIN_URL }}
+            VITE_OCTOPUS_TRACK_LOGIN_URL=${{ vars.VITE_OCTOPUS_TRACK_LOGIN_URL }}
+            VITE_OCTOPUS_FLOW_LOGIN_URL=${{ vars.VITE_OCTOPUS_FLOW_LOGIN_URL }}
 
   deploy:
     name: Deploy Landing via Portainer Webhook

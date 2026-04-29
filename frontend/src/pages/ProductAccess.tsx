@@ -2,17 +2,29 @@ import Button from '../components/ui/Button'
 import { ArrowLeft } from 'lucide-react'
 import AnimatedTentacleLogo from '../components/ui/AnimatedTentacleLogo'
 
+const OCTOPUS_TRACK_LOGIN_URL = import.meta.env.VITE_OCTOPUS_TRACK_LOGIN_URL
+const OCTOPUS_FLOW_LOGIN_URL = import.meta.env.VITE_OCTOPUS_FLOW_LOGIN_URL
+
+function resolveLoginUrl(envName: string, value: string | undefined): { href: string; enabled: boolean } {
+  if (value && value.trim().length > 0) {
+    return { href: value.trim(), enabled: true }
+  }
+
+  console.error(`[ProductAccess] Missing required env var: ${envName}`)
+  return { href: '#', enabled: false }
+}
+
 const products = [
   {
     name: 'OctopusTrack',
     image: '/OC-ERP.png',
-    href: 'https://octopus.qeva.xyz',
+    ...resolveLoginUrl('VITE_OCTOPUS_TRACK_LOGIN_URL', OCTOPUS_TRACK_LOGIN_URL),
     buttonClassName: '',
   },
   {
     name: 'OctopusFlow',
     image: '/OF-Cotizador.png',
-    href: 'https://presupuestos.octopustrack.shop',
+    ...resolveLoginUrl('VITE_OCTOPUS_FLOW_LOGIN_URL', OCTOPUS_FLOW_LOGIN_URL),
     buttonClassName: 'bg-sky-500 hover:bg-sky-600 focus:ring-sky-400',
   },
 ]
@@ -70,8 +82,20 @@ export default function ProductAccess() {
 
               <div className="mt-4 flex items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-white sm:text-xl">{product.name}</h2>
-                <a href={product.href} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                  <Button className={`cta-shimmer min-w-[150px] transition-transform duration-200 hover:scale-[1.03] ${product.buttonClassName}`.trim()}>Iniciar Sesión</Button>
+                <a
+                  href={product.href}
+                  target={product.enabled ? '_blank' : undefined}
+                  rel={product.enabled ? 'noopener noreferrer' : undefined}
+                  aria-disabled={!product.enabled}
+                  className={`shrink-0 ${!product.enabled ? 'pointer-events-none opacity-60' : ''}`.trim()}
+                  title={product.enabled ? undefined : 'Configuración pendiente: URL de acceso no definida'}
+                >
+                  <Button
+                    className={`cta-shimmer min-w-[150px] transition-transform duration-200 hover:scale-[1.03] ${product.buttonClassName}`.trim()}
+                    disabled={!product.enabled}
+                  >
+                    Iniciar Sesión
+                  </Button>
                 </a>
               </div>
             </article>

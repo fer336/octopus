@@ -8,7 +8,11 @@ RUN npm ci
 COPY . .
 
 ARG VITE_TENANT_LOGIN_URL
+ARG VITE_OCTOPUS_TRACK_LOGIN_URL
+ARG VITE_OCTOPUS_FLOW_LOGIN_URL
 ENV VITE_TENANT_LOGIN_URL=${VITE_TENANT_LOGIN_URL:-https://octopus.qeva.xyz/tenant.html#/login}
+ENV VITE_OCTOPUS_TRACK_LOGIN_URL=${VITE_OCTOPUS_TRACK_LOGIN_URL:-https://octopus.qeva.xyz}
+ENV VITE_OCTOPUS_FLOW_LOGIN_URL=${VITE_OCTOPUS_FLOW_LOGIN_URL:-https://login-flow.octopustrack.shop}
 
 RUN npm run build:landing
 

@@ -38,6 +38,12 @@
 
 ## 🟢 Hecho
 
+- [x] [MKT-LOGIN-ENV-VALIDATION-01] Landing acceso: validar en runtime env de URLs de login y deshabilitar CTA si faltan ✅ 2026-04-29
+
+- [x] [MKT-CONFIG-URL-01] Landing acceso: mover URLs de login a variables de entorno (sin hardcode) ✅ 2026-04-29
+
+- [x] [MKT-LOGIN-URL-01] Landing acceso: cambiar URL de login de Presupuestos a `login-flow.octopustrack.shop` ✅ 2026-04-29
+
 - [x] [MKT-OG-WHATSAPP-01] Ajustar preview de compartido (OG/Twitter) para mostrar solo "OctopusTrack-ERP -- Sistema Integral" ✅ 2026-04-28
 
 - [x] [MKT-ANCHOR-VER-SISTEMA-01] Landing: bajar un poco más el anclaje del botón "Ver sistema completo" para alinear inicio visual de sección ✅ 2026-04-28
