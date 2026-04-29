@@ -2337,6 +2337,21 @@ export default function Sales() {
       <div className="lg:hidden flex-1 min-h-0 overflow-hidden">
         {mobileSection === 'items' && (
           <div className="h-full space-y-3 overflow-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+            {/* Botones de acción: Nuevo cliente + Borradores */}
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setShowClientModal(true)} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-2 py-2.5 text-xs font-medium text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+                <Plus size={14} />
+                Nuevo cliente
+              </button>
+              <button type="button" onClick={() => setShowDraftsModal(true)} className="relative flex flex-1 items-center justify-center gap-1 rounded-lg border border-gray-300 px-2 py-2.5 text-xs font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
+                <FileText size={14} />
+                Borradores
+                {drafts.length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-600 px-1 text-[9px] font-bold leading-none text-white">{drafts.length}</span>
+                )}
+              </button>
+            </div>
+
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Cliente</label>
               <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
@@ -2410,6 +2425,14 @@ export default function Sales() {
 
         {mobileSection === 'products' && (
           <div className="h-full space-y-3 overflow-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+            {/* Botón flotante para configurar productos seleccionados (solo mobile) */}
+            {tempSelectedProducts.length > 0 && (
+              <button type="button" onClick={() => setShowQuantityModal(true)} className="fixed bottom-20 right-4 z-20 flex items-center gap-1.5 rounded-full border border-primary-300 bg-primary-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg hover:bg-primary-700 dark:border-primary-700 dark:bg-primary-700 dark:hover:bg-primary-600">
+                <Settings size={16} />
+                Configurar ({tempSelectedProducts.length})
+              </button>
+            )}
+
             <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
               <Search size={14} className="text-gray-400" />
               <input
@@ -2985,7 +3008,7 @@ export default function Sales() {
         headerClassName="px-3 py-2 lg:px-6 lg:py-4"
         titleClassName="text-[13px] lg:text-lg"
         closeButtonClassName="p-0.5 lg:p-1"
-        contentClassName="min-h-0 flex-1 p-0 lg:block lg:min-h-0 lg:px-6 lg:py-4"
+        contentClassName="min-h-0 flex-1 p-2 lg:p-0 lg:block lg:min-h-0 lg:px-6 lg:py-4"
       >
         <div className="flex h-full min-h-0 flex-col lg:h-auto" data-tour-sales-configure-modal>
           {tempSelectedProducts.length > 0 ? (
