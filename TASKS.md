@@ -38,6 +38,8 @@
 
 ## 🟢 Hecho
 
+- [x] [MKT-DEPLOY-LOGIN-URL-01] Deploy landing a producción y verificación de bundle en `/acceder` para login de OctopusFlow en `login-flow.octopustrack.shop` ✅ 2026-04-29
+
 - [x] [MKT-LOGIN-ENV-VALIDATION-01] Landing acceso: validar en runtime env de URLs de login y deshabilitar CTA si faltan ✅ 2026-04-29
 
 - [x] [MKT-CONFIG-URL-01] Landing acceso: mover URLs de login a variables de entorno (sin hardcode) ✅ 2026-04-29
