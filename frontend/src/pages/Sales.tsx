@@ -20,6 +20,7 @@ import { TAX_CONDITIONS, getTaxConditionLabel } from '../types'
 
 type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'current_account'
 type SalesMenuMode = VoucherType
+type MobileSalesSection = 'items' | 'products' | 'summary'
 
 const baseVoucherTypes = [
   { value: 'quotation', label: 'Cotización', icon: FileText },
@@ -330,6 +331,8 @@ export default function Sales() {
     priceCheck: any
   } | null>(null)
   const [items, setItems] = useState<CartItem[]>([])
+  const [mobileSection, setMobileSection] = useState<MobileSalesSection>('items')
+  const [showMobileVoucherMenu, setShowMobileVoucherMenu] = useState(false)
   const [selectedProductIndex, setSelectedProductIndex] = useState(0)
   const productListRef = useRef<HTMLDivElement>(null)
   const selectedRowRef = useRef<HTMLTableRowElement>(null)
@@ -2060,11 +2063,28 @@ export default function Sales() {
   const paymentDifference = shouldShowPaymentDifference ? Number((total - assignedPaymentsTotal).toFixed(2)) : 0
   const isPaymentBalanced = shouldShowPaymentDifference ? Math.abs(Number(total.toFixed(2)) - Number(assignedPaymentsTotal.toFixed(2))) <= 0.01 : true
 
+  const mobileSteps: Array<{ key: MobileSalesSection; label: string }> = [
+    { key: 'items', label: 'Cliente' },
+    { key: 'products', label: 'Productos' },
+    { key: 'summary', label: 'Resumen' },
+  ]
+
+  const mobileStepIndex = mobileSteps.findIndex((step) => step.key === mobileSection)
+
+  const goToMobileStep = (index: number) => {
+    const safeIndex = Math.min(Math.max(index, 0), mobileSteps.length - 1)
+    setMobileSection(mobileSteps[safeIndex].key)
+    setShowMobileVoucherMenu(false)
+  }
+
+  const goToPrevMobileStep = () => goToMobileStep(mobileStepIndex - 1)
+  const goToNextMobileStep = () => goToMobileStep(mobileStepIndex + 1)
+
   return (
-    <div className="-m-6 h-[calc(100%+3rem)] max-h-[calc(100%+3rem)] overflow-hidden flex flex-col p-2" data-tour-sales-root data-tour-sales-mode={voucherType}>
-      {/* Header compacto */}
-      <div className="flex-shrink-0 bg-white dark:bg-gray-800 rounded-lg p-2 shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="-m-6 h-[calc(100%+3rem)] max-h-[calc(100%+3rem)] overflow-hidden flex flex-col p-1" data-tour-sales-root data-tour-sales-mode={voucherType}>
+      {/* Header compacto desktop */}
+      <div className="hidden lg:block flex-shrink-0 bg-white dark:bg-gray-800 rounded-md p-1 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex flex-wrap items-center gap-1.5">
             <Button variant="outline" size="sm" onClick={() => setShowClientModal(true)} title="Nuevo cliente" className="px-2 py-1" data-tour-sales-new-client>
               <Plus size={18} />
             </Button>
@@ -2313,12 +2333,268 @@ export default function Sales() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 w-full flex gap-2 overflow-hidden pt-2">
+      {/* Contenido mobile por pasos (exacto referencia) */}
+      <div className="lg:hidden flex-1 min-h-0 overflow-hidden">
+        {mobileSection === 'items' && (
+          <div className="h-full space-y-3 overflow-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Cliente</label>
+              <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
+                <input
+                  type="text"
+                  value={selectedClient ? selectedClient.name : clientSearch}
+                  onChange={(e) => {
+                    setClientSearch(e.target.value)
+                    if (!e.target.value) {
+                      setSelectedClient(null)
+                      setSelectedOperatingClientId('')
+                    }
+                  }}
+                  placeholder="Buscar o seleccionar cliente..."
+                  className="w-full bg-transparent text-sm text-gray-800 outline-none dark:text-gray-100"
+                  readOnly={!!selectedClient}
+                />
+                <button type="button" onClick={() => setShowClientSelectorModal(true)} className="text-gray-500">
+                  <Search size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Tipo de comprobante</label>
+              <div className="grid grid-cols-2 gap-2">
+                {salesMenuModes.map((mode) => {
+                  const isActive = voucherType === mode.value
+                  return (
+                    <button
+                      key={mode.value}
+                      type="button"
+                      onClick={() => !mode.comingSoon && handleVoucherTypeChange(mode.value)}
+                      className={`rounded-lg border px-2 py-2 text-xs font-medium ${
+                        isActive
+                          ? 'border-primary-300 bg-primary-100 text-primary-800 dark:border-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
+                          : 'border-gray-300 bg-gray-50 text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200'
+                      }`}
+                    >
+                      {mode.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Cargar presupuesto</label>
+              <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
+                <FileText size={14} className="text-gray-500" />
+                <input
+                  type="text"
+                  value={budgetCode}
+                  onChange={(e) => setBudgetCode(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && budgetCode.trim() && handleLoadBudget()}
+                  placeholder="#0001-00001"
+                  className="w-full bg-transparent text-xs text-gray-700 outline-none dark:text-gray-200"
+                />
+                <button
+                  type="button"
+                  onClick={handleLoadBudget}
+                  disabled={!budgetCode.trim() || isLoadingBudget}
+                  className="rounded-md border border-gray-300 px-2 py-1 text-[11px] text-gray-700 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200"
+                >
+                  Cargar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mobileSection === 'products' && (
+          <div className="h-full space-y-3 overflow-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+            <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
+              <Search size={14} className="text-gray-400" />
+              <input
+                type="text"
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                placeholder="Buscar producto por código o nombre..."
+                className="w-full bg-transparent text-sm text-gray-800 outline-none dark:text-gray-100"
+              />
+            </div>
+
+            <div className="rounded-md bg-green-100 px-2 py-1 text-[11px] text-green-700 dark:bg-green-900/30 dark:text-green-300">
+              ✓ {tempSelectedProducts.length} producto(s) seleccionados
+            </div>
+
+            <p className="text-[11px] font-semibold tracking-wide text-gray-500 dark:text-gray-400">RESULTADOS</p>
+
+            <div className="space-y-2">
+              {filteredProducts.slice(0, 30).map((product) => {
+                const isSelected = tempSelectedProducts.some((p) => p.id === product.id)
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => toggleProductInTemp(product)}
+                    className={`flex w-full items-center gap-2 rounded-lg border px-2 py-2 text-left ${
+                      isSelected
+                        ? 'border-primary-300 bg-primary-100 dark:border-primary-700 dark:bg-primary-900/30'
+                        : 'border-gray-200 bg-white dark:border-gray-600 dark:bg-gray-700'
+                    }`}
+                  >
+                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">{product.code}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium text-gray-800 dark:text-gray-100">{product.description}</p>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">${formatNumber(product.sale_price)}</p>
+                    </div>
+                    <span className={`flex h-6 w-6 items-center justify-center rounded-md text-sm font-semibold ${isSelected ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-primary-600 text-white'}`}>
+                      {isSelected ? '✓' : '+'}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {mobileSection === 'summary' && (
+          <div className="h-full space-y-3 overflow-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+            <p className="text-[11px] font-semibold tracking-wide text-gray-500 dark:text-gray-400">PRODUCTOS SELECCIONADOS</p>
+            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-600 dark:bg-gray-700">
+              {items.length === 0 ? (
+                <p className="text-xs text-gray-500 dark:text-gray-400">No hay productos seleccionados</p>
+              ) : (
+                items.map((item) => (
+                  <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-600 dark:bg-gray-800">
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-medium text-gray-800 dark:text-gray-100">{item.description}</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400">{item.code} · ${formatNumber(item.sale_price)}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeItem(item.id)}
+                        className="rounded-md p-1 text-red-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-900/30"
+                        aria-label="Quitar producto"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 dark:border-gray-600 dark:bg-gray-700">
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400">Cant.</p>
+                        <input
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={(e) => updateItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
+                          className="w-full bg-transparent text-right text-xs font-medium text-gray-800 outline-none dark:text-gray-100"
+                        />
+                      </div>
+                      <div className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 dark:border-gray-600 dark:bg-gray-700">
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400">Desc%</p>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.1}
+                          value={item.discount}
+                          onChange={(e) => updateItem(item.id, 'discount', parseFloat(e.target.value) || 0)}
+                          className="w-full bg-transparent text-right text-xs font-medium text-gray-800 outline-none dark:text-gray-100"
+                        />
+                      </div>
+                      <div className="rounded-md border border-primary-200 bg-primary-50 px-2 py-1 dark:border-primary-700 dark:bg-primary-900/20">
+                        <p className="text-[10px] text-primary-600 dark:text-primary-300">Subtotal</p>
+                        <p className="text-right text-xs font-semibold text-primary-800 dark:text-primary-200">
+                          ${formatNumber(calculateItemTotal(item), undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <p className="text-[11px] font-semibold tracking-wide text-gray-500 dark:text-gray-400">DESCUENTO GENERAL</p>
+            <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
+              <span className="text-xs text-gray-600 dark:text-gray-300">Aplicar descuento</span>
+              <input
+                type="number"
+                value={generalDiscount}
+                onChange={(e) => setGeneralDiscount(parseFloat(e.target.value) || 0)}
+                className="ml-auto w-16 rounded border border-gray-300 bg-white px-2 py-1 text-right text-sm dark:border-gray-500 dark:bg-gray-800"
+                min={0}
+                max={100}
+                step={0.1}
+              />
+              <span className="text-xs text-gray-600 dark:text-gray-300">%</span>
+            </div>
+
+            <p className="text-[11px] font-semibold tracking-wide text-gray-500 dark:text-gray-400">TOTALES</p>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-700">
+              <div className="flex justify-between py-1 text-xs text-gray-600 dark:text-gray-300">
+                <span>Subtotal (sin IVA)</span>
+                <span>${formatNumber(subtotalWithoutIva, undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex justify-between py-1 text-xs text-gray-600 dark:text-gray-300">
+                <span>IVA (21%)</span>
+                <span>${formatNumber(iva, undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="mt-1 flex justify-between border-t border-gray-300 pt-2 text-base font-semibold text-gray-900 dark:border-gray-500 dark:text-white">
+                <span>TOTAL</span>
+                <span>${formatNumber(total)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mb-2 rounded-lg border border-gray-200 bg-white px-2 py-2 dark:border-gray-700 dark:bg-gray-800 lg:hidden">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-gray-500 dark:text-gray-400">Nueva venta</span>
+          <span className="text-xs font-medium text-gray-700 dark:text-gray-200">Paso {mobileStepIndex + 1} de 3</span>
+        </div>
+        <div className="mt-2 flex items-center gap-1">
+          {mobileSteps.map((step, index) => {
+            const isActive = index === mobileStepIndex
+            const isDone = index < mobileStepIndex
+            return (
+              <button
+                key={step.key}
+                type="button"
+                onClick={() => goToMobileStep(index)}
+                className="flex flex-1 flex-col items-center"
+              >
+                <span
+                  className={`flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-semibold ${
+                    isActive
+                      ? 'border-primary-300 bg-primary-100 text-primary-800 dark:border-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
+                      : isDone
+                        ? 'border-green-300 bg-green-100 text-green-800 dark:border-green-700 dark:bg-green-900/40 dark:text-green-200'
+                        : 'border-gray-300 bg-gray-100 text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  {isDone ? '✓' : index + 1}
+                </span>
+                <span className={`mt-1 text-[10px] ${isActive ? 'font-semibold text-primary-700 dark:text-primary-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                  {step.label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="hidden lg:flex flex-1 min-h-0 w-full flex-col gap-1 overflow-hidden pt-1 lg:flex-row">
         {/* Panel izquierdo - Tablas */}
-        <div className="flex-1 w-full min-w-0 min-h-0 h-full flex flex-col gap-2 overflow-hidden">
+        <div
+          className={`flex-1 w-full min-w-0 min-h-0 h-full flex flex-col gap-1 overflow-hidden ${
+            mobileSection === 'summary' ? 'hidden lg:flex' : 'flex'
+          }`}
+        >
           {/* TABLA SUPERIOR - Carrito */}
-          <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-hidden" data-tour-sales-cart-table>
-            <div className="p-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+          <div className={`w-full bg-white dark:bg-gray-800 rounded-md shadow-sm border border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-hidden ${mobileSection === 'products' ? 'hidden lg:block' : 'block'}`} data-tour-sales-cart-table>
+            <div className="px-2 py-1.5 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
                   Productos seleccionados ({items.length})
@@ -2416,8 +2692,8 @@ export default function Sales() {
           </div>
 
           {/* TABLA INFERIOR - Búsqueda */}
-          <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 flex-1 min-h-0 flex flex-col overflow-hidden">
-            <div className="p-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+          <div className={`w-full bg-white dark:bg-gray-800 rounded-md shadow-sm border border-gray-200 dark:border-gray-700 flex-1 min-h-0 flex-col overflow-hidden ${mobileSection === 'items' ? 'hidden lg:flex' : 'flex'}`}>
+            <div className="px-2 py-1.5 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <Search size={14} className="text-gray-400" />
                 <input
@@ -2513,7 +2789,7 @@ export default function Sales() {
                 </tbody>
               </table>
             </div>
-            <div className="p-2 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
+            <div className="px-2 py-1.5 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-gray-500" data-tour-sales-esc-hint>
                   ↑↓ Navegar | Enter o Doble Click Seleccionar/Deseleccionar | ESC Configurar
@@ -2529,13 +2805,13 @@ export default function Sales() {
         </div>
 
         {/* Panel lateral - Resumen */}
-        <div className="w-72 flex-shrink-0 h-full min-h-0 overflow-hidden">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-200 dark:border-gray-700 h-full max-h-full flex flex-col overflow-hidden">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex-shrink-0">
+        <div className={`w-full lg:w-72 flex-shrink-0 h-full min-h-0 overflow-hidden ${mobileSection === 'summary' ? 'block' : 'hidden lg:block'}`}>
+          <div className="bg-white dark:bg-gray-800 rounded-md p-2 shadow-sm border border-gray-200 dark:border-gray-700 h-full max-h-full flex flex-col overflow-hidden">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2 flex-shrink-0">
               Resumen
             </h3>
 
-            <div className="space-y-2 text-xs flex-shrink-0">
+            <div className="space-y-1.5 text-xs flex-shrink-0">
               {generalDiscount > 0 && (
                 <div className="flex justify-between text-sm text-red-600 dark:text-red-400">
                   <span>Descuento ({generalDiscount}%)</span>
@@ -2560,8 +2836,8 @@ export default function Sales() {
             </div>
 
             {/* Input de descuento general */}
-            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
                 Descuento General
               </label>
               <div className="flex items-center gap-2">
@@ -2579,7 +2855,7 @@ export default function Sales() {
               </div>
             </div>
 
-            <div className="space-y-2 mt-auto">
+            <div className="space-y-1.5 mt-auto">
               <Button 
                 variant="primary" 
                 size="sm" 
@@ -2626,6 +2902,64 @@ export default function Sales() {
         </div>
       </div>
 
+      <div className="sticky bottom-0 z-20 mt-2 border-t border-gray-200 bg-white/95 px-2 py-2 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 lg:hidden">
+        <div className="flex items-center gap-2">
+          {mobileStepIndex > 0 && (
+            <Button variant="outline" size="sm" onClick={goToPrevMobileStep} className="px-3">
+              Atrás
+            </Button>
+          )}
+
+          {mobileSection !== 'summary' ? (
+            <Button variant="primary" size="sm" onClick={goToNextMobileStep} className="flex-1">
+              Continuar
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleGenerateClick}
+              disabled={isGenerating}
+              className="flex-1"
+            >
+              {isGenerating ? 'Procesando...' : 'Emitir comprobante'}
+            </Button>
+          )}
+
+          {mobileSection === 'summary' && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowMobileVoucherMenu((prev) => !prev)}
+                className="h-9 w-9 rounded-lg border border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                aria-label="Cambiar tipo de comprobante"
+              >
+                ⋯
+              </button>
+              {showMobileVoucherMenu && (
+                <div className="absolute bottom-11 right-0 z-30 w-44 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                  {salesMenuModes.map((mode) => (
+                    <button
+                      key={mode.value}
+                      type="button"
+                      onClick={() => {
+                        if (!mode.comingSoon) {
+                          handleVoucherTypeChange(mode.value)
+                        }
+                        setShowMobileVoucherMenu(false)
+                      }}
+                      className="block w-full border-b border-gray-100 px-3 py-2 text-left text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Modal configuración de productos seleccionados */}
       <Modal 
         isOpen={showQuantityModal} 
@@ -2635,122 +2969,230 @@ export default function Sales() {
         }} 
         title="Configurar productos seleccionados"
         size="xl"
+        frameClassName="p-1 sm:p-2 lg:p-4"
+        containerClassName="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden lg:block lg:h-auto lg:max-h-none"
+        headerClassName="px-3 py-2 lg:px-6 lg:py-4"
+        titleClassName="text-[13px] lg:text-lg"
+        closeButtonClassName="p-0.5 lg:p-1"
+        contentClassName="min-h-0 flex-1 p-0 lg:block lg:min-h-0 lg:px-6 lg:py-4"
       >
-        <div className="space-y-4" data-tour-sales-configure-modal>
+        <div className="flex h-full min-h-0 flex-col lg:h-auto" data-tour-sales-configure-modal>
           {tempSelectedProducts.length > 0 ? (
             <>
-              <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3">
-                <p className="text-sm text-primary-900 dark:text-primary-200">
-                  <strong>Enter</strong> para navegar entre campos. Al completar el último campo, presioná <strong>Enter</strong> para agregar al carrito.
-                </p>
-              </div>
+              <div className="mx-0.5 mt-2 min-h-0 flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-inner dark:border-gray-600 dark:bg-gray-800 lg:mx-0 lg:mt-0 lg:max-h-96 lg:flex-none lg:rounded-lg lg:bg-transparent lg:shadow-none dark:lg:bg-transparent">
+                {/* Desktop: tabla clásica */}
+                <div className="hidden lg:block">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-gray-100/95 backdrop-blur dark:bg-gray-900/95 lg:bg-gray-100 lg:backdrop-blur-none dark:lg:bg-gray-900">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Descripción</th>
+                        <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Precio</th>
+                        <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: '80px' }}>Cant.</th>
+                        <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: '80px' }}>Desc%</th>
+                        <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Subtotal</th>
+                        <th className="px-3 py-2 w-8"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {tempSelectedProducts.map((product, productIndex) => {
+                        const subtotal = product.sale_price * product.tempQuantity
+                        const discountAmount = subtotal * (product.tempDiscount / 100)
+                        const total = subtotal - discountAmount
+                        const quantityInputIndex = productIndex * 2
+                        const discountInputIndex = productIndex * 2 + 1
 
-              <div className="max-h-96 overflow-y-auto border rounded-lg dark:border-gray-600">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-100 dark:bg-gray-900 sticky top-0">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Descripción</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Precio</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: '80px' }}>Cant.</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400" style={{ width: '80px' }}>Desc%</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Subtotal</th>
-                      <th className="px-3 py-2 w-8"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {tempSelectedProducts.map((product, productIndex) => {
-                      const subtotal = product.sale_price * product.tempQuantity
-                      const discountAmount = subtotal * (product.tempDiscount / 100)
-                      const total = subtotal - discountAmount
-                      
-                      // Índices de los inputs: cantidad = productIndex * 2, descuento = productIndex * 2 + 1
-                      const quantityInputIndex = productIndex * 2
-                      const discountInputIndex = productIndex * 2 + 1
-                      
-                      return (
-                        <tr key={product.id}>
-                          <td className="px-3 py-2 font-medium">{product.code}</td>
-                          <td className="px-3 py-2">{product.description}</td>
-                          <td className="px-3 py-2 text-right">${formatNumber(product.sale_price)}</td>
-                          <td className="px-3 py-2 text-right">
+                        return (
+                          <tr key={product.id}>
+                            <td className="px-3 py-2 font-medium">{product.code}</td>
+                            <td className="px-3 py-2">{product.description}</td>
+                            <td className="px-3 py-2 text-right">${formatNumber(product.sale_price)}</td>
+                            <td className="px-3 py-2 text-right">
+                              <input
+                                ref={(el) => modalInputsRef.current[quantityInputIndex] = el}
+                                type="number"
+                                value={product.tempQuantity}
+                                onChange={(e) => updateTempProduct(product.id, 'tempQuantity', parseInt(e.target.value) || 1)}
+                                onKeyDown={(e) => handleModalInputKeyDown(e, quantityInputIndex)}
+                                className="w-full rounded-lg border border-primary-200 bg-white px-2 py-1 text-right text-sm shadow-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:border-primary-800 dark:bg-gray-700 dark:focus:ring-primary-900"
+                                min={1}
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <input
+                                ref={(el) => modalInputsRef.current[discountInputIndex] = el}
+                                type="number"
+                                value={product.tempDiscount}
+                                onChange={(e) => updateTempProduct(product.id, 'tempDiscount', parseFloat(e.target.value) || 0)}
+                                onKeyDown={(e) => handleModalInputKeyDown(e, discountInputIndex)}
+                                className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-right text-sm shadow-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:border-gray-600 dark:bg-gray-700 dark:focus:ring-primary-900"
+                                min={0}
+                                max={100}
+                                step={0.1}
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-right font-medium">
+                              ${formatNumber(total, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-3 py-2">
+                              <button onClick={() => removeFromTemp(product.id)} className="text-red-500 hover:text-red-700" title="Quitar">
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                    <tfoot className="bg-gray-50 dark:bg-gray-900">
+                      <tr>
+                        <td colSpan={5} className="px-3 py-2 text-right font-semibold text-gray-700 dark:text-gray-300">Total:</td>
+                        <td className="px-3 py-2 text-right text-lg font-bold text-gray-900 dark:text-white">
+                          ${formatNumber(tempSelectedProducts.reduce((acc, p) => {
+                            const subtotal = p.sale_price * p.tempQuantity
+                            const discount = subtotal * (p.tempDiscount / 100)
+                            return acc + (subtotal - discount)
+                          }, 0), undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Mobile: cards estilo CMS */}
+                <div className="space-y-2 p-2 lg:hidden">
+                  {tempSelectedProducts.map((product) => {
+                    const subtotal = product.sale_price * product.tempQuantity
+                    const discountAmount = subtotal * (product.tempDiscount / 100)
+                    const total = subtotal - discountAmount
+
+                    return (
+                      <div key={product.id} className="rounded-xl border border-gray-200 bg-white p-2.5 shadow-sm dark:border-gray-600 dark:bg-gray-700">
+                        <div className="mb-2 flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-300">#{product.code}</p>
+                            <p className="pr-1 text-xs leading-[1.2] font-medium text-gray-800 dark:text-gray-100 break-words">{product.description}</p>
+                            <p className="mt-0.5 text-[12px] text-gray-500 dark:text-gray-300">Precio: ${formatNumber(product.sale_price)}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeFromTemp(product.id)}
+                            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-500 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300"
+                            aria-label="Quitar producto"
+                            title="Quitar producto"
+                          >
+                            <Trash2 size={15} className="text-red-500 dark:text-red-300" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-[58px_58px_minmax(0,1fr)] gap-1.5">
+                          <div className="h-[56px] rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-600 dark:bg-gray-800">
+                            <p className="mb-1 text-[10px] leading-none text-gray-500 dark:text-gray-400">Cant.</p>
                             <input
-                              ref={(el) => modalInputsRef.current[quantityInputIndex] = el}
                               type="number"
                               value={product.tempQuantity}
                               onChange={(e) => updateTempProduct(product.id, 'tempQuantity', parseInt(e.target.value) || 1)}
-                              onKeyDown={(e) => handleModalInputKeyDown(e, quantityInputIndex)}
-                              className="w-full text-right text-sm px-2 py-1 border rounded dark:bg-gray-700 dark:border-gray-600"
                               min={1}
+                              className="h-7 w-full rounded-md border border-primary-200 bg-white px-1 text-center text-sm font-semibold text-gray-900 dark:border-primary-800 dark:bg-gray-700 dark:text-white"
                             />
-                          </td>
-                          <td className="px-3 py-2 text-right">
+                          </div>
+                          <div className="h-[56px] rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-600 dark:bg-gray-800">
+                            <p className="mb-1 text-[10px] leading-none text-gray-500 dark:text-gray-400">Desc%</p>
                             <input
-                              ref={(el) => modalInputsRef.current[discountInputIndex] = el}
                               type="number"
                               value={product.tempDiscount}
                               onChange={(e) => updateTempProduct(product.id, 'tempDiscount', parseFloat(e.target.value) || 0)}
-                              onKeyDown={(e) => handleModalInputKeyDown(e, discountInputIndex)}
-                              className="w-full text-right text-sm px-2 py-1 border rounded dark:bg-gray-700 dark:border-gray-600"
                               min={0}
                               max={100}
                               step={0.1}
+                              className="h-7 w-full rounded-md border border-gray-300 bg-white px-1 text-center text-sm font-semibold text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                             />
-                          </td>
-                          <td className="px-3 py-2 text-right font-medium">
-                            ${formatNumber(total, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                          <td className="px-3 py-2">
-                            <button
-                              onClick={() => removeFromTemp(product.id)}
-                              className="text-red-500 hover:text-red-700"
-                              title="Quitar"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                  <tfoot className="bg-gray-50 dark:bg-gray-900">
-                    <tr>
-                      <td colSpan={5} className="px-3 py-2 text-right font-semibold text-gray-700 dark:text-gray-300">
-                        Total:
-                      </td>
-                      <td className="px-3 py-2 text-right font-bold text-lg text-gray-900 dark:text-white">
-                        ${formatNumber(tempSelectedProducts.reduce((acc, p) => {
-                          const subtotal = p.sale_price * p.tempQuantity
-                          return acc + subtotal
-                        }, 0), undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
+                          </div>
+                          <div className="flex h-[56px] min-w-0 flex-col rounded-lg border border-primary-200 bg-primary-50 p-1 dark:border-primary-700 dark:bg-primary-900/20">
+                            <p className="mb-1 text-[10px] leading-none text-primary-600 dark:text-primary-300">Subtotal</p>
+                            <p className="flex h-7 items-center justify-end text-right text-sm font-bold leading-none text-primary-800 dark:text-primary-200 tabular-nums">
+                              ${formatNumber(total, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
 
-              <div className="flex gap-2 pt-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowQuantityModal(false)} 
-                  className="flex-1"
-                >
-                  Continuar Seleccionando
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setShowQuantityModal(false)
-                    setTempSelectedProducts([])
-                  }} 
-                  className="flex-1 text-red-600 hover:text-red-700"
-                >
-                  Cancelar Todo
-                </Button>
-                <Button variant="primary" onClick={confirmTempProducts} className="flex-1" data-tour-sales-add-to-table>
-                  Agregar al Carrito
-                </Button>
+              <div className="sticky bottom-0 z-10 border-t border-gray-200 bg-white px-2.5 py-2 dark:border-gray-700 dark:bg-gray-800 lg:static lg:mt-2 lg:border-t-0 lg:bg-transparent lg:px-0 lg:py-0 dark:lg:bg-transparent">
+                <p className="mb-1 text-[10px] leading-none text-gray-400 dark:text-gray-500 lg:hidden">
+                  Enter: siguiente campo · último Enter: agregar al carrito
+                </p>
+                <div className="mb-1.5 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 dark:border-gray-600 dark:bg-gray-700 lg:hidden">
+                  <span className="text-xs text-gray-600 dark:text-gray-300">Total</span>
+                  <span className="text-base font-bold text-gray-900 dark:text-white">
+                    ${formatNumber(tempSelectedProducts.reduce((acc, p) => {
+                      const subtotal = p.sale_price * p.tempQuantity
+                      const discount = subtotal * (p.tempDiscount / 100)
+                      return acc + (subtotal - discount)
+                    }, 0), undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-end gap-1.5 lg:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowQuantityModal(false)}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary-200 bg-white text-primary-600 shadow-sm hover:bg-primary-50 dark:border-primary-800 dark:bg-gray-800 dark:text-primary-300 dark:hover:bg-primary-900/30"
+                    title="Agregar producto"
+                    aria-label="Agregar producto"
+                  >
+                    <Plus size={16} className="text-primary-600 dark:text-primary-300" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuantityModal(false)
+                      setTempSelectedProducts([])
+                    }}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-500 shadow-sm hover:bg-red-50 dark:border-red-800 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-900/30"
+                    title="Cancelar todo"
+                    aria-label="Cancelar todo"
+                  >
+                    <Trash2 size={16} className="text-red-500 dark:text-red-400" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmTempProducts}
+                    className="flex h-9 min-w-[164px] items-center justify-center gap-2 rounded-lg bg-primary-600 px-3 text-sm font-medium text-white shadow-sm hover:bg-primary-700"
+                    title="Agregar al carrito"
+                    aria-label="Agregar al carrito"
+                    data-tour-sales-add-to-table
+                  >
+                    <CheckCircle size={16} className="text-white" />
+                    <span>Agregar al carrito</span>
+                  </button>
+                </div>
+
+                <div className="hidden gap-2 pt-2 lg:flex">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowQuantityModal(false)} 
+                    className="flex-1"
+                  >
+                    Continuar Seleccionando
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowQuantityModal(false)
+                      setTempSelectedProducts([])
+                    }} 
+                    className="flex-1 text-red-600 hover:text-red-700"
+                  >
+                    Cancelar Todo
+                  </Button>
+                  <Button variant="primary" onClick={confirmTempProducts} className="flex-1" data-tour-sales-add-to-table>
+                    Agregar al Carrito
+                  </Button>
+                </div>
               </div>
             </>
           ) : (

@@ -40,6 +40,8 @@ function CajaBadge() {
 interface SidebarProps {
   isCollapsed?: boolean
   onToggle?: () => void
+  isMobileOpen?: boolean
+  onCloseMobile?: () => void
   currentAccountMode?: 'disabled' | 'automatic' | 'manual'
   priceUpdateEnabled?: boolean
   reportsEnabled?: boolean
@@ -47,6 +49,8 @@ interface SidebarProps {
 
 export default function Sidebar({
   isCollapsed = false,
+  isMobileOpen = false,
+  onCloseMobile,
   currentAccountMode = 'disabled',
   priceUpdateEnabled = true,
   reportsEnabled = true,
@@ -112,6 +116,9 @@ export default function Sidebar({
     <NavLink
       key={item.path}
       to={item.path}
+      onClick={() => {
+        onCloseMobile?.()
+      }}
       end={item.path === '/'}
       data-tour-nav={item.path}
       data-tour-nav-sales={item.path === '/sales' ? 'true' : undefined}
@@ -134,12 +141,25 @@ export default function Sidebar({
   )
 
   return (
-    <aside
-      className={clsx(
-        'h-screen bg-[var(--color-brand-black)] text-white flex flex-col transition-all duration-300 flex-shrink-0 border-r border-[#2b2340]',
-        isCollapsed ? 'w-16' : 'w-60'
+    <>
+      {isMobileOpen && (
+        <button
+          type="button"
+          aria-label="Cerrar menú"
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={onCloseMobile}
+        />
       )}
-    >
+
+      <aside
+        className={clsx(
+          'bg-[var(--color-brand-black)] text-white flex flex-col border-r border-[#2b2340]',
+          'fixed inset-y-0 left-0 z-40 h-screen w-64 transform transition-transform duration-300 lg:static lg:z-auto lg:translate-x-0 lg:h-screen lg:flex-shrink-0',
+          isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+          !isMobileOpen && isCollapsed && 'lg:w-16',
+          !isCollapsed ? 'lg:w-60' : ''
+        )}
+      >
       {/* Logo */}
       <div className="h-14 flex items-center justify-center border-b border-[#2b2340]">
         <img
@@ -202,6 +222,7 @@ export default function Sidebar({
           </p>
         )}
       </div>
-    </aside>
+      </aside>
+    </>
   )
 }

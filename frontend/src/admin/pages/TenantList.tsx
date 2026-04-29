@@ -1,11 +1,13 @@
 /**
  * Lista de tenants — panel de superadmin para gestionar negocios del ERP.
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
+import { MoreHorizontal, Pencil } from 'lucide-react'
 import adminAPI, { type AdminUser, type CreateTenantPayload, type Tenant } from '../../api/adminService'
+import { ResponsiveTable } from '../../components/ui'
 
 const taxConditionOptions = [
   'Responsable Inscripto',
@@ -24,6 +26,13 @@ function formatDate(value?: string | null) {
   if (!value) return '-'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('es-AR')
+}
+
+function getTenantInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return 'TN'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase()
 }
 
 function TenantRow({
@@ -122,6 +131,177 @@ function TenantRow({
         </div>
       </td>
     </tr>
+  )
+}
+
+function TenantCard({
+  tenant,
+  onDelete,
+  onRenew,
+  onToggleAccess,
+}: {
+  tenant: Tenant
+  onDelete: (tenant: Tenant) => void
+  onRenew: (tenant: Tenant) => void
+  onToggleAccess: (tenant: Tenant) => void
+}) {
+  const navigate = useNavigate()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const subscriptionStatus = tenant.subscription_status ?? 'active'
+  const isBlocked = subscriptionStatus === 'suspended' || subscriptionStatus === 'expired'
+  const businessTone = isBlocked
+    ? {
+        avatarBg: 'bg-gray-200 dark:bg-gray-700',
+        avatarText: 'text-gray-700 dark:text-gray-200',
+        dot: 'bg-gray-500',
+      }
+    : {
+        avatarBg: 'bg-blue-100 dark:bg-blue-900/40',
+        avatarText: 'text-blue-700 dark:text-blue-200',
+        dot: 'bg-blue-500',
+      }
+
+  useEffect(() => {
+    const onClickOutside = (event: MouseEvent) => {
+      if (!menuRef.current) return
+      if (!menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', onClickOutside)
+    document.addEventListener('keydown', onEscape)
+
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside)
+      document.removeEventListener('keydown', onEscape)
+    }
+  }, [])
+
+  return (
+    <article
+      className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+      onClick={() => navigate(`/tenants/${tenant.id}`)}
+    >
+      <div className="flex items-center gap-3">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold ${businessTone.avatarBg} ${businessTone.avatarText}`}>
+          {getTenantInitials(tenant.name)}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{tenant.name}</p>
+          <p className="truncate text-xs text-gray-500 dark:text-gray-400">{tenant.owner_email || 'Sin owner'}</p>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-purple-100 px-2 py-1 text-[11px] font-semibold text-purple-700 dark:bg-purple-900/40 dark:text-purple-200">
+          {tenant.tax_condition}
+        </span>
+        <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+          isBlocked
+            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+        }`}>
+          {subscriptionStatusLabel[subscriptionStatus] ?? subscriptionStatus}
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+          <span className={`h-2 w-2 rounded-full ${businessTone.dot}`} />
+          1 comercio
+        </span>
+        <span className="text-[11px] text-gray-500 dark:text-gray-400">
+          vence {formatDate(tenant.subscription_ends_at)}
+        </span>
+
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(`/tenants/${tenant.id}`)
+            }}
+            className="rounded-md border border-gray-300 p-1.5 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+            aria-label="Editar tenant"
+            title="Editar tenant"
+          >
+            <Pencil size={14} />
+          </button>
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setMenuOpen((prev) => !prev)
+              }}
+              className="rounded-md border border-gray-300 p-1.5 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+              aria-label="Más acciones"
+            >
+              <MoreHorizontal size={14} />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-gray-200 bg-white p-1 shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onRenew(tenant)
+                    setMenuOpen(false)
+                  }}
+                  className="block w-full rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  Renovar 30d
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onToggleAccess(tenant)
+                    setMenuOpen(false)
+                  }}
+                  className="block w-full rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  {isBlocked ? 'Reactivar' : 'Bloquear'}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigate(`/tenants/${tenant.id}/arca`)
+                    setMenuOpen(false)
+                  }}
+                  className="block w-full rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  Configurar ARCA
+                </button>
+                <button
+                  type="button"
+                  disabled={!tenant.can_delete}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDelete(tenant)
+                    setMenuOpen(false)
+                  }}
+                  className="block w-full rounded-md px-2 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:text-red-300 dark:hover:bg-red-900/20"
+                >
+                  Eliminar
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        CUIT {tenant.cuit} · {tenant.subscription_days_remaining ?? '-'} días restantes
+      </div>
+
+    </article>
   )
 }
 
@@ -564,61 +744,70 @@ export default function TenantList() {
         />
       </div>
 
-      {/* Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Nombre
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  CUIT
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Condición Fiscal
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Email Owner
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Estado pago
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Días restantes
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            {isLoading ? (
-              <TenantTableSkeleton />
-            ) : tenants.length === 0 ? (
-              <tbody>
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                    {debouncedSearch
-                      ? 'No se encontraron tenants con ese criterio de búsqueda'
-                      : 'No hay tenants registrados'}
-                  </td>
-                </tr>
-              </tbody>
-            ) : (
-              <tbody>
-                  {tenants.map((tenant) => (
-                    <TenantRow
-                      key={tenant.id}
-                      tenant={tenant}
-                      onDelete={handleDeleteTenant}
-                      onRenew={handleRenewTenant}
-                      onToggleAccess={handleToggleTenantAccess}
-                    />
-                  ))}
-              </tbody>
+        <div className="p-3 lg:p-0">
+          <ResponsiveTable
+            data={tenants}
+            isLoading={isLoading}
+            emptyState={
+              <div className="rounded-lg border border-dashed border-gray-300 px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                {debouncedSearch
+                  ? 'No se encontraron tenants con ese criterio de búsqueda'
+                  : 'No hay tenants registrados'}
+              </div>
+            }
+            renderCard={(tenant) => (
+              <TenantCard
+                key={tenant.id}
+                tenant={tenant}
+                onDelete={handleDeleteTenant}
+                onRenew={handleRenewTenant}
+                onToggleAccess={handleToggleTenantAccess}
+              />
             )}
-          </table>
+            renderDesktop={() => (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nombre</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">CUIT</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Condición Fiscal</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email Owner</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Estado pago</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Días restantes</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th>
+                    </tr>
+                  </thead>
+                  {isLoading ? (
+                    <TenantTableSkeleton />
+                  ) : tenants.length === 0 ? (
+                    <tbody>
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                          {debouncedSearch
+                            ? 'No se encontraron tenants con ese criterio de búsqueda'
+                            : 'No hay tenants registrados'}
+                        </td>
+                      </tr>
+                    </tbody>
+                  ) : (
+                    <tbody>
+                      {tenants.map((tenant) => (
+                        <TenantRow
+                          key={tenant.id}
+                          tenant={tenant}
+                          onDelete={handleDeleteTenant}
+                          onRenew={handleRenewTenant}
+                          onToggleAccess={handleToggleTenantAccess}
+                        />
+                      ))}
+                    </tbody>
+                  )}
+                </table>
+              </div>
+            )}
+          />
         </div>
 
         {/* Pagination */}

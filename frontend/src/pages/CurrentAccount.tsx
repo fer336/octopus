@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, ClipboardList, Filter, Plus, ShieldCheck, Trash2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ClipboardList, Eye, FileText, Filter, Plus, ShieldCheck, Trash2, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 
@@ -345,34 +345,47 @@ export default function CurrentAccount() {
     : undefined
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 p-6 rounded-xl border border-primary-200 dark:border-primary-800">
+    <div className="w-full max-w-none space-y-1">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 p-2 rounded-md border border-primary-200 dark:border-primary-800">
         <div>
-          <h1 className="text-2xl font-bold text-primary-900 dark:text-primary-100 flex items-center gap-2">
-            <ClipboardList className="h-7 w-7 text-primary-600 dark:text-primary-400" />
+          <h1 className="text-xl font-bold text-primary-900 dark:text-primary-100 flex items-center gap-1.5">
+            <ClipboardList className="h-5 w-5 text-primary-600 dark:text-primary-400" />
             Cuenta Corriente
           </h1>
-          <p className="text-primary-700 dark:text-primary-300">
+          <p className="text-sm text-primary-700 dark:text-primary-300">
             Gestión de autorizaciones titular/subcliente con sublímite por vínculo.
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {topSummary.map((item) => (
-          <div
-            key={item.label}
-            className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
-          >
-            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              {item.label}
-            </p>
-            <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">{item.value}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-3 gap-2">
+        {topSummary.map((item) => {
+          const isClients = item.label === 'Clientes con Cta Cte habilitada'
+          const isSubclients = item.label === 'Subclientes elegibles'
+          
+          return (
+            <div
+              key={item.label}
+              className={`rounded-2xl border-2 p-3 text-center ${
+                isClients 
+                  ? 'border-blue-300 bg-blue-100 dark:border-blue-700 dark:bg-blue-900/30' 
+                  : isSubclients
+                  ? 'border-purple-300 bg-purple-100 dark:border-purple-700 dark:bg-purple-900/30'
+                  : 'border-green-300 bg-green-100 dark:border-green-700 dark:bg-green-900/30'
+              }`}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                {isClients ? 'Ctas activas' : isSubclients ? 'Subclientes' : 'Auths'}
+              </p>
+              <p className="text-2xl font-bold text-gray-800 dark:text-white">
+                {item.value}
+              </p>
+            </div>
+          )
+        })}
       </div>
 
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-4" data-tour-current-account-auth-section>
+      <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 space-y-2" data-tour-current-account-auth-section>
         <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold">
           <Plus size={16} className="text-primary-600" />
           Nueva autorización de retiro
@@ -414,7 +427,7 @@ export default function CurrentAccount() {
           Mostrar también clientes con Cuenta Corriente deshabilitada
         </label>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Cliente titular (paga la cuenta)
@@ -515,15 +528,94 @@ export default function CurrentAccount() {
       </div>
 
       <div
-        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+        className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2"
         data-tour-current-account-authorizations-table
       >
-        <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold mb-3">
+        <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold mb-2">
           <Filter size={16} className="text-primary-600" />
-          Clientes titulares para Cuenta Corriente
+          <span className="lg:hidden">Titulares</span>
+          <span className="hidden lg:inline">Clientes titulares para Cuenta Corriente</span>
         </div>
 
-        <div className="overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
+        {/* Cards para mobile */}
+        <div className="lg:hidden space-y-2">
+          {clientsError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-center text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+              Error cargando clientes: {formatErrorMessage(clientsError)}
+            </div>
+          )}
+          
+          {billingClients.map((client) => {
+            const mode = client.current_account_mode || 'disabled'
+            const modeLabel = CURRENT_ACCOUNT_MODES.find((item) => item.value === mode)?.label || mode
+            const isSelected = closureBillingClientId === client.id
+            const hasCredit = Number(client.current_balance || 0) > 0
+            
+            // Badge de modo con color
+            const modeColors: Record<string, string> = {
+              automatic: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+              manual: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+              disabled: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+            }
+            const modeColor = modeColors[mode] || modeColors.disabled
+            
+            return (
+              <div key={client.id} className={`rounded-xl border p-3 shadow-sm ${
+                isSelected ? 'border-primary-300 bg-primary-50 dark:border-primary-700 dark:bg-primary-900/20' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
+              }`}>
+                {/* Cliente + Modo */}
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-gray-900 dark:text-white">{client.name}</span>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${modeColor}`}>
+                    {modeLabel}
+                  </span>
+                </div>
+                
+                {/* Límite y Saldo */}
+                <div className="flex items-center justify-between mb-2 text-sm">
+                  <div>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Límite</span>
+                    <div className="font-mono text-gray-700 dark:text-gray-300">
+                      {client.credit_limit != null
+                        ? `$ ${Number(client.credit_limit).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                        : 'Sin límite'}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Saldo</span>
+                    <div className={`font-mono font-semibold ${hasCredit ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                      $ {Number(client.current_balance || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Botón acción */}
+                <button
+                  onClick={() => {
+                    setClosureBillingClientId(client.id)
+                    setSelectedReceiptIds([])
+                  }}
+                  className={`w-full rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                    isSelected
+                      ? 'bg-primary-600 text-white'
+                      : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {isSelected ? 'Filtrando' : 'Ver remitos'}
+                </button>
+              </div>
+            )
+          })}
+          
+          {!clientsError && billingClients.length === 0 && (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+              No hay titulares para mostrar. Activá "Mostrar también clientes deshabilitados" o habilitá Cuenta Corriente desde Clientes.
+            </div>
+          )}
+        </div>
+        
+        {/* Tabla solo desktop */}
+        <div className="hidden lg:block overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/70">
               <tr>
@@ -590,10 +682,11 @@ export default function CurrentAccount() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-        <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold mb-3">
+      <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2">
+        <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold mb-2">
           <ShieldCheck size={16} className="text-primary-600" />
-          Autorizaciones activas e históricas
+          <span className="lg:hidden">Autorizaciones</span>
+          <span className="hidden lg:inline">Autorizaciones activas e históricas</span>
         </div>
 
         {(loadingClients || loadingAuthorizations) && (
@@ -601,8 +694,74 @@ export default function CurrentAccount() {
         )}
 
         {!loadingClients && !loadingAuthorizations && (
-          <div className="overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
-            <table className="w-full text-sm">
+          <>
+            {/* Cards para mobile */}
+            <div className="lg:hidden space-y-2">
+              {authorizations.map((auth) => {
+                const billing = clientsById.get(auth.billing_client_id)
+                const operating = clientsById.get(auth.operating_client_id)
+                return (
+                  <div key={auth.id} className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    {/* Titular - Subcliente */}
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Titular</div>
+                        <div className="font-medium text-gray-900 dark:text-white">{billing?.name || '—'}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Subcliente</div>
+                        <div className="font-medium text-gray-900 dark:text-white">{operating?.name || '—'}</div>
+                      </div>
+                    </div>
+                    
+                    {/* Sublímite + Estado */}
+                    <div className="flex items-center justify-between mb-2 text-sm">
+                      <div>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Sublímite</span>
+                        <div className="font-mono text-gray-700 dark:text-gray-300">
+                          {auth.operating_credit_limit != null
+                            ? `$ ${Number(auth.operating_credit_limit).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                            : 'Sin sublímite'}
+                        </div>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        auth.is_active
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                          : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                      }`}>
+                        {auth.is_active ? 'Activa' : 'Inactiva'}
+                      </span>
+                    </div>
+                    
+                    {/* Botones acciones */}
+                    <div className="flex gap-1.5 pt-2 border-t border-gray-100 dark:border-gray-700">
+                      <button
+                        onClick={() => setEditingAuth(auth)}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => setAuthToDelete(auth)}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+              
+              {authorizations.length === 0 && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                  No hay autorizaciones registradas todavía.
+                </div>
+              )}
+            </div>
+            
+            {/* Tabla solo desktop */}
+            <div className="hidden lg:block overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
+              <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800/70">
                 <tr>
                   <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Titular</th>
@@ -665,16 +824,61 @@ export default function CurrentAccount() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-4" data-tour-current-account-close-section>
+      <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 space-y-2" data-tour-current-account-close-section>
         <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold">
           <ClipboardList size={16} className="text-primary-600" />
-          Control previo al cierre y selección de remitos
+          <span className="lg:hidden">Cierre</span>
+          <span className="hidden lg:inline">Control previo al cierre y selección de remitos</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Filtros para mobile */}
+        <div className="lg:hidden space-y-2">
+          <select
+            value={closureBillingClientId}
+            onChange={(e) => {
+              setClosureBillingClientId(e.target.value)
+              setSelectedReceiptIds([])
+            }}
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 dark:text-white"
+          >
+            <option value="">{billingClients.length > 0 ? 'Seleccionar titular...' : 'Sin titulares'}</option>
+            {billingClients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.name}
+                {(client.current_account_mode || 'disabled') === 'disabled' ? ' · Deshabilitada' : ''}
+              </option>
+            ))}
+          </select>
+          
+          {selectedBillingClient && (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 dark:bg-gray-900/30 p-2 text-sm">
+              <span className="text-gray-500 dark:text-gray-400">Saldo actual: </span>
+              <span className="font-mono font-semibold text-gray-900 dark:text-white">
+                ${Number(selectedBillingClient.current_balance || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
+          
+          <select
+            value={receiptStatusFilter}
+            onChange={(e) => {
+              setReceiptStatusFilter(e.target.value as 'pending' | 'closed' | 'all')
+              setSelectedReceiptIds([])
+            }}
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          >
+            <option value="pending">Solo pendientes</option>
+            <option value="closed">Solo cerrados</option>
+            <option value="all">Todos</option>
+          </select>
+        </div>
+        
+        {/* Desktop filters */}
+        <div className="hidden lg:grid grid-cols-1 md:grid-cols-2 gap-2">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Cliente titular a cerrar
@@ -725,7 +929,7 @@ export default function CurrentAccount() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="hidden lg:grid grid-cols-1 md:grid-cols-2 gap-2">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Estado de remitos
@@ -756,10 +960,83 @@ export default function CurrentAccount() {
           </div>
         </div>
 
-        <div
-          className="overflow-auto rounded-lg border border-gray-200 dark:border-gray-700 max-h-72"
-          data-tour-current-account-receipts-table
-        >
+        {/* ===== LISTA DE REMITOS ===== */}
+        
+        {/* Mobile cards */}
+        <div className="lg:hidden space-y-2">
+          {loadingPendingReceipts && (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+              Cargando remitos...
+            </div>
+          )}
+          
+          {!loadingPendingReceipts && closureReceipts.length === 0 && (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+              No hay remitos de Cuenta Corriente pendientes para este titular.
+            </div>
+          )}
+          
+          {!loadingPendingReceipts && closureReceipts.map((voucher) => {
+            const isLocked = !!voucher.invoiced_voucher_id
+            const isAuthorized = !!voucher.is_withdrawal_authorized
+            const isSelected = selectedReceiptIds.includes(voucher.id)
+            
+            return (
+              <div key={voucher.id} className={`rounded-xl border p-3 shadow-sm ${
+                isSelected ? 'border-primary-300 bg-primary-50 dark:border-primary-700 dark:bg-primary-900/20' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
+              }`}>
+                {/* Checkbox + Número */}
+                <div className="flex items-center justify-between mb-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleToggleReceipt(voucher.id, isLocked)}
+                      disabled={isLocked}
+                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="font-mono font-semibold text-gray-900 dark:text-white">
+                      {voucher.sale_point}-{voucher.number}
+                    </span>
+                  </label>
+                  <span className="font-mono font-bold text-gray-900 dark:text-white">
+                    ${Number(voucher.total).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                
+                {/* Fecha + Estado */}
+                <div className="flex items-center justify-between text-xs mb-2">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {new Date(`${voucher.date}T00:00:00`).toLocaleDateString('es-AR')}
+                  </span>
+                  {isLocked ? (
+                    <span className="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300">
+                      <AlertTriangle size={10} />
+                      Cerrado
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300">
+                      <CheckCircle2 size={10} />
+                      Pendiente
+                    </span>
+                  )}
+                </div>
+                
+                {/* Autorizado badge */}
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                  isAuthorized
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                }`}>
+                  Autorizado: {isAuthorized ? 'Sí' : 'No'}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+        
+        {/* Desktop table */}
+        <div className="hidden lg:block overflow-auto rounded-md border border-gray-200 dark:border-gray-700 max-h-72">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/70">
               <tr>
@@ -854,7 +1131,7 @@ export default function CurrentAccount() {
           </table>
         </div>
 
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-3 text-sm text-gray-700 dark:text-gray-300">
+        <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-2 text-sm text-gray-700 dark:text-gray-300">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <span>Seleccionados: <strong>{selectedReceiptIds.length}</strong></span>
             <span>
@@ -870,40 +1147,52 @@ export default function CurrentAccount() {
           </div>
         </div>
 
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex flex-wrap justify-center gap-1.5">
           <Button
             variant="outline"
+            size="sm"
             onClick={() => handlePreview(false)}
             disabled={selectedReceiptIds.length === 0}
             data-tour-current-account-preview
+            title="Vista previa del cierre"
           >
-            Vista previa
+            <Eye size={14} className="mr-1" />
+            Previa
           </Button>
           <Button
             variant="outline"
+            size="sm"
             onClick={() => handleCloseCurrentAccount(false)}
             isLoading={closeCurrentAccountMutation.isPending}
             disabled={selectedReceiptIds.length === 0}
+            title="Cerrar solo los remitos seleccionados"
           >
-            Cerrar seleccionados ({selectedReceiptIds.length})
+            <XCircle size={14} className="mr-1" />
+            Cerrar ({selectedReceiptIds.length})
           </Button>
           <Button
+            size="sm"
             onClick={() => handlePreview(true)}
+            title="Vista previa de toda la cuenta sin cerrar"
           >
-            Vista previa total
+            <FileText size={14} className="mr-1" />
+            Previa total
           </Button>
           <Button
+            size="sm"
             onClick={() => handleCloseCurrentAccount(true)}
             isLoading={closeCurrentAccountMutation.isPending}
             data-tour-current-account-close-all
+            title="Cerrar todos los remitos pendientes"
           >
-            Cerrar toda la cuenta
+            <ShieldCheck size={14} className="mr-1" />
+            Cerrar todo
           </Button>
         </div>
 
         {/* Sección histórico de cierres */}
         {closureBillingClientId && (
-          <div className="mt-4">
+          <div className="mt-2">
             <button
               onClick={() => setShowHistorySection(!showHistorySection)}
               className="text-sm text-primary-600 hover:text-primary-700 underline"
@@ -914,14 +1203,14 @@ export default function CurrentAccount() {
         )}
 
         {showHistorySection && historyQuery.data && (
-          <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+          <div className="mt-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-1.5">
               Histórico de cierres
             </h3>
             {historyQuery.data.closures.length === 0 ? (
               <p className="text-gray-500 text-sm">No hay cierres históricos</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {historyQuery.data.closures.map((closure) => (
                   <div
                     key={closure.closure_voucher_id}

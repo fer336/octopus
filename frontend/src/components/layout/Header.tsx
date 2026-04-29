@@ -13,6 +13,7 @@ import Button from '../ui/Button'
 interface HeaderProps {
   onMenuClick?: () => void
   isSidebarCollapsed?: boolean
+  isMobileSidebarOpen?: boolean
   currentRouteLabel: string
   contextualAction?: ReactNode
   aiEnabled?: boolean
@@ -23,6 +24,7 @@ interface HeaderProps {
 export default function Header({
   onMenuClick,
   isSidebarCollapsed,
+  isMobileSidebarOpen = false,
   currentRouteLabel,
   contextualAction,
   aiEnabled = false,
@@ -40,17 +42,22 @@ export default function Header({
   }
 
   return (
-    <header className="h-[59px] bg-[var(--color-bg-secondary)] border-b border-primary-200 dark:border-primary-800 flex items-center justify-between px-4 flex-shrink-0 transition-colors">
+    <header className="h-[59px] bg-[var(--color-bg-secondary)] border-b border-primary-200 dark:border-primary-800 flex items-center justify-between px-2 sm:px-4 flex-shrink-0 transition-colors">
         {/* Left side */}
         <div className="flex items-center gap-3">
           <button
             onClick={onMenuClick}
             className="p-1.5 text-primary-700 hover:text-primary-900 dark:text-primary-300 dark:hover:text-primary-100 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors"
-            aria-label={isSidebarCollapsed ? 'Expandir menú' : 'Colapsar menú'}
+            aria-label={isMobileSidebarOpen || isSidebarCollapsed ? 'Expandir menú' : 'Colapsar menú'}
           >
-            {isSidebarCollapsed ? <Menu size={22} /> : <ChevronLeft size={22} />}
+            <span className="lg:hidden">
+              <Menu size={20} />
+            </span>
+            <span className="hidden lg:inline">
+              {isSidebarCollapsed ? <Menu size={22} /> : <ChevronLeft size={22} />}
+            </span>
           </button>
-          <div className="min-w-0">
+          <div className="min-w-0 max-w-[140px] sm:max-w-xs">
             <h1 className="text-sm font-semibold text-[var(--color-text-primary)] tracking-tight truncate">
               {currentRouteLabel}
             </h1>
@@ -65,7 +72,7 @@ export default function Header({
             <button
               type="button"
               onClick={onTourClick}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 dark:border-primary-700 px-2.5 py-1.5 text-xs font-medium text-primary-700 dark:text-primary-200 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors"
+              className="hidden lg:inline-flex items-center gap-1.5 rounded-lg border border-primary-200 dark:border-primary-700 px-2.5 py-1.5 text-xs font-medium text-primary-700 dark:text-primary-200 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors"
               title="Ver tutorial de esta pantalla"
               data-tour-header-launch
             >
@@ -131,7 +138,7 @@ export default function Header({
           )}
 
           {/* Logout */}
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="px-2.5 py-1.5">
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="px-2 py-1.5 sm:px-2.5">
             <LogOut size={16} />
             <span className="hidden sm:inline ml-2">Salir</span>
           </Button>

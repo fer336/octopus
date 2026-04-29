@@ -1,6 +1,9 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
+- [ ] [RESP-MOBILE-VOUCHERS-01] Mobile cards Comprobantes: mejorar renderCard para mostrar child rows cuando está expandido el acordión
+- [ ] [RESP-MOBILE-VOUCHERS-02] Mobile cards Comprobantes: agregar GSAP animateButton a botones de Products/Clients/Sales
+- [ ] [CMS-RESP-TABLE-02] Conectar acción real de edición de usuario/tenant (hoy botón editar queda como placeholder UX)
 - [ ] [SEO-TECH-05] Habilitar compresión Brotli/Gzip en Nginx para HTML/CSS/JS (actualmente respuestas sin `content-encoding`)
 - [ ] [SEO-TECH-06] Reducir peso de branding images (`favicon.ico` y `logo-tenculo-final.png` ~320KB) y generar variantes optimizadas
 - [ ] [SEO-ONPAGE-07] Ajustar Schema.org: revisar `AggregateRating` (evitar rich snippets inválidos si no hay evidencia pública verificable)
@@ -31,12 +34,43 @@
 
 ## 🟡 En progreso
 
+- [/] [RESP-MOBILE-SALES-STEPPER-08] Optimizar modal de productos a 90-95vh sin espacios muertos y con contraste explícito de iconos/acciones
+- [/] [RESP-MOBILE-SALES-STEPPER-07] Mejorar UX visual de modal "Configurar productos" + edición qty/desc unitario en resumen mobile
+- [/] [RESP-MOBILE-SALES-STEPPER-06] Ajustar Sales mobile para cumplir 1:1 con referencia visual (Paso 1/2/3 exactos)
+- [/] [RESP-MOBILE-SALES-STEPPER-05] Implementar stepper mobile en Sales basado en referencia HTML (solo `<lg`, desktop intacto)
+- [/] [RESP-MOBILE-QA-03] Ejecutar Fase 3 QA responsive (375/390/768/1024) y corregir regresiones visuales
 - [/] [DEVOPS-LANDING-04] Pipeline landing: probar build solo amd64 para evitar falla QEMU arm64 y validar deploy
 
 
 
 
 ## 🟢 Hecho
+
+- [x] [PAYMENT-MOBILE-KPI-02] Compactar KPIs de Métodos de Pago mobile en una sola fila de tres columnas ✅ 2026-04-29
+
+- [x] [PAYMENT-MOBILE-CARDS-01] Rediseñar Métodos de Pago en mobile como cards manteniendo tabla desktop intacta ✅ 2026-04-29
+
+- [x] [CASH-UX-01] Ajustar vista Caja: quitar título redundante y centrar columna PDF en historial ✅ 2026-04-29
+
+- [x] [RESP-DENSITY-WINDOWS-01] Compactar spacing desktop en Comprobantes, Métodos de pago, Caja y Cuentas Corrientes manteniendo mínima luz entre componentes ✅ 2026-04-29
+
+- [x] [RESP-MOBILE-SALES-DESKTOP-10] Ajustar densidad desktop de Sales para ocupar espacios blancos con mínima separación entre componentes ✅ 2026-04-29
+
+- [x] [RESP-MOBILE-SALES-DESKTOP-09] 🐛 Restaurar paleta/fondo desktop del modal de productos afectado por ajustes mobile ✅ 2026-04-29
+
+- [x] [RESP-MOBILE-SALES-HTML-04] Revisar referencia `ventas_mobile_stepper.html` y mapearla a implementación en `Sales.tsx` ✅ 2026-04-29
+
+- [x] [CMS-RESP-TABLE-03] Aplicar patrón ResponsiveTable + cards mobile en Feedback de usuarios ✅ 2026-04-29
+
+- [x] [CMS-RESP-TABLE-01] Implementar patrón ResponsiveTable con renderCard para vistas mobile de Usuarios/Tenants en admin ✅ 2026-04-29
+
+- [x] [RESP-MOBILE-IMPL-02] Ejecutar Fase 2 mobile en pantallas críticas (Sales + TenantList/TenantDetail) ✅ 2026-04-29
+
+- [x] [RESP-MOBILE-IMPL-01] Ejecutar Fase 1 (shell responsive global: MainLayout/Sidebar/Header en tenant + admin) ✅ 2026-04-29
+
+- [x] [RESP-MOBILE-PROP-01] Redactar propuesta técnica formal (alcance/fases/risgos) para responsividad mobile de CMS + Octopus ✅ 2026-04-29
+
+- [x] [RESP-MOBILE-PLAN-01] Definir plan integral de responsividad mobile para Octopus (tenant) y CMS (admin) ✅ 2026-04-29
 
 - [x] [MKT-DEPLOY-LOGIN-URL-01] Deploy landing a producción y verificación de bundle en `/acceder` para login de OctopusFlow en `login-flow.octopustrack.shop` ✅ 2026-04-29
 

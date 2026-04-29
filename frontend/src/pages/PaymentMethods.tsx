@@ -10,7 +10,7 @@ import type {
   PaymentMethodCreate,
   PaymentMethodUpdate,
 } from '../api/paymentMethodsService'
-import { Button, Input, Table } from '../components/ui'
+import { Button, Input, ResponsiveTable, Table } from '../components/ui'
 import {
   useCreatePaymentMethod,
   usePaymentMethods,
@@ -240,28 +240,28 @@ export default function PaymentMethods() {
   ]
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 p-6 rounded-xl border border-primary-200 dark:border-primary-800">
+    <div className="w-full max-w-none space-y-1">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 p-2 rounded-md border border-primary-200 dark:border-primary-800">
         <div>
-          <h1 className="text-2xl font-bold text-primary-900 dark:text-primary-100 flex items-center gap-2">
-            <CreditCard className="h-7 w-7 text-primary-600 dark:text-primary-400" />
+          <h1 className="text-xl font-bold text-primary-900 dark:text-primary-100 flex items-center gap-1.5">
+            <CreditCard className="h-5 w-5 text-primary-600 dark:text-primary-400" />
             Métodos de Pago
           </h1>
-          <p className="text-primary-700 dark:text-primary-300">
+          <p className="text-sm text-primary-700 dark:text-primary-300">
             Administrá los medios de cobro que usa tu negocio en ventas y comprobantes.
           </p>
         </div>
         <button
           type="button"
           onClick={openCreateModal}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-md hover:bg-primary-700"
+          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white shadow-md hover:bg-primary-700"
         >
           <Plus size={18} />
           Nuevo Método
         </button>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 p-2 rounded-md shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
           <input
@@ -269,41 +269,113 @@ export default function PaymentMethods() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Buscar por nombre o código..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
+            className="w-full pl-10 pr-3 py-1.5 bg-gray-50 dark:bg-gray-700 border-none rounded-md focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Total</p>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white">{paymentMethods.length}</p>
+      <div className="grid grid-cols-3 gap-1">
+        <div className="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2">
+          <p className="truncate text-[11px] sm:text-sm text-gray-500 dark:text-gray-400">Total</p>
+          <p className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">{paymentMethods.length}</p>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Activos</p>
-          <p className="text-2xl font-semibold text-primary-600 dark:text-primary-400">
+        <div className="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2">
+          <p className="truncate text-[11px] sm:text-sm text-gray-500 dark:text-gray-400">Activos</p>
+          <p className="text-lg sm:text-xl font-semibold text-primary-600 dark:text-primary-400">
             {paymentMethods.filter((method) => method.is_active).length}
           </p>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Con referencia</p>
-          <p className="text-2xl font-semibold text-amber-600 dark:text-amber-400">
+        <div className="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2">
+          <p className="truncate text-[11px] sm:text-sm text-gray-500 dark:text-gray-400">Con referencia</p>
+          <p className="text-lg sm:text-xl font-semibold text-amber-600 dark:text-amber-400">
             {paymentMethods.filter((method) => method.requires_reference).length}
           </p>
         </div>
       </div>
 
-      <Table columns={columns} data={filteredMethods} emptyMessage="No hay métodos de pago cargados." />
+      <ResponsiveTable
+        data={filteredMethods}
+        emptyState={
+          <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+            No hay métodos de pago cargados.
+          </div>
+        }
+        renderDesktop={() => (
+          <Table columns={columns} data={filteredMethods} emptyMessage="No hay métodos de pago cargados." />
+        )}
+        renderCard={(method) => (
+          <div
+            key={method.id}
+            className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
+                    <CreditCard size={16} />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                      {method.name}
+                    </h3>
+                    <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">
+                      Código: {method.code || '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => openEditModal(method)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary-200 bg-primary-50 text-primary-600 hover:bg-primary-100 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-300 dark:hover:bg-primary-900/40"
+                  title="Editar"
+                  aria-label={`Editar ${method.name}`}
+                >
+                  <Pencil size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleStatus(method)}
+                  disabled={statusMutation.isPending}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/40"
+                  title={method.is_active ? 'Desactivar' : 'Activar'}
+                  aria-label={`${method.is_active ? 'Desactivar' : 'Activar'} ${method.name}`}
+                >
+                  <Power size={15} />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/40">
+                <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Referencia</p>
+                <span className={`mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${method.requires_reference ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300'}`}>
+                  {method.requires_reference ? 'Requerida' : 'Opcional'}
+                </span>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/40">
+                <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Estado</p>
+                <span className={`mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${method.is_active ? 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300' : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+                  {method.is_active ? 'Activo' : 'Inactivo'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      />
 
       {showModal && (
         <div className="fixed inset-0 z-[80]">
           <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
-          <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-center p-2 pointer-events-none">
             <div
-              className="pointer-events-auto relative w-full max-w-lg rounded-xl bg-white shadow-xl dark:bg-gray-800"
+              className="pointer-events-auto relative w-full max-w-lg rounded-md bg-white shadow-xl dark:bg-gray-800"
               onMouseDown={(event) => event.stopPropagation()}
             >
-            <div className="flex items-center justify-between border-b px-6 py-4 dark:border-gray-700">
+            <div className="flex items-center justify-between border-b px-3 py-2 dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editingMethod ? 'Editar Método de Pago' : 'Nuevo Método de Pago'}
               </h3>
@@ -317,8 +389,8 @@ export default function PaymentMethods() {
               </button>
             </div>
 
-            <div className="px-6 py-4">
-              <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="px-3 py-2">
+              <form onSubmit={handleSubmit} className="space-y-2">
           <Input
             label="Nombre"
             value={formData.name}
@@ -357,7 +429,7 @@ export default function PaymentMethods() {
             Sugerencia: podés tener a la vez <strong>Billetera virtual</strong> y <strong>Mercado Pago</strong> como medios separados.
           </div>
 
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2 pt-1">
             <Button type="button" variant="outline" onClick={handleCloseModal} className="flex-1">
               Cancelar
             </Button>

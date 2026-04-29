@@ -14,6 +14,12 @@ interface ModalProps {
   children: ReactNode
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full'
   showCloseButton?: boolean
+  containerClassName?: string
+  headerClassName?: string
+  contentClassName?: string
+  titleClassName?: string
+  closeButtonClassName?: string
+  frameClassName?: string
 }
 
 export default function Modal({
@@ -23,6 +29,12 @@ export default function Modal({
   children,
   size = 'md',
   showCloseButton = true,
+  containerClassName,
+  headerClassName,
+  contentClassName,
+  titleClassName,
+  closeButtonClassName,
+  frameClassName,
 }: ModalProps) {
   // Cerrar con ESC
   useEffect(() => {
@@ -57,34 +69,35 @@ export default function Modal({
     <div className="fixed inset-0 z-50 overflow-y-auto animate-fadeIn">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 transition-opacity"
+        className="fixed inset-0 bg-black/20 dark:bg-black/40 transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Modal */}
-      <div className="flex min-h-full items-center justify-center p-4">
+      <div className={clsx('flex min-h-full items-center justify-center p-4', frameClassName)}>
         <div
           className={clsx(
             'relative w-full bg-white dark:bg-gray-800 rounded-xl shadow-xl',
             'transform transition-all animate-slideIn',
-            sizes[size]
+            sizes[size],
+            containerClassName,
           )}
           role="dialog"
           aria-modal="true"
         >
           {/* Header */}
           {(title || showCloseButton) && (
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div className={clsx('flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700', headerClassName)}>
               {title && (
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h3 className={clsx('text-lg font-semibold text-gray-900 dark:text-white', titleClassName)}>
                   {title}
                 </h3>
               )}
               {showCloseButton && (
                 <button
                   onClick={onClose}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className={clsx('text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700', closeButtonClassName)}
                   aria-label="Cerrar"
                 >
                   <X size={20} />
@@ -94,7 +107,7 @@ export default function Modal({
           )}
 
           {/* Content */}
-          <div className="px-6 py-4">{children}</div>
+          <div className={clsx('px-6 py-4', contentClassName)}>{children}</div>
         </div>
       </div>
     </div>,

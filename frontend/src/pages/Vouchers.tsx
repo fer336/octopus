@@ -2,9 +2,10 @@
  * Página de Comprobantes.
  * Visualiza cotizaciones, remitos y facturas generadas.
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle, RotateCcw, FileMinus, ExternalLink, Pencil, Menu, Info } from 'lucide-react'
-import { Button, Table, Pagination, Select, Modal, Input } from '../components/ui'
+import gsap from 'gsap'
+import { Button, Table, Pagination, Select, Modal, Input, ResponsiveTable } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import vouchersService, { type Voucher, type VoucherPayment, type PriceStrategy } from '../api/vouchersService'
@@ -65,6 +66,7 @@ const voucherTypeLabels: Record<string, { label: string; textClass: string; icon
 const statusLabels: Record<string, { label: string; className: string }> = {
   draft: { label: 'Borrador', className: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' },
   confirmed: { label: 'Confirmado', className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+  issued: { label: 'Emitido', className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
   cancelled: { label: 'Anulado', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
 }
 
@@ -119,6 +121,38 @@ export default function Vouchers() {
   const [_compilePreviewLoading, _setCompilePreviewLoading] = useState(false)
   const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null)
   const [openSubrowDetailsId, setOpenSubrowDetailsId] = useState<string | null>(null)
+  
+  // Refs para animaciones GSAP
+  const expandedChildRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const prevExpandedRef = useRef<string | null>(null)
+
+  // Función helper para animación de botones
+  const animateButton = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const btn = e.currentTarget
+    gsap.to(btn, { scale: 0.88, duration: 0.06, ease: 'power2.in', onComplete: () => {
+      gsap.to(btn, { scale: 1, duration: 0.12, ease: 'elastic.out(1, 0.5)' })
+    }})
+  }
+
+  // Efecto para animaciones de expandir/colapsar
+  useEffect(() => {
+    const current = expandedInvoiceId
+    const previous = prevExpandedRef.current
+    
+    if (current !== previous && current) {
+      prevExpandedRef.current = current
+      // Animation simple: fade in + slide down cuando se expande
+      setTimeout(() => {
+        const row = expandedChildRefs.current.get(current)
+        if (row) {
+          gsap.fromTo(row, 
+            { opacity: 0, maxHeight: 0 },
+            { opacity: 1, maxHeight: 500, duration: 0.3, ease: 'power2.out' }
+          )
+        }
+      }, 10)
+    }
+  }, [expandedInvoiceId])
 
   // Query para comprobantes
   const { data: vouchersData, isLoading, error } = useQuery({
@@ -475,10 +509,15 @@ export default function Vouchers() {
 
     const childRows = getExpandedSourceRows(item)
 
+    //获取 el ref para GSAP animation
+    const rowRef = (el: HTMLDivElement | null) => {
+      if (el) expandedChildRefs.current.set(item.id, el)
+    }
+
     return (
       <div className="space-y-1">
         <div>{parentNode}</div>
-        <div className="mt-1 space-y-1">
+        <div ref={rowRef} className="mt-1 space-y-1 overflow-hidden" style={{ height: expandedInvoiceId === item.id ? 'auto' : 0, opacity: expandedInvoiceId === item.id ? 1 : 0 }}>
           {isSourceQuotationsFetching ? (
             <span className="text-[11px] text-indigo-600 dark:text-indigo-300">
               Cargando comprobantes vinculados...
@@ -808,7 +847,7 @@ export default function Vouchers() {
               <>
                 {item.voucher_type === 'quotation' && !item.invoiced_voucher_id && (
                   <button
-                    onClick={() => handleEditQuotation(item)}
+                    onClick={(e) => { animateButton(e); handleEditQuotation(item) }}
                     className="p-1 text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded transition-colors"
                     title="Editar cotización"
                   >
@@ -816,14 +855,14 @@ export default function Vouchers() {
                   </button>
                 )}
                 <button
-                  onClick={() => handleViewPdf(item.id)}
+                  onClick={(e) => { animateButton(e); handleViewPdf(item.id) }}
                   className="p-1 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded transition-colors"
                   title="Ver PDF"
                 >
                   <Eye size={14} />
                 </button>
                 <button
-                  onClick={() => handleDownloadPdf(item.id, `${item.sale_point}-${item.number}`)}
+                  onClick={(e) => { animateButton(e); handleDownloadPdf(item.id, `${item.sale_point}-${item.number}`) }}
                   className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded transition-colors"
                   title="Descargar PDF"
                 >
@@ -833,7 +872,8 @@ export default function Vouchers() {
                 {/* Botón Nota de Crédito - SOLO para facturas con CAE y SIN NC previa */}
                 {invoicingEnabled && item.voucher_type.startsWith('invoice_') && item.cae && !item.has_credit_note && (
                   <button
-                    onClick={() => {
+                    onClick={(e) => { 
+                      animateButton(e)
                       setSelectedVoucherForNC(item)
                       setShowCreditNoteModal(true)
                     }}
@@ -857,7 +897,13 @@ export default function Vouchers() {
                 {/* Botón comprobantes vinculados — solo para facturas compiladas */}
                 {hasCompiledSources(item) && (
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      const btn = e.currentTarget
+                      // GSAP scale effect on click
+                      gsap.to(btn, { scale: 0.85, duration: 0.06, onComplete: () => {
+                        gsap.to(btn, { scale: 1, duration: 0.1 })
+                      }})
+                      // Toggle expansion
                       setExpandedInvoiceId(
                         expandedInvoiceId === item.id ? null : item.id,
                       )
@@ -870,7 +916,8 @@ export default function Vouchers() {
                 )}
                 
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    animateButton(e)
                     if (isLockedByClosure) {
                       toast.error(closureLockInfo.reason)
                       return
@@ -920,7 +967,7 @@ export default function Vouchers() {
             <div className="relative flex items-center justify-center gap-1">
               {canShowSubrowDetails && (
                 <button
-                  onClick={() => setOpenSubrowDetailsId((current) => (current === child.id ? null : child.id))}
+                  onClick={(e) => { animateButton(e); setOpenSubrowDetailsId((current) => (current === child.id ? null : child.id)) }}
                   className="p-0.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/30 rounded transition-colors"
                   title="Ver detalle de retiro"
                 >
@@ -928,7 +975,7 @@ export default function Vouchers() {
                 </button>
               )}
               <button
-                onClick={() => handleViewPdf(child.id)}
+                onClick={(e) => { animateButton(e); handleViewPdf(child.id) }}
                 className="p-0.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded transition-colors"
                 title={`Ver PDF del ${child.voucher_type === 'receipt' ? 'remito' : 'comprobante'}`}
               >
@@ -936,7 +983,7 @@ export default function Vouchers() {
               </button>
               {!childIsCompiledSource && childIsEditableQuotation && (
                 <button
-                  onClick={() => handleEditQuotation(child as any)}
+                  onClick={(e) => { animateButton(e); handleEditQuotation(child as any) }}
                   className="p-0.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded transition-colors"
                   title="Editar cotización"
                 >
@@ -1112,11 +1159,159 @@ export default function Vouchers() {
         </div>
       )}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <Table 
-          columns={columns} 
+        <ResponsiveTable
           data={tableVouchers}
-          emptyMessage="No se encontraron comprobantes."
-          density="compact"
+          emptyState={
+            <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+              No se encontraron comprobantes.
+            </div>
+          }
+          renderDesktop={() => (
+            <Table 
+              columns={columns} 
+              data={tableVouchers}
+              emptyMessage="No se encontraron comprobantes."
+              density="compact"
+            />
+          )}
+          renderCard={(voucher, _idx) => {
+            const isDeleted = !!voucher.deleted_at
+            // Selectable: quotation or receipt not yet invoiced
+            const isSelectable = (voucher.voucher_type === 'quotation' || voucher.voucher_type === 'receipt') && !voucher.invoiced_voucher_id
+            const typeLabels: Record<string, { label: string; color: string }> = {
+              quotation: { label: 'Cotización', color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/30' },
+              receipt: { label: 'Remito', color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30' },
+              invoice_a: { label: 'Factura A', color: 'text-green-600 bg-green-50 dark:bg-green-900/30' },
+              invoice_b: { label: 'Factura B', color: 'text-green-600 bg-green-50 dark:bg-green-900/30' },
+              invoice_c: { label: 'Factura C', color: 'text-green-600 bg-green-50 dark:bg-green-900/30' },
+            }
+            const typeInfo = typeLabels[voucher.voucher_type] || { label: voucher.voucher_type, color: 'text-gray-600 bg-gray-50 dark:bg-gray-700' }
+            // Usar labels consistentes con desktop
+            const statusRaw = statusLabels[voucher.status] || { label: voucher.status, className: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' }
+            const statusLabel = statusRaw.label
+            // Para mobile, convertir className bg-green-* a bg-emerald-* para consistente con el diseño
+            const statusColor = statusRaw.className.replace('green', 'emerald')
+            
+            return (
+              <div key={voucher.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                {/* Checkbox para seleccionar - solo cotizaciones/remitos sin facturar */}
+                {isSelectable && (
+                  <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100 dark:border-gray-700">
+                    <input
+                      type="checkbox"
+                      className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      checked={selectedQuotationIds.includes(voucher.id)}
+                      onChange={() => {
+                        setSelectedQuotationIds((prev) =>
+                          prev.includes(voucher.id)
+                            ? prev.filter((id) => id !== voucher.id)
+                            : [...prev, voucher.id],
+                        )
+                      }}
+                    />
+                    <span className="text-xs text-gray-400">Seleccionar para facturar</span>
+                  </div>
+                )}
+                
+                {/* Header: Tipo + Número */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${typeInfo.color}`}>
+                      {typeInfo.label}
+                    </span>
+                    {isDeleted && (
+                      <span className="text-xs font-bold text-red-600">ELIMINADO</span>
+                    )}
+                  </div>
+                  <span className="font-mono text-sm font-bold text-gray-900 dark:text-white">
+                    {voucher.sale_point}-{voucher.number}
+                  </span>
+                </div>
+                
+                {/* Cliente */}
+                <div className="mb-2 text-sm text-gray-700 dark:text-gray-200">
+                  <span className="font-medium">{voucher.billing_client?.name || voucher.client?.name || voucher.client_id || '—'}</span>
+                </div>
+                
+                {/* Fecha + Estado */}
+                <div className="flex items-center justify-between mb-3 text-xs text-gray-500 dark:text-gray-400">
+                  <span>{voucher.date}</span>
+                  <span className={`px-2 py-0.5 rounded-full ${statusColor}`}>
+                    {statusLabel}
+                  </span>
+                </div>
+                
+                {/* Total */}
+                <div className="text-lg font-bold text-gray-900 dark:text-white mb-3">
+                  ${Number(voucher.total).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                
+                {/* Acciones */}
+                <div className="flex flex-wrap gap-1 border-t border-gray-100 dark:border-gray-700 pt-3">
+                  {!isDeleted && (
+                    <>
+                      <button onClick={(e) => { animateButton(e); handleViewPdf(voucher.id) }} className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg" title="Ver PDF">
+                        <Eye size={16} />
+                      </button>
+                      <button onClick={(e) => { animateButton(e); handleDownloadPdf(voucher.id, `${voucher.sale_point}-${voucher.number}`) }} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg" title="Descargar PDF">
+                        <Download size={16} />
+                      </button>
+                      <button onClick={(e) => { animateButton(e); setExpandedInvoiceId(expandedInvoiceId === voucher.id ? null : voucher.id) }} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg" title="Ver vinculados">
+                        <Menu size={16} />
+                      </button>
+                      <button onClick={(e) => { 
+                        animateButton(e)
+                        if (!voucher.is_current_account_closure && !voucher.is_receipt_linked_to_current_account_closure) {
+                          setVoucherToDelete(voucher)
+                          setDeleteReasonError('')
+                        }
+                      }} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg" title="Eliminar">
+                        <Trash2 size={16} />
+                      </button>
+                    </>
+                  )}
+                </div>
+                
+                {/* Expanded child rows - show linked quotations/remitos */}
+                {expandedInvoiceId === voucher.id && voucher.voucher_type?.startsWith('invoice_') && (
+                  <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                    <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Comprobantes vinculados:</div>
+                    {isSourceQuotationsFetching ? (
+                      <div className="text-xs text-indigo-600 dark:text-indigo-300 animate-pulse">Cargando...</div>
+                    ) : sourceQuotations && sourceQuotations.length > 0 ? (
+                      <div className="space-y-2">
+                        {(sourceQuotations as any[]).map((sq: any) => (
+                          <div key={sq.id} className="flex items-center justify-between rounded-md border border-indigo-200/60 dark:border-indigo-800/60 bg-indigo-50/40 dark:bg-indigo-900/10 px-2 py-1.5 text-xs">
+                            <div className="flex items-center gap-1.5">
+                              {sq.voucher_type === 'quotation' ? (
+                                <FileText size={12} className="text-amber-500" />
+                              ) : (
+                                <Truck size={12} className="text-blue-500" />
+                              )}
+                              <span className="font-medium text-gray-700 dark:text-gray-200">
+                                {sq.code || sq.id}
+                              </span>
+                            </div>
+                            <div className="flex gap-1">
+                              <button 
+                                onClick={(e) => { animateButton(e); window.open(`/vouchers?id=${sq.id}`, '_blank') }} 
+                                className="p-1 text-gray-400 hover:text-primary-600 rounded"
+                                title="Ver"
+                              >
+                                <Eye size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-400 dark:text-gray-500">Sin comprobantes vinculados</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          }}
         />
       </div>
 

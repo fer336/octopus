@@ -1000,7 +1000,7 @@ export default function TenantDetail() {
 
   if (!id) {
     return (
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         <p className="text-red-600">Tenant no especificado</p>
       </div>
     )
@@ -1014,9 +1014,9 @@ export default function TenantDetail() {
   ]
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <button
             onClick={() => navigate('/tenants')}
@@ -1030,7 +1030,7 @@ export default function TenantDetail() {
         </div>
         <Link
           to={`/tenants/${id}/arca`}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+          className="inline-flex w-full items-center justify-center rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700 sm:w-auto"
         >
           Configurar ARCA
         </Link>
@@ -1038,7 +1038,7 @@ export default function TenantDetail() {
 
       {/* Tabs */}
       <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
-        <nav className="-mb-px flex gap-6">
+        <nav className="-mb-px flex gap-4 overflow-x-auto whitespace-nowrap pb-1">
           {tabs.map((tab) => (
             <button
               key={tab.key}

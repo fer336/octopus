@@ -2,10 +2,11 @@
  * Componente principal de la aplicación admin (superadmin del ERP).
  * Configura providers, rutas y layout para gestión de tenants.
  */
-import { lazy, Suspense, type ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode, useState } from 'react'
 import { HashRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
+import { Menu, X } from 'lucide-react'
 
 import { ThemeProvider, useTheme } from '../context/ThemeContext'
 import { useAuth } from '../hooks/useAuth'
@@ -112,7 +113,7 @@ function ThemedToaster() {
 }
 
 // Sidebar de navegación admin
-function AdminSidebar() {
+function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const location = useLocation()
 
   const navItems = [
@@ -128,7 +129,16 @@ function AdminSidebar() {
   }
 
   return (
-    <aside className="w-64 min-h-screen bg-gray-900 dark:bg-gray-950 text-white flex flex-col">
+    <>
+      {isOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          aria-label="Cerrar menú de administración"
+          onClick={onClose}
+        />
+      )}
+      <aside className={`fixed inset-y-0 left-0 z-40 w-64 min-h-screen bg-gray-900 dark:bg-gray-950 text-white flex flex-col transform transition-transform duration-300 lg:static lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="p-4 border-b border-gray-700">
         <h1 className="text-xl font-bold">Octopus Admin</h1>
         <p className="text-xs text-gray-400 mt-1">Superadministrador</p>
@@ -138,6 +148,7 @@ function AdminSidebar() {
           <Link
             key={item.path}
             to={item.path}
+            onClick={onClose}
             className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
               isActive(item.path)
                 ? 'bg-primary-600 text-white'
@@ -149,16 +160,33 @@ function AdminSidebar() {
           </Link>
         ))}
       </nav>
-    </aside>
+      </aside>
+    </>
   )
 }
 
 // Layout principal del admin
 function AdminLayout({ children }: { children: ReactNode }) {
+  const [mobileOpen, setMobileOpen] = useState(false)
+
   return (
-    <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
-      <AdminSidebar />
-      <main className="flex-1 overflow-auto">
+    <div className="flex h-dvh overflow-hidden bg-gray-100 dark:bg-gray-900">
+      <AdminSidebar isOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+      <main className="flex-1 min-w-0 overflow-auto">
+        <header className="sticky top-0 z-20 border-b border-gray-200 bg-white/95 px-3 py-2 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 lg:hidden">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setMobileOpen((prev) => !prev)}
+              className="inline-flex items-center rounded-md p-2 text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+              aria-label="Abrir menú"
+            >
+              {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Panel Admin</p>
+            <div className="w-8" />
+          </div>
+        </header>
         {children}
       </main>
     </div>

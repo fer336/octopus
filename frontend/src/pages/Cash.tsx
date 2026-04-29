@@ -13,6 +13,10 @@ import {
   Lock,
   PlusCircle,
   XCircle,
+  CreditCard,
+  Wallet,
+  ArrowUp,
+  DollarSign,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAddMovement, useCloseCash, useCurrentCash, useOpenCash, useCashSummary, useCashHistory } from '../hooks/useCash'
@@ -73,9 +77,9 @@ function OpenCashModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Abrir Caja</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="w-full max-w-sm rounded-md bg-white p-3 shadow-xl dark:bg-gray-800">
+        <h2 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">Abrir Caja</h2>
+        <form onSubmit={handleSubmit} className="space-y-2">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Monto inicial (efectivo en caja)
@@ -142,9 +146,9 @@ function MovementModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="w-full max-w-sm rounded-md bg-white p-3 shadow-xl dark:bg-gray-800">
+        <h2 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
+        <form onSubmit={handleSubmit} className="space-y-2">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Descripción *
@@ -157,7 +161,7 @@ function MovementModal({
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
             />
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             <div className="flex-1">
               <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Monto *
@@ -246,14 +250,14 @@ function CloseCashModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-lg max-h-[90vh] rounded-xl bg-white shadow-xl dark:bg-gray-800 flex flex-col">
-        <div className="border-b p-5 dark:border-gray-700">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2">
+      <div className="w-full max-w-lg max-h-[90vh] rounded-md bg-white shadow-xl dark:bg-gray-800 flex flex-col">
+        <div className="border-b p-3 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Cerrar Caja del Día</h2>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col min-h-0">
-          <div className="p-5 space-y-4 overflow-y-auto">
+          <div className="p-3 space-y-2 overflow-y-auto">
             {/* Resumen por método */}
             {summary && (
               <div>
@@ -340,7 +344,7 @@ function CloseCashModal({
             )}
           </div>
 
-          <div className="flex gap-2 border-t p-5 dark:border-gray-700 bg-white dark:bg-gray-800 sticky bottom-0">
+          <div className="flex gap-2 border-t p-3 dark:border-gray-700 bg-white dark:bg-gray-800 sticky bottom-0">
             <button
               type="button"
               onClick={onClose}
@@ -362,25 +366,25 @@ function CloseCashModal({
   )
 }
 
-// ─── Fila de movimiento ───────────────────────────────────────────────────────
+// ─── Fila de movimiento (desktop) ───────────────────────────────────────────────────────
 
 function MovementRow({ mv }: { mv: CashMovement }) {
   const isExpense = mv.type === 'EXPENSE'
 
   return (
     <tr className="border-b hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="py-2.5 pl-4 text-sm text-gray-500 dark:text-gray-400">
+      <td className="py-1.5 pl-3 text-sm text-gray-500 dark:text-gray-400">
         {formatTime(mv.created_at)}
       </td>
-      <td className="py-2.5 text-sm text-gray-900 dark:text-white">{mv.description}</td>
-      <td className="py-2.5 text-sm text-gray-500 dark:text-gray-400">
+      <td className="py-1.5 text-sm text-gray-900 dark:text-white">{mv.description}</td>
+      <td className="py-1.5 text-sm text-gray-500 dark:text-gray-400">
         {MOVEMENT_TYPE_LABELS[mv.type]}
       </td>
-      <td className="py-2.5 text-sm text-gray-500 dark:text-gray-400">
+      <td className="py-1.5 text-sm text-gray-500 dark:text-gray-400">
         {PAYMENT_METHOD_LABELS[mv.payment_method]}
       </td>
       <td
-        className={`py-2.5 pr-4 text-right font-mono text-sm font-semibold ${
+        className={`py-1.5 pr-3 text-right font-mono text-sm font-semibold ${
           isExpense
             ? 'text-red-600 dark:text-red-400'
             : 'text-green-600 dark:text-green-400'
@@ -390,6 +394,59 @@ function MovementRow({ mv }: { mv: CashMovement }) {
         {formatCurrency(mv.amount)}
       </td>
     </tr>
+  )
+}
+
+// ─── Card de movimiento (mobile) ───────────────────────────────────────────────────
+
+function MovementCard({ mv }: { mv: CashMovement }) {
+  const isExpense = mv.type === 'EXPENSE'
+
+  const getMethodIcon = (method: CashPaymentMethod) => {
+    switch (method) {
+      case 'CASH': return <Wallet size={14} />
+      case 'CARD': return <CreditCard size={14} />
+      case 'TRANSFER': return <ArrowUp size={14} />
+      default: return <DollarSign size={14} />
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+      <div className="flex items-center gap-2.5">
+        <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
+          isExpense ? 'bg-red-50 dark:bg-red-900/30' : 'bg-green-50 dark:bg-green-900/30'
+        }`}>
+          {isExpense ? (
+            <ArrowDownCircle size={16} className="text-red-500" />
+          ) : (
+            <ArrowUpCircle size={16} className="text-green-500" />
+          )}
+        </div>
+        <div>
+          <div className="text-xs text-gray-400 dark:text-gray-500">
+            {formatTime(mv.created_at)}
+          </div>
+          <div className="text-sm font-medium text-gray-900 dark:text-white">
+            {mv.description}
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+            <span>{MOVEMENT_TYPE_LABELS[mv.type]}</span>
+            <span>•</span>
+            <span className="flex items-center gap-1">
+              {getMethodIcon(mv.payment_method)}
+              {PAYMENT_METHOD_LABELS[mv.payment_method]}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className={`font-mono text-sm font-semibold ${
+        isExpense ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
+      }`}>
+        {isExpense ? '-' : '+'}
+        {formatCurrency(mv.amount)}
+      </div>
+    </div>
   )
 }
 
@@ -413,16 +470,16 @@ function ClosedCashCard({ cashRegisterId, closedAt }: { cashRegisterId: string; 
 
   return (
     <div className="flex min-h-[40vh] items-center justify-center">
-      <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-        <div className="mb-6 flex justify-center">
-          <div className="rounded-full bg-gray-100 p-4 dark:bg-gray-700">
+      <div className="w-full max-w-sm rounded-md border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="mb-3 flex justify-center">
+          <div className="rounded-full bg-gray-100 p-3 dark:bg-gray-700">
             <Lock className="h-8 w-8 text-gray-500 dark:text-gray-400" />
           </div>
         </div>
         <h2 className="mb-2 text-center text-lg font-semibold text-gray-900 dark:text-white">
           Caja cerrada
         </h2>
-        <p className="mb-6 text-center text-sm text-gray-500 dark:text-gray-400">
+        <p className="mb-3 text-center text-sm text-gray-500 dark:text-gray-400">
           La caja del día fue cerrada a las{' '}
           {closedAt ? formatTime(closedAt) : '—'}.
           Mañana podrás abrir una nueva.
@@ -472,20 +529,87 @@ function CashHistory() {
   if (!history || history.length === 0) return null
 
   return (
-    <div className="mt-8">
-      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-600 dark:text-gray-400">
+    <div className="mt-2">
+      <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-gray-600 dark:text-gray-400">
         <History className="h-4 w-4" />
-        Historial de cierres
+        <span className="lg:hidden">Cajas</span>
+        <span className="hidden lg:inline">Historial de cierres</span>
       </div>
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      
+      {/* Cards para mobile */}
+      <div className="lg:hidden space-y-2">
+        {history.map((r) => {
+          const diff = r.difference ?? 0
+          const hasDiff = Math.abs(diff) > 0.01
+          return (
+            <div key={r.id} className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+              {/* Fechas como badges */}
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                  {formatDateTime(r.opened_at).split(' ')[0]}
+                </span>
+                {r.closed_at && (
+                  <>
+                    <span className="text-gray-400">→</span>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                      {formatDateTime(r.closed_at).split(' ')[0]}
+                    </span>
+                  </>
+                )}
+              </div>
+              
+              {/* Montos principales */}
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Fondo inicial</div>
+                  <div className="font-mono font-semibold text-gray-900 dark:text-white">
+                    {formatCurrency(r.opening_amount)}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Diferencia</div>
+                  <div className={`font-mono font-semibold ${
+                    hasDiff ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
+                  }`}>
+                    {hasDiff ? (diff > 0 ? '+' : '') + formatCurrency(diff) : '✓ Cuadra'}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Botones PDF */}
+              <div className="flex gap-1.5 pt-2 border-t border-gray-100 dark:border-gray-700">
+                <button
+                  onClick={() => handleOpen(r.id)}
+                  disabled={loading === r.id}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-2 py-1.5 text-xs font-medium text-primary-700 hover:bg-primary-100 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-400"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  Cierre
+                </button>
+                <button
+                  onClick={() => handleOpenSales(r.id)}
+                  disabled={loading === r.id}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-2 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  Ventas
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      
+      {/* Tabla solo desktop */}
+      <div className="hidden lg:block overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
-              <th className="py-2.5 pl-4">Fecha apertura</th>
-              <th className="py-2.5">Fecha cierre</th>
-              <th className="py-2.5 text-right">Fondo inicial</th>
-              <th className="py-2.5 text-right">Diferencia</th>
-              <th className="py-2.5 text-right">PDF</th>
+              <th className="py-1.5 pl-3">Fecha apertura</th>
+              <th className="py-1.5">Fecha cierre</th>
+              <th className="py-1.5 text-right">Fondo inicial</th>
+              <th className="py-1.5 text-right">Diferencia</th>
+              <th className="py-1.5 text-center">PDF</th>
             </tr>
           </thead>
           <tbody>
@@ -494,20 +618,20 @@ function CashHistory() {
               const hasDiff = Math.abs(diff) > 0.01
               return (
                 <tr key={r.id} className="border-b hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-                  <td className="py-2.5 pl-4 text-gray-700 dark:text-gray-300">
+                  <td className="py-1.5 pl-3 text-gray-700 dark:text-gray-300">
                     {formatDateTime(r.opened_at)}
                   </td>
-                  <td className="py-2.5 text-gray-700 dark:text-gray-300">
+                  <td className="py-1.5 text-gray-700 dark:text-gray-300">
                     {r.closed_at ? formatDateTime(r.closed_at) : '—'}
                   </td>
-                  <td className="py-2.5 text-right font-mono text-gray-700 dark:text-gray-300">
+                  <td className="py-1.5 text-right font-mono text-gray-700 dark:text-gray-300">
                     {formatCurrency(r.opening_amount)}
                   </td>
-                  <td className={`py-2.5 text-right font-mono font-semibold ${hasDiff ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                  <td className={`py-1.5 text-right font-mono font-semibold ${hasDiff ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                     {hasDiff ? (diff > 0 ? '+' : '') + formatCurrency(diff) : '✓ Cuadra'}
                   </td>
-                  <td className="py-2.5 pr-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                  <td className="py-1.5 px-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => handleOpen(r.id)}
                           disabled={loading === r.id}
@@ -559,22 +683,20 @@ export default function Cash() {
   const isClosed = cashRegister?.status === 'CLOSED'
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Caja</h1>
-
+    <div className="w-full max-w-none space-y-1 p-1">
       {/* ── Estado: Sin caja abierta ─────────────────────────────────── */}
       {!cashRegister && (
         <div className="flex min-h-[60vh] items-center justify-center">
-          <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <div className="mb-6 flex justify-center">
-              <div className="rounded-full bg-primary-100 p-4 dark:bg-primary-900/30">
+           <div className="w-full max-w-sm rounded-md border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+             <div className="mb-3 flex justify-center">
+               <div className="rounded-full bg-primary-100 p-3 dark:bg-primary-900/30">
                 <PlusCircle className="h-8 w-8 text-primary-600 dark:text-primary-400" />
               </div>
             </div>
             <h2 className="mb-2 text-center text-lg font-semibold text-gray-900 dark:text-white">
               No hay caja abierta
             </h2>
-            <p className="mb-6 text-center text-sm text-gray-500 dark:text-gray-400">
+             <p className="mb-3 text-center text-sm text-gray-500 dark:text-gray-400">
               Abrí la caja del día para comenzar a registrar ventas.
             </p>
             <button
@@ -595,7 +717,7 @@ export default function Cash() {
       {/* ── Estado: Caja vencida (>24hs) ─────────────────────────────── */}
       {isExpired && (
         <>
-          <div className="flex items-start gap-3 rounded-xl border border-yellow-300 bg-yellow-50 p-4 dark:border-yellow-800 dark:bg-yellow-900/20">
+          <div className="flex items-start gap-2 rounded-md border border-yellow-300 bg-yellow-50 p-2 dark:border-yellow-800 dark:bg-yellow-900/20">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-yellow-600 dark:text-yellow-400" />
             <div>
               <p className="font-semibold text-yellow-800 dark:text-yellow-300">
@@ -609,7 +731,7 @@ export default function Cash() {
           <div className="flex justify-end">
             <button
               onClick={() => setShowClose(true)}
-              className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
+              className="rounded-md bg-red-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-red-700"
             >
               Cerrar Caja Vencida
             </button>
@@ -621,9 +743,9 @@ export default function Cash() {
       {isOpen && cashRegister && (
         <>
           {/* Header de caja */}
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <div className="flex items-center gap-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-2 py-1.5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
                 <span className="text-lg">🟢</span>
               </div>
               <div>
@@ -633,7 +755,7 @@ export default function Cash() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-6 text-sm">
+            <div className="flex items-center gap-3 text-sm">
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Fondo inicial</p>
                 <p className="font-mono font-semibold text-gray-900 dark:text-white">
@@ -647,24 +769,36 @@ export default function Cash() {
             </div>
           </div>
 
-          {/* Tabla de movimientos */}
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <div className="border-b px-5 py-3 dark:border-gray-700">
-              <h2 className="font-semibold text-gray-900 dark:text-white">Movimientos del día</h2>
+          {/* Historial de movimientos - tabla desktop / cards mobile */}
+          <div className="overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <div className="border-b px-2 py-1.5 dark:border-gray-700">
+              <h2 className="font-semibold text-gray-900 dark:text-white lg:hidden">Movimientos</h2>
+              <h2 className="hidden font-semibold text-gray-900 dark:text-white lg:block">Movimientos del día</h2>
             </div>
             {cashRegister.movements.length === 0 ? (
               <p className="py-10 text-center text-sm text-gray-400 dark:text-gray-500">
-                Sin movimientos aún. Registrá una venta o un ingreso/egreso.
+                Sin movimientos aún. Registrá una venta o un ingresos/egreso.
               </p>
             ) : (
+              <div className="lg:hidden">
+                {/* Cards para mobile */}
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {[...cashRegister.movements].reverse().map((mv) => (
+                    <MovementCard key={mv.id} mv={mv} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Tabla solo desktop */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                    <th className="py-2.5 pl-4">Hora</th>
-                    <th className="py-2.5">Descripción</th>
-                    <th className="py-2.5">Tipo</th>
-                    <th className="py-2.5">Método</th>
-                    <th className="py-2.5 pr-4 text-right">Monto</th>
+                    <th className="py-1.5 pl-3">Hora</th>
+                    <th className="py-1.5">Descripción</th>
+                    <th className="py-1.5">Tipo</th>
+                    <th className="py-1.5">Método</th>
+                    <th className="py-1.5 pr-3 text-right">Monto</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -673,22 +807,22 @@ export default function Cash() {
                   ))}
                 </tbody>
               </table>
-            )}
+            </div>
           </div>
 
           {/* Botones de acción */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-1.5">
+            <div className="flex gap-1.5">
               <button
                 onClick={() => setMovementType('INCOME')}
-                className="flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40"
+                className="flex items-center gap-1.5 rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-semibold text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40"
               >
                 <ArrowUpCircle className="h-4 w-4" />
                 + Ingreso
               </button>
               <button
                 onClick={() => setMovementType('EXPENSE')}
-                className="flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
+                className="flex items-center gap-1.5 rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
               >
                 <ArrowDownCircle className="h-4 w-4" />
                 - Egreso
@@ -696,7 +830,7 @@ export default function Cash() {
             </div>
             <button
               onClick={() => setShowClose(true)}
-              className="flex items-center gap-2 rounded-lg bg-gray-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600"
+              className="flex items-center gap-1.5 rounded-md bg-gray-800 px-4 py-1.5 text-sm font-semibold text-white hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600"
             >
               <XCircle className="h-4 w-4" />
               Cerrar Caja

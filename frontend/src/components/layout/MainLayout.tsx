@@ -20,6 +20,7 @@ import { useProductTour } from '../../hooks/useProductTour'
 
 export default function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
@@ -70,8 +71,19 @@ export default function MainLayout() {
   }, [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, location.pathname, navigate, user])
 
   const toggleSidebar = () => {
+    if (window.innerWidth < 1024) {
+      setMobileSidebarOpen((prev) => !prev)
+      return
+    }
+
     setSidebarCollapsed((prev) => !prev)
   }
+
+  const closeMobileSidebar = () => setMobileSidebarOpen(false)
+
+  useEffect(() => {
+    closeMobileSidebar()
+  }, [location.pathname])
 
   const activeNavigationItem = getActiveNavigationItem(location.pathname)
   const currentRouteLabel = activeNavigationItem?.label ?? 'Octopus'
@@ -93,21 +105,24 @@ export default function MainLayout() {
   ) : undefined
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--color-bg-primary)]">
+    <div className="flex h-dvh overflow-hidden bg-[var(--color-bg-primary)]">
       {/* Sidebar */}
-      <Sidebar
-        isCollapsed={sidebarCollapsed}
-        onToggle={toggleSidebar}
-        currentAccountMode={business?.current_account_mode}
-        priceUpdateEnabled={priceUpdateEnabled}
-        reportsEnabled={reportsEnabled}
-      />
+        <Sidebar
+          isCollapsed={sidebarCollapsed}
+          onToggle={toggleSidebar}
+          isMobileOpen={mobileSidebarOpen}
+          onCloseMobile={closeMobileSidebar}
+          currentAccountMode={business?.current_account_mode}
+          priceUpdateEnabled={priceUpdateEnabled}
+          reportsEnabled={reportsEnabled}
+        />
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <Header
           onMenuClick={toggleSidebar}
           isSidebarCollapsed={sidebarCollapsed}
+          isMobileSidebarOpen={mobileSidebarOpen}
           currentRouteLabel={currentRouteLabel}
           contextualAction={contextualAction}
           aiEnabled={aiEnabled}
@@ -117,7 +132,7 @@ export default function MainLayout() {
 
         <main
           className={`flex-1 overflow-auto ${
-            location.pathname.startsWith('/sales') ? 'p-6' : 'p-2'
+            location.pathname.startsWith('/sales') ? 'p-2 sm:p-4 lg:p-6' : 'p-2 sm:p-3'
           }`}
         >
           <Outlet />
