@@ -2338,16 +2338,16 @@ export default function Sales() {
         {mobileSection === 'items' && (
           <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white py-2 px-4 dark:border-gray-700 dark:bg-gray-800">
             {/* Botones de acción: Nuevo cliente + Borradores */}
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setShowClientModal(true)} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-1.5 py-1.5 text-[10px] font-medium text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
-                <Plus size={12} />
-                Nuevo cliente
+            <div className="mt-2 flex items-center gap-2">
+              <button type="button" onClick={() => setShowClientModal(true)} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-1 py-1.5 text-[9px] font-medium text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+                <Plus size={10} />
+                Nuevo
               </button>
-              <button type="button" onClick={() => setShowDraftsModal(true)} className="relative flex flex-1 items-center justify-center gap-1 rounded-lg border border-gray-300 px-1.5 py-1.5 text-[10px] font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
-                <FileText size={12} />
+              <button type="button" onClick={() => setShowDraftsModal(true)} className="relative flex flex-1 items-center justify-center gap-1 rounded-lg border border-gray-300 px-1 py-1.5 text-[9px] font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
+                <FileText size={10} />
                 Borradores
                 {drafts.length > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary-600 px-1 text-[8px] font-bold leading-none text-white">{drafts.length}</span>
+                  <span className="absolute -top-1 -right-1 flex h-3 min-w-3 items-center justify-center rounded-full bg-primary-600 px-0.5 text-[8px] font-bold leading-none text-white">{drafts.length}</span>
                 )}
               </button>
             </div>
@@ -2936,55 +2936,43 @@ export default function Sales() {
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-20 mt-2 border-t border-gray-200 bg-white/95 px-3 py-2 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 lg:hidden">
-        <div className="flex items-center justify-between gap-2">
-          {/* Botón Atrás (solo si no es el primer paso) */}
-          {mobileStepIndex > 0 ? (
-            <button type="button" onClick={goToPrevMobileStep} className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-2 text-xs font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
-              Atrás
-            </button>
-          ) : null}
-
+<div className="sticky bottom-0 z-20 mt-2 border-t border-gray-200 bg-white/95 px-2 py-1.5 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 lg:hidden">
+        <div className="flex items-center gap-1.5">
           {/* Paso 1: Continuar + Configurar */}
           {mobileSection === 'items' && (
             <>
-              <button type="button" onClick={goToNextMobileStep} className="flex-1 rounded-lg border border-primary-200 bg-primary-600 px-2 py-2 text-xs font-medium text-white dark:border-primary-700 dark:bg-primary-600">
+              <button type="button" onClick={goToNextMobileStep} className="flex-1 rounded-lg border border-primary-200 bg-primary-600 px-1 py-1.5 text-[10px] font-medium text-white dark:border-primary-700 dark:bg-primary-600">
                 Continuar
               </button>
-              <button type="button" onClick={() => setShowQuantityModal(true)} disabled={tempSelectedProducts.length === 0} className={`flex-shrink-0 rounded-lg border px-2 py-2 text-xs font-medium ${tempSelectedProducts.length === 0 ? 'border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-500' : 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300'}`}>
-                <Settings size={12} className="mr-1" />
-                {tempSelectedProducts.length > 0 ? `(${tempSelectedProducts.length})` : 'Configurar'}
+              <button type="button" onClick={() => setShowQuantityModal(true)} disabled={tempSelectedProducts.length === 0} className={`flex-shrink-0 rounded-lg border px-1.5 py-1.5 text-[9px] font-medium ${tempSelectedProducts.length === 0 ? 'border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-500' : 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300'}`}>
+                <Settings size={10} className="mr-0.5" />
+                {tempSelectedProducts.length > 0 ? `(${tempSelectedProducts.length})` : 'Config.'}
               </button>
             </>
           )}
 
-          {/* Paso 2: Atrás + Continuar (si hay productos) */}
-          {mobileSection === 'products' && (
-            <>
-              <button type="button" onClick={goToPrevMobileStep} className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-2 text-xs font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
-                Atrás
-              </button>
-              <button type="button" onClick={goToNextMobileStep} className="flex-1 rounded-lg border border-primary-200 bg-primary-600 px-2 py-2 text-xs font-medium text-white dark:border-primary-700 dark:bg-primary-600">
-                Continuar
-              </button>
-            </>
+          {/* Paso 2: Solo Continuar (sin Atrás - el navegador ya está en paso 2) */}
+          {mobileSection === 'products' && items.length > 0 && (
+            <button type="button" onClick={goToNextMobileStep} className="flex-1 w-full rounded-lg border border-primary-200 bg-primary-600 px-1 py-1.5 text-[10px] font-medium text-white dark:border-primary-700 dark:bg-primary-600">
+              Continuar
+            </button>
           )}
 
           {/* Paso 3: Atrás + Emitir + Más opciones */}
           {mobileSection === 'summary' && (
             <>
-              <button type="button" onClick={goToPrevMobileStep} className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-2 text-xs font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+              <button type="button" onClick={goToPrevMobileStep} className="flex-1 rounded-lg border border-gray-300 bg-white px-1 py-1.5 text-[10px] font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                 Atrás
               </button>
-              <button type="button" onClick={handleGenerateClick} disabled={isGenerating} className="flex-1 rounded-lg border border-primary-200 bg-primary-600 px-2 py-2 text-xs font-medium text-white dark:border-primary-700 dark:bg-primary-600">
-                {isGenerating ? 'Procesando...' : 'Emitir comprobante'}
+              <button type="button" onClick={handleGenerateClick} disabled={isGenerating} className="flex-1 rounded-lg border border-primary-200 bg-primary-600 px-1 py-1.5 text-[10px] font-medium text-white dark:border-primary-700 dark:bg-primary-600">
+                {isGenerating ? 'Procesando...' : 'Emitir'}
               </button>
               <div className="relative flex-shrink-0">
-                <button type="button" onClick={() => setShowMobileVoucherMenu((prev) => !prev)} className="flex h-full w-9 items-center justify-center rounded-lg border border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" aria-label="Más opciones">
-                  <MoreVertical size={14} />
+                <button type="button" onClick={() => setShowMobileVoucherMenu((prev) => !prev)} className="flex h-full w-8 items-center justify-center rounded-lg border border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" aria-label="Más opciones">
+                  <MoreVertical size={12} />
                 </button>
                 {showMobileVoucherMenu && (
-                  <div className="absolute bottom-11 right-0 z-30 w-44 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                  <div className="absolute bottom-10 right-0 z-30 w-36 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
                     {salesMenuModes.map((mode) => (
                       <button
                         key={mode.value}
@@ -2995,7 +2983,7 @@ export default function Sales() {
                           }
                           setShowMobileVoucherMenu(false)
                         }}
-                        className={`w-full px-3 py-2 text-left text-xs ${
+                        className={`w-full px-2.5 py-1.5 text-left text-[10px] ${
                           mode.comingSoon
                             ? 'cursor-not-allowed text-gray-400'
                             : voucherType === mode.value
@@ -3005,13 +2993,12 @@ export default function Sales() {
                         disabled={mode.comingSoon}
                       >
                         {mode.label}
-                        {mode.comingSoon && ' (pronto)'}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
-</>
+            </>
           )}
         </div>
       </div>
