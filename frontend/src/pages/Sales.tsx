@@ -3,7 +3,7 @@
  * Permite crear cotizaciones, remitos y facturas.
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut } from 'lucide-react'
+import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings } from 'lucide-react'
 import { Button, Modal, Select, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import productsService from '../api/productsService'
@@ -2585,7 +2585,7 @@ export default function Sales() {
         </div>
       </div>
 
-      <div className="hidden lg:flex flex-1 min-h-0 w-full flex-col gap-1 overflow-hidden pt-1 lg:flex-row">
+      <div className="hidden lg:flex flex-1 min-h-0 w-full flex-col gap-px overflow-hidden pt-1 lg:flex-row">
         {/* Panel izquierdo - Tablas */}
         <div
           className={`flex-1 w-full min-w-0 min-h-0 h-full flex flex-col gap-1 overflow-hidden ${
@@ -2791,9 +2791,20 @@ export default function Sales() {
             </div>
             <div className="px-2 py-1.5 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <p className="text-xs text-gray-500" data-tour-sales-esc-hint>
-                  ↑↓ Navegar | Enter o Doble Click Seleccionar/Deseleccionar | ESC Configurar
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-gray-500 hidden lg:block" data-tour-sales-esc-hint>
+                    ↑↓ Navegar | Enter o Doble Click Seleccionar/Deseleccionar | ESC Configurar
+                  </p>
+                  {/* Botón para mobile: abrir modal de configuración */}
+                  <button
+                    onClick={() => setShowQuantityModal(true)}
+                    disabled={tempSelectedProducts.length === 0}
+                    className="lg:hidden flex items-center gap-1 px-2 py-1 text-xs font-medium bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Settings size={14} />
+                    Configurar ({tempSelectedProducts.length})
+                  </button>
+                </div>
                 {tempSelectedProducts.length > 0 && (
                   <span className="text-xs font-medium text-green-600 dark:text-green-400">
                     {tempSelectedProducts.length} seleccionado(s) - Presione ESC para configurar
