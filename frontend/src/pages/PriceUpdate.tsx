@@ -68,6 +68,16 @@ export default function PriceUpdate() {
   const categories = Array.isArray(categoriesData) ? categoriesData : []
   const suppliers = Array.isArray(suppliersData?.items) ? suppliersData.items : []
 
+  const getCategoryName = (categoryId?: string) => {
+    if (!categoryId) return null
+    return categories.find((c) => c.id === categoryId)?.name || null
+  }
+
+  const getSupplierName = (supplierId?: string) => {
+    if (!supplierId) return null
+    return suppliers.find((s) => s.id === supplierId)?.name || null
+  }
+
   // ─── Handlers de selección ──────────────────────────────────────────────────
 
   const toggleSelectProduct = (productId: string) => {
@@ -270,20 +280,21 @@ export default function PriceUpdate() {
 
       {/* PASO 1: Filtros */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5 animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '100ms' }} data-tour-price-filters-panel>
-        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="mb-4 space-y-3 lg:space-y-0 lg:flex lg:items-center lg:justify-between lg:gap-3">
           <div className="flex items-center gap-2">
             <Filter className="h-[18px] w-[18px] text-orange-600" />
             <h2 className="text-base font-bold text-gray-900 dark:text-white">
               Paso 1: Filtrar Productos
             </h2>
           </div>
-          <div className="flex items-center gap-4 ml-auto">
+
+          <div className="grid grid-cols-2 gap-2 lg:flex lg:items-center lg:gap-4 lg:ml-auto">
             <button
               onClick={() => setShowDrafts(v => !v)}
-              className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 text-gray-500 hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-400 transition-colors"
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-2 py-1.5 text-gray-500 hover:text-orange-600 hover:border-orange-300 dark:border-gray-700 dark:text-gray-400 dark:hover:text-orange-400 dark:hover:border-orange-700 transition-colors"
               data-tour-price-drafts
             >
-              <FolderOpen size={18} className="shrink-0" />
+              <FolderOpen size={16} className="shrink-0" />
               <span className="text-xs font-medium">Borradores</span>
               {draftsData && draftsData.length > 0 && (
                 <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold leading-none text-white">
@@ -291,11 +302,13 @@ export default function PriceUpdate() {
                 </span>
               )}
             </button>
-            <div className="text-right">
-              <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Seleccionados</div>
-              <div className="text-xl font-bold text-gray-900 dark:text-white">{selectedProducts.size}</div>
+
+            <div className="rounded-lg border border-gray-200 px-2 py-1 text-center dark:border-gray-700">
+              <div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Seleccionados</div>
+              <div className="text-lg font-bold leading-tight text-gray-900 dark:text-white">{selectedProducts.size}</div>
             </div>
           </div>
+
           {/* Botón actualizar: visible con filtro activo o selección */}
           {(hasActiveFilter || selectedProducts.size > 0) && (
             <Button
@@ -308,7 +321,7 @@ export default function PriceUpdate() {
               }}
               disabled={products.length === 0}
               size="sm"
-              className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white disabled:opacity-50"
+              className="w-full lg:w-auto bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white disabled:opacity-50"
               data-tour-price-update-top
             >
               <TrendingUp size={14} className="mr-1.5" />
@@ -485,8 +498,101 @@ export default function PriceUpdate() {
             {products.length} productos encontrados
           </span>
         </div>
-        <div className="max-h-[58vh] overflow-y-auto rounded-lg" data-tour-price-table>
+        <div className="hidden lg:block max-h-[58vh] overflow-y-auto rounded-lg" data-tour-price-table>
           <Table columns={columns} data={products} density="compact" emptyMessage="No se encontraron productos con los filtros seleccionados" />
+        </div>
+
+        <div className="lg:hidden space-y-2" data-tour-price-table>
+          {products.length === 0 ? (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
+              No se encontraron productos con los filtros seleccionados
+            </div>
+          ) : (
+            products.map((item) => {
+              const categoryName = getCategoryName(item.category_id)
+              const supplierName = getSupplierName(item.supplier_id)
+              const lowStock = item.current_stock < 10
+              const isSelected = selectedProducts.has(item.id)
+
+              return (
+                <article
+                  key={item.id}
+                  className={`rounded-xl border p-3 shadow-sm transition-colors ${
+                    isSelected
+                      ? 'border-orange-300 bg-orange-50/60 dark:border-orange-700 dark:bg-orange-900/20'
+                      : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-flex rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                          {item.code}
+                        </span>
+                        {lowStock && (
+                          <span className="inline-flex rounded-md bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                            Stock bajo
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{item.description}</h3>
+                    </div>
+
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelectProduct(item.id)}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                      aria-label={`Seleccionar ${item.description}`}
+                    />
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {categoryName ? (
+                      <span className="inline-flex rounded-md bg-primary-100 px-2 py-0.5 text-[10px] font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+                        {categoryName}
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                        Sin categoría
+                      </span>
+                    )}
+
+                    {supplierName ? (
+                      <span className="inline-flex rounded-md bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                        {supplierName}
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                        Sin proveedor
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400">P. Lista</p>
+                      <p className="font-medium text-gray-800 dark:text-gray-200">${Number(item.list_price).toFixed(2)}</p>
+                    </div>
+                    <div className="rounded-lg border border-orange-200 bg-orange-50 px-2 py-1.5 dark:border-orange-800 dark:bg-orange-900/20">
+                      <p className="text-[10px] text-orange-700 dark:text-orange-300">P. Venta</p>
+                      <p className="font-semibold text-orange-700 dark:text-orange-300">${Number(item.sale_price).toFixed(2)}</p>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400">Bonif.</p>
+                      <p className="font-medium text-green-700 dark:text-green-300">{item.discount_display || '-'}</p>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400">Stock</p>
+                      <p className={`font-semibold ${lowStock ? 'text-red-600 dark:text-red-300' : 'text-gray-800 dark:text-gray-200'}`}>
+                        {item.current_stock}
+                      </p>
+                    </div>
+                  </div>
+                </article>
+              )
+            })
+          )}
         </div>
       </div>
 

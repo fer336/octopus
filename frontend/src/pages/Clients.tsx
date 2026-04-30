@@ -4,7 +4,7 @@
  */
 import { useMemo, useState } from 'react'
 import { Plus, Edit, Trash2, Users, Search, Phone, Mail, MapPin, FileText, Settings2, UserRoundCheck, Inbox } from 'lucide-react'
-import { Button, Table, Pagination, Modal, Input, Select, ConfirmModal } from '../components/ui'
+import { Button, Table, Pagination, Modal, Input, Select, ConfirmModal, ResponsiveTable } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { TAX_CONDITIONS, DOCUMENT_TYPES } from '../types'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -485,35 +485,37 @@ const data = await clientsService.lookupCuit(cuit)
   return (
     <div className="h-full min-h-0 w-full flex flex-col gap-3">
       {/* Header estilo Categorías */}
-      <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 px-3 py-2.5 rounded-lg border border-primary-200 dark:border-primary-800">
+      <div className="flex items-center justify-between gap-2 lg:gap-3 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 px-2.5 lg:px-3 py-2 lg:py-2.5 rounded-lg border border-primary-200 dark:border-primary-800">
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold text-primary-900 dark:text-primary-100 flex items-center gap-2 leading-none">
-            <Users className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+          <h1 className="text-base lg:text-lg font-semibold text-primary-900 dark:text-primary-100 flex items-center gap-1.5 lg:gap-2 leading-none">
+            <Users className="h-4 w-4 lg:h-5 lg:w-5 text-primary-600 dark:text-primary-400" />
             <span>Clientes</span>
           </h1>
-          <p className="text-xs text-primary-700 dark:text-primary-300 mt-1 truncate">
+          <p className="text-[11px] lg:text-xs text-primary-700 dark:text-primary-300 mt-1 truncate">
             Gestión de clientes y control de cuentas corrientes
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5 lg:gap-2 justify-end">
           <Button
             variant="outline"
             onClick={() => {
               resetClientTypeForm()
               setShowTypesModal(true)
             }}
-            className="border-primary-300 text-primary-700 hover:bg-primary-100 dark:border-primary-700 dark:text-primary-300"
+            className="h-8 lg:h-9 px-2.5 lg:px-3 text-xs lg:text-sm border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100 dark:border-violet-700 dark:text-violet-300 dark:bg-violet-900/20"
           >
-            <Settings2 size={18} className="mr-2" />
-            Tipos de Cliente
+            <Settings2 size={16} className="mr-1.5" />
+            <span className="hidden sm:inline">Tipos de Cliente</span>
+            <span className="sm:hidden">Tipos</span>
           </Button>
           <Button
             onClick={() => handleOpenModal()}
-            className="bg-primary-600 hover:bg-primary-700 text-white border-none shadow-md"
+            className="h-8 lg:h-9 px-2.5 lg:px-3 text-xs lg:text-sm bg-primary-600 hover:bg-primary-700 text-white border-none shadow-md"
             data-tour-clients-new
           >
-            <Plus size={18} className="mr-2" />
-            Nuevo Cliente
+            <Plus size={16} className="mr-1.5" />
+            <span className="hidden sm:inline">Nuevo Cliente</span>
+            <span className="sm:hidden">Nuevo</span>
           </Button>
         </div>
       </div>
@@ -533,17 +535,110 @@ const data = await clientsService.lookupCuit(cuit)
         </div>
       </div>
 
-      {/* Tabla */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
-        {clients.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400 px-6">
-            <Inbox className="h-8 w-8 mb-2 text-primary-400" />
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">No hay clientes para mostrar</p>
-            <p className="text-xs mt-1">Probá con otro término de búsqueda o creá un cliente nuevo.</p>
-          </div>
-        ) : (
-          <Table columns={columns} data={clients} density="compact" />
-        )}
+      {/* Tabla desktop + cards mobile */}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <ResponsiveTable
+          data={clients}
+          emptyState={
+            <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+              <Inbox className="mx-auto mb-2 h-7 w-7 text-primary-400" />
+              <p className="font-medium text-gray-700 dark:text-gray-200">No hay clientes para mostrar</p>
+              <p className="mt-1 text-xs">Probá con otro término de búsqueda o creá un cliente nuevo.</p>
+            </div>
+          }
+          renderDesktop={() => (
+            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <Table columns={columns} data={clients} density="compact" />
+            </div>
+          )}
+          renderCard={(item) => {
+            const type = clientTypeById.get(item.client_type_id)
+            return (
+              <article
+                key={item.id}
+                className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="h-7 w-7 shrink-0 rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 flex items-center justify-center text-[10px] font-semibold">
+                        {item.name
+                          .split(' ')
+                          .filter(Boolean)
+                          .slice(0, 2)
+                          .map((token) => token[0]?.toUpperCase())
+                          .join('') || 'CL'}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">{item.name}</h3>
+                        <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">
+                          {item.document_type}: {item.document_number}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenModal(item)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-900/20 dark:text-violet-300 dark:hover:bg-violet-900/40"
+                      title="Editar"
+                    >
+                      <Edit size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClientToDelete(item)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/40"
+                      title="Eliminar"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/40">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Condición IVA</p>
+                    <p className="mt-1 text-xs font-medium text-primary-700 dark:text-primary-300 truncate">{item.tax_condition}</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/40">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Tipo Cliente</p>
+                    <p className="mt-1 text-xs font-medium text-violet-700 dark:text-violet-300 truncate">
+                      {type ? type.name : 'Sin clasificar'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/40">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Contacto</p>
+                    <div className="mt-1 space-y-1">
+                      {item.phone && <p className="truncate text-xs text-gray-700 dark:text-gray-300">📞 {item.phone}</p>}
+                      {item.email && <p className="truncate text-xs text-gray-700 dark:text-gray-300">✉️ {item.email}</p>}
+                      {!item.phone && !item.email && <p className="text-xs text-gray-400">—</p>}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/40">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Saldo</p>
+                    <p
+                      className={`mt-1 text-xs font-mono font-semibold ${
+                        item.current_balance > 0
+                          ? 'text-green-600 dark:text-green-400'
+                          : item.current_balance < 0
+                            ? 'text-red-600 dark:text-red-400'
+                            : 'text-gray-500'
+                      }`}
+                    >
+                      ${item.current_balance.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                </div>
+              </article>
+            )
+          }}
+        />
       </div>
 
       {/* Paginación */}
@@ -564,44 +659,44 @@ const data = await clientsService.lookupCuit(cuit)
         title={isEditing ? 'Editar Cliente' : 'Nuevo Cliente'}
         size="lg"
       >
-        <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
-          <nav className="-mb-px flex space-x-8">
+        <div className="mb-5 border-b border-gray-200 dark:border-gray-700">
+          <nav className="-mb-px flex items-center gap-3 sm:gap-6 overflow-x-auto">
             <button
               onClick={() => setActiveTab('general')}
-              className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              className={`pb-3 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap ${
                 activeTab === 'general'
                   ? 'border-primary-500 text-primary-600 dark:text-primary-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <div className="flex items-center gap-2">
-                <Users size={16} />
+              <div className="flex items-center gap-1.5">
+                <Users size={14} />
                 Info. General
               </div>
             </button>
             <button
               onClick={() => setActiveTab('address')}
-              className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              className={`pb-3 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap ${
                 activeTab === 'address'
                   ? 'border-primary-500 text-primary-600 dark:text-primary-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <div className="flex items-center gap-2">
-                <MapPin size={16} />
+              <div className="flex items-center gap-1.5">
+                <MapPin size={14} />
                 Ubicación
               </div>
             </button>
             <button
               onClick={() => setActiveTab('notes')}
-              className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              className={`pb-3 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap ${
                 activeTab === 'notes'
                   ? 'border-primary-500 text-primary-600 dark:text-primary-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <div className="flex items-center gap-2">
-                <FileText size={16} />
+              <div className="flex items-center gap-1.5">
+                <FileText size={14} />
                 Notas
               </div>
             </button>
@@ -846,13 +941,13 @@ const data = await clientsService.lookupCuit(cuit)
             </div>
           )}
 
-          <div className="flex justify-between items-center pt-6 border-t border-gray-100 dark:border-gray-700 mt-6">
-            <div className="text-xs text-gray-500">
+          <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 pt-5 border-t border-gray-100 dark:border-gray-700 mt-5">
+            <div className="text-[11px] sm:text-xs text-gray-500">
               {activeTab === 'general' && 'Siguiente: Ubicación'}
               {activeTab === 'address' && 'Siguiente: Notas'}
               {activeTab === 'notes' && 'Listo para guardar'}
             </div>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 sm:flex gap-2">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -860,6 +955,7 @@ const data = await clientsService.lookupCuit(cuit)
                   resetForm()
                 }}
                 type="button"
+                className="h-8 sm:h-9 px-3 text-xs sm:text-sm border-gray-300 text-gray-700 hover:bg-gray-50"
               >
                 Cancelar
               </Button>
@@ -869,6 +965,7 @@ const data = await clientsService.lookupCuit(cuit)
                   onClick={() =>
                     setActiveTab(activeTab === 'general' ? 'address' : 'notes')
                   }
+                  className="h-8 sm:h-9 px-3 text-xs sm:text-sm bg-violet-600 hover:bg-violet-700"
                 >
                   Siguiente
                 </Button>
@@ -876,6 +973,7 @@ const data = await clientsService.lookupCuit(cuit)
                 <Button
                   type="submit"
                   disabled={createMutation.isPending || updateMutation.isPending}
+                  className="col-span-2 sm:col-span-1 h-8 sm:h-9 px-3 text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700"
                 >
                   {createMutation.isPending || updateMutation.isPending
                     ? 'Guardando...'

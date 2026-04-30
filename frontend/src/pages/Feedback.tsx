@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 
 import feedbackService, { FeedbackStatus, FeedbackType } from '../api/feedbackService'
-import { Button, Input, Select, Table } from '../components/ui'
+import { Button, Input, Select, Table, ResponsiveTable } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 
 const STATUS_LABEL: Record<FeedbackStatus, string> = {
@@ -13,6 +13,14 @@ const STATUS_LABEL: Record<FeedbackStatus, string> = {
   planned: 'Planificado',
   done: 'Resuelto',
   rejected: 'Descartado',
+}
+
+const STATUS_STYLES: Record<FeedbackStatus, string> = {
+  new: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+  reviewing: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
+  planned: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300',
+  done: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
+  rejected: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300',
 }
 
 export default function Feedback() {
@@ -143,7 +151,42 @@ export default function Feedback() {
         {isLoading ? (
           <div className="py-10 text-center text-sm text-gray-500">Cargando...</div>
         ) : (
-          <Table columns={columns as any} data={data?.items || []} emptyMessage="Todavía no enviaste reportes." />
+          <ResponsiveTable
+            data={data?.items || []}
+            emptyState={
+              <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                Todavía no enviaste reportes.
+              </div>
+            }
+            renderDesktop={() => (
+              <Table columns={columns as any} data={data?.items || []} emptyMessage="Todavía no enviaste reportes." />
+            )}
+            renderCard={(item: any) => (
+              <article
+                key={item.id}
+                className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{item.title}</p>
+                    <p className="mt-0.5 text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      {item.feedback_type === 'bug' ? 'Bug' : 'Funcionalidad'}
+                    </p>
+                  </div>
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_STYLES[item.status as FeedbackStatus]}`}>
+                    {STATUS_LABEL[item.status as FeedbackStatus]}
+                  </span>
+                </div>
+
+                <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/40">
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Fecha</p>
+                  <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
+                    {new Date(item.created_at).toLocaleDateString('es-AR')}
+                  </p>
+                </div>
+              </article>
+            )}
+          />
         )}
       </div>
     </div>

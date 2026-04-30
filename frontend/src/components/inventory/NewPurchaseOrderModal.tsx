@@ -322,14 +322,15 @@ export default function NewPurchaseOrderModal({
   // ─── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col z-[9999] relative">
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center p-2 lg:p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] lg:max-h-[90vh] flex flex-col z-[9999] relative">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <div className="flex items-center gap-3">
+        <div className="px-4 py-3 lg:px-6 lg:py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 lg:gap-3 min-w-0">
             <Package className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <h2 className="text-base lg:text-lg font-semibold text-gray-900 dark:text-white truncate">
               {isEditMode ? (
                 <span className="flex items-center gap-2">
                   <Pencil className="w-4 h-4 text-yellow-500" />
@@ -338,17 +339,25 @@ export default function NewPurchaseOrderModal({
               ) : 'Nueva Orden de Pedido'}
             </h2>
           </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          </div>
+
           {/* Stepper */}
-          <div className="flex items-center gap-2 text-sm">
+          <div className="mt-2 flex items-center gap-1 lg:gap-2 text-sm overflow-x-auto">
             {[
               { n: 1, label: 'Filtros' },
               { n: 2, label: 'Conteo' },
               { n: 3, label: 'Orden' },
             ].map(({ n, label }, i) => (
               <div key={n} className="flex items-center gap-2">
-                {i > 0 && <div className="w-6 h-px bg-gray-300 dark:bg-gray-600" />}
+                {i > 0 && <div className="w-4 lg:w-6 h-px bg-gray-300 dark:bg-gray-600" />}
                 <div
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  className={`flex items-center gap-1 px-2.5 lg:px-3 py-1 rounded-full text-[11px] lg:text-xs font-medium transition-colors whitespace-nowrap ${
                     step === n
                       ? 'bg-primary-600 text-white'
                       : step > n
@@ -362,26 +371,20 @@ export default function NewPurchaseOrderModal({
               </div>
             ))}
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         {/* Contenido */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 min-h-0">
+        <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-6 lg:py-5 min-h-0">
 
           {/* ── PASO 1: Filtros ── */}
           {step === 1 && (
-            <div className="space-y-6 max-w-lg mx-auto">
+            <div className="space-y-4 lg:space-y-6 max-w-lg mx-auto">
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Seleccioná el proveedor y/o categoría para filtrar los productos.
                 Luego podés descargar la planilla de conteo para llevar al depósito.
               </p>
 
-              <div className="space-y-4">
+              <div className="space-y-3 lg:space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Proveedor
@@ -486,7 +489,7 @@ export default function NewPurchaseOrderModal({
                 </div>
               ) : (
                 <>
-                  <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-xl">
+                  <div className="hidden lg:block overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-xl">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
@@ -630,12 +633,132 @@ export default function NewPurchaseOrderModal({
                     </table>
                   </div>
 
+                  {/* Mobile cards: Conteo */}
+                  <div className="lg:hidden space-y-2">
+                    {countRows.map((row, idx) => {
+                      const counted = row.counted !== '' ? Number(row.counted) : null
+                      const diff = counted !== null ? row.product.current_stock - counted : null
+                      const diffPositive = diff !== null && diff < 0
+                      const diffNegative = diff !== null && diff > 0
+                      const unitCost = Number(row.unitCost) || 0
+                      const qty = Number(row.quantityToOrder) || 0
+                      const rowSubtotal = row.selected && qty > 0 ? unitCost * qty : null
+
+                      return (
+                        <article
+                          key={row.product.id}
+                          className={`rounded-xl border p-3 shadow-sm ${
+                            row.selected
+                              ? 'border-primary-300 bg-primary-50/40 dark:border-primary-700 dark:bg-primary-900/10'
+                              : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <span className="inline-flex rounded-md bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                {row.product.code}
+                              </span>
+                              <p className="mt-1 truncate text-sm font-medium text-gray-900 dark:text-gray-100" title={row.product.description}>
+                                {row.product.description}
+                              </p>
+                            </div>
+                            <label className="inline-flex items-center gap-1 text-[11px] text-gray-600 dark:text-gray-300">
+                              <input
+                                type="checkbox"
+                                checked={row.selected}
+                                onChange={(e) => updateRow(idx, 'selected', e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                              />
+                              Pedir
+                            </label>
+                          </div>
+
+                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                            <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400">Stock sist.</p>
+                              <p className="font-semibold text-gray-800 dark:text-gray-200">{row.product.current_stock}</p>
+                            </div>
+                            <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400">Conteo físico</p>
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.counted}
+                                onChange={(e) => updateRow(idx, 'counted', e.target.value)}
+                                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-center text-xs dark:border-gray-600 dark:bg-gray-700"
+                                placeholder="—"
+                                autoFocus={idx === 0}
+                              />
+                            </div>
+                            <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400">Diferencia</p>
+                              {diff !== null ? (
+                                <span
+                                  className={`mt-1 inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${
+                                    diffNegative
+                                      ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                      : diffPositive
+                                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                      : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                                  }`}
+                                >
+                                  {diff > 0 ? `-${diff}` : diff < 0 ? `+${Math.abs(diff)}` : '✓'}
+                                </span>
+                              ) : (
+                                <span className="mt-1 inline-block text-xs text-gray-300 dark:text-gray-600">—</span>
+                              )}
+                            </div>
+                            <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400">Cant. a pedir</p>
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.quantityToOrder}
+                                onChange={(e) => {
+                                  updateRow(idx, 'quantityToOrder', e.target.value)
+                                  if (Number(e.target.value) > 0) updateRow(idx, 'selected', true)
+                                }}
+                                disabled={!row.selected}
+                                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-center text-xs disabled:opacity-30 disabled:cursor-not-allowed dark:border-gray-600 dark:bg-gray-700"
+                                placeholder="0"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="mt-2 grid grid-cols-3 gap-1.5 text-xs">
+                            <div className="min-w-0 rounded-lg border border-gray-200 bg-gray-50 px-1.5 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400">Bonif.</p>
+                              <p className="truncate text-[11px] font-medium text-primary-700 dark:text-primary-300">
+                                {formatDiscounts(row.product.discount_1, row.product.discount_2, row.product.discount_3)}
+                              </p>
+                            </div>
+                            <div className="min-w-0 rounded-lg border border-gray-200 bg-gray-50 px-1.5 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400">P. Costo</p>
+                              <p className="truncate text-[11px] font-mono font-medium text-gray-800 dark:text-gray-200" title={formatCurrency(unitCost)}>
+                                {formatCurrency(unitCost)}
+                              </p>
+                            </div>
+                            <div className="min-w-0 rounded-lg border border-primary-200 bg-primary-50 px-1.5 py-1.5 dark:border-primary-700 dark:bg-primary-900/20">
+                              <p className="text-[10px] text-primary-700 dark:text-primary-300">Subtotal</p>
+                              <p
+                                className="truncate text-[11px] font-mono font-semibold text-primary-700 dark:text-primary-300"
+                                title={rowSubtotal !== null ? formatCurrency(rowSubtotal) : '—'}
+                              >
+                                {rowSubtotal !== null ? formatCurrency(rowSubtotal) : '—'}
+                              </p>
+                            </div>
+                          </div>
+                        </article>
+                      )
+                    })}
+                  </div>
+
                   {/* Resumen inferior */}
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                     <span className="text-sm text-gray-400 dark:text-gray-500">
                       {countRows.length} producto{countRows.length !== 1 ? 's' : ''} en total
                     </span>
-                    <div className="flex items-center gap-6">
+                    <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:gap-6">
                       {selectedRows.length > 0 && (
                         <span className="text-sm text-gray-500 dark:text-gray-400">
                           Subtotal estimado:{' '}
@@ -673,7 +796,7 @@ export default function NewPurchaseOrderModal({
                 podés editarlos directamente. Las bonificaciones se muestran para referencia.
               </p>
 
-              <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-xl">
+              <div className="hidden lg:block overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-xl">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
@@ -778,9 +901,96 @@ export default function NewPurchaseOrderModal({
                 </table>
               </div>
 
+              {/* Mobile cards: Paso 3 Orden */}
+              <div className="lg:hidden space-y-2">
+                {selectedRows.map((row) => {
+                  const idx = countRows.findIndex((r) => r.product.id === row.product.id)
+                  const qty = Number(row.quantityToOrder) || 0
+                  const cost = Number(row.unitCost) || 0
+                  const subtotal = qty * cost
+
+                  return (
+                    <article key={row.product.id} className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                      <div className="min-w-0">
+                        <span className="inline-flex rounded-md bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                          {row.product.code}
+                        </span>
+                        <p className="mt-1 truncate text-sm font-medium text-gray-900 dark:text-gray-100" title={row.product.description}>
+                          {row.product.description}
+                        </p>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400">Cant.</p>
+                          <input
+                            type="number"
+                            min="1"
+                            value={row.quantityToOrder}
+                            onChange={(e) => updateRow(idx, 'quantityToOrder', e.target.value)}
+                            className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-center text-xs dark:border-gray-600 dark:bg-gray-700"
+                          />
+                        </div>
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400">IVA %</p>
+                          <p className="mt-1 text-center text-xs font-medium text-gray-700 dark:text-gray-200">{row.product.iva_rate}%</p>
+                        </div>
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400">P. Lista</p>
+                          <p className="mt-1 truncate text-[11px] font-mono text-gray-500 dark:text-gray-400" title={formatCurrency(row.product.list_price)}>
+                            {formatCurrency(row.product.list_price)}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400">P. Costo</p>
+                          <div className="mt-1 flex items-center gap-1">
+                            <span className="text-xs text-gray-400">$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={row.unitCost}
+                              onChange={(e) => updateRow(idx, 'unitCost', e.target.value)}
+                              className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-right text-xs dark:border-gray-600 dark:bg-gray-700"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                        <div className="min-w-0 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400">Bonificaciones</p>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {[row.product.discount_1, row.product.discount_2, row.product.discount_3]
+                              .filter((d) => d > 0)
+                              .map((d, i) => (
+                                <span
+                                  key={i}
+                                  className="inline-block rounded bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
+                                >
+                                  {d}%
+                                </span>
+                              ))}
+                            {formatDiscounts(row.product.discount_1, row.product.discount_2, row.product.discount_3) === '—' && (
+                              <span className="text-[10px] text-gray-400">Sin bonif.</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-primary-200 bg-primary-50 px-2 py-1.5 dark:border-primary-700 dark:bg-primary-900/20">
+                          <p className="text-[10px] text-primary-700 dark:text-primary-300">Subtotal</p>
+                          <p className="mt-1 truncate text-[12px] font-mono font-semibold text-primary-700 dark:text-primary-300" title={formatCurrency(subtotal)}>
+                            {formatCurrency(subtotal)}
+                          </p>
+                        </div>
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+
               {/* Totales */}
               <div className="flex justify-end">
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600 p-4 min-w-72">
+                <div className="w-full lg:w-auto bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600 p-3 lg:p-4 min-w-0 lg:min-w-72">
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between text-gray-600 dark:text-gray-400">
                       <span>Subtotal neto:</span>
@@ -802,13 +1012,13 @@ export default function NewPurchaseOrderModal({
         </div>
 
         {/* Footer con botones */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div className="px-4 py-3 lg:px-6 lg:py-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
           {/* Botón Atrás — en modo edición no hay paso 1 para volver */}
-          <div>
+          <div className="mb-2 lg:mb-0">
             {step > 1 && !(isEditMode && step === 2) && (
               <button
                 onClick={() => setStep((step - 1) as 1 | 2 | 3)}
-                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Atrás
@@ -817,10 +1027,10 @@ export default function NewPurchaseOrderModal({
           </div>
 
           {/* Botones derecha */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 lg:gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+              className="w-full lg:w-auto px-4 py-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:text-gray-900 dark:hover:text-white transition-colors"
             >
               Cancelar
             </button>
@@ -830,7 +1040,7 @@ export default function NewPurchaseOrderModal({
               <button
                 onClick={goToStep2}
                 disabled={!selectedSupplier && !selectedCategory}
-                className="flex items-center gap-2 px-5 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full lg:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Cargar conteo
                 <ArrowRight className="w-4 h-4" />
@@ -842,7 +1052,7 @@ export default function NewPurchaseOrderModal({
               <button
                 onClick={goToStep3}
                 disabled={selectedRows.length === 0}
-                className="flex items-center gap-2 px-5 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full lg:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Revisar orden ({selectedRows.length})
                 <ArrowRight className="w-4 h-4" />
@@ -856,7 +1066,7 @@ export default function NewPurchaseOrderModal({
                 <button
                   onClick={handleSaveDraft}
                   disabled={isSavingDraft || isSubmitting || selectedRows.length === 0}
-                  className="flex items-center gap-2 px-5 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="w-full lg:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <BookmarkCheck className="w-4 h-4" />
                   {isSavingDraft ? 'Guardando...' : 'Guardar Borrador'}
@@ -866,7 +1076,7 @@ export default function NewPurchaseOrderModal({
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitting || isSavingDraft || selectedRows.length === 0}
-                  className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="w-full lg:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Save className="w-4 h-4" />
                   {isSubmitting ? 'Confirmando...' : 'Confirmar Orden'}

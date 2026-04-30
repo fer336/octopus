@@ -2425,15 +2425,9 @@ export default function Sales() {
 
         {mobileSection === 'products' && (
           <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white py-2 px-4 dark:border-gray-700 dark:bg-gray-800">
-            {/* Botón flotante para configurar productos seleccionados (solo mobile) */}
-            {tempSelectedProducts.length > 0 && (
-              <button type="button" onClick={() => setShowQuantityModal(true)} className="fixed bottom-20 right-4 z-20 flex items-center gap-1.5 rounded-full border border-primary-300 bg-primary-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg hover:bg-primary-700 dark:border-primary-700 dark:bg-primary-700 dark:hover:bg-primary-600">
-                <Settings size={16} />
-                Configurar ({tempSelectedProducts.length})
-              </button>
-            )}
+            {/* Configurar ahora se integra en barra inferior dinámica */}
 
-            <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
+            <div className="mt-1 flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
               <Search size={14} className="text-gray-400" />
               <input
                 type="text"
@@ -2481,7 +2475,7 @@ export default function Sales() {
 
         {mobileSection === 'summary' && (
           <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white py-2 px-4 dark:border-gray-700 dark:bg-gray-800">
-            <p className="text-[11px] font-semibold tracking-wide text-gray-500 dark:text-gray-400">PRODUCTOS SELECCIONADOS</p>
+            <p className="mt-1 text-[11px] font-semibold tracking-wide text-gray-500 dark:text-gray-400">PRODUCTOS SELECCIONADOS</p>
             <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-600 dark:bg-gray-700">
               {items.length === 0 ? (
                 <p className="text-xs text-gray-500 dark:text-gray-400">No hay productos seleccionados</p>
@@ -2572,12 +2566,8 @@ export default function Sales() {
         )}
       </div>
 
-      <div className="mb-2 rounded-lg border border-gray-200 bg-white px-2 py-2 dark:border-gray-700 dark:bg-gray-800 lg:hidden">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-500 dark:text-gray-400">Nueva venta</span>
-          <span className="text-xs font-medium text-gray-700 dark:text-gray-200">Paso {mobileStepIndex + 1} de 3</span>
-        </div>
-        <div className="mt-2 flex items-center gap-1">
+      <div className="mb-2 overflow-x-hidden rounded-lg border border-gray-200 bg-white px-3 py-1.5 dark:border-gray-700 dark:bg-gray-800 lg:hidden">
+        <div className="flex items-center gap-1">
           {mobileSteps.map((step, index) => {
             const isActive = index === mobileStepIndex
             const isDone = index < mobileStepIndex
@@ -2599,12 +2589,71 @@ export default function Sales() {
                 >
                   {isDone ? '✓' : index + 1}
                 </span>
-                <span className={`mt-1 text-[10px] ${isActive ? 'font-semibold text-primary-700 dark:text-primary-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                <span className={`mt-1 text-[9px] ${isActive ? 'font-semibold text-primary-700 dark:text-primary-300' : 'text-gray-500 dark:text-gray-400'}`}>
                   {step.label}
                 </span>
               </button>
             )
           })}
+        </div>
+
+        <div className="mt-2 flex w-full max-w-full items-center gap-1 min-w-0 overflow-x-hidden border-t border-gray-200 pt-1 dark:border-gray-700">
+          {/* Paso 1: Continuar + Configurar */}
+          {mobileSection === 'items' && (
+            <>
+              <button type="button" onClick={goToNextMobileStep} className="min-w-0 flex-1 rounded-lg border border-primary-200 bg-primary-600 px-1 py-1 text-[9px] font-medium text-white dark:border-primary-700 dark:bg-primary-600">
+                Continuar
+              </button>
+              <button type="button" onClick={() => setShowQuantityModal(true)} disabled={tempSelectedProducts.length === 0} className={`min-w-[86px] flex-shrink-0 rounded-lg border px-2 py-1 text-[9px] font-medium ${tempSelectedProducts.length === 0 ? 'border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-500' : 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300'}`}>
+                <span className="inline-flex items-center justify-center">
+                  <Settings size={10} className="mr-0.5" />
+                  {tempSelectedProducts.length > 0 ? `Config (${tempSelectedProducts.length})` : 'Configurar'}
+                </span>
+              </button>
+            </>
+          )}
+
+          {/* Paso 2: Atrás + Configurar (dinámico) + Continuar */}
+          {mobileSection === 'products' && (
+            <>
+              <button type="button" onClick={goToPrevMobileStep} className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-0.5 py-1 text-[9px] font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                Atrás
+              </button>
+              {tempSelectedProducts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowQuantityModal(true)}
+                  className="min-w-[96px] flex-shrink-0 rounded-lg border border-primary-200 bg-primary-50 px-1.5 py-1 text-[9px] font-medium text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    <Settings size={10} className="mr-0.5" />
+                    Config ({tempSelectedProducts.length})
+                  </span>
+                </button>
+              )}
+              <button type="button" onClick={goToNextMobileStep} className="min-w-0 flex-1 rounded-lg border border-primary-200 bg-primary-600 px-0.5 py-1 text-[9px] font-medium text-white dark:border-primary-700 dark:bg-primary-600">
+                Continuar
+              </button>
+            </>
+          )}
+
+          {/* Paso 3: Atrás + Emitir + Más opciones */}
+          {mobileSection === 'summary' && (
+            <>
+              <button type="button" onClick={goToPrevMobileStep} className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-0.5 py-1 text-[9px] font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                Atrás
+              </button>
+              <button type="button" onClick={handleGenerateClick} disabled={isGenerating} className="min-w-0 flex-1 rounded-lg border border-primary-200 bg-primary-600 px-0.5 py-1 text-[9px] font-medium text-white dark:border-primary-700 dark:bg-primary-600">
+                {isGenerating ? 'Procesando...' : 'Emitir'}
+              </button>
+              <div className="flex-1 min-w-0">
+                <button type="button" onClick={() => setShowMobileVoucherMenu(true)} className="flex w-full items-center justify-center rounded-lg border border-gray-300 bg-gray-100 px-1 py-1 text-[9px] font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" aria-label="Más opciones">
+                  <MoreVertical size={12} />
+                  <span className="ml-1">⋯</span>
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -2936,72 +2985,38 @@ export default function Sales() {
         </div>
       </div>
 
-<div className="sticky bottom-0 z-20 mt-2 border-t border-gray-200 bg-white/95 px-2 py-1.5 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 lg:hidden">
-        <div className="flex items-center gap-1.5">
-          {/* Paso 1: Continuar + Configurar */}
-          {mobileSection === 'items' && (
-            <>
-              <button type="button" onClick={goToNextMobileStep} className="flex-1 rounded-lg border border-primary-200 bg-primary-600 px-1 py-1.5 text-[10px] font-medium text-white dark:border-primary-700 dark:bg-primary-600">
-                Continuar
-              </button>
-              <button type="button" onClick={() => setShowQuantityModal(true)} disabled={tempSelectedProducts.length === 0} className={`flex-shrink-0 rounded-lg border px-1.5 py-1.5 text-[9px] font-medium ${tempSelectedProducts.length === 0 ? 'border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-500' : 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300'}`}>
-                <Settings size={10} className="mr-0.5" />
-                {tempSelectedProducts.length > 0 ? `(${tempSelectedProducts.length})` : 'Config.'}
-              </button>
-            </>
-          )}
-
-          {/* Paso 2: Solo Continuar (sin Atrás - el navegador ya está en paso 2) */}
-          {mobileSection === 'products' && items.length > 0 && (
-            <button type="button" onClick={goToNextMobileStep} className="flex-1 w-full rounded-lg border border-primary-200 bg-primary-600 px-1 py-1.5 text-[10px] font-medium text-white dark:border-primary-700 dark:bg-primary-600">
-              Continuar
+      <Modal
+        isOpen={showMobileVoucherMenu}
+        onClose={() => setShowMobileVoucherMenu(false)}
+        title="Cambiar tipo de comprobante"
+        size="sm"
+      >
+        <div className="space-y-2">
+          {salesMenuModes.map((mode) => (
+            <button
+              key={mode.value}
+              type="button"
+              onClick={() => {
+                if (!mode.comingSoon) {
+                  handleVoucherTypeChange(mode.value)
+                }
+                setShowMobileVoucherMenu(false)
+              }}
+              className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
+                mode.comingSoon
+                  ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-500'
+                  : voucherType === mode.value
+                    ? 'border-primary-300 bg-primary-50 text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+              }`}
+              disabled={mode.comingSoon}
+            >
+              {mode.label}
+              {mode.comingSoon && ' (pronto)'}
             </button>
-          )}
-
-          {/* Paso 3: Atrás + Emitir + Más opciones */}
-          {mobileSection === 'summary' && (
-            <>
-              <button type="button" onClick={goToPrevMobileStep} className="flex-1 rounded-lg border border-gray-300 bg-white px-1 py-1.5 text-[10px] font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
-                Atrás
-              </button>
-              <button type="button" onClick={handleGenerateClick} disabled={isGenerating} className="flex-1 rounded-lg border border-primary-200 bg-primary-600 px-1 py-1.5 text-[10px] font-medium text-white dark:border-primary-700 dark:bg-primary-600">
-                {isGenerating ? 'Procesando...' : 'Emitir'}
-              </button>
-              <div className="relative flex-shrink-0">
-                <button type="button" onClick={() => setShowMobileVoucherMenu((prev) => !prev)} className="flex h-full w-8 items-center justify-center rounded-lg border border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200" aria-label="Más opciones">
-                  <MoreVertical size={12} />
-                </button>
-                {showMobileVoucherMenu && (
-                  <div className="absolute bottom-10 right-0 z-30 w-36 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
-                    {salesMenuModes.map((mode) => (
-                      <button
-                        key={mode.value}
-                        type="button"
-                        onClick={() => {
-                          if (!mode.comingSoon) {
-                            handleVoucherTypeChange(mode.value)
-                          }
-                          setShowMobileVoucherMenu(false)
-                        }}
-                        className={`w-full px-2.5 py-1.5 text-left text-[10px] ${
-                          mode.comingSoon
-                            ? 'cursor-not-allowed text-gray-400'
-                            : voucherType === mode.value
-                              ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                              : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
-                        }`}
-                        disabled={mode.comingSoon}
-                      >
-                        {mode.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+          ))}
         </div>
-      </div>
+      </Modal>
 
       {/* Modal configuración de productos seleccionados */}
       <Modal 
@@ -3012,17 +3027,17 @@ export default function Sales() {
         }} 
         title="Configurar productos seleccionados"
         size="xl"
-        frameClassName="p-1 sm:p-2 lg:p-4"
+        frameClassName="p-0 sm:p-1 lg:p-4"
         containerClassName="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden lg:block lg:h-auto lg:max-h-none"
-        headerClassName="px-3 py-2 lg:px-6 lg:py-4"
+        headerClassName="px-2 py-1.5 lg:px-6 lg:py-4"
         titleClassName="text-[13px] lg:text-lg"
         closeButtonClassName="p-0.5 lg:p-1"
-        contentClassName="min-h-0 flex-1 p-2 lg:p-0 lg:block lg:min-h-0 lg:px-6 lg:py-4"
+        contentClassName="min-h-0 flex-1 p-0.5 lg:p-0 lg:block lg:min-h-0 lg:px-6 lg:py-4"
       >
         <div className="flex h-full min-h-0 flex-col lg:h-auto" data-tour-sales-configure-modal>
           {tempSelectedProducts.length > 0 ? (
             <>
-              <div className="mx-0.5 mt-2 min-h-0 flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-inner dark:border-gray-600 dark:bg-gray-800 lg:mx-0 lg:mt-0 lg:max-h-96 lg:flex-none lg:rounded-lg lg:bg-transparent lg:shadow-none dark:lg:bg-transparent">
+              <div className="mt-0.5 min-h-0 flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-inner dark:border-gray-600 dark:bg-gray-800 lg:mx-0 lg:mt-0 lg:max-h-96 lg:flex-none lg:rounded-lg lg:bg-transparent lg:shadow-none dark:lg:bg-transparent">
                 {/* Desktop: tabla clásica */}
                 <div className="hidden lg:block">
                   <table className="w-full text-sm">
@@ -3103,14 +3118,14 @@ export default function Sales() {
                 </div>
 
                 {/* Mobile: cards estilo CMS */}
-                <div className="space-y-2 p-2 lg:hidden">
+                <div className="space-y-1.5 p-1 lg:hidden">
                   {tempSelectedProducts.map((product) => {
                     const subtotal = product.sale_price * product.tempQuantity
                     const discountAmount = subtotal * (product.tempDiscount / 100)
                     const total = subtotal - discountAmount
 
                     return (
-                      <div key={product.id} className="rounded-xl border border-gray-200 bg-white p-2.5 shadow-sm dark:border-gray-600 dark:bg-gray-700">
+                      <div key={product.id} className="rounded-xl border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-600 dark:bg-gray-700">
                         <div className="mb-2 flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-300">#{product.code}</p>

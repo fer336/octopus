@@ -34,6 +34,8 @@
 
 ## 🟡 En progreso
 
+- [/] [RESP-MOBILE-INV-DETAIL-02] Ajustar jerarquía visual en modal Orden de Pedido (títulos/ícono cierre/botones footer)
+- [/] [RESP-MOBILE-PRICEUPDATE-01] Reemplazar tabla de "Actualizar Productos" por cards en mobile manteniendo desktop intacto
 - [/] [RESP-MOBILE-SALES-STEPPER-08] Optimizar modal de productos a 90-95vh sin espacios muertos y con contraste explícito de iconos/acciones
 - [/] [RESP-MOBILE-SALES-STEPPER-07] Mejorar UX visual de modal "Configurar productos" + edición qty/desc unitario en resumen mobile
 - [/] [RESP-MOBILE-SALES-STEPPER-06] Ajustar Sales mobile para cumplir 1:1 con referencia visual (Paso 1/2/3 exactos)
@@ -45,6 +47,20 @@
 
 
 ## 🟢 Hecho
+
+- [x] [RESP-MOBILE-FEEDBACK-01] Reemplazar tabla de "Mis reportes" por cards en mobile manteniendo desktop intacto ✅ 2026-04-29
+- [x] [RESP-MOBILE-SUPPLIERS-01] Reemplazar tabla de Proveedores por cards en mobile manteniendo desktop intacto ✅ 2026-04-29
+- [x] [RESP-MOBILE-CATEGORIES-01] Reemplazar tabla de Categorías por cards en mobile manteniendo desktop intacto ✅ 2026-04-29
+- [x] [RESP-MOBILE-CLIENTS-01] Reemplazar tabla de Clientes por cards en mobile manteniendo desktop intacto ✅ 2026-04-29
+- [x] [RESP-MOBILE-INV-DETAIL-01] Ajustar modal "Orden de Pedido" en mobile (items/totales/footer sin overflow) ✅ 2026-04-29
+
+- [x] [RESP-MOBILE-PRICEUPDATE-01] Reemplazar tabla de "Actualizar Productos" por cards en mobile manteniendo desktop intacto ✅ 2026-04-29
+
+- [x] [RESP-MOBILE-PRODUCTS-02] Ajustar sección "Configuración de Precios" en modal de Productos para mobile (grid responsive + desglose apilado) ✅ 2026-04-29
+
+- [x] [RESP-MOBILE-PRODUCTS-01] Reemplazar tabla de Productos por cards en mobile con badges y acciones, manteniendo desktop intacto ✅ 2026-04-29
+
+- [x] [RESP-MOBILE-SALES-STEPPER-09] Corregir barra inferior mobile en Sales: overflow horizontal, duplicados de Atrás y tamaños de acciones por paso ✅ 2026-04-29
 
 - [x] [PAYMENT-MOBILE-KPI-02] Compactar KPIs de Métodos de Pago mobile en una sola fila de tres columnas ✅ 2026-04-29
 

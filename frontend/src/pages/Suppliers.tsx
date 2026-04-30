@@ -4,7 +4,7 @@
  */
 import { useState } from 'react'
 import { Plus, Edit, Trash2, Truck, Phone, Mail, MapPin, Search, Inbox } from 'lucide-react'
-import { Button, Table, Pagination, Modal, Input } from '../components/ui'
+import { Button, Table, Pagination, Modal, Input, ResponsiveTable } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import suppliersService, { SupplierCreate, SupplierUpdate, Supplier } from '../api/suppliersService'
@@ -348,22 +348,105 @@ export default function Suppliers() {
         </div>
       </div>
 
-      {/* Tabla */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
-        {suppliers.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400 px-6">
-            <Inbox className="h-8 w-8 mb-2 text-primary-400" />
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">No hay proveedores para mostrar</p>
-            <p className="text-xs mt-1">Probá con otro término de búsqueda o creá un proveedor nuevo.</p>
-          </div>
-        ) : (
-          <Table
-            columns={columns}
-            data={suppliers}
-            emptyMessage="No hay proveedores para los filtros actuales"
-            density="compact"
-          />
-        )}
+      {/* Tabla desktop + cards mobile */}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <ResponsiveTable
+          data={suppliers}
+          emptyState={
+            <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+              <Inbox className="mx-auto mb-2 h-7 w-7 text-primary-400" />
+              <p className="font-medium text-gray-700 dark:text-gray-200">No hay proveedores para mostrar</p>
+              <p className="mt-1 text-xs">Probá con otro término de búsqueda o creá un proveedor nuevo.</p>
+            </div>
+          }
+          renderDesktop={() => (
+            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <Table
+                columns={columns}
+                data={suppliers}
+                emptyMessage="No hay proveedores para los filtros actuales"
+                density="compact"
+              />
+            </div>
+          )}
+          renderCard={(item) => {
+            const supplierCategories = categories.filter(cat => item.category_ids?.includes(cat.id))
+            const displayCats = supplierCategories.slice(0, 2)
+            const remaining = supplierCategories.length - 2
+            return (
+              <article
+                key={item.id}
+                className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
+                        <Truck size={13} />
+                      </span>
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">{item.name}</h3>
+                        <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">
+                          {item.cuit ? `CUIT: ${item.cuit}` : 'Sin CUIT'}
+                        </p>
+                      </div>
+                    </div>
+                    {item.contact_name && (
+                      <p className="mt-1 truncate text-xs text-gray-600 dark:text-gray-400">Contacto: {item.contact_name}</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenModal(item)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-900/20 dark:text-violet-300 dark:hover:bg-violet-900/40"
+                      title="Editar"
+                    >
+                      <Edit size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(item)}
+                      disabled={deleteMutation.isPending}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-60 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/40"
+                      title="Eliminar"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/40">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Contacto</p>
+                    <div className="mt-1 space-y-1">
+                      {item.phone && <p className="truncate text-xs text-gray-700 dark:text-gray-300">📞 {item.phone}</p>}
+                      {item.email && <p className="truncate text-xs text-gray-700 dark:text-gray-300">✉️ {item.email}</p>}
+                      {!item.phone && !item.email && <p className="text-xs text-gray-400">Sin datos</p>}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/40">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Categorías</p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {displayCats.map(cat => (
+                        <span key={cat.id} className="inline-flex rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-[11px] font-medium text-primary-700 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-300">
+                          {cat.name}
+                        </span>
+                      ))}
+                      {remaining > 0 && (
+                        <span className="inline-flex rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                          +{remaining}
+                        </span>
+                      )}
+                      {supplierCategories.length === 0 && <span className="text-xs text-gray-400">—</span>}
+                    </div>
+                  </div>
+                </div>
+              </article>
+            )
+          }}
+        />
       </div>
 
       {/* Paginación */}

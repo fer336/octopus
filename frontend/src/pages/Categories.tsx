@@ -4,7 +4,7 @@
  */
 import { useState } from 'react'
 import { Plus, Edit, Trash2, FolderTree, Search, Layers, Inbox } from 'lucide-react'
-import { Button, Table, Modal, Input } from '../components/ui'
+import { Button, Table, Modal, Input, ResponsiveTable } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import categoriesService, { CategoryCreate, CategoryUpdate, Category } from '../api/categoriesService'
@@ -251,22 +251,70 @@ export default function Categories() {
         </div>
       </div>
 
-      {/* Tabla */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
-        {filteredCategories.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400 px-6">
-            <Inbox className="h-8 w-8 mb-2 text-primary-400" />
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">No hay categorías para mostrar</p>
-            <p className="text-xs mt-1">Probá con otro término de búsqueda o creá una categoría nueva.</p>
-          </div>
-        ) : (
-          <Table 
-            columns={columns} 
-            data={filteredCategories}
-            emptyMessage="No se encontraron categorías."
-            density="compact"
-          />
-        )}
+      {/* Tabla desktop + cards mobile */}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <ResponsiveTable
+          data={filteredCategories}
+          emptyState={
+            <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+              <Inbox className="mx-auto mb-2 h-7 w-7 text-primary-400" />
+              <p className="font-medium text-gray-700 dark:text-gray-200">No hay categorías para mostrar</p>
+              <p className="mt-1 text-xs">Probá con otro término de búsqueda o creá una categoría nueva.</p>
+            </div>
+          }
+          renderDesktop={() => (
+            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <Table
+                columns={columns}
+                data={filteredCategories}
+                emptyMessage="No se encontraron categorías."
+                density="compact"
+              />
+            </div>
+          )}
+          renderCard={(item) => (
+            <article
+              key={item.id}
+              className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
+                      <FolderTree size={13} />
+                    </span>
+                    <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">{item.name}</h3>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-900/20 dark:text-violet-300 dark:hover:bg-violet-900/40"
+                    onClick={() => handleOpenModal(item)}
+                    title="Editar"
+                  >
+                    <Edit size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-60 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/40"
+                    onClick={() => handleDelete(item)}
+                    disabled={deleteMutation.isPending}
+                    title="Eliminar"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/40">
+                <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Descripción</p>
+                <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">{item.description || 'Sin descripción'}</p>
+              </div>
+            </article>
+          )}
+        />
       </div>
 
       {/* Modal */}

@@ -699,6 +699,16 @@ export default function Products() {
   // Los productos ya vienen filtrados del backend si se usan los parámetros
   const products = productsData?.items || []
 
+  const getCategoryName = (categoryId?: string) => {
+    if (!categoryId) return null
+    return categories.find((c) => c.id === categoryId)?.name || null
+  }
+
+  const getSupplierName = (supplierId?: string) => {
+    if (!supplierId) return null
+    return suppliers.find((s) => s.id === supplierId)?.name || null
+  }
+
   return (
     <div className="space-y-3">
       {/* Header */}
@@ -790,14 +800,118 @@ export default function Products() {
         />
       </div>
 
-      {/* Tabla */}
-      <div data-tour-products-table>
+      {/* Tabla desktop */}
+      <div className="hidden lg:block" data-tour-products-table>
         <Table
           columns={columns}
           data={products}
           keyExtractor={(item) => item.id}
           emptyMessage="No se encontraron productos con estos filtros."
         />
+      </div>
+
+      {/* Cards mobile */}
+      <div className="lg:hidden space-y-2" data-tour-products-table>
+        {products.length === 0 ? (
+          <div className="rounded-xl border border-gray-200 bg-white px-3 py-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+            No se encontraron productos con estos filtros.
+          </div>
+        ) : (
+          products.map((item) => {
+            const categoryName = getCategoryName(item.category_id)
+            const supplierName = getSupplierName(item.supplier_id)
+            const lowStock = item.current_stock < 10
+
+            return (
+              <article
+                key={item.id}
+                className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                        {item.code}
+                      </span>
+                      {lowStock && (
+                        <span className="inline-flex rounded-md bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                          Stock bajo
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      {item.description}
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      className="rounded-md p-1.5 text-gray-500 hover:bg-primary-50 hover:text-primary-600 dark:text-gray-300 dark:hover:bg-primary-900/30 dark:hover:text-primary-300"
+                      onClick={() => handleOpenModal(item)}
+                      aria-label="Editar producto"
+                    >
+                      <Edit size={16} />
+                    </button>
+                    <button
+                      className="rounded-md p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-300 dark:hover:bg-red-900/30 dark:hover:text-red-300"
+                      aria-label="Eliminar producto"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {categoryName ? (
+                    <span className="inline-flex rounded-md bg-primary-100 px-2 py-0.5 text-[10px] font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+                      {categoryName}
+                    </span>
+                  ) : (
+                    <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                      Sin categoría
+                    </span>
+                  )}
+
+                  {supplierName ? (
+                    <span className="inline-flex rounded-md bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                      {supplierName}
+                    </span>
+                  ) : (
+                    <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                      Sin proveedor
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400">Lista</p>
+                    <p className="font-medium text-gray-800 dark:text-gray-200">${item.list_price.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-lg border border-primary-200 bg-primary-50 px-2 py-1.5 dark:border-primary-800 dark:bg-primary-900/20">
+                    <p className="text-[10px] text-primary-700 dark:text-primary-300">Venta</p>
+                    <p className="font-semibold text-primary-800 dark:text-primary-200">${item.sale_price.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400">Bonif</p>
+                    <p className="font-medium text-green-700 dark:text-green-300">{item.discount_display ? `${item.discount_display}%` : '-'}</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400">Extra</p>
+                    <p className="font-medium text-orange-700 dark:text-orange-300">{item.extra_cost > 0 ? `${item.extra_cost}%` : '-'}</p>
+                  </div>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400">Stock</span>
+                  <span className={`text-sm font-semibold ${lowStock ? 'text-red-600 dark:text-red-300' : 'text-gray-800 dark:text-gray-200'}`}>
+                    {item.current_stock}
+                  </span>
+                </div>
+              </article>
+            )
+          })
+        )}
       </div>
 
       {/* Paginación */}
@@ -893,15 +1007,15 @@ export default function Products() {
             </div>
           </div>
 
-          {/* Sección 2: Precios - Layout compacto */}
-          <div className="bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 p-3 rounded-lg">
+          {/* Sección 2: Precios - responsive (mobile primero) */}
+          <div className="bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 p-2.5 lg:p-3 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
               <Calculator className="text-green-600" size={16} />
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                 Configuración de Precios
               </h3>
             </div>
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5 lg:gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   P. Lista *
@@ -1001,9 +1115,9 @@ export default function Products() {
               const finalPrice = netWithProfit + ivaAmount
 
               return (
-                <div className="mt-3 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/10 dark:to-primary-900/10 rounded-lg p-4 border border-primary-200 dark:border-primary-700">
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1 flex-1">
+                <div className="mt-3 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/10 dark:to-primary-900/10 rounded-lg p-3 lg:p-4 border border-primary-200 dark:border-primary-700">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-start">
+                    <div className="space-y-1 flex-1 min-w-0">
                       <p className="text-xs text-primary-600 dark:text-primary-400 font-medium">Desglose de Precio:</p>
                       <div className="text-xs space-y-0.5 text-gray-600 dark:text-gray-400">
                         <div className="flex justify-between">
@@ -1038,9 +1152,9 @@ export default function Products() {
                         </div>
                       </div>
                     </div>
-                    <div className="ml-4 text-right">
+                    <div className="rounded-lg border border-primary-200 bg-white/70 px-2 py-2 text-right dark:border-primary-700 dark:bg-gray-800/60 lg:ml-4 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
                       <p className="text-xs text-primary-600 dark:text-primary-400 font-medium mb-1">Precio Final:</p>
-                      <p className="text-2xl font-bold text-primary-700 dark:text-primary-300">
+                      <p className="text-xl lg:text-2xl font-bold text-primary-700 dark:text-primary-300 break-words">
                         ${finalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                     </div>

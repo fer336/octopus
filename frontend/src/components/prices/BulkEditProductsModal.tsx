@@ -401,9 +401,9 @@ export default function BulkEditProductsModal({
               <div className="rounded-lg border border-primary-200/80 dark:border-primary-700 bg-white/85 dark:bg-gray-900/35 p-2.5 space-y-1.5" data-tour-price-modal-discount>
                 <label className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Bonificaciones</label>
                 <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">Formato en cadena: <strong>10+5+2</strong>.</p>
-                <div className="flex gap-2">
-                  <input type="text" value={quickDiscount} onChange={(e) => setQuickDiscount(e.target.value)} placeholder="10+5+2" className="flex-1 px-2.5 py-1 text-xs text-center border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600" />
-                  <button onClick={applyBulkDiscount} disabled={!quickDiscount} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white rounded-lg text-xs font-semibold">Aplicar</button>
+                <div className="flex min-w-0 items-center gap-1">
+                  <input type="text" value={quickDiscount} onChange={(e) => setQuickDiscount(e.target.value)} placeholder="10+5+2" className="min-w-0 flex-1 px-2 py-1 text-[11px] text-center border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600" />
+                  <button onClick={applyBulkDiscount} disabled={!quickDiscount} className="shrink-0 whitespace-nowrap rounded-lg bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:bg-gray-400">Aplicar</button>
                 </div>
               </div>
 
@@ -411,9 +411,9 @@ export default function BulkEditProductsModal({
               <div className="rounded-lg border border-primary-200/80 dark:border-primary-700 bg-white/85 dark:bg-gray-900/35 p-2.5 space-y-1.5" data-tour-price-modal-extra-cost>
                 <label className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Cargo extra %</label>
                 <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">Suma costo antes de ganancia e IVA.</p>
-                <div className="flex gap-2">
-                  <input type="number" value={quickCargo} onChange={(e) => setQuickCargo(e.target.value)} placeholder="5" className="flex-1 px-2.5 py-1 text-xs text-center border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600" step="0.1" />
-                  <button onClick={applyBulkCargo} disabled={!quickCargo && quickCargo !== '0'} className="px-3 py-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-lg text-xs font-semibold">Aplicar</button>
+                <div className="flex min-w-0 items-center gap-1">
+                  <input type="number" value={quickCargo} onChange={(e) => setQuickCargo(e.target.value)} placeholder="5" className="min-w-0 flex-1 px-2 py-1 text-[11px] text-center border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600" step="0.1" />
+                  <button onClick={applyBulkCargo} disabled={!quickCargo && quickCargo !== '0'} className="shrink-0 whitespace-nowrap rounded-lg bg-primary-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-primary-700 disabled:bg-gray-400">Aplicar</button>
                 </div>
               </div>
 
@@ -421,9 +421,9 @@ export default function BulkEditProductsModal({
               <div className="rounded-lg border border-primary-200/80 dark:border-primary-700 bg-white/85 dark:bg-gray-900/35 p-2.5 space-y-1.5" data-tour-price-modal-profit>
                 <label className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Ganancia %</label>
                 <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">Margen comercial agregado al neto.</p>
-                <div className="flex gap-2">
-                  <input type="number" value={quickProfit} onChange={(e) => setQuickProfit(e.target.value)} placeholder="30" className="flex-1 px-2.5 py-1 text-xs text-center border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600" step="0.1" />
-                  <button onClick={applyBulkProfit} disabled={!quickProfit && quickProfit !== '0'} className="px-3 py-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-lg text-xs font-semibold">Aplicar</button>
+                <div className="flex min-w-0 items-center gap-1">
+                  <input type="number" value={quickProfit} onChange={(e) => setQuickProfit(e.target.value)} placeholder="30" className="min-w-0 flex-1 px-2 py-1 text-[11px] text-center border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600" step="0.1" />
+                  <button onClick={applyBulkProfit} disabled={!quickProfit && quickProfit !== '0'} className="shrink-0 whitespace-nowrap rounded-lg bg-primary-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-primary-700 disabled:bg-gray-400">Aplicar</button>
                 </div>
               </div>
 
@@ -431,16 +431,16 @@ export default function BulkEditProductsModal({
               <div className="rounded-lg border border-primary-200/80 dark:border-primary-700 bg-white/85 dark:bg-gray-900/35 p-2.5 space-y-1.5" data-tour-price-modal-stock>
                 <label className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Stock</label>
                 <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">Actualiza stock base para todos los productos cargados.</p>
-                <div className="flex gap-2">
-                  <input type="number" value={quickStock} onChange={(e) => setQuickStock(e.target.value)} placeholder="100" className="flex-1 px-2.5 py-1 text-xs text-center border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600" />
-                  <button onClick={applyBulkStock} disabled={!quickStock && quickStock !== '0'} className="px-3 py-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-lg text-xs font-semibold">Aplicar</button>
+                <div className="flex min-w-0 items-center gap-1">
+                  <input type="number" value={quickStock} onChange={(e) => setQuickStock(e.target.value)} placeholder="100" className="min-w-0 flex-1 px-2 py-1 text-[11px] text-center border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600" />
+                  <button onClick={applyBulkStock} disabled={!quickStock && quickStock !== '0'} className="shrink-0 whitespace-nowrap rounded-lg bg-primary-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-primary-700 disabled:bg-gray-400">Aplicar</button>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Tabla Editable */}
-          <div className="overflow-auto border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm" data-tour-price-modal-table>
+          {/* Tabla Editable Desktop */}
+          <div className="hidden lg:block overflow-auto border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm" data-tour-price-modal-table>
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-20">
                 <tr>
@@ -501,6 +501,74 @@ export default function BulkEditProductsModal({
             </table>
           </div>
 
+          {/* Cards Editable Mobile */}
+          <div className="lg:hidden space-y-2" data-tour-price-modal-table>
+            {products.map((product, index) => (
+              <article key={product.id} className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="inline-flex items-center rounded-md bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                      {product.code}
+                    </span>
+                    <input
+                      type="text"
+                      value={product.description}
+                      onChange={(e) => updateProduct(index, 'description', e.target.value)}
+                      className="mt-1.5 w-full rounded-lg border px-2.5 py-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="mb-1 block text-[10px] font-medium text-gray-600 dark:text-gray-300">Categoría</label>
+                    <select value={product.category_id || ''} onChange={(e) => { const c = categories.find(x => x.id === e.target.value); updateProduct(index, 'category_id', e.target.value); updateProduct(index, 'category_name', c?.name) }} className="w-full rounded-lg border px-2 py-1.5 text-xs dark:bg-gray-700 dark:border-gray-600">
+                      <option value="">Sin categoría</option>
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-medium text-gray-600 dark:text-gray-300">Proveedor</label>
+                    <select value={product.supplier_id || ''} onChange={(e) => { const s = suppliers.find(x => x.id === e.target.value); updateProduct(index, 'supplier_id', e.target.value); updateProduct(index, 'supplier_name', s?.name) }} className="w-full rounded-lg border px-2 py-1.5 text-xs dark:bg-gray-700 dark:border-gray-600">
+                      <option value="">Sin proveedor</option>
+                      {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="mb-1 block text-[10px] font-medium text-gray-600 dark:text-gray-300">P. Lista</label>
+                    <input type="number" value={product.list_price} onChange={(e) => updateProduct(index, 'list_price', parseFloat(e.target.value) || 0)} className="w-full rounded-lg border px-2 py-1.5 text-xs text-center font-medium dark:bg-gray-700 dark:border-gray-600" step="0.01" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-medium text-gray-600 dark:text-gray-300">Bonif.</label>
+                    <input type="text" value={product.discount_display || ''} onChange={(e) => updateProduct(index, 'discount_display', e.target.value)} placeholder="10+5" className="w-full rounded-lg border px-2 py-1.5 text-xs text-center dark:bg-gray-700 dark:border-gray-600" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-medium text-gray-600 dark:text-gray-300">Cargo %</label>
+                    <input type="number" value={product.extra_cost} onChange={(e) => updateProduct(index, 'extra_cost', parseFloat(e.target.value) || 0)} className="w-full rounded-lg border px-2 py-1.5 text-xs text-center dark:bg-gray-700 dark:border-gray-600" step="0.1" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-medium text-gray-600 dark:text-gray-300">Ganancia %</label>
+                    <input type="number" value={product.profit_margin} onChange={(e) => updateProduct(index, 'profit_margin', parseFloat(e.target.value) || 0)} className="w-full rounded-lg border px-2 py-1.5 text-xs text-center dark:bg-gray-700 dark:border-gray-600" step="0.1" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-medium text-gray-600 dark:text-gray-300">Stock</label>
+                    <input type="number" value={product.current_stock} onChange={(e) => updateProduct(index, 'current_stock', parseInt(e.target.value) || 0)} className="w-full rounded-lg border px-2 py-1.5 text-xs text-center dark:bg-gray-700 dark:border-gray-600" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-medium text-primary-700 dark:text-primary-300">P. Final</label>
+                    <div className="flex h-[34px] items-center justify-center rounded-lg border border-primary-200 bg-primary-50 px-2 text-sm font-bold text-primary-700 dark:border-primary-700 dark:bg-primary-900/20 dark:text-primary-300">
+                      <TrendingUp size={12} className="mr-1" />
+                      ${calculateFinalPrice(product).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
           {/* Info */}
           <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 rounded-xl p-3" data-tour-price-modal-formula>
             <p className="text-xs text-primary-800 dark:text-primary-300">
@@ -511,16 +579,19 @@ export default function BulkEditProductsModal({
         </div>
 
         {/* ── Footer fijo — SIEMPRE VISIBLE ────────────────────────────── */}
-        <div className="shrink-0 flex items-center gap-3 px-6 py-4 border-t-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        <div className="shrink-0 px-4 lg:px-6 py-3 lg:py-4 border-t-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
           {/* Cancelar */}
           <Button
             variant="outline"
             onClick={onClose}
             disabled={isSaving}
-            className="flex-1"
+            className="w-full lg:flex-1"
           >
-            <X size={16} className="mr-2" />
-            Cancelar
+            <span className="inline-flex w-full items-center justify-center gap-2">
+              <X size={16} />
+              Cancelar
+            </span>
           </Button>
 
           {/* Guardar borrador */}
@@ -528,12 +599,12 @@ export default function BulkEditProductsModal({
             variant="outline"
             onClick={handleSaveDraft}
             disabled={isSaving || isSavingDraft}
-            className="flex-1 border-amber-400 text-amber-600 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-900/20"
+            className="w-full lg:flex-1 border-amber-400 text-amber-600 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-900/20"
           >
             {isSavingDraft ? (
-              <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-600 mr-2" />Guardando...</>
+              <span className="inline-flex w-full items-center justify-center gap-2"><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-600" />Guardando...</span>
             ) : (
-              <><BookmarkCheck size={16} className="mr-2" />{existingDraftId ? 'Actualizar borrador' : 'Guardar borrador'}</>
+              <span className="inline-flex w-full items-center justify-center gap-2"><BookmarkCheck size={16} />{existingDraftId ? 'Actualizar borrador' : 'Guardar borrador'}</span>
             )}
           </Button>
 
@@ -541,21 +612,22 @@ export default function BulkEditProductsModal({
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="flex-[2] bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white"
+            className="w-full lg:flex-[2] bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white"
             data-tour-price-modal-save
           >
             {isSaving ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+              <span className="inline-flex w-full items-center justify-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                 Guardando...
-              </>
+              </span>
             ) : (
-              <>
-                <Save size={16} className="mr-2" />
+              <span className="inline-flex w-full items-center justify-center gap-2">
+                <Save size={16} />
                 Guardar {products.length} Cambios
-              </>
+              </span>
             )}
           </Button>
+          </div>
         </div>
 
       </div>
