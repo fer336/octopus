@@ -230,6 +230,18 @@ body {
   pointer-events: none;
 }
 
+/* Oculta flechas nativas en inputs number (solo donde se aplique la clase) */
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.no-spinner[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* Respect reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   .reveal-on-scroll,

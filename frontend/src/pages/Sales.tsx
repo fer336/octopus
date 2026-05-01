@@ -745,8 +745,8 @@ export default function Sales() {
 
   // Panel de preview de productos seleccionados temporalmente con cantidad y descuento
   interface TempProduct extends Product {
-    tempQuantity: number
-    tempDiscount: number
+    tempQuantity: number | string
+    tempDiscount: number | string
   }
   const [tempSelectedProducts, setTempSelectedProducts] = useState<TempProduct[]>([])
   
@@ -1068,7 +1068,7 @@ export default function Sales() {
   }
 
   // Actualizar cantidad/descuento de producto temporal
-  const updateTempProduct = (productId: string, field: 'tempQuantity' | 'tempDiscount', value: number) => {
+  const updateTempProduct = (productId: string, field: 'tempQuantity' | 'tempDiscount', value: number | string) => {
     setTempSelectedProducts(tempSelectedProducts.map(p =>
       p.id === productId ? { ...p, [field]: value } : p
     ))
@@ -1085,14 +1085,16 @@ export default function Sales() {
     const newItems = [...items]
     tempSelectedProducts.forEach(product => {
       const existing = newItems.find(i => i.id === product.id)
+      const quantityValue = Math.max(1, Number(product.tempQuantity) || 0)
+      const discountValue = Math.max(0, Math.min(100, Number(product.tempDiscount) || 0))
       if (existing) {
-        existing.quantity += product.tempQuantity
-        existing.discount = product.tempDiscount
+        existing.quantity += quantityValue
+        existing.discount = discountValue
       } else {
         newItems.push({ 
           ...product, 
-          quantity: product.tempQuantity, 
-          discount: product.tempDiscount 
+          quantity: quantityValue,
+          discount: discountValue,
         })
       }
     })
@@ -3054,8 +3056,10 @@ export default function Sales() {
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {tempSelectedProducts.map((product, productIndex) => {
-                        const subtotal = product.sale_price * product.tempQuantity
-                        const discountAmount = subtotal * (product.tempDiscount / 100)
+                        const qty = Number(product.tempQuantity) || 0
+                        const disc = Number(product.tempDiscount) || 0
+                        const subtotal = product.sale_price * qty
+                        const discountAmount = subtotal * (disc / 100)
                         const total = subtotal - discountAmount
                         const quantityInputIndex = productIndex * 2
                         const discountInputIndex = productIndex * 2 + 1
@@ -3070,7 +3074,7 @@ export default function Sales() {
                                 ref={(el) => modalInputsRef.current[quantityInputIndex] = el}
                                 type="number"
                                 value={product.tempQuantity}
-                                onChange={(e) => updateTempProduct(product.id, 'tempQuantity', parseInt(e.target.value) || 1)}
+                                onChange={(e) => updateTempProduct(product.id, 'tempQuantity', e.target.value)}
                                 onKeyDown={(e) => handleModalInputKeyDown(e, quantityInputIndex)}
                                 className="w-full rounded-lg border border-primary-200 bg-white px-2 py-1 text-right text-sm shadow-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:border-primary-800 dark:bg-gray-700 dark:focus:ring-primary-900"
                                 min={1}
@@ -3081,12 +3085,12 @@ export default function Sales() {
                                 ref={(el) => modalInputsRef.current[discountInputIndex] = el}
                                 type="number"
                                 value={product.tempDiscount}
-                                onChange={(e) => updateTempProduct(product.id, 'tempDiscount', parseFloat(e.target.value) || 0)}
+                                onChange={(e) => updateTempProduct(product.id, 'tempDiscount', e.target.value)}
                                 onKeyDown={(e) => handleModalInputKeyDown(e, discountInputIndex)}
                                 className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-right text-sm shadow-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:border-gray-600 dark:bg-gray-700 dark:focus:ring-primary-900"
                                 min={0}
                                 max={100}
-                                step={0.1}
+                                step={1}
                               />
                             </td>
                             <td className="px-3 py-2 text-right font-medium">
@@ -3106,8 +3110,10 @@ export default function Sales() {
                         <td colSpan={5} className="px-3 py-2 text-right font-semibold text-gray-700 dark:text-gray-300">Total:</td>
                         <td className="px-3 py-2 text-right text-lg font-bold text-gray-900 dark:text-white">
                           ${formatNumber(tempSelectedProducts.reduce((acc, p) => {
-                            const subtotal = p.sale_price * p.tempQuantity
-                            const discount = subtotal * (p.tempDiscount / 100)
+                            const qty = Number(p.tempQuantity) || 0
+                            const disc = Number(p.tempDiscount) || 0
+                            const subtotal = p.sale_price * qty
+                            const discount = subtotal * (disc / 100)
                             return acc + (subtotal - discount)
                           }, 0), undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
@@ -3120,8 +3126,10 @@ export default function Sales() {
                 {/* Mobile: cards estilo CMS */}
                 <div className="space-y-1.5 p-1 lg:hidden">
                   {tempSelectedProducts.map((product) => {
-                    const subtotal = product.sale_price * product.tempQuantity
-                    const discountAmount = subtotal * (product.tempDiscount / 100)
+                    const qty = Number(product.tempQuantity) || 0
+                    const disc = Number(product.tempDiscount) || 0
+                    const subtotal = product.sale_price * qty
+                    const discountAmount = subtotal * (disc / 100)
                     const total = subtotal - discountAmount
 
                     return (
@@ -3143,32 +3151,69 @@ export default function Sales() {
                           </button>
                         </div>
 
-                        <div className="grid grid-cols-[58px_58px_minmax(0,1fr)] gap-1.5">
-                          <div className="h-[56px] rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-600 dark:bg-gray-800">
+                        <div className="grid grid-cols-[56px_56px_minmax(0,1fr)] items-stretch gap-1.5">
+                          <div className="rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-600 dark:bg-gray-800">
                             <p className="mb-1 text-[10px] leading-none text-gray-500 dark:text-gray-400">Cant.</p>
-                            <input
-                              type="number"
-                              value={product.tempQuantity}
-                              onChange={(e) => updateTempProduct(product.id, 'tempQuantity', parseInt(e.target.value) || 1)}
-                              min={1}
-                              className="h-7 w-full rounded-md border border-primary-200 bg-white px-1 text-center text-sm font-semibold text-gray-900 dark:border-primary-800 dark:bg-gray-700 dark:text-white"
-                            />
+                            <div className="mx-auto flex w-[40px] flex-col items-center gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => updateTempProduct(product.id, 'tempQuantity', (Number(product.tempQuantity) || 0) + 1)}
+                                className="flex h-4 w-full items-center justify-center rounded-md border border-primary-200 bg-white text-[12px] leading-none text-primary-600 dark:border-primary-800 dark:bg-gray-700 dark:text-primary-300"
+                                aria-label="Aumentar cantidad"
+                              >
+                                +
+                              </button>
+                              <input
+                                type="number"
+                                value={product.tempQuantity}
+                                onChange={(e) => updateTempProduct(product.id, 'tempQuantity', e.target.value)}
+                                min={1}
+                                step={1}
+                                className="no-spinner h-6 w-full rounded-md border border-primary-200 bg-white px-1 text-center text-sm font-semibold tabular-nums text-gray-900 dark:border-primary-800 dark:bg-gray-700 dark:text-white"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => updateTempProduct(product.id, 'tempQuantity', Math.max(1, (Number(product.tempQuantity) || 0) - 1))}
+                                className="flex h-4 w-full items-center justify-center rounded-md border border-primary-200 bg-white text-[12px] leading-none text-primary-600 dark:border-primary-800 dark:bg-gray-700 dark:text-primary-300"
+                                aria-label="Disminuir cantidad"
+                              >
+                                −
+                              </button>
+                            </div>
                           </div>
-                          <div className="h-[56px] rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-600 dark:bg-gray-800">
+                          <div className="rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-600 dark:bg-gray-800">
                             <p className="mb-1 text-[10px] leading-none text-gray-500 dark:text-gray-400">Desc%</p>
-                            <input
-                              type="number"
-                              value={product.tempDiscount}
-                              onChange={(e) => updateTempProduct(product.id, 'tempDiscount', parseFloat(e.target.value) || 0)}
-                              min={0}
-                              max={100}
-                              step={0.1}
-                              className="h-7 w-full rounded-md border border-gray-300 bg-white px-1 text-center text-sm font-semibold text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                            />
+                            <div className="mx-auto flex w-[40px] flex-col items-center gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => updateTempProduct(product.id, 'tempDiscount', Math.min(100, Math.round(Number(product.tempDiscount) || 0) + 1))}
+                                className="flex h-4 w-full items-center justify-center rounded-md border border-gray-300 bg-white text-[12px] leading-none text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                                aria-label="Aumentar descuento"
+                              >
+                                +
+                              </button>
+                              <input
+                                type="number"
+                                value={product.tempDiscount}
+                                onChange={(e) => updateTempProduct(product.id, 'tempDiscount', e.target.value)}
+                                min={0}
+                                max={100}
+                                step={1}
+                                className="no-spinner h-6 w-full rounded-md border border-gray-300 bg-white px-1 text-center text-sm font-semibold tabular-nums text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => updateTempProduct(product.id, 'tempDiscount', Math.max(0, Math.round(Number(product.tempDiscount) || 0) - 1))}
+                                className="flex h-4 w-full items-center justify-center rounded-md border border-gray-300 bg-white text-[12px] leading-none text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                                aria-label="Disminuir descuento"
+                              >
+                                −
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex h-[56px] min-w-0 flex-col rounded-lg border border-primary-200 bg-primary-50 p-1 dark:border-primary-700 dark:bg-primary-900/20">
-                            <p className="mb-1 text-[10px] leading-none text-primary-600 dark:text-primary-300">Subtotal</p>
-                            <p className="flex h-7 items-center justify-end text-right text-sm font-bold leading-none text-primary-800 dark:text-primary-200 tabular-nums">
+                          <div className="flex min-h-[56px] min-w-0 flex-col rounded-lg border border-primary-200 bg-primary-50 p-1 dark:border-primary-700 dark:bg-primary-900/20">
+                            <p className="mb-0.5 text-[10px] leading-none text-primary-600 dark:text-primary-300">Subtotal</p>
+                            <p className="flex flex-1 items-center justify-center text-center text-sm font-bold leading-none text-primary-800 dark:text-primary-200 tabular-nums">
                               ${formatNumber(total, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </p>
                           </div>
@@ -3187,8 +3232,10 @@ export default function Sales() {
                   <span className="text-xs text-gray-600 dark:text-gray-300">Total</span>
                   <span className="text-base font-bold text-gray-900 dark:text-white">
                     ${formatNumber(tempSelectedProducts.reduce((acc, p) => {
-                      const subtotal = p.sale_price * p.tempQuantity
-                      const discount = subtotal * (p.tempDiscount / 100)
+                      const qty = Number(p.tempQuantity) || 0
+                      const disc = Number(p.tempDiscount) || 0
+                      const subtotal = p.sale_price * qty
+                      const discount = subtotal * (disc / 100)
                       return acc + (subtotal - discount)
                     }, 0), undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
@@ -4519,30 +4566,30 @@ export default function Sales() {
               </div>
 
               {/* Botones de acción */}
-              <div className="flex gap-2 pt-2">
+              <div className="grid grid-cols-3 gap-2 pt-2">
                 <Button 
                   variant="outline" 
                   onClick={handleDownloadPdf}
-                  className="flex-1"
+                  className="w-full min-w-0"
                 >
-                  <Download size={16} className="mr-2" />
-                  Descargar PDF
+                  <Download size={16} className="sm:mr-2" />
+                  <span className="hidden sm:inline">Descargar PDF</span>
                 </Button>
                 <Button 
                   variant="outline" 
                   onClick={handlePrintPdf}
-                  className="flex-1"
+                  className="w-full min-w-0"
                 >
-                  <Printer size={16} className="mr-2" />
-                  Imprimir
+                  <Printer size={16} className="sm:mr-2" />
+                  <span className="hidden sm:inline">Imprimir</span>
                 </Button>
                 <Button 
                   variant="primary" 
                   onClick={handleClosePdfModal}
-                  className="flex-1"
+                  className="w-full min-w-0"
                 >
-                  <X size={16} className="mr-2" />
-                  Cerrar
+                  <X size={16} className="sm:mr-2" />
+                  <span className="hidden sm:inline">Cerrar</span>
                 </Button>
               </div>
 

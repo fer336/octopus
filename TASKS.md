@@ -33,7 +33,6 @@
 - [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
 
 ## 🟡 En progreso
-
 - [/] [RESP-MOBILE-INV-DETAIL-02] Ajustar jerarquía visual en modal Orden de Pedido (títulos/ícono cierre/botones footer)
 - [/] [RESP-MOBILE-PRICEUPDATE-01] Reemplazar tabla de "Actualizar Productos" por cards en mobile manteniendo desktop intacto
 - [/] [RESP-MOBILE-SALES-STEPPER-08] Optimizar modal de productos a 90-95vh sin espacios muertos y con contraste explícito de iconos/acciones
@@ -47,6 +46,15 @@
 
 
 ## 🟢 Hecho
+
+- [x] [RESP-MOBILE-SALES-STEPPER-14] Permitir borrar manualmente cantidad/% sin autocompletar a 0 en inputs mobile ✅ 2026-05-01
+- [x] [RESP-MOBILE-SALES-STEPPER-13] Ocultar flechas nativas de inputs number en steppers mobile y alinear verticalmente subtotal con Cant./Desc% ✅ 2026-05-01
+- [x] [RESP-MOBILE-SALES-STEPPER-12] Alinear simétricamente botones +/- con input en steppers mobile y centrar valor de subtotal ✅ 2026-05-01
+- [x] [RESP-MOBILE-SALES-STEPPER-11] Integrar steppers verticales dentro del card mobile sin desborde visual ✅ 2026-05-01
+- [x] [RESP-MOBILE-SALES-STEPPER-10] Rediseñar steppers mobile de Cant./Desc% a layout vertical (+ arriba, valor centro, - abajo) para mejorar legibilidad ✅ 2026-05-01
+- [x] [RESP-MOBILE-VOUCHERS-NAV-05] Corregir navegación mobile en comprobantes para abrir cotización/remito relacionado sin redirigir al dashboard ✅ 2026-05-01
+- [x] [RESP-MOBILE-VOUCHERS-ACTIONS-03] Ajustar acciones del visor PDF en mobile (Descargar/Imprimir/Cerrar) para que entren en una sola fila priorizando íconos ✅ 2026-05-01
+- [x] [RESP-MOBILE-PRODUCT-CONFIG-04] Restaurar flechas de steppers en mobile para cantidad/% y forzar incremento de porcentaje en pasos de 1.0 ✅ 2026-05-01
 
 - [x] [RESP-MOBILE-FEEDBACK-01] Reemplazar tabla de "Mis reportes" por cards en mobile manteniendo desktop intacto ✅ 2026-04-29
 - [x] [RESP-MOBILE-SUPPLIERS-01] Reemplazar tabla de Proveedores por cards en mobile manteniendo desktop intacto ✅ 2026-04-29

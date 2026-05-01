@@ -1294,7 +1294,7 @@ export default function Vouchers() {
                             </div>
                             <div className="flex gap-1">
                               <button 
-                                onClick={(e) => { animateButton(e); window.open(`/vouchers?id=${sq.id}`, '_blank') }} 
+                                onClick={(e) => { animateButton(e); handleViewPdf(sq.id) }} 
                                 className="p-1 text-gray-400 hover:text-primary-600 rounded"
                                 title="Ver"
                               >
