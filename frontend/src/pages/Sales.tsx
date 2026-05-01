@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import productsService from '../api/productsService'
 import clientsService from '../api/clientsService'
 import clientAuthorizationsService from '../api/clientAuthorizationsService'
-import vouchersService, { VoucherCreate, VoucherUpdate, VoucherPayment, Voucher as VoucherType2, type PriceStrategy } from '../api/vouchersService'
+import vouchersService, { VoucherCreate, VoucherUpdate, VoucherPayment, Voucher as VoucherType2, type PriceStrategy, type VoucherTotalsPreviewRequest } from '../api/vouchersService'
 import arcaService from '../api/arcaService'
 import paymentMethodsService from '../api/paymentMethodsService'
 import businessService from '../api/businessService'
@@ -220,6 +220,38 @@ const formatNumber = (
   locale?: string,
   options?: Intl.NumberFormatOptions,
 ): string => safeNumber(value).toLocaleString(locale, options)
+
+const roundMoney = (value: number): number => Math.round((safeNumber(value) + Number.EPSILON) * 100) / 100
+
+const calculateBackendCompatibleTotalFromCart = (
+  cartItems: CartItem[],
+  generalDiscountPercent: number,
+): number => {
+  const generalDiscountFactor = 1 - (safeNumber(generalDiscountPercent) / 100)
+
+  const total = cartItems.reduce((acc, item) => {
+    const unitPriceWithoutIva = safeNumber(item.net_price)
+    const quantity = safeNumber(item.quantity)
+    const itemDiscountFactor = 1 - (safeNumber(item.discount) / 100)
+
+    const subtotalLine = roundMoney(unitPriceWithoutIva * quantity * itemDiscountFactor * generalDiscountFactor)
+    const ivaLine = roundMoney(subtotalLine * 0.21)
+    const totalLine = roundMoney(subtotalLine + ivaLine)
+
+    return acc + totalLine
+  }, 0)
+
+  return roundMoney(total)
+}
+
+const resolveBackendVoucherType = (
+  type: VoucherType,
+  taxCondition?: string,
+): VoucherTotalsPreviewRequest['voucher_type'] => {
+  if (type === 'quotation') return 'quotation'
+  if (type === 'receipt' || type === 'current_account') return 'receipt'
+  return taxCondition === 'RI' ? 'invoice_a' : 'invoice_b'
+}
 
 const parseStoredDrafts = (value: string | null): Draft[] => {
   if (!value) {
@@ -743,6 +775,32 @@ export default function Sales() {
     [pendingQuotationsData?.items, receiptsEnabled],
   )
 
+  const voucherTotalsPreviewPayload = useMemo<VoucherTotalsPreviewRequest | null>(() => {
+    if (!selectedClient || items.length === 0) return null
+
+    const normalizedItems = normalizeCartItems(items)
+    if (normalizedItems.length === 0) return null
+
+    return {
+      voucher_type: resolveBackendVoucherType(voucherType, selectedClient.tax_condition),
+      general_discount: generalDiscount,
+      items: normalizedItems.map((item) => ({
+        product_id: item.id,
+        quantity: item.quantity,
+        unit_price: item.net_price,
+        discount_percent: item.discount,
+      })),
+    }
+  }, [selectedClient, items, voucherType, generalDiscount])
+
+  const totalsPreviewQuery = useQuery({
+    queryKey: ['sales-voucher-totals-preview', voucherTotalsPreviewPayload],
+    queryFn: () => vouchersService.previewTotals(voucherTotalsPreviewPayload as VoucherTotalsPreviewRequest),
+    enabled: Boolean(voucherTotalsPreviewPayload),
+    staleTime: 5_000,
+    retry: false,
+  })
+
   // Panel de preview de productos seleccionados temporalmente con cantidad y descuento
   interface TempProduct extends Product {
     tempQuantity: number | string
@@ -1054,11 +1112,9 @@ export default function Sales() {
     if (alreadyInTemp) {
       // Si ya está, quitarlo
       setTempSelectedProducts(tempSelectedProducts.filter(p => p.id !== product.id))
-      toast.success(`${product.description} quitado`, { duration: 1000, icon: '✓' })
     } else {
       // Si no está, agregarlo
       setTempSelectedProducts([...tempSelectedProducts, { ...product, tempQuantity: 1, tempDiscount: 0 }])
-      toast.success(`${product.description} agregado`, { duration: 1000, icon: '✓' })
     }
   }
 
@@ -1101,8 +1157,6 @@ export default function Sales() {
     setItems(newItems)
 
     // Limpiar TODO completamente en el orden correcto
-    const count = tempSelectedProducts.length
-    
     // 1. Bloquear eventos de teclado temporalmente para evitar que el Enter se propague
     blockKeyboardEventsRef.current = true
     
@@ -1113,10 +1167,7 @@ export default function Sales() {
     setTempSelectedProducts([])
     // Mantener productSearch y selectedProductIndex para no perder posición
     
-    // 4. Mostrar confirmación
-    toast.success(`${count} producto(s) agregados al carrito`)
-    
-    // 5. Focus y desbloquear eventos después de un delay (sin limpiar search)
+    // 4. Focus y desbloquear eventos después de un delay (sin limpiar search)
     setTimeout(() => {
       if (searchInputRef.current) {
         searchInputRef.current.focus()
@@ -1351,7 +1402,7 @@ export default function Sales() {
     setShowConfirmModal(true)
   }
 
-  const handleConfirmGenerate = () => {
+  const handleConfirmGenerate = async () => {
     if (!selectedClient) {
       toast.error('Debe seleccionar un cliente')
       return
@@ -1360,6 +1411,14 @@ export default function Sales() {
     if (voucherType === 'current_account' && selectedClient.current_account_mode === 'disabled') {
       toast.error('El cliente titular no tiene Cuenta Corriente habilitada')
       return
+    }
+
+    if (voucherType === 'invoice' && voucherTotalsPreviewPayload) {
+      const previewResult = await totalsPreviewQuery.refetch()
+      if (previewResult.error) {
+        toast.error('No se pudo validar el total con backend. Reintentá en unos segundos.')
+        return
+      }
     }
 
     const paymentValidation = validatePayments()
@@ -1668,18 +1727,27 @@ export default function Sales() {
   // Helper: calcular total correcto desde cotización del backend
   // unit_price en la DB no incluye IVA, por eso hay que recalcular
   const calculateQuotationTotal = (quotation: any): number => {
+    const backendTotal = Number(quotation?.total)
+    if (Number.isFinite(backendTotal) && backendTotal > 0) {
+      return roundMoney(backendTotal)
+    }
+
     const items = quotation.items || []
-    const itemSubtotal = items.reduce((acc: number, item: any) => {
+    const generalDiscountFactor = 1 - ((Number(quotation.general_discount) || 0) / 100)
+    const total = items.reduce((acc: number, item: any) => {
       const unitPrice = Number(item.unit_price) || 0
       const qty = Number(item.quantity) || 0
       const discount = Number(item.discount_percent) || 0
-      const itemTotal = unitPrice * qty
-      return acc + (itemTotal - itemTotal * (discount / 100))
+      const itemDiscountFactor = 1 - (discount / 100)
+
+      const subtotalLine = roundMoney(unitPrice * qty * itemDiscountFactor * generalDiscountFactor)
+      const ivaLine = roundMoney(subtotalLine * 0.21)
+      const totalLine = roundMoney(subtotalLine + ivaLine)
+
+      return acc + totalLine
     }, 0)
-    const discountPercent = Number(quotation.general_discount) || 0
-    const subtotalAfterDiscount = itemSubtotal * (1 - discountPercent / 100)
-    const iva = subtotalAfterDiscount * 0.21
-    return subtotalAfterDiscount + iva
+
+    return roundMoney(total)
   }
 
   // Toggle método de pago en modal de conversión
@@ -1854,13 +1922,8 @@ export default function Sales() {
           return acc + (Number.isFinite(amountValue) ? amountValue : 0)
         }, 0)
 
-        // El total a pagar (sale_price ya incluye IVA, no calculamos de nuevo)
-        const subtotalItems = items.reduce((acc, item) => {
-          const itemTotal = item.sale_price * item.quantity
-          return acc + (itemTotal - itemTotal * (item.discount / 100))
-        }, 0)
-        const discountAmount = subtotalItems * (generalDiscount / 100)
-        const total = subtotalItems - discountAmount
+        // Total alineado con backend para evitar discrepancias por redondeo
+        const total = calculateBackendCompatibleTotalFromCart(items, generalDiscount)
 
         // La diferencia (lo que falta pagar)
         const difference = Math.max(0, total - currentlyAssigned)
@@ -1895,13 +1958,8 @@ export default function Sales() {
   // Actualizar monto de un método de pago
   const handlePaymentAmountChange = (methodId: string, value: string) => {
     setPaymentSelections((prev) => {
-      // 1. Calculamos el total de la factura (sale_price ya incluye IVA)
-      const subtotalItems = items.reduce((acc, item) => {
-        const itemTotal = item.sale_price * item.quantity
-        return acc + (itemTotal - itemTotal * (item.discount / 100))
-      }, 0)
-      const discountAmount = subtotalItems * (generalDiscount / 100)
-      const total = subtotalItems - discountAmount
+      // 1. Calculamos el total de la factura alineado con backend
+      const total = calculateBackendCompatibleTotalFromCart(items, generalDiscount)
 
       // 2. Buscamos si hay OTROS métodos seleccionados (que no sean el actual)
       const otherSelectedMethods = Object.entries(prev).filter(([id, data]) => id !== methodId && data.selected)
@@ -2022,12 +2080,13 @@ export default function Sales() {
       return { valid: false, message: 'Debe cargar al menos un método de pago para facturas' }
     }
 
-    // El frontend mostraba diferencias mínimas en la sumatoria debido a precisión.
-    // Usamos Number(toFixed(2)) o directamente comparamos las diferencias redondeadas
-    if (assignedTotal > 0 && Math.abs(Number(assignedTotal.toFixed(2)) - Number(total.toFixed(2))) > 0.01) {
+    const expectedTotal = Number(totalsPreviewQuery.data?.total) || calculateBackendCompatibleTotalFromCart(items, generalDiscount)
+
+    // Comparar contra total compatible con backend (redondeo por renglón + IVA)
+    if (assignedTotal > 0 && Math.abs(Number(assignedTotal.toFixed(2)) - expectedTotal) > 0.01) {
       return { 
         valid: false, 
-        message: `La suma de pagos ($${assignedTotal.toFixed(2)}) no coincide con el total ($${total.toFixed(2)})` 
+        message: `La suma de pagos ($${assignedTotal.toFixed(2)}) no coincide con el total ($${expectedTotal.toFixed(2)})` 
       }
     }
 
@@ -2047,6 +2106,7 @@ export default function Sales() {
   // Descuento general sobre el subtotal (ya incluye IVA)
   const discountAmount = subtotal * (generalDiscount / 100)
   const total = subtotal - discountAmount
+  const totalRounded = Number(totalsPreviewQuery.data?.total) || calculateBackendCompatibleTotalFromCart(items, generalDiscount)
   
   // Calcular IVA real para mostrar en UI (separando el IVA del precio final)
   // El total incluye IVA, entonces: Subtotal = Total / 1.21, IVA = Total - Subtotal
@@ -2062,8 +2122,8 @@ export default function Sales() {
   }, 0)
 
   const shouldShowPaymentDifference = assignedPaymentsTotal > 0 || voucherType === 'invoice'
-  const paymentDifference = shouldShowPaymentDifference ? Number((total - assignedPaymentsTotal).toFixed(2)) : 0
-  const isPaymentBalanced = shouldShowPaymentDifference ? Math.abs(Number(total.toFixed(2)) - Number(assignedPaymentsTotal.toFixed(2))) <= 0.01 : true
+  const paymentDifference = shouldShowPaymentDifference ? Number((totalRounded - assignedPaymentsTotal).toFixed(2)) : 0
+  const isPaymentBalanced = shouldShowPaymentDifference ? Math.abs(totalRounded - Number(assignedPaymentsTotal.toFixed(2))) <= 0.01 : true
 
   const mobileSteps: Array<{ key: MobileSalesSection; label: string }> = [
     { key: 'items', label: 'Cliente' },
@@ -2400,6 +2460,25 @@ export default function Sales() {
               </div>
             </div>
 
+            {voucherType === 'receipt' && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Impresión del remito</label>
+                <button
+                  type="button"
+                  onClick={() => setShowPrices((prev) => !prev)}
+                  className={`w-full inline-flex items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors ${
+                    showPrices
+                      ? 'border-primary-300 bg-primary-100 text-primary-800 dark:border-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
+                      : 'border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                  }`}
+                  title="Incluir precios en impresión"
+                >
+                  <DollarSign size={14} />
+                  {showPrices ? 'Con precios' : 'Sin precios'}
+                </button>
+              </div>
+            )}
+
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Cargar presupuesto</label>
               <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
@@ -2561,7 +2640,7 @@ export default function Sales() {
               </div>
               <div className="mt-1 flex justify-between border-t border-gray-300 pt-2 text-base font-semibold text-gray-900 dark:border-gray-500 dark:text-white">
                 <span>TOTAL</span>
-                <span>${formatNumber(total)}</span>
+                <span>${formatNumber(totalRounded, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
@@ -2916,7 +2995,7 @@ export default function Sales() {
               
               <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white pt-2 border-t-2 border-gray-300 dark:border-gray-600">
                 <span>TOTAL</span>
-                <span>${formatNumber(total)}</span>
+                <span>${formatNumber(totalRounded, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
 
@@ -3727,7 +3806,7 @@ export default function Sales() {
                   <div className="flex justify-between pt-2 border-t-2 border-primary-300 dark:border-primary-600">
                     <span className="font-bold text-gray-900 dark:text-white text-base">TOTAL:</span>
                     <span className="font-bold text-xl text-primary-600 dark:text-primary-400">
-                      ${formatNumber(total, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ${formatNumber(totalRounded, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>

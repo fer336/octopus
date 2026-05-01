@@ -47,6 +47,12 @@
 
 ## 🟢 Hecho
 
+- [x] [SALES-MOBILE-RECEIPT-PRICE-01] Mobile Ventas: agregar toggle de Remito con/sin precio (paridad con desktop) ✅ 2026-05-01
+- [x] [SALES-TOAST-UX-02] Quitar toast de “producto quitado” en selección temporal de Ventas ✅ 2026-05-01
+- [x] [SALES-TOAST-UX-01] Quitar toast de confirmación al agregar productos en Ventas (evitar ruido visual) ✅ 2026-05-01
+- [x] [SALES-TOTAL-ROUND-02] Usar total calculado por backend como fuente de verdad antes de emitir factura para evitar cualquier deriva de redondeo frontend/backend ✅ 2026-05-01
+- [x] [SALES-TOTAL-ROUND-01] 🐛 Corregir discrepancia entre total visual de Ventas y total validado al emitir factura (alinear redondeo frontend con backend por renglón + IVA) ✅ 2026-05-01
+
 - [x] [RESP-MOBILE-SALES-STEPPER-14] Permitir borrar manualmente cantidad/% sin autocompletar a 0 en inputs mobile ✅ 2026-05-01
 - [x] [RESP-MOBILE-SALES-STEPPER-13] Ocultar flechas nativas de inputs number en steppers mobile y alinear verticalmente subtotal con Cant./Desc% ✅ 2026-05-01
 - [x] [RESP-MOBILE-SALES-STEPPER-12] Alinear simétricamente botones +/- con input en steppers mobile y centrar valor de subtotal ✅ 2026-05-01

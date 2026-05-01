@@ -29,6 +29,8 @@ from app.schemas.voucher import (
     CompileToInvoiceRequest,
     CompilePreviewRequest,
     CompilePreviewResponse,
+    VoucherTotalsPreviewRequest,
+    VoucherTotalsPreviewResponse,
     VoucherAuditLogResponse,
     SourceQuotationResponse,
 )
@@ -267,6 +269,29 @@ async def create_voucher(
         )
 
         return serialize_voucher(voucher)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/preview-totals", response_model=VoucherTotalsPreviewResponse)
+async def preview_voucher_totals(
+    data: VoucherTotalsPreviewRequest,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """Previsualiza totales con la misma lógica de backend (sin persistir)."""
+    service = VoucherService(db)
+    try:
+        subtotal, iva_amount, total = await service.preview_totals(
+            business_id=business_id,
+            items_data=data.items,
+            general_discount=data.general_discount,
+        )
+        return VoucherTotalsPreviewResponse(
+            subtotal=subtotal,
+            iva_amount=iva_amount,
+            total=total,
+        )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

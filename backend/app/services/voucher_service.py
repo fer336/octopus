@@ -343,6 +343,52 @@ class VoucherService:
 
         return items_db, total_subtotal, total_iva, total_final
 
+    async def preview_totals(
+        self,
+        business_id: UUID,
+        items_data,
+        general_discount: Decimal,
+    ) -> tuple[Decimal, Decimal, Decimal]:
+        """Calcula totales con la misma lógica de backend sin efectos colaterales.
+
+        Importante: NO descuenta stock ni persiste nada.
+        """
+        total_subtotal = Decimal(0)
+        total_iva = Decimal(0)
+        total_final = Decimal(0)
+        general_discount_factor = Decimal("1") - (general_discount / Decimal("100"))
+
+        for item_data in items_data:
+            product = await self.db.get(Product, item_data.product_id)
+            if not product or product.business_id != business_id:
+                raise ValueError(f"Producto {item_data.product_id} no encontrado")
+
+            unit_price = item_data.unit_price if item_data.unit_price else product.net_price
+            item_discount_factor = Decimal("1") - (item_data.discount_percent / Decimal("100"))
+            subtotal_line = (
+                unit_price
+                * item_data.quantity
+                * item_discount_factor
+                * general_discount_factor
+            )
+            iva_rate = product.iva_rate or Decimal("21")
+            iva_line = subtotal_line * (iva_rate / Decimal("100"))
+            total_line = subtotal_line + iva_line
+
+            subtotal_line = self._round_money(subtotal_line)
+            iva_line = self._round_money(iva_line)
+            total_line = self._round_money(total_line)
+
+            total_subtotal += subtotal_line
+            total_iva += iva_line
+            total_final += total_line
+
+        return (
+            self._round_money(total_subtotal),
+            self._round_money(total_iva),
+            self._round_money(total_final),
+        )
+
     @staticmethod
     def _resolve_price_and_iva_by_strategy(
         *,

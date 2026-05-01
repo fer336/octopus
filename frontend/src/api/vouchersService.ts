@@ -32,6 +32,12 @@ export interface VoucherCreate {
   payments?: VoucherPayment[]
 }
 
+export interface VoucherTotalsPreviewRequest {
+  voucher_type: 'quotation' | 'receipt' | 'invoice_a' | 'invoice_b' | 'invoice_c'
+  general_discount: number
+  items: VoucherItemCreate[]
+}
+
 export interface VoucherUpdate {
   client_id: string
   date: string
@@ -159,6 +165,15 @@ const vouchersService = {
 
   create: async (data: VoucherCreate): Promise<Voucher> => {
     const response = await httpClient.post('/vouchers', data)
+    return response.data
+  },
+
+  previewTotals: async (data: VoucherTotalsPreviewRequest): Promise<{
+    subtotal: number
+    iva_amount: number
+    total: number
+  }> => {
+    const response = await httpClient.post('/vouchers/preview-totals', data)
     return response.data
   },
 

@@ -53,6 +53,22 @@ class VoucherCreate(BaseSchema):
     )
 
 
+class VoucherTotalsPreviewRequest(BaseSchema):
+    """Request para previsualizar totales de venta con lógica backend."""
+
+    voucher_type: VoucherType
+    general_discount: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    items: List[VoucherItemCreate]
+
+
+class VoucherTotalsPreviewResponse(BaseSchema):
+    """Respuesta de previsualización de totales."""
+
+    subtotal: Decimal
+    iva_amount: Decimal
+    total: Decimal
+
+
 class VoucherUpdate(BaseSchema):
     """Schema para actualizar un comprobante editable."""
 
