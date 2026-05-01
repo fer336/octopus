@@ -1,6 +1,17 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
+- [ ] [LANDING-LOGIN-BTN-ENABLE-06] Revisar y re-habilitar botones "Iniciar sesión" en /acceder (OctopusTrack/OctopusFlow)
+- [ ] [LANDING-PLANS-REWORK-05] Actualizar estructura/copy/precios de planes OctopusTrack (Básico/Negocio/Completo/Premium)
+- [ ] [LANDING-PRICE-DISCOUNT-04] Landing: mostrar precio actual 5.99 con precio anterior 20.99 tachado (oferta visual)
+- [ ] [LANDING-MP-PRICE-SYNC-03] Unificar precio visible y precio enviado a MercadoPago en landing (fuente única)
+- [ ] [LANDING-FORM-TRACK-02] Enriquecer webhook de formulario con UTM + entry_point + page_url para atribución de origen
+- [ ] [LANDING-FORM-PRICE-01] Landing: cambiar precio de Excel a USD 5.99, mover captura de email a modal al click en CTAs y enviar formulario a webhook `octopus-formulario`
+- [ ] [VOUCHER-PDF-500-01] 🐛 Diagnosticar y corregir 500 en `GET /api/tenant/vouchers/{id}/pdf` desde Ventas
+- [ ] [DEVOPS-DOCKER-ARM64-05] Diagnosticar cancelación de build multi-arch en GitHub Actions y re-ejecutar deploy
+- [ ] [BILLING-MP-04] Implementar endpoint backend único de activación de plan (`POST /billing/mp/activate`) con idempotencia por `payment_id`
+- [ ] [BILLING-MP-05] Implementar tabla `payment_events` + `tenant_subscriptions` para auditoría e idempotencia
+- [ ] [BILLING-MP-06] Implementar workflow n8n productivo (webhook POST + verify payment + call backend + alertas)
 - [ ] [RESP-MOBILE-VOUCHERS-01] Mobile cards Comprobantes: mejorar renderCard para mostrar child rows cuando está expandido el acordión
 - [ ] [RESP-MOBILE-VOUCHERS-02] Mobile cards Comprobantes: agregar GSAP animateButton a botones de Products/Clients/Sales
 - [ ] [CMS-RESP-TABLE-02] Conectar acción real de edición de usuario/tenant (hoy botón editar queda como placeholder UX)
@@ -33,6 +44,9 @@
 - [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
 
 ## 🟡 En progreso
+- [/] [VOUCHER-PDF-500-01] 🐛 Diagnosticar y corregir 500 en `GET /api/tenant/vouchers/{id}/pdf` desde Ventas
+- [/] [DEVOPS-DOCKER-ARM64-05] Diagnosticar cancelación de build multi-arch en GitHub Actions y re-ejecutar deploy
+- [/] [BILLING-MP-07] Configurar firma/HMAC y allowlist IP (si aplica) para endurecer webhook MP→n8n
 - [/] [RESP-MOBILE-INV-DETAIL-02] Ajustar jerarquía visual en modal Orden de Pedido (títulos/ícono cierre/botones footer)
 - [/] [RESP-MOBILE-PRICEUPDATE-01] Reemplazar tabla de "Actualizar Productos" por cards en mobile manteniendo desktop intacto
 - [/] [RESP-MOBILE-SALES-STEPPER-08] Optimizar modal de productos a 90-95vh sin espacios muertos y con contraste explícito de iconos/acciones
@@ -46,6 +60,20 @@
 
 
 ## 🟢 Hecho
+
+- [x] [LANDING-LOGIN-BTN-ENABLE-06] Revisar y re-habilitar botones "Iniciar sesión" en /acceder (OctopusTrack/OctopusFlow) ✅ 2026-05-01
+
+- [x] [LANDING-PLANS-REWORK-05] Actualizar estructura/copy/precios de planes OctopusTrack (Básico/Negocio/Completo/Premium) ✅ 2026-05-01
+
+- [x] [LANDING-PRICE-DISCOUNT-04] Landing: mostrar precio actual 5.99 con precio anterior 20.99 tachado (oferta visual) ✅ 2026-05-01
+
+- [x] [LANDING-MP-PRICE-SYNC-03] Unificar precio visible y precio enviado a MercadoPago en landing (fuente única) ✅ 2026-05-01
+
+- [x] [LANDING-FORM-TRACK-02] Enriquecer webhook de formulario con UTM + entry_point + page_url para atribución de origen ✅ 2026-05-01
+
+- [x] [LANDING-FORM-PRICE-01] Landing: cambiar precio de Excel a USD 5.99, mover captura de email a modal al click en CTAs y enviar formulario a webhook `octopus-formulario` ✅ 2026-05-01
+
+- [x] [BILLING-MP-03] Definir arquitectura robusta MercadoPago→n8n→FastAPI (webhook, idempotencia, seguridad, retries) ✅ 2026-05-01
 
 - [x] [SALES-MOBILE-RECEIPT-PRICE-01] Mobile Ventas: agregar toggle de Remito con/sin precio (paridad con desktop) ✅ 2026-05-01
 - [x] [SALES-TOAST-UX-02] Quitar toast de “producto quitado” en selección temporal de Ventas ✅ 2026-05-01

@@ -8,6 +8,9 @@ const CHECKOUT_URL = import.meta.env.VITE_LANDING_CHECKOUT_URL || '#checkout-no-
 const MP_CHECKOUT_WEBHOOK_URL =
   import.meta.env.VITE_LANDING_MP_CHECKOUT_WEBHOOK_URL || 'https://n8nw.qeva.xyz/webhook/octopus-mp'
 const ASSET_WEBHOOK_URL = import.meta.env.VITE_LANDING_ASSET_WEBHOOK_URL || '#webhook-no-configured'
+const FORM_WEBHOOK_URL = 'https://n8nw.qeva.xyz/webhook/octopus-formulario'
+const EXCEL_OFFER_BASE_PRICE = 20.99
+const EXCEL_OFFER_PRICE = 5.99
 
 interface LandingProps {
   loginUrl?: string
@@ -217,6 +220,50 @@ async function startMercadoPagoCheckout(payload: CheckoutRequest) {
   throw new Error('checkout-without-init-point')
 }
 
+async function submitLeadForm(payload: {
+  email: string
+  source: string
+  action: 'excel' | 'plan'
+  entryPoint: string
+  planCode?: string
+  planName?: string
+  planPrice?: number
+}) {
+  const params = new URLSearchParams(window.location.search)
+  const utmSource = params.get('utm_source') || undefined
+  const utmMedium = params.get('utm_medium') || undefined
+  const utmCampaign = params.get('utm_campaign') || undefined
+  const utmTerm = params.get('utm_term') || undefined
+  const utmContent = params.get('utm_content') || undefined
+
+  try {
+    await fetch(FORM_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: payload.email,
+        source: payload.source,
+        action: payload.action,
+        entry_point: payload.entryPoint,
+        plan_code: payload.planCode,
+        plan_name: payload.planName,
+        plan_price: payload.planPrice,
+        page_url: window.location.href,
+        referrer: document.referrer || undefined,
+        user_agent: navigator.userAgent,
+        utm_source: utmSource,
+        utm_medium: utmMedium,
+        utm_campaign: utmCampaign,
+        utm_term: utmTerm,
+        utm_content: utmContent,
+        created_at: new Date().toISOString(),
+      }),
+    })
+  } catch {
+    // No bloquear checkout por error de tracking/formulario
+  }
+}
+
 // ========================================
 // Header — Premium dark with subtle animation
 // ========================================
@@ -350,15 +397,13 @@ function Hero() {
 // ExcelOffer — Visual premium card
 // ========================================(
 function ExcelOffer({
-  email,
-  setEmail,
-  isEmailValid,
+  excelBasePrice,
+  excelPrice,
   onBuyExcel,
   isCheckoutLoading,
 }: {
-  email: string
-  setEmail: (value: string) => void
-  isEmailValid: boolean
+  excelBasePrice: number
+  excelPrice: number
   onBuyExcel: () => void
   isCheckoutLoading: boolean
 }) {
@@ -487,33 +532,23 @@ function ExcelOffer({
               Precio
             </div>
 
-            <div className="flex items-end justify-center gap-2 text-center">
-              <span className="text-xl font-semibold text-primary-300/85 sm:text-2xl">USD</span>
-              <span className="bg-gradient-to-r from-primary-300 via-violet-300 to-primary-400 bg-clip-text text-5xl font-black leading-none text-transparent drop-shadow-[0_0_18px_rgba(157,132,191,0.3)] sm:text-6xl">
-                <PriceTicker value={20.99} />
+            <div className="mb-2 text-center">
+              <span className="text-sm font-medium text-white/35 line-through">
+                USD {excelBasePrice.toFixed(2)}
               </span>
             </div>
 
-            <label htmlFor="buyer-email" className="mb-2 mt-6 block text-center text-sm font-medium text-white/65">
-              Tu correo electrónico
-            </label>
-            <input
-              id="buyer-email"
-              type="email"
-              placeholder="tu@email.com"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-primary-400 focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-primary-500"
-            />
-            {!isEmailValid && email.trim().length > 0 && (
-              <p className="mt-2 text-xs text-red-400">Ingresá un correo válido para comprar.</p>
-            )}
+            <div className="flex items-end justify-center gap-2 text-center">
+              <span className="text-xl font-semibold text-primary-300/85 sm:text-2xl">USD</span>
+              <span className="bg-gradient-to-r from-primary-300 via-violet-300 to-primary-400 bg-clip-text text-5xl font-black leading-none text-transparent drop-shadow-[0_0_18px_rgba(157,132,191,0.3)] sm:text-6xl">
+                <PriceTicker value={excelPrice} />
+              </span>
+            </div>
 
             <Button
               className="cta-shimmer mt-5 w-full gap-2 py-3"
               onClick={onBuyExcel}
               isLoading={isCheckoutLoading}
-              disabled={!isEmailValid}
             >
               Comprar ahora
               <ArrowRight className="h-4 w-4" />
@@ -650,15 +685,9 @@ function FeaturesZigZag() {
 // Plans — Premium cards with distinction
 // ========================================
 function Plans({
-  email,
-  setEmail,
-  isEmailValid,
   onBuyPlan,
   isCheckoutLoading,
 }: {
-  email: string
-  setEmail: (value: string) => void
-  isEmailValid: boolean
   onBuyPlan: (plan: { code: string; name: string; price: number }) => void
   isCheckoutLoading: boolean
 }) {
@@ -666,26 +695,57 @@ function Plans({
     {
       name: 'Básico',
       code: 'basico',
-      price: 33,
-      description: 'Para negocios que inician',
-      features: ['Hasta 20.000 productos', 'Cotizaciones ilimitadas', 'Actualización de precios', 'Clientes y proveedores', 'Control de stock'],
+      price: 21,
+      description: 'Ideal para empezar ordenado',
+      features: [
+        'Hasta 3.000 productos',
+        'Cotizaciones',
+        'Actualización de precios',
+        'Clientes y proveedores',
+        'Control de stock e inventario',
+      ],
       featured: false,
     },
     {
       name: 'Negocio',
       code: 'negocio',
-      price: 49,
-      description: 'Para crecer',
-      features: ['Todo lo del Básico', 'Seguimiento de entregas', 'Cuenta corriente', 'Reportes y análisis', 'Soporte prioritario'],
+      price: 42,
+      description: 'Para operar con más volumen',
+      features: [
+        'Hasta 9.000 productos',
+        'Todo lo del plan Básico',
+        'Cuentas corrientes',
+        'Soporte personalizado mediante tickets',
+      ],
       featured: false,
     },
     {
       name: 'Completo',
       code: 'completo',
-      price: 119,
+      price: 72,
       description: 'El más elegido',
-      features: ['Todo lo de Negocio', 'Facturación electrónica ARCA', 'Mantenimiento continuo', 'Soporte personalizado', 'Onboarding incluido'],
+      features: [
+        'Más de 12.000 productos',
+        'Todo lo de los planes anteriores',
+        'Facturación Electrónica ARCA (hasta 100 facturas mensuales)',
+        'Soporte continuo',
+        'Soporte personalizado mediante línea directa',
+      ],
       featured: true,
+    },
+    {
+      name: 'Premium',
+      code: 'premium',
+      price: 111,
+      description: 'Escala total para equipos exigentes',
+      features: [
+        'Más de 200 facturas mensuales',
+        'Productos ilimitados',
+        'Todo lo de los planes anteriores',
+        'Soporte continuo',
+        'Adaptación de nuevas funcionalidades a medida',
+      ],
+      featured: false,
     },
   ]
 
@@ -706,26 +766,8 @@ function Plans({
           </p>
         </div>
 
-        {/* Email input */}
-        <div className="mx-auto mt-10 max-w-md rounded-2xl border border-white/10 bg-white/5 p-4">
-          <label htmlFor="plan-onboarding-email" className="mb-2 block text-sm font-medium text-white/60">
-            Email para onboarding
-          </label>
-          <input
-            id="plan-onboarding-email"
-            type="email"
-            placeholder="tu@email.com"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-primary-500 focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-primary-500"
-          />
-          {!isEmailValid && email.trim().length > 0 && (
-            <p className="mt-2 text-xs text-red-400">Ingresá un correo válido para comprar planes.</p>
-          )}
-        </div>
-
         {/* Plans grid */}
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
+        <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
           {plans.map((plan, index) => (
             <article
                 key={plan.name}
@@ -766,7 +808,6 @@ function Plans({
                 className="mt-6 w-full"
                 onClick={() => onBuyPlan({ code: plan.code, name: plan.name, price: plan.price })}
                 isLoading={isCheckoutLoading}
-                disabled={!isEmailValid}
               >
                 Elegir {plan.name}
               </Button>
@@ -875,19 +916,31 @@ function LandingContent({ loginUrl }: { loginUrl: string }) {
   useScrollReveal()
 
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
+  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false)
   const [buyerEmail, setBuyerEmail] = useState('')
+  const [leadIntent, setLeadIntent] = useState<
+    | { type: 'excel' }
+    | { type: 'plan'; plan: { code: string; name: string; price: number } }
+    | null
+  >(null)
 
   const isEmailValid = useMemo(() => /\S+@\S+\.\S+/.test(buyerEmail.trim()), [buyerEmail])
 
-  const handleExcelCheckout = async () => {
-    if (!isEmailValid) return
+  const handleExcelCheckout = async (email: string, entryPoint: string) => {
     setIsCheckoutLoading(true)
     try {
+      await submitLeadForm({
+        email,
+        source: 'landing-octopustrack',
+        action: 'excel',
+        entryPoint,
+      })
+
       await startMercadoPagoCheckout({
-        price: 20.99,
+        price: EXCEL_OFFER_PRICE,
         product: 'OctopusTrack - Cotizador Excel',
         source: 'landing-octopustrack',
-        email: buyerEmail.trim(),
+        email,
         onboardingType: 'excel',
       })
     } catch {
@@ -900,26 +953,65 @@ function LandingContent({ loginUrl }: { loginUrl: string }) {
     }
   }
 
-  const handlePlanCheckout = async (plan: { code: string; name: string; price: number }) => {
-    if (!isEmailValid) return
-
+  const handlePlanCheckout = async (
+    plan: { code: string; name: string; price: number },
+    email: string,
+    entryPoint: string,
+  ) => {
     setIsCheckoutLoading(true)
     try {
+      await submitLeadForm({
+        email,
+        source: 'landing-octopustrack-plan',
+        action: 'plan',
+        entryPoint,
+        planCode: plan.code,
+        planName: plan.name,
+        planPrice: plan.price,
+      })
+
       await startMercadoPagoCheckout({
         price: plan.price,
         product: `OctopusTrack - Plan ${plan.name}`,
         source: 'landing-octopustrack-plan',
-        email: buyerEmail.trim(),
+        email,
         planCode: plan.code,
         onboardingType: 'plan',
       })
     } catch {
       openWhatsAppWithMessage(
-        `Hola! Quiero contratar el Plan ${plan.name} de OctopusTrack (USD ${plan.price}/mes). Mi email es ${buyerEmail.trim()}.`,
+        `Hola! Quiero contratar el Plan ${plan.name} de OctopusTrack (USD ${plan.price}/mes). Mi email es ${email}.`,
       )
     } finally {
       setIsCheckoutLoading(false)
     }
+  }
+
+  const openLeadModalForExcel = () => {
+    setLeadIntent({ type: 'excel' })
+    setIsLeadModalOpen(true)
+  }
+
+  const openLeadModalForPlan = (plan: { code: string; name: string; price: number }) => {
+    setLeadIntent({ type: 'plan', plan })
+    setIsLeadModalOpen(true)
+  }
+
+  const handleLeadSubmit = async () => {
+    if (!isEmailValid || !leadIntent) return
+    const email = buyerEmail.trim()
+    setIsLeadModalOpen(false)
+
+    if (leadIntent.type === 'excel') {
+      await handleExcelCheckout(email, 'excel-card-buy-now')
+      return
+    }
+
+    await handlePlanCheckout(
+      leadIntent.plan,
+      email,
+      `plan-card-${leadIntent.plan.code}-choose`,
+    )
   }
 
   return (
@@ -929,21 +1021,59 @@ function LandingContent({ loginUrl }: { loginUrl: string }) {
       <main>
         <Hero />
         <ExcelOffer
-          email={buyerEmail}
-          setEmail={setBuyerEmail}
-          isEmailValid={isEmailValid}
-          onBuyExcel={handleExcelCheckout}
+          excelBasePrice={EXCEL_OFFER_BASE_PRICE}
+          excelPrice={EXCEL_OFFER_PRICE}
+          onBuyExcel={openLeadModalForExcel}
           isCheckoutLoading={isCheckoutLoading}
         />
         <FeaturesZigZag />
         <Plans
-          email={buyerEmail}
-          setEmail={setBuyerEmail}
-          isEmailValid={isEmailValid}
-          onBuyPlan={handlePlanCheckout}
+          onBuyPlan={openLeadModalForPlan}
           isCheckoutLoading={isCheckoutLoading}
         />
       </main>
+      {isLeadModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#111226] p-6 shadow-2xl">
+            <h3 className="text-xl font-bold text-white">Antes de continuar</h3>
+            <p className="mt-2 text-sm text-white/60">Dejanos tu email para enviarte el acceso y soporte.</p>
+
+            <label htmlFor="lead-email-modal" className="mb-2 mt-4 block text-sm font-medium text-white/70">
+              Correo electrónico
+            </label>
+            <input
+              id="lead-email-modal"
+              type="email"
+              placeholder="tu@email.com"
+              value={buyerEmail}
+              onChange={(event) => setBuyerEmail(event.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-primary-400 focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            />
+            {!isEmailValid && buyerEmail.trim().length > 0 && (
+              <p className="mt-2 text-xs text-red-400">Ingresá un correo válido.</p>
+            )}
+
+            <div className="mt-5 flex gap-3">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setIsLeadModalOpen(false)}
+                disabled={isCheckoutLoading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="w-full"
+                onClick={handleLeadSubmit}
+                isLoading={isCheckoutLoading}
+                disabled={!isEmailValid}
+              >
+                Continuar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       <Footer />
     </>
   )

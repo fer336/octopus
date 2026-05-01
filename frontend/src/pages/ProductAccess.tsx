@@ -5,26 +5,41 @@ import AnimatedTentacleLogo from '../components/ui/AnimatedTentacleLogo'
 const OCTOPUS_TRACK_LOGIN_URL = import.meta.env.VITE_OCTOPUS_TRACK_LOGIN_URL
 const OCTOPUS_FLOW_LOGIN_URL = import.meta.env.VITE_OCTOPUS_FLOW_LOGIN_URL
 
-function resolveLoginUrl(envName: string, value: string | undefined): { href: string; enabled: boolean } {
+const DEFAULT_OCTOPUS_TRACK_LOGIN_URL = 'https://octopus.qeva.xyz'
+const DEFAULT_OCTOPUS_FLOW_LOGIN_URL = 'https://login-flow.octopustrack.shop'
+
+function resolveLoginUrl(
+  envName: string,
+  value: string | undefined,
+  fallback: string,
+): { href: string; enabled: boolean } {
   if (value && value.trim().length > 0) {
     return { href: value.trim(), enabled: true }
   }
 
-  console.error(`[ProductAccess] Missing required env var: ${envName}`)
-  return { href: '#', enabled: false }
+  console.warn(`[ProductAccess] Missing env var ${envName}. Using fallback: ${fallback}`)
+  return { href: fallback, enabled: true }
 }
 
 const products = [
   {
     name: 'OctopusTrack',
     image: '/OC-ERP.png',
-    ...resolveLoginUrl('VITE_OCTOPUS_TRACK_LOGIN_URL', OCTOPUS_TRACK_LOGIN_URL),
+    ...resolveLoginUrl(
+      'VITE_OCTOPUS_TRACK_LOGIN_URL',
+      OCTOPUS_TRACK_LOGIN_URL,
+      DEFAULT_OCTOPUS_TRACK_LOGIN_URL,
+    ),
     buttonClassName: '',
   },
   {
     name: 'OctopusFlow',
     image: '/OF-Cotizador.png',
-    ...resolveLoginUrl('VITE_OCTOPUS_FLOW_LOGIN_URL', OCTOPUS_FLOW_LOGIN_URL),
+    ...resolveLoginUrl(
+      'VITE_OCTOPUS_FLOW_LOGIN_URL',
+      OCTOPUS_FLOW_LOGIN_URL,
+      DEFAULT_OCTOPUS_FLOW_LOGIN_URL,
+    ),
     buttonClassName: 'bg-sky-500 hover:bg-sky-600 focus:ring-sky-400',
   },
 ]
