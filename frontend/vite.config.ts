@@ -8,11 +8,15 @@ const buildInput =
   buildTarget === 'landing'
     ? {
         landing: path.resolve(__dirname, 'landing.html'),
+        politicasPrivacidad: path.resolve(__dirname, 'politicas-privacidad.html'),
+        politicasSeguridad: path.resolve(__dirname, 'politicas-seguridad.html'),
       }
     : {
         tenant: path.resolve(__dirname, 'tenant.html'),
         admin: path.resolve(__dirname, 'admin.html'),
         landing: path.resolve(__dirname, 'landing.html'),
+        politicasPrivacidad: path.resolve(__dirname, 'politicas-privacidad.html'),
+        politicasSeguridad: path.resolve(__dirname, 'politicas-seguridad.html'),
       }
 
 export default defineConfig({
