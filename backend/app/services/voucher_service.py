@@ -696,7 +696,10 @@ class VoucherService:
             select(Voucher)
             .options(
                 selectinload(Voucher.items),
+                selectinload(Voucher.business),
                 selectinload(Voucher.client),
+                selectinload(Voucher.billing_client),
+                selectinload(Voucher.operating_client),
                 selectinload(Voucher.created_by_user),
             )
             .where(Voucher.id == voucher_id, Voucher.business_id == business_id)
@@ -1155,13 +1158,17 @@ class VoucherService:
                 "logo_url": voucher.business.logo_url,
             },
             "client": {
-                "name": voucher.client.name,
-                "document_type": voucher.client.document_type,
-                "document_number": voucher.client.document_number,
-                "address": f"{voucher.client.street or ''} {voucher.client.street_number or ''}".strip(),
-                "city": voucher.client.city or "",
-                "tax_condition": voucher.client.tax_condition,
-                "phone": voucher.client.phone or "",
+                "name": voucher.client.name if voucher.client else "Consumidor Final",
+                "document_type": voucher.client.document_type if voucher.client else "",
+                "document_number": voucher.client.document_number if voucher.client else "",
+                "address": (
+                    f"{voucher.client.street or ''} {voucher.client.street_number or ''}".strip()
+                    if voucher.client
+                    else ""
+                ),
+                "city": voucher.client.city if voucher.client and voucher.client.city else "",
+                "tax_condition": voucher.client.tax_condition if voucher.client else "",
+                "phone": voucher.client.phone if voucher.client and voucher.client.phone else "",
             },
             "voucher": {
                 "letter": letter,

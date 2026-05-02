@@ -67,8 +67,11 @@ class BusinessResponse(BaseModel):
     current_account_mode: Literal["disabled", "automatic", "manual"]
     invoicing_enabled: bool
     receipts_enabled: bool
+    quotation_enabled: bool
+    inventory_enabled: bool
     price_update_enabled: bool
     reports_enabled: bool
+    sql_backup_enabled: bool
 
     # Configuración ARCA (solo lectura, se edita en /arca)
     arca_environment: Optional[str]

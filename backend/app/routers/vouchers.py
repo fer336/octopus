@@ -133,6 +133,14 @@ async def _ensure_voucher_type_feature_enabled(
             detail="Remitos deshabilitados para este tenant desde CMS.",
         )
 
+    if voucher_type == VoucherType.QUOTATION and not bool(
+        getattr(business, "quotation_enabled", True)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cotizaciones deshabilitadas para este tenant desde CMS.",
+        )
+
 
 async def _ensure_invoicing_enabled(db: AsyncSession, business_id: UUID) -> None:
     """Valida que la funcionalidad de facturación esté activa para el tenant."""
@@ -359,6 +367,7 @@ async def update_voucher(
     current_user=Depends(get_current_user),
 ):
     """Actualiza una cotización existente."""
+    await _ensure_voucher_type_feature_enabled(db, business_id, VoucherType.QUOTATION)
     service = VoucherService(db)
     try:
         before_voucher = await service.get_by_id(voucher_id, business_id)

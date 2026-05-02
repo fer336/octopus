@@ -11,6 +11,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import productsService, { ProductCreate, ProductUpdate, Product, ProductImportRow, ImportPreviewResponse } from '../api/productsService'
 import categoriesService from '../api/categoriesService'
 import suppliersService from '../api/suppliersService'
+import businessService from '../api/businessService'
 import ImportPreviewModal from '../components/products/ImportPreviewModal'
 import BulkDeleteModal from '../components/products/BulkDeleteModal'
 import ImportProgressModal from '../components/products/ImportProgressModal'
@@ -64,6 +65,13 @@ export default function Products() {
     retry: false,
     enabled: !!productsData || !error,
   })
+
+  const { data: business } = useQuery({
+    queryKey: ['business-me-products'],
+    queryFn: () => businessService.getMyBusiness(),
+    staleTime: 60_000,
+  })
+  const sqlBackupEnabled = business?.sql_backup_enabled ?? false
 
   // Valores seguros con fallback a array vacío
   const categories = Array.isArray(categoriesData) ? categoriesData : []
@@ -737,22 +745,26 @@ export default function Products() {
           >
             <Download size={17} />
           </button>
-          <button
-            onClick={handleImportSQL}
-            disabled={isSqlImporting || isImporting}
-            title="Importar SQL"
-            className="p-2 rounded-lg border border-green-200 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50 transition-colors"
-            data-tour-products-import-sql
-          >
-            <RotateCcw size={17} />
-          </button>
-          <button
-            onClick={handleExportSQL}
-            title="Exportar SQL"
-            className="p-2 rounded-lg border border-green-200 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-          >
-            <FileCode size={17} />
-          </button>
+          {sqlBackupEnabled && (
+            <>
+              <button
+                onClick={handleImportSQL}
+                disabled={isSqlImporting || isImporting}
+                title="Importar SQL"
+                className="p-2 rounded-lg border border-green-200 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50 transition-colors"
+                data-tour-products-import-sql
+              >
+                <RotateCcw size={17} />
+              </button>
+              <button
+                onClick={handleExportSQL}
+                title="Exportar SQL"
+                className="p-2 rounded-lg border border-green-200 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+              >
+                <FileCode size={17} />
+              </button>
+            </>
+          )}
           <button
             onClick={() => setShowBulkDeleteModal(true)}
             title="Borrar Productos"

@@ -80,8 +80,11 @@ async def get_my_business(
         current_account_mode=business.current_account_mode or "disabled",
         invoicing_enabled=bool(business.invoicing_enabled),
         receipts_enabled=bool(business.receipts_enabled),
+        quotation_enabled=bool(getattr(business, "quotation_enabled", True)),
+        inventory_enabled=bool(getattr(business, "inventory_enabled", True)),
         price_update_enabled=bool(business.price_update_enabled),
         reports_enabled=bool(business.reports_enabled),
+        sql_backup_enabled=bool(getattr(business, "sql_backup_enabled", False)),
         arca_environment=business.arca_environment,
     )
 
@@ -147,7 +150,10 @@ async def update_my_business(
         current_account_mode=business.current_account_mode or "disabled",
         invoicing_enabled=bool(business.invoicing_enabled),
         receipts_enabled=bool(business.receipts_enabled),
+        quotation_enabled=bool(getattr(business, "quotation_enabled", True)),
+        inventory_enabled=bool(getattr(business, "inventory_enabled", True)),
         price_update_enabled=bool(business.price_update_enabled),
         reports_enabled=bool(business.reports_enabled),
+        sql_backup_enabled=bool(getattr(business, "sql_backup_enabled", False)),
         arca_environment=business.arca_environment,
     )

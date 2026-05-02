@@ -8,11 +8,13 @@ import { Button, Input, Select } from '../components/ui'
 import { TAX_CONDITIONS } from '../types'
 import AIConfiguration from '../components/settings/AIConfiguration'
 import businessService, { BusinessUpdate } from '../api/businessService'
+import arcaService, { AfipSdkConfig } from '../api/arcaService'
 import toast from 'react-hot-toast'
 
 export default function Settings() {
   const [loading, setLoading] = useState(false)
   const [businessId, setBusinessId] = useState<string>('')
+  const [arcaConfig, setArcaConfig] = useState<AfipSdkConfig | null>(null)
   
   // Form state
   const [formData, setFormData] = useState({
@@ -49,6 +51,11 @@ export default function Settings() {
         email: data.email || '',
         sale_point: data.sale_point || '0001',
       })
+
+      if (data.id) {
+        const arcaData = await arcaService.getConfig(data.id)
+        setArcaConfig(arcaData)
+      }
     } catch (error: any) {
       console.error('Error al cargar negocio:', error)
       if (error.response?.data?.detail) {
@@ -285,6 +292,19 @@ export default function Settings() {
         <p className="text-sm text-gray-600 dark:text-gray-300">
           La configuración sensible (tokens, certificados y claves) se gestiona exclusivamente desde el CMS admin.
         </p>
+        {arcaConfig && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className={`inline-flex px-2 py-1 text-xs rounded-full ${arcaConfig.afipsdk_access_token_configured ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+              Token Afip SDK: {arcaConfig.afipsdk_access_token_configured ? 'Activo' : 'No configurado'}
+            </span>
+            <span className={`inline-flex px-2 py-1 text-xs rounded-full ${arcaConfig.afip_cert_configured ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+              Certificado CRT: {arcaConfig.afip_cert_configured ? 'Cargado' : 'No cargado'}
+            </span>
+            <span className={`inline-flex px-2 py-1 text-xs rounded-full ${arcaConfig.afip_key_configured ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+              Clave KEY: {arcaConfig.afip_key_configured ? 'Cargada' : 'No cargada'}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Inteligencia Artificial */}

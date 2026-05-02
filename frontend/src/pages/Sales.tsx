@@ -300,15 +300,19 @@ export default function Sales() {
   })
   const invoicingEnabled = business?.invoicing_enabled ?? true
   const receiptsEnabled = business?.receipts_enabled ?? true
+  const quotationEnabled = business?.quotation_enabled ?? true
+  const currentAccountEnabled = (business?.current_account_mode ?? 'disabled') !== 'disabled'
 
   const voucherTypes = useMemo(
     () =>
       baseVoucherTypes.filter((item) => {
         if (item.value === 'invoice') return invoicingEnabled
         if (item.value === 'receipt') return receiptsEnabled
+        if (item.value === 'quotation') return quotationEnabled
+        if (item.value === 'current_account') return currentAccountEnabled
         return true
       }),
-    [invoicingEnabled, receiptsEnabled],
+    [invoicingEnabled, receiptsEnabled, quotationEnabled, currentAccountEnabled],
   )
 
   const salesMenuModes = useMemo(
@@ -316,9 +320,11 @@ export default function Sales() {
       baseSalesMenuModes.filter((item) => {
         if (item.value === 'invoice') return invoicingEnabled
         if (item.value === 'receipt') return receiptsEnabled
+        if (item.value === 'quotation') return quotationEnabled
+        if (item.value === 'current_account') return currentAccountEnabled
         return true
       }),
-    [invoicingEnabled, receiptsEnabled],
+    [invoicingEnabled, receiptsEnabled, quotationEnabled, currentAccountEnabled],
   )
 
   // React Query para productos

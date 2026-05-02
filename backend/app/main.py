@@ -30,6 +30,7 @@ from app.routers import (
     ai,
     ai_config,
     admin,
+    billing,
     feedback,
     reports,
 )
@@ -106,6 +107,7 @@ app.include_router(feedback.tenant_router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(reports.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(admin.router)  # /api/admin/* (prefijo interno)
 app.include_router(feedback.admin_router)
+app.include_router(billing.router)
 
 
 @app.get("/health", tags=["Health"])

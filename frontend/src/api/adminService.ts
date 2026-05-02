@@ -132,6 +132,8 @@ export interface FeatureFlagsResponse {
   current_account_mode: 'disabled' | 'automatic' | 'manual'
   invoicing_enabled: boolean
   receipts_enabled: boolean
+  quotation_enabled: boolean
+  inventory_enabled: boolean
   price_update_enabled: boolean
   reports_enabled: boolean
   sql_backup_enabled?: boolean
@@ -143,6 +145,8 @@ export interface FeatureFlagsUpdate {
   current_account_mode?: 'disabled' | 'automatic' | 'manual'
   invoicing_enabled?: boolean
   receipts_enabled?: boolean
+  quotation_enabled?: boolean
+  inventory_enabled?: boolean
   price_update_enabled?: boolean
   reports_enabled?: boolean
   sql_backup_enabled?: boolean

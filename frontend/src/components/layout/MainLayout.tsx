@@ -41,6 +41,7 @@ export default function MainLayout() {
   const currentAccountEnabled = (business?.current_account_mode ?? 'disabled') !== 'disabled'
   const priceUpdateEnabled = business?.price_update_enabled ?? true
   const reportsEnabled = business?.reports_enabled ?? true
+  const inventoryEnabled = business?.inventory_enabled ?? true
 
   useEffect(() => {
     if (!aiEnabled) {
@@ -64,11 +65,16 @@ export default function MainLayout() {
       return
     }
 
+    if (location.pathname.startsWith('/inventory') && !inventoryEnabled) {
+      navigate('/', { replace: true })
+      return
+    }
+
     if (!hasPathAccess(user, location.pathname)) {
       const fallbackPath = navigationItems.find((item) => hasPathAccess(user, item.path))?.path ?? '/'
       navigate(fallbackPath, { replace: true })
     }
-  }, [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, location.pathname, navigate, user])
+  }, [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, inventoryEnabled, location.pathname, navigate, user])
 
   const toggleSidebar = () => {
     if (window.innerWidth < 1024) {
@@ -115,6 +121,7 @@ export default function MainLayout() {
           currentAccountMode={business?.current_account_mode}
           priceUpdateEnabled={priceUpdateEnabled}
           reportsEnabled={reportsEnabled}
+          inventoryEnabled={inventoryEnabled}
         />
 
       {/* Main content */}

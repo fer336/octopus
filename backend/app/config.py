@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     # Generá la tuya con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     APP_ENCRYPTION_KEY: str = ""
 
+    # Seguridad webhook billing (n8n -> backend)
+    BILLING_WEBHOOK_SECRET: str = ""
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):
