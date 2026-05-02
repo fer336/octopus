@@ -68,7 +68,7 @@ jobs:
         run: ruff check ./backend --output-format=github
 
       - name: Typecheck con mypy
-        run: mypy ./backend --ignore-missing-imports
+        run: mypy ./backend
 
       - name: Tests con pytest
         env:
