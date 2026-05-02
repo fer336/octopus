@@ -29,7 +29,7 @@ services:
         order: stop-first
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.octopus-backend.rule=Host(`api.tudominio.com`)"
+        - "traefik.http.routers.octopus-backend.rule=Host(`api.octopus.qeva.xyz`)"
         - "traefik.http.routers.octopus-backend.entrypoints=websecure"
         - "traefik.http.routers.octopus-backend.tls.certresolver=letsencrypt"
         - "traefik.http.services.octopus-backend.loadbalancer.server.port=8000"
@@ -54,7 +54,7 @@ services:
         failure_action: rollback
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.octopus-frontend.rule=Host(`tudominio.com`)"
+        - "traefik.http.routers.octopus-frontend.rule=Host(`octopus.qeva.xyz`)"
         - "traefik.http.routers.octopus-frontend.entrypoints=websecure"
         - "traefik.http.routers.octopus-frontend.tls.certresolver=letsencrypt"
         - "traefik.http.services.octopus-frontend.loadbalancer.server.port=80"

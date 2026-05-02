@@ -27,7 +27,7 @@ services:
         order: stop-first
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.octopus-cms.rule=Host(`cms.tudominio.com`)"
+        - "traefik.http.routers.octopus-cms.rule=Host(`cms.octopus.qeva.xyz`)"
         - "traefik.http.routers.octopus-cms.entrypoints=websecure"
         - "traefik.http.routers.octopus-cms.tls.certresolver=letsencrypt"
         - "traefik.http.services.octopus-cms.loadbalancer.server.port=80"
