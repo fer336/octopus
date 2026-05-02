@@ -12,7 +12,6 @@ services:
       - network_public
     environment:
       - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
       - ENVIRONMENT=production
       - APP_VERSION=${IMAGE_TAG:-unknown}
     deploy:
