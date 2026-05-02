@@ -75,7 +75,7 @@ jobs:
             --no-strict-optional \
             --allow-untyped-defs
 
-- name: Tests con pytest
+      - name: Tests con pytest
         env:
           DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/octopus_test
           REDIS_URL: redis://localhost:6379/0
