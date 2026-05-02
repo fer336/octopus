@@ -69,8 +69,11 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile.prod
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/octopustrack-cms:${{ env.EFFECTIVE_TAG }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/octopustrack-cms:${{ env.EFFECTIVE_TAG }}
+            ghcr.io/${{ github.repository_owner }}/octopustrack-cms:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/octopustrack-cms:latest
           platforms: linux/amd64
           cache-from: type=gha,scope=cms
           cache-to: type=gha,mode=max,scope=cms
