@@ -8,19 +8,20 @@ Documentación Afip SDK: https://docs.afipsdk.com/integracion/python
 import logging
 from datetime import datetime
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import get_db
-from app.models.business import Business
-from app.models.voucher import Voucher, VoucherStatus, VoucherType
-from app.models.client import Client
 from app.models.audit_log import AuditLog
+from app.models.business import Business
+from app.models.client import Client
+from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.schemas.arca_schemas import (
-    AfipSdkConfigUpdate,
     AfipSdkConfigResponse,
+    AfipSdkConfigUpdate,
     EmitInvoiceRequest,
     EmitInvoiceResponse,
 )

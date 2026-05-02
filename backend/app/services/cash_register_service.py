@@ -4,7 +4,6 @@ Contiene toda la lógica de negocio de apertura, cierre y movimientos de caja.
 """
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import List, Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -46,7 +45,7 @@ def _is_expired(cash_register: CashRegister) -> bool:
 async def get_open_cash_register(
     db: AsyncSession,
     business_id: UUID,
-) -> Optional[CashRegister]:
+) -> CashRegister | None:
     """Retorna la caja actualmente abierta del negocio, o None si no hay."""
     result = await db.execute(
         select(CashRegister)
@@ -65,7 +64,7 @@ async def get_open_cash_register(
 async def get_status(
     db: AsyncSession,
     business_id: UUID,
-) -> Optional[dict]:
+) -> dict | None:
     """
     Retorna el estado de la caja del día:
     - None si no hay caja abierta
@@ -358,7 +357,7 @@ async def create_automatic_movement(
     amount: Decimal,
     description: str,
     created_by: UUID,
-    voucher_id: Optional[UUID] = None,
+    voucher_id: UUID | None = None,
 ) -> CashMovement:
     """Crea un movimiento automático (SALE o PAYMENT_RECEIVED)."""
     movement = CashMovement(
@@ -378,7 +377,7 @@ async def get_history(
     db: AsyncSession,
     business_id: UUID,
     limit: int = 30,
-) -> List[CashRegister]:
+) -> list[CashRegister]:
     """Retorna el historial de cajas cerradas del negocio."""
     result = await db.execute(
         select(CashRegister)
@@ -402,8 +401,10 @@ async def generate_closure_pdf(
 ) -> bytes:
     """Genera el PDF de cierre de una caja."""
     from pathlib import Path
+
     from jinja2 import Environment, FileSystemLoader
     from weasyprint import HTML
+
     from app.models.voucher import Voucher
 
     # Obtener la caja con sus movimientos
@@ -560,9 +561,11 @@ async def generate_sales_pdf(
 ) -> bytes:
     """Genera el PDF de ventas diarias de una caja."""
     from pathlib import Path
+
     from jinja2 import Environment, FileSystemLoader
-    from weasyprint import HTML
     from sqlalchemy import and_
+    from weasyprint import HTML
+
     from app.models.voucher import Voucher
 
     # Obtener la caja

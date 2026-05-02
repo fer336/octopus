@@ -3,16 +3,15 @@ Servicio de Autenticación.
 Maneja el login con Google OAuth y la gestión de tokens JWT.
 """
 
-from typing import Optional
-import httpx
 
+import httpx
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.models.user import User, PlatformRole
+from app.models.user import User
 from app.utils.security import (
     create_access_token,
     create_refresh_token,
@@ -29,7 +28,7 @@ class AuthService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def verify_google_token(self, token: str) -> Optional[dict]:
+    async def verify_google_token(self, token: str) -> dict | None:
         """
         Verifica el ID token de Google.
         Retorna los datos del usuario si es válido.
@@ -56,13 +55,13 @@ class AuthService:
             # Token inválido
             return None
 
-    async def get_user_by_google_id(self, google_id: str) -> Optional[User]:
+    async def get_user_by_google_id(self, google_id: str) -> User | None:
         """Busca un usuario por su Google ID."""
         query = select(User).where(User.google_id == google_id)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_user_by_email(self, email: str) -> Optional[User]:
+    async def get_user_by_email(self, email: str) -> User | None:
         """Busca un usuario activo por email normalizado."""
         normalized_email = email.strip().lower()
         query = select(User).where(User.email == normalized_email)
@@ -103,7 +102,7 @@ class AuthService:
 
         return user
 
-    async def exchange_code_for_token(self, code: str) -> Optional[dict]:
+    async def exchange_code_for_token(self, code: str) -> dict | None:
         """
         Intercambia el código de autorización por tokens de Google.
         Retorna el access token y la información del usuario.
@@ -153,7 +152,7 @@ class AuthService:
             print(f"Error exchanging code for token: {e}")
             return None
 
-    async def login_with_google_code(self, code: str) -> Optional[dict]:
+    async def login_with_google_code(self, code: str) -> dict | None:
         """
         Procesa el login con Google usando el código de autorización.
         """
@@ -181,7 +180,7 @@ class AuthService:
             },
         }
 
-    async def login_with_password(self, email: str, password: str) -> Optional[dict]:
+    async def login_with_password(self, email: str, password: str) -> dict | None:
         """Login clásico por email + contraseña."""
         user = await self.get_user_by_email(email)
 
@@ -206,7 +205,7 @@ class AuthService:
             },
         }
 
-    async def login_with_google(self, google_token: str) -> Optional[dict]:
+    async def login_with_google(self, google_token: str) -> dict | None:
         """
         Procesa el login con Google y retorna los tokens JWT.
         """
@@ -234,7 +233,7 @@ class AuthService:
             },
         }
 
-    async def refresh_access_token(self, refresh_token: str) -> Optional[dict]:
+    async def refresh_access_token(self, refresh_token: str) -> dict | None:
         """
         Genera un nuevo access token usando el refresh token.
         """

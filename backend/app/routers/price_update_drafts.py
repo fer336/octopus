@@ -3,12 +3,11 @@ Router para borradores de actualización masiva de precios.
 """
 
 import json
-from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -30,16 +29,16 @@ router = APIRouter(
 
 
 class DraftFilters(BaseModel):
-    category_id: Optional[str] = None
-    category_name: Optional[str] = None
-    supplier_id: Optional[str] = None
-    supplier_name: Optional[str] = None
-    search: Optional[str] = None
+    category_id: str | None = None
+    category_name: str | None = None
+    supplier_id: str | None = None
+    supplier_name: str | None = None
+    search: str | None = None
 
 
 class SaveDraftRequest(BaseModel):
     name: str
-    filters: Optional[DraftFilters] = None
+    filters: DraftFilters | None = None
     products: list  # array de EditableProduct serializado
 
 
@@ -47,9 +46,9 @@ class DraftResponse(BaseModel):
     id: str
     name: str
     product_count: int
-    filter_category_name: Optional[str] = None
-    filter_supplier_name: Optional[str] = None
-    filter_search: Optional[str] = None
+    filter_category_name: str | None = None
+    filter_supplier_name: str | None = None
+    filter_search: str | None = None
     created_at: str
     updated_at: str
 
@@ -64,7 +63,7 @@ class DraftDetailResponse(DraftResponse):
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 
-@router.get("", response_model=List[DraftResponse])
+@router.get("", response_model=list[DraftResponse])
 async def list_drafts(
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),

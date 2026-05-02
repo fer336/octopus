@@ -3,40 +3,39 @@ Router de Productos.
 Endpoints para gestión de productos e inventario.
 """
 
-from typing import Optional
+import io
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-import io
 
 from app.database import get_db
 from app.models.product import Product
-from app.schemas.base import MessageResponse, PaginatedResponse, BulkDeleteResponse
+from app.schemas.base import MessageResponse, PaginatedResponse
+from app.schemas.excel_schemas import (
+    ImportConfirmRequest,
+    ImportConfirmResponse,
+    ImportPreviewResponse,
+)
+from app.schemas.price_update import (
+    FieldToUpdate,
+    PriceUpdateApplyResponse,
+    PriceUpdatePreviewItem,
+    PriceUpdatePreviewResponse,
+    PriceUpdateRequest,
+    UpdateType,
+)
 from app.schemas.product import (
     ProductCreate,
     ProductListParams,
     ProductResponse,
     ProductUpdate,
 )
-from app.schemas.excel_schemas import (
-    ImportPreviewResponse,
-    ImportConfirmRequest,
-    ImportConfirmResponse,
-)
-from app.schemas.price_update import (
-    PriceUpdateRequest,
-    PriceUpdatePreviewResponse,
-    PriceUpdateApplyResponse,
-    PriceUpdatePreviewItem,
-    UpdateType,
-    FieldToUpdate,
-)
-from app.services.product_service import ProductService
-from app.services.excel_service import ExcelService
 from app.services.backup_service import BackupService
+from app.services.excel_service import ExcelService
+from app.services.product_service import ProductService
 from app.utils.security import (
     get_current_business,
     get_current_user,
@@ -73,7 +72,7 @@ async def test_delete_endpoint_2():
     import logging
 
     logger = logging.getLogger("uvicorn")
-    logger.info(f"TEST DELETE 2 - SIN AUTH")
+    logger.info("TEST DELETE 2 - SIN AUTH")
 
     return {"status": "ok", "message": "Test exitoso sin auth"}
 
@@ -85,12 +84,13 @@ async def bulk_delete_alt(
 ):
     """ALTERNATIVA: Usa POST en vez de DELETE para evitar problemas de CORS."""
     import logging
-    from uuid import UUID as PyUUID
-    from app.models.business import Business
     from datetime import datetime
+    from uuid import UUID as PyUUID
+
+    from app.models.business import Business
 
     logger = logging.getLogger("uvicorn")
-    logger.info(f"=== BULK DELETE ALT (POST) START ===")
+    logger.info("=== BULK DELETE ALT (POST) START ===")
 
     try:
         # Obtener business
@@ -136,20 +136,20 @@ async def bulk_delete_alt(
 
 @router.get("", response_model=PaginatedResponse[ProductResponse])
 async def list_products(
-    search: Optional[str] = Query(None, description="Buscar por código o descripción"),
-    category_id: Optional[UUID] = Query(None, description="Filtrar por categoría"),
-    supplier_id: Optional[UUID] = Query(None, description="Filtrar por proveedor"),
-    brand: Optional[str] = Query(None, description="Filtrar por marca"),
-    line: Optional[str] = Query(None, description="Filtrar por línea"),
-    application_area: Optional[str] = Query(
+    search: str | None = Query(None, description="Buscar por código o descripción"),
+    category_id: UUID | None = Query(None, description="Filtrar por categoría"),
+    supplier_id: UUID | None = Query(None, description="Filtrar por proveedor"),
+    brand: str | None = Query(None, description="Filtrar por marca"),
+    line: str | None = Query(None, description="Filtrar por línea"),
+    application_area: str | None = Query(
         None, description="Filtrar por aplicación/uso (lavatorio, bidet, etc.)"
     ),
-    finish: Optional[str] = Query(None, description="Filtrar por terminación"),
-    quality_tier: Optional[str] = Query(
+    finish: str | None = Query(None, description="Filtrar por terminación"),
+    quality_tier: str | None = Query(
         None, description="Filtrar por nivel de calidad"
     ),
-    is_active: Optional[bool] = Query(True, description="Filtrar por estado activo"),
-    low_stock: Optional[bool] = Query(
+    is_active: bool | None = Query(True, description="Filtrar por estado activo"),
+    low_stock: bool | None = Query(
         None, description="Filtrar productos con stock bajo"
     ),
     sort_by: str = Query(
@@ -431,9 +431,11 @@ async def export_products_sql(
     """
     import logging
     import traceback
+
     from sqlalchemy import select
-    from app.services.backup_service import BackupService
+
     from app.models.business import Business
+    from app.services.backup_service import BackupService
 
     logger = logging.getLogger("uvicorn")
 
@@ -493,9 +495,10 @@ async def import_products_sql(
     Importa productos desde SQL (INSERT statements).
     Solo disponible si el tenant tiene la feature flag habilitada.
     """
-    from app.services.backup_service import BackupService
-    from app.models.business import Business
     from sqlalchemy import select
+
+    from app.models.business import Business
+    from app.services.backup_service import BackupService
 
     # Verificar feature flag
     business_query = select(Business).where(Business.id == business_id)
@@ -546,14 +549,15 @@ async def bulk_delete_products(
     CUIDADO: Esta acción afecta a todos los productos.
     """
     import logging
-    from uuid import UUID as PyUUID
-    from app.models.business import Business
     from datetime import datetime
+    from uuid import UUID as PyUUID
+
+    from app.models.business import Business
 
     logger = logging.getLogger("uvicorn")
 
     try:
-        logger.info(f"=== BULK DELETE START ===")
+        logger.info("=== BULK DELETE START ===")
         logger.info(f"User: {current_user.email}")
 
         # Obtener business directamente aquí
@@ -596,7 +600,7 @@ async def bulk_delete_products(
         }
 
     except Exception as e:
-        logger.error(f"=== BULK DELETE ERROR ===", exc_info=True)
+        logger.error("=== BULK DELETE ERROR ===", exc_info=True)
         await db.rollback()
         return {"deleted_count": 0, "message": f"Error: {str(e)}"}
 
@@ -612,6 +616,7 @@ async def preview_price_update(
     Muestra los cambios antes de aplicarlos.
     """
     from decimal import Decimal as D
+
     from sqlalchemy.orm import selectinload
 
     # Obtener productos con relaciones

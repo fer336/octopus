@@ -5,20 +5,21 @@ Endpoints para login con Google OAuth y gestión de sesiones JWT.
 
 import logging
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db
 from app.models.audit_log import AuditLog
-from app.services.auth_service import AuthService
 from app.models.tenant_membership import TenantMembership
-from app.utils.security import get_current_user
-from app.config import get_settings
+from app.services.auth_service import AuthService
 from app.utils.acl import parse_module_permissions
+from app.utils.security import get_current_user
 
 settings = get_settings()
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
@@ -405,6 +406,7 @@ async def dev_login(
         )
 
     from sqlalchemy import select
+
     from app.models.user import User
 
     user = None
@@ -477,8 +479,9 @@ async def dev_login(
             detail="No hay usuarios en la base de datos",
         )
 
-    from app.utils.security import create_access_token, create_refresh_token
     from uuid import UUID as PyUUID
+
+    from app.utils.security import create_access_token, create_refresh_token
 
     user_id = PyUUID(str(user.id))
     user_email = str(user.email)

@@ -2,10 +2,10 @@
 Utilidades para registro de auditoría.
 """
 
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.audit_log import AuditLog
 
 
@@ -15,8 +15,8 @@ async def log_audit(
     business_id: UUID,
     action: str,
     resource_type: str,
-    resource_id: Optional[UUID] = None,
-    details: Optional[dict] = None,
+    resource_id: UUID | None = None,
+    details: dict | None = None,
 ):
     """
     Crea una entrada de auditoría en la base de datos.

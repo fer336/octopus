@@ -1,24 +1,44 @@
 # ruff.toml — linter y formatter para el backend
-# Colocarlo en la raíz del proyecto o dentro de ./backend/
 
 target-version = "py312"
 line-length = 100
 
+exclude = [
+    "backend/alembic/versions/",
+    "backend/alembic/env.py",
+]
+
 [lint]
 select = [
-    "E",    # pycodestyle errors
-    "W",    # pycodestyle warnings
-    "F",    # pyflakes (imports no usados, variables no definidas, etc.)
-    "I",    # isort (orden de imports)
-    "N",    # pep8-naming
-    "UP",   # pyupgrade (sintaxis moderna de Python)
-    "B",    # flake8-bugbear (bugs comunes)
-    "SIM",  # flake8-simplify
-    "TCH",  # flake8-type-checking (imports solo para type hints)
+    "E",
+    "W",
+    "F",
+    "I",
+    "N",
+    "UP",
+    "B",
+    "SIM",
+    "TCH",
 ]
 ignore = [
-    "E501",  # line too long — manejado por el formatter
-    "B008",  # do not perform function calls in argument defaults (común en FastAPI Depends)
+    "E501",  # line too long
+    "B008",  # function calls in argument defaults
+    "N806",  # variables uppercase in functions (intentional pattern)
+    "N811",  # UUID as PyUUID (intentional pattern)
+    "N817",  # Decimal as D (intentional pattern)
+    "N814",  # CamelCase imports as constant (intentional pattern)
+    "B904",  # raise without from (common in FastAPI)
+    "E402",  # imports not at top (common with type checking)
+    "TC001", # move app imports to type-checking block
+    "TC002", # move third-party imports to type-checking block
+    "TC003", # move stdlib imports to type-checking block
+    "SIM102", # nested if statements
+    "SIM105", # use contextlib.suppress
+    "SIM109", # multiple equality comparisons
+    "UP006",  # list[X] syntax (legacy)
+    "UP007",  # Optional[X] syntax (legacy)
+    "UP042",  # class inheriting from str and Enum
+    "UP046",  # Generic with type parameters
 ]
 
 [lint.isort]

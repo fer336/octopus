@@ -5,17 +5,16 @@ Revises: a4ac8405e1f4
 Create Date: 2026-02-06 15:44:11.748310
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '8feee9046942'
-down_revision: Union[str, Sequence[str], None] = 'a4ac8405e1f4'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'a4ac8405e1f4'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -29,7 +28,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['category_id'], ['categories.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('supplier_id', 'category_id')
     )
-    
+
     # Crear índices para mejorar el rendimiento
     op.create_index(
         'ix_supplier_categories_supplier_id',

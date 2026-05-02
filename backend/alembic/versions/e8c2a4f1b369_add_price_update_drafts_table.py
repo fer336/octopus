@@ -8,16 +8,15 @@ Tabla para guardar borradores de actualización masiva de precios.
 Permite al usuario guardar el estado intermedio del modal de edición
 y retomarlo en otro momento sin perder los cambios.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision: str = 'e8c2a4f1b369'
-down_revision: Union[str, Sequence[str], None] = 'd3f1b7c9a452'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'd3f1b7c9a452'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

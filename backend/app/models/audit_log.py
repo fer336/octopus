@@ -3,8 +3,8 @@ Modelo de log de auditoría.
 Registra todas las operaciones sensibles del sistema para trazabilidad.
 """
 
-from sqlalchemy import Column, ForeignKey, String, Text, Index
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import Column, ForeignKey, String
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from app.models.base import BaseModel

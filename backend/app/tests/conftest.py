@@ -3,13 +3,10 @@ Fixtures compartidas para tests del backend.
 """
 
 import asyncio
-from typing import AsyncGenerator
-from uuid import UUID
+from collections.abc import AsyncGenerator
 
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import Text, TypeDecorator
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.compiler import compiles

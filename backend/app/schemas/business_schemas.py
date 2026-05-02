@@ -2,8 +2,9 @@
 Schemas para Business (Negocio).
 """
 
-from typing import Literal, Optional
+from typing import Literal
 from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
@@ -17,14 +18,14 @@ class BusinessBase(BaseModel):
     tax_condition: str = Field(
         ..., min_length=1, max_length=50, description="Condición ante IVA"
     )
-    address: Optional[str] = Field(None, max_length=500, description="Dirección")
-    city: Optional[str] = Field(None, max_length=100, description="Ciudad")
-    province: Optional[str] = Field(None, max_length=100, description="Provincia")
-    postal_code: Optional[str] = Field(None, max_length=10, description="Código postal")
-    phone: Optional[str] = Field(None, max_length=50, description="Teléfono")
-    email: Optional[str] = Field(None, max_length=255, description="Email")
-    logo_url: Optional[str] = Field(None, max_length=500, description="URL del logo")
-    header_text: Optional[str] = Field(
+    address: str | None = Field(None, max_length=500, description="Dirección")
+    city: str | None = Field(None, max_length=100, description="Ciudad")
+    province: str | None = Field(None, max_length=100, description="Provincia")
+    postal_code: str | None = Field(None, max_length=10, description="Código postal")
+    phone: str | None = Field(None, max_length=50, description="Teléfono")
+    email: str | None = Field(None, max_length=255, description="Email")
+    logo_url: str | None = Field(None, max_length=500, description="URL del logo")
+    header_text: str | None = Field(
         None, description="Texto adicional para membrete"
     )
     sale_point: str = Field("0001", max_length=5, description="Punto de venta ARCA")
@@ -33,18 +34,18 @@ class BusinessBase(BaseModel):
 class BusinessUpdate(BaseModel):
     """Schema para actualizar Business."""
 
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    cuit: Optional[str] = Field(None, max_length=13)
-    tax_condition: Optional[str] = Field(None, min_length=1, max_length=50)
-    address: Optional[str] = Field(None, max_length=500)
-    city: Optional[str] = Field(None, max_length=100)
-    province: Optional[str] = Field(None, max_length=100)
-    postal_code: Optional[str] = Field(None, max_length=10)
-    phone: Optional[str] = Field(None, max_length=50)
-    email: Optional[str] = Field(None, max_length=255)
-    logo_url: Optional[str] = Field(None, max_length=500)
-    header_text: Optional[str] = Field(None)
-    sale_point: Optional[str] = Field(None, max_length=5)
+    name: str | None = Field(None, min_length=1, max_length=255)
+    cuit: str | None = Field(None, max_length=13)
+    tax_condition: str | None = Field(None, min_length=1, max_length=50)
+    address: str | None = Field(None, max_length=500)
+    city: str | None = Field(None, max_length=100)
+    province: str | None = Field(None, max_length=100)
+    postal_code: str | None = Field(None, max_length=10)
+    phone: str | None = Field(None, max_length=50)
+    email: str | None = Field(None, max_length=255)
+    logo_url: str | None = Field(None, max_length=500)
+    header_text: str | None = Field(None)
+    sale_point: str | None = Field(None, max_length=5)
 
 
 class BusinessResponse(BaseModel):
@@ -54,14 +55,14 @@ class BusinessResponse(BaseModel):
     name: str
     cuit: str
     tax_condition: str
-    address: Optional[str]
-    city: Optional[str]
-    province: Optional[str]
-    postal_code: Optional[str]
-    phone: Optional[str]
-    email: Optional[str]
-    logo_url: Optional[str]
-    header_text: Optional[str]
+    address: str | None
+    city: str | None
+    province: str | None
+    postal_code: str | None
+    phone: str | None
+    email: str | None
+    logo_url: str | None
+    header_text: str | None
     sale_point: str
     ai_agent_enabled: bool
     current_account_mode: Literal["disabled", "automatic", "manual"]
@@ -74,7 +75,7 @@ class BusinessResponse(BaseModel):
     sql_backup_enabled: bool
 
     # Configuración ARCA (solo lectura, se edita en /arca)
-    arca_environment: Optional[str]
+    arca_environment: str | None
 
     class Config:
         from_attributes = True

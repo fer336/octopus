@@ -3,7 +3,6 @@ Router de Órdenes de Pedido.
 Endpoints para control de inventario físico y gestión de órdenes a proveedores.
 """
 
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -11,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.business import Business
 from app.models.purchase_order import PurchaseOrderStatus
 from app.schemas.base import MessageResponse, PaginatedResponse
 from app.schemas.purchase_order import (
@@ -19,9 +19,8 @@ from app.schemas.purchase_order import (
     PurchaseOrderResponse,
     PurchaseOrderUpdate,
 )
-from app.models.business import Business
-from app.services.purchase_order_service import PurchaseOrderService
 from app.services.pdf_service import pdf_service
+from app.services.purchase_order_service import PurchaseOrderService
 from app.utils.security import (
     get_current_business,
     get_current_user,
@@ -42,8 +41,8 @@ router = APIRouter(
 
 @router.get("/inventory-count/pdf")
 async def download_inventory_count_pdf(
-    supplier_id: Optional[UUID] = Query(None, description="Filtrar por proveedor"),
-    category_id: Optional[UUID] = Query(None, description="Filtrar por categoría"),
+    supplier_id: UUID | None = Query(None, description="Filtrar por proveedor"),
+    category_id: UUID | None = Query(None, description="Filtrar por categoría"),
     db: AsyncSession = Depends(get_db),
     current_business=Depends(get_current_business),
     current_user=Depends(get_current_user),
@@ -114,9 +113,9 @@ async def download_inventory_count_pdf(
 
 @router.get("", response_model=PaginatedResponse[PurchaseOrderListItem])
 async def list_purchase_orders(
-    supplier_id: Optional[UUID] = Query(None),
-    category_id: Optional[UUID] = Query(None),
-    status: Optional[PurchaseOrderStatus] = Query(None),
+    supplier_id: UUID | None = Query(None),
+    category_id: UUID | None = Query(None),
+    status: PurchaseOrderStatus | None = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),

@@ -3,7 +3,6 @@ Router de Dashboard.
 Endpoints para estadísticas y resumen del negocio.
 """
 
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -42,10 +41,10 @@ class DashboardSummary(BaseSchema):
 
 @router.get("/summary", response_model=DashboardSummary)
 async def get_dashboard_summary(
-    month: Optional[int] = Query(
+    month: int | None = Query(
         default=None, ge=1, le=12, description="Mes (1-12). Por defecto: mes actual"
     ),
-    year: Optional[int] = Query(
+    year: int | None = Query(
         default=None, ge=2000, le=2100, description="Año. Por defecto: año actual"
     ),
     db: AsyncSession = Depends(get_db),

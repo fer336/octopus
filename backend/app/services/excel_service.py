@@ -4,33 +4,36 @@ Maneja la carga masiva de productos.
 """
 import io
 from decimal import Decimal
-from typing import BinaryIO, List, Tuple
 from uuid import UUID
 
 import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.product import Product
 from app.models.category import Category
+from app.models.product import Product
 from app.models.supplier import Supplier
-from app.schemas.product import ProductCreate, ProductUpdate
-from app.schemas.excel_schemas import ProductImportRow, ImportPreviewResponse, ImportConfirmRequest, ImportConfirmResponse
+from app.schemas.excel_schemas import (
+    ImportConfirmRequest,
+    ImportConfirmResponse,
+    ImportPreviewResponse,
+    ProductImportRow,
+)
 
 
 class ExcelService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    def _parse_discounts(self, discounts_str: str) -> Tuple[Decimal, Decimal, Decimal]:
+    def _parse_discounts(self, discounts_str: str) -> tuple[Decimal, Decimal, Decimal]:
         """Parsea el string de descuentos (ej: '10+5+2') en tres valores."""
         if not discounts_str or pd.isna(discounts_str):
             return Decimal(0), Decimal(0), Decimal(0)
-        
+
         discounts_str = str(discounts_str).strip()
         if not discounts_str or discounts_str == '0':
             return Decimal(0), Decimal(0), Decimal(0)
-        
+
         try:
             parts = discounts_str.replace(',', '.').split('+')
             discounts = []
@@ -38,17 +41,17 @@ class ExcelService:
                 part = part.strip()
                 if part:
                     discounts.append(Decimal(part))
-            
+
             d1 = discounts[0] if len(discounts) > 0 else Decimal(0)
             d2 = discounts[1] if len(discounts) > 1 else Decimal(0)
             d3 = discounts[2] if len(discounts) > 2 else Decimal(0)
-            
+
             return d1, d2, d3
         except (ValueError, IndexError):
             return Decimal(0), Decimal(0), Decimal(0)
-    
+
     def _calculate_prices(self, list_price: Decimal, d1: Decimal, d2: Decimal, d3: Decimal,
-                         extra_cost: Decimal, profit_margin: Decimal, iva_rate: Decimal) -> Tuple[Decimal, Decimal, str]:
+                         extra_cost: Decimal, profit_margin: Decimal, iva_rate: Decimal) -> tuple[Decimal, Decimal, str]:
         """Calcula precio neto y final, igual que el modelo Product."""
         # Precio con bonificaciones (neto base)
         net_base = list_price * (1 - d1 / 100) * (1 - d2 / 100) * (1 - d3 / 100)
@@ -80,31 +83,31 @@ class ExcelService:
             df = pd.read_excel(io.BytesIO(file_content))
         except Exception as e:
             raise ValueError(f"Error al leer el archivo Excel: {str(e)}")
-        
+
         # Validar columnas requeridas
         required_cols = ['codigo', 'nombre', 'precio_lista']
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
             raise ValueError(f"Faltan columnas requeridas: {', '.join(missing_cols)}")
-        
+
         # Obtener todas las categorías y proveedores para mapeo
         categories_query = select(Category).where(Category.deleted_at.is_(None))
         categories_result = await self.db.execute(categories_query)
         categories = {cat.name.lower(): cat for cat in categories_result.scalars().all()}
-        
+
         suppliers_query = select(Supplier).where(Supplier.deleted_at.is_(None))
         suppliers_result = await self.db.execute(suppliers_query)
         suppliers = {sup.name.lower(): sup for sup in suppliers_result.scalars().all()}
-        
-        rows: List[ProductImportRow] = []
+
+        rows: list[ProductImportRow] = []
         valid_count = 0
         error_count = 0
         new_count = 0
         existing_count = 0
-        
+
         for index, row in df.iterrows():
             row_number = index + 2  # +2 porque Excel empieza en 1 y la fila 1 es header
-            
+
             code = str(row.get('codigo', '')).strip()
             if not code:
                 rows.append(ProductImportRow(
@@ -116,7 +119,7 @@ class ExcelService:
                 ))
                 error_count += 1
                 continue
-            
+
             description = str(row.get('nombre', '')).strip()
             if not description:
                 rows.append(ProductImportRow(
@@ -128,15 +131,15 @@ class ExcelService:
                 ))
                 error_count += 1
                 continue
-            
+
             # Parsear campos
             try:
                 supplier_code = str(row.get('codigo_proveedor', '')) if pd.notna(row.get('codigo_proveedor')) else None
                 list_price = Decimal(str(row.get('precio_lista', 0)))
-                
+
                 if list_price <= 0:
                     raise ValueError("El precio de lista debe ser mayor a 0")
-                
+
                 d1, d2, d3 = self._parse_discounts(row.get('bonificaciones', ''))
                 extra_cost = Decimal(str(row.get('cargo_extra', 0))) if pd.notna(row.get('cargo_extra')) else Decimal(0)
                 profit_margin = Decimal(str(row.get('ganancia', 0))) if pd.notna(row.get('ganancia')) else Decimal(0)
@@ -147,7 +150,7 @@ class ExcelService:
                 net_price, sale_price, discount_display = self._calculate_prices(
                     list_price, d1, d2, d3, extra_cost, profit_margin, iva_rate
                 )
-                
+
                 # Buscar categoría si se especifica
                 category_id = None
                 category_name = None
@@ -157,7 +160,7 @@ class ExcelService:
                     if category:
                         category_id = category.id
                         category_name = category.name
-                
+
                 # Buscar proveedor si se especifica
                 supplier_id = None
                 supplier_name = None
@@ -167,7 +170,7 @@ class ExcelService:
                     if supplier:
                         supplier_id = supplier.id
                         supplier_name = supplier.name
-                
+
                 # Verificar si el producto ya existe
                 existing_query = select(Product).where(
                     Product.code == code,
@@ -176,15 +179,15 @@ class ExcelService:
                 )
                 existing_result = await self.db.execute(existing_query)
                 existing_product = existing_result.scalar_one_or_none()
-                
+
                 is_new = existing_product is None
                 existing_id = existing_product.id if existing_product else None
-                
+
                 if is_new:
                     new_count += 1
                 else:
                     existing_count += 1
-                
+
                 rows.append(ProductImportRow(
                     row_number=row_number,
                     code=code,
@@ -210,7 +213,7 @@ class ExcelService:
                     existing_id=existing_id
                 ))
                 valid_count += 1
-                
+
             except Exception as e:
                 rows.append(ProductImportRow(
                     row_number=row_number,
@@ -220,7 +223,7 @@ class ExcelService:
                     error_message=f"Error al procesar: {str(e)}"
                 ))
                 error_count += 1
-        
+
         return ImportPreviewResponse(
             total_rows=len(df),
             valid_rows=valid_count,
@@ -229,7 +232,7 @@ class ExcelService:
             existing_products=existing_count,
             rows=rows
         )
-    
+
     async def confirm_import(self, business_id: UUID, request: ImportConfirmRequest) -> ImportConfirmResponse:
         """
         Confirma la importación de productos después del preview.
@@ -237,14 +240,14 @@ class ExcelService:
         """
         created = 0
         updated = 0
-        errors: List[str] = []
-        
+        errors: list[str] = []
+
         for row in request.rows:
             # Saltar filas con errores
             if row.has_errors:
                 errors.append(f"Fila {row.row_number}: {row.error_message}")
                 continue
-            
+
             try:
                 if row.is_new:
                     # Crear nuevo producto
@@ -295,15 +298,15 @@ class ExcelService:
                             errors.append(f"Fila {row.row_number}: Producto existente no encontrado")
             except Exception as e:
                 errors.append(f"Fila {row.row_number}: {str(e)}")
-        
+
         await self.db.commit()
-        
+
         return ImportConfirmResponse(
             created=created,
             updated=updated,
             errors=errors
         )
-    
+
     async def import_products(self, business_id: UUID, file_content: bytes) -> dict:
         """
         Importa productos desde un archivo Excel.
@@ -323,7 +326,7 @@ class ExcelService:
         # precio_lista -> list_price
         # bonificaciones -> discount_display (se debe parsear)
         # cargo_extra -> extra_cost
-        
+
         column_map = {
             'codigo': 'code',
             'codigo_proveedor': 'supplier_code',
@@ -333,7 +336,7 @@ class ExcelService:
             'bonificaciones': 'discounts',
             'cargo_extra': 'extra_cost'
         }
-        
+
         # Validar columnas requeridas
         required_cols = ['codigo', 'nombre', 'precio_lista']
         missing_cols = [col for col in required_cols if col not in df.columns]
@@ -357,7 +360,7 @@ class ExcelService:
                 # Parsear descuentos
                 discounts_str = str(row.get('bonificaciones', '0'))
                 discounts = [Decimal(d.strip()) for d in discounts_str.split('+') if d.strip().replace('.', '', 1).isdigit()]
-                
+
                 d1 = discounts[0] if len(discounts) > 0 else Decimal(0)
                 d2 = discounts[1] if len(discounts) > 1 else Decimal(0)
                 d3 = discounts[2] if len(discounts) > 2 else Decimal(0)
@@ -392,7 +395,7 @@ class ExcelService:
                     for key, value in product_data.items():
                         if key != "business_id":
                             setattr(existing_product, key, value)
-                    
+
                     existing_product.calculate_prices()
                     summary["updated"] += 1
                 else:
@@ -413,11 +416,10 @@ class ExcelService:
         Exporta productos a Excel con formato profesional.
         Solo incluye las columnas esenciales para importación.
         """
-        from sqlalchemy.orm import selectinload
         from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-        from openpyxl.utils import get_column_letter
-        
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+        from sqlalchemy.orm import selectinload
+
         # Obtener productos con relaciones cargadas
         query = (
             select(Product)
@@ -431,7 +433,7 @@ class ExcelService:
             )
             .order_by(Product.code)
         )
-        
+
         result = await self.db.execute(query)
         products = result.scalars().all()
 
@@ -439,14 +441,14 @@ class ExcelService:
         wb = Workbook()
         ws = wb.active
         ws.title = "Productos"
-        
+
         # Definir columnas (orden para importación)
         headers = [
             'codigo', 'codigo_proveedor', 'nombre_proveedor', 'categoria',
             'nombre', 'stock', 'precio_lista', 'bonificaciones', 'cargo_extra',
             'ganancia', 'precio_venta'
         ]
-        
+
         # Escribir headers con estilo
         for col_idx, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col_idx, value=header)
@@ -459,7 +461,7 @@ class ExcelService:
                 top=Side(style='thin'),
                 bottom=Side(style='thin')
             )
-        
+
         # Escribir datos
         for row_idx, p in enumerate(products, 2):
             # Formato de bonificaciones (ej: "10+5+2")
@@ -469,7 +471,7 @@ class ExcelService:
                 float(p.discount_3 or 0)
             ]
             bonificaciones_str = '+'.join([str(int(d)) for d in discounts if d > 0]) or '0'
-            
+
             row_data = [
                 p.code or '',
                 p.supplier_code or '',
@@ -483,10 +485,10 @@ class ExcelService:
                 float(p.profit_margin) if p.profit_margin else 0.0,
                 float(p.sale_price) if p.sale_price else 0.0,
             ]
-            
+
             for col_idx, value in enumerate(row_data, 1):
                 cell = ws.cell(row=row_idx, column=col_idx, value=value)
-                
+
                 # Alineación según tipo
                 if col_idx in [3, 4, 5]:  # nombre_proveedor, categoria, nombre
                     cell.alignment = Alignment(horizontal="left", vertical="center")
@@ -500,7 +502,7 @@ class ExcelService:
                     cell.number_format = '#,##0.00'
                 elif col_idx == 6:  # stock
                     cell.number_format = '0'
-                
+
                 # Bordes
                 cell.border = Border(
                     left=Side(style='thin', color='D9D9D9'),
@@ -508,11 +510,11 @@ class ExcelService:
                     top=Side(style='thin', color='D9D9D9'),
                     bottom=Side(style='thin', color='D9D9D9')
                 )
-                
+
                 # Alternar color de filas
                 if row_idx % 2 == 0:
                     cell.fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
-        
+
         # Ajustar anchos de columna
         column_widths = {
             'A': 15,  # codigo
@@ -527,78 +529,78 @@ class ExcelService:
             'J': 14,  # ganancia
             'K': 15,  # precio_venta
         }
-        
+
         for col, width in column_widths.items():
             ws.column_dimensions[col].width = width
-        
+
         # Freeze primera fila (header)
         ws.freeze_panes = "A2"
-        
+
         # Crear hoja de REFERENCIA con categorías y proveedores
         ws_ref = wb.create_sheet(title="Referencia")
-        
+
         # Header de referencia
         ws_ref['A1'] = 'CATEGORÍAS DISPONIBLES'
         ws_ref['A1'].font = Font(bold=True, size=12, color="FFFFFF")
         ws_ref['A1'].fill = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
-        
+
         ws_ref['C1'] = 'PROVEEDORES DISPONIBLES'
         ws_ref['C1'].font = Font(bold=True, size=12, color="FFFFFF")
         ws_ref['C1'].fill = PatternFill(start_color="1976D2", end_color="1976D2", fill_type="solid")
-        
+
         # Obtener categorías y proveedores para la referencia
         categories_query = select(Category).where(
             Category.business_id == business_id,
             Category.deleted_at.is_(None)
         ).order_by(Category.name)
-        
+
         categories_result = await self.db.execute(categories_query)
         categories = categories_result.scalars().all()
-        
+
         suppliers_query = select(Supplier).where(
             Supplier.business_id == business_id,
             Supplier.deleted_at.is_(None)
         ).order_by(Supplier.name)
-        
+
         suppliers_result = await self.db.execute(suppliers_query)
         suppliers = suppliers_result.scalars().all()
-        
+
         # Escribir categorías
         for idx, cat in enumerate(categories, 2):
             cell = ws_ref.cell(row=idx, column=1, value=cat.name)
             cell.alignment = Alignment(horizontal="left", vertical="center")
             if idx % 2 == 0:
                 cell.fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
-        
+
         # Escribir proveedores
         for idx, sup in enumerate(suppliers, 2):
             cell = ws_ref.cell(row=idx, column=3, value=sup.name)
             cell.alignment = Alignment(horizontal="left", vertical="center")
             if idx % 2 == 0:
                 cell.fill = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid")
-        
+
         # Ajustar anchos de la hoja de referencia
         ws_ref.column_dimensions['A'].width = 30
         ws_ref.column_dimensions['C'].width = 30
-        
+
         # Instrucciones
         ws_ref['A' + str(len(categories) + 4)] = '💡 Copia estos nombres exactos a tu Excel en las columnas categoria/proveedor'
         ws_ref['A' + str(len(categories) + 4)].font = Font(italic=True, color="666666")
-        
+
         # Guardar a BytesIO
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
-        
+
         return output.getvalue()
-    
+
     async def export_full_backup(self, business_id: UUID) -> bytes:
         """
         Exporta TODOS los productos (incluso eliminados) como backup completo de la DB.
         Incluye TODOS los campos para poder restaurar.
         """
         from sqlalchemy.orm import selectinload
-        
+
         # Obtener TODOS los productos, incluso los eliminados
         query = (
             select(Product)
@@ -609,7 +611,7 @@ class ExcelService:
             .where(Product.business_id == business_id)
             .order_by(Product.created_at)
         )
-        
+
         result = await self.db.execute(query)
         products = result.scalars().all()
 
@@ -649,33 +651,33 @@ class ExcelService:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Backup_Productos')
-        
+
         return output.getvalue()
-    
+
     async def delete_all_products(self, business_id: UUID) -> dict:
         """
         Elimina TODOS los productos de un negocio (soft delete).
         Retorna un resumen de la operación.
         """
         from datetime import datetime
-        
+
         query = select(Product).where(
             Product.business_id == business_id,
             Product.deleted_at.is_(None)
         )
-        
+
         result = await self.db.execute(query)
         products = result.scalars().all()
-        
+
         count = 0
         now = datetime.utcnow()
-        
+
         for product in products:
             product.deleted_at = now
             count += 1
-        
+
         await self.db.commit()
-        
+
         return {
             "deleted_count": count,
             "message": f"Se eliminaron {count} productos correctamente"

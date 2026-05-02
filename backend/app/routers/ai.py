@@ -18,13 +18,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.services.ai_quote_service import add_customer_term, run_quote_agent
 from app.services.ai_chat_service import run_chat_agent, run_chat_agent_streaming
+from app.services.ai_quote_service import add_customer_term, run_quote_agent
 from app.services.chat_history_service import (
-    get_or_create_conversation,
-    get_history,
-    save_turn,
     clear_history,
+    get_history,
+    get_or_create_conversation,
+    save_turn,
 )
 from app.utils.security import get_current_business_with_ai_enabled, get_current_user
 

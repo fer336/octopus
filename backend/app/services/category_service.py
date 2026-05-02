@@ -5,7 +5,6 @@ Servicio de Categorías.
 Contiene toda la lógica de negocio para categorías jerárquicas.
 """
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -45,7 +44,7 @@ class CategoryService:
         category_id: UUID,
         business_id: UUID,
         include_deleted: bool = False,
-    ) -> Optional[Category]:
+    ) -> Category | None:
         """Obtiene una categoría por ID."""
         query = select(Category).where(
             Category.id == category_id,
@@ -117,7 +116,7 @@ class CategoryService:
         category_id: UUID,
         business_id: UUID,
         data: CategoryUpdate,
-    ) -> Optional[Category]:
+    ) -> Category | None:
         """Actualiza una categoría."""
         category = await self.get_by_id(category_id, business_id)
         if not category:

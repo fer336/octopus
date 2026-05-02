@@ -4,14 +4,13 @@ Schemas para Comprobantes (Ventas).
 
 from datetime import date
 from decimal import Decimal
-from typing import Any, List, Optional, Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field
 
 from app.models.voucher import VoucherStatus, VoucherType
 from app.schemas.base import BaseResponse, BaseSchema
-
 from app.schemas.client import ClientResponse
 from app.schemas.payment_method import VoucherPaymentCreate
 
@@ -34,11 +33,11 @@ class VoucherCreate(BaseSchema):
     client_id: UUID
     voucher_type: VoucherType
     date: date
-    notes: Optional[str] = None
+    notes: str | None = None
     show_prices: bool = True  # Para remitos
     is_current_account: bool = False
-    billing_client_id: Optional[UUID] = None
-    operating_client_id: Optional[UUID] = None
+    billing_client_id: UUID | None = None
+    operating_client_id: UUID | None = None
     general_discount: Decimal = Field(
         default=Decimal("0"),
         ge=0,
@@ -46,8 +45,8 @@ class VoucherCreate(BaseSchema):
         description="Descuento general (%) aplicado sobre el subtotal de todos los ítems",
     )
 
-    items: List[VoucherItemCreate]
-    payments: Optional[List[VoucherPaymentCreate]] = Field(
+    items: list[VoucherItemCreate]
+    payments: list[VoucherPaymentCreate] | None = Field(
         default=None,
         description="Métodos de pago (opcional para cotizaciones/remitos, obligatorio para facturas)",
     )
@@ -58,7 +57,7 @@ class VoucherTotalsPreviewRequest(BaseSchema):
 
     voucher_type: VoucherType
     general_discount: Decimal = Field(default=Decimal("0"), ge=0, le=100)
-    items: List[VoucherItemCreate]
+    items: list[VoucherItemCreate]
 
 
 class VoucherTotalsPreviewResponse(BaseSchema):
@@ -74,7 +73,7 @@ class VoucherUpdate(BaseSchema):
 
     client_id: UUID
     date: date
-    notes: Optional[str] = None
+    notes: str | None = None
     show_prices: bool = True
     general_discount: Decimal = Field(
         default=Decimal("0"),
@@ -83,25 +82,25 @@ class VoucherUpdate(BaseSchema):
         description="Descuento general (%) aplicado sobre el subtotal de todos los ítems",
     )
 
-    items: List[VoucherItemCreate]
+    items: list[VoucherItemCreate]
 
 
 class CurrentAccountCloseRequest(BaseSchema):
     """Request para cierre de cuenta corriente por titular."""
 
     billing_client_id: UUID
-    receipt_ids: Optional[List[UUID]] = None
+    receipt_ids: list[UUID] | None = None
     close_all: bool = False
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 class CurrentAccountClosePreviewRequest(BaseSchema):
     """Request para preview de cierre de cuenta corriente (sin persistir)."""
 
     billing_client_id: UUID
-    receipt_ids: Optional[List[UUID]] = None
+    receipt_ids: list[UUID] | None = None
     close_all: bool = False
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 class CurrentAccountCloseItemPreview(BaseSchema):
@@ -110,9 +109,9 @@ class CurrentAccountCloseItemPreview(BaseSchema):
     receipt_id: UUID
     receipt_number: str
     receipt_date: date
-    operating_client_name: Optional[str] = None
+    operating_client_name: str | None = None
     is_withdrawal_authorized: bool = False
-    general_discount: Optional[Decimal] = None
+    general_discount: Decimal | None = None
     code: str
     description: str
     quantity: Decimal
@@ -127,7 +126,7 @@ class CurrentAccountClosePreviewResponse(BaseSchema):
     """Response del preview de cierre."""
 
     billing_client_name: str
-    items: List[CurrentAccountCloseItemPreview]
+    items: list[CurrentAccountCloseItemPreview]
     total_receipts: int
     total_items: int
     subtotal: Decimal
@@ -141,7 +140,7 @@ class CurrentAccountClosureReceiptSummary(BaseSchema):
     receipt_id: UUID
     receipt_number: str
     receipt_date: date
-    operating_client_name: Optional[str] = None
+    operating_client_name: str | None = None
     total: Decimal
 
 
@@ -151,19 +150,19 @@ class CurrentAccountClosureHistoryItem(BaseSchema):
     closure_voucher_id: UUID
     closure_number: str
     closure_date: date
-    notes: Optional[str] = None
+    notes: str | None = None
     total_receipts: int
     total_items: int
     subtotal: Decimal
     iva_amount: Decimal
     total: Decimal
-    receipts: List[CurrentAccountClosureReceiptSummary]
+    receipts: list[CurrentAccountClosureReceiptSummary]
 
 
 class CurrentAccountCloseHistoryResponse(BaseSchema):
     """Lista de cierres históricos."""
 
-    closures: List[CurrentAccountClosureHistoryItem]
+    closures: list[CurrentAccountClosureHistoryItem]
     total: int
 
 
@@ -192,11 +191,11 @@ class VoucherPartySummary(BaseSchema):
 class ConvertQuotationToInvoice(BaseSchema):
     """Schema para convertir una cotización en factura."""
 
-    fiscal_client_id: Optional[UUID] = Field(
+    fiscal_client_id: UUID | None = Field(
         default=None,
         description="Cliente fiscal final de la factura (opcional). Si no se envía, se usa el cliente origen.",
     )
-    payments: Optional[List[VoucherPaymentCreate]] = Field(
+    payments: list[VoucherPaymentCreate] | None = Field(
         default=None,
         description="Métodos de pago (requerido para que quede registrado el cobro)",
     )
@@ -222,16 +221,16 @@ class CompileToInvoiceRequest(BaseSchema):
     - Descuento general: usa exactamente el valor recibido (0 = sin descuento).
     """
 
-    quotation_ids: List[UUID] = Field(
+    quotation_ids: list[UUID] = Field(
         ...,
         min_length=1,
         description="IDs de cotizaciones/remitos a facturar (mínimo 1)",
     )
-    payments: Optional[List[VoucherPaymentCreate]] = Field(
+    payments: list[VoucherPaymentCreate] | None = Field(
         default=None,
         description="Métodos de pago (requerido para facturas)",
     )
-    fiscal_client_id: Optional[UUID] = Field(
+    fiscal_client_id: UUID | None = Field(
         default=None,
         description="Cliente fiscal final de la factura (opcional). Si no se envía, se usa el cliente origen.",
     )
@@ -266,7 +265,7 @@ class VoucherPriceCheckResponse(BaseSchema):
     """Respuesta del chequeo de precios al cargar cotización por código."""
 
     has_differences: bool
-    differences: List[PriceDifferenceItem]
+    differences: list[PriceDifferenceItem]
     affected_items: int
     total_items: int
 
@@ -274,7 +273,7 @@ class VoucherPriceCheckResponse(BaseSchema):
 class CompilePreviewRequest(BaseSchema):
     """Request para previsualizar totales de compilación con estrategia de precios."""
 
-    quotation_ids: List[UUID] = Field(
+    quotation_ids: list[UUID] = Field(
         ...,
         min_length=1,
         description="IDs de cotizaciones/remitos a compilar",
@@ -305,44 +304,44 @@ class CompilePreviewResponse(BaseSchema):
 class VoucherResponse(BaseResponse):
     """Schema de respuesta para comprobante."""
 
-    client: Optional[ClientResponse] = None
+    client: ClientResponse | None = None
     client_id: UUID
     voucher_type: VoucherType
     status: VoucherStatus
     sale_point: str
     number: str
     date: date
-    due_date: Optional[date]
-    notes: Optional[str] = None
+    due_date: date | None
+    notes: str | None = None
     is_current_account: bool = False
     is_current_account_closure: bool = False
-    billing_client_id: Optional[UUID] = None
-    operating_client_id: Optional[UUID] = None
-    billing_client: Optional[VoucherPartySummary] = None
-    operating_client: Optional[VoucherPartySummary] = None
+    billing_client_id: UUID | None = None
+    operating_client_id: UUID | None = None
+    billing_client: VoucherPartySummary | None = None
+    operating_client: VoucherPartySummary | None = None
     is_withdrawal_authorized: bool = False
-    withdrawal_client_name: Optional[str] = None
+    withdrawal_client_name: str | None = None
     general_discount: Decimal
 
     # Vendedor que emitió el comprobante
-    created_by: Optional[UUID] = None
-    created_by_name: Optional[str] = None
+    created_by: UUID | None = None
+    created_by_name: str | None = None
 
     subtotal: Decimal
     iva_amount: Decimal
     total: Decimal
 
-    cae: Optional[str]
-    cae_expiration: Optional[date]
-    barcode: Optional[str]
+    cae: str | None
+    cae_expiration: date | None
+    barcode: str | None
 
     # Indica si tiene notas de crédito asociadas (para UI)
     has_credit_note: bool = False
 
     # ID de la factura generada a partir de esta cotización (None = pendiente de facturar)
-    invoiced_voucher_id: Optional[UUID] = None
+    invoiced_voucher_id: UUID | None = None
 
-    items: List[VoucherItemResponse]
+    items: list[VoucherItemResponse]
 
 
 class SourceQuotationResponse(BaseSchema):
@@ -360,8 +359,8 @@ class SourceQuotationResponse(BaseSchema):
 class VoucherAuditLogResponse(BaseResponse):
     """Schema de respuesta para auditoría de comprobantes."""
 
-    user_id: Optional[UUID] = None
+    user_id: UUID | None = None
     action: str
     resource_type: str
-    resource_id: Optional[UUID] = None
-    details: Optional[dict[str, Any]] = None
+    resource_id: UUID | None = None
+    details: dict[str, Any] | None = None

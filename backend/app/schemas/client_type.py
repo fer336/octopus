@@ -2,7 +2,6 @@
 Schemas para Tipos de Cliente.
 """
 
-from typing import Optional
 
 from pydantic import Field
 
@@ -22,8 +21,8 @@ class ClientTypeCreate(BaseSchema):
 class ClientTypeUpdate(BaseSchema):
     """Schema para actualizar tipo de cliente."""
 
-    name: Optional[str] = Field(None, min_length=2, max_length=80)
-    is_subclient_eligible: Optional[bool] = None
+    name: str | None = Field(None, min_length=2, max_length=80)
+    is_subclient_eligible: bool | None = None
 
 
 class ClientTypeResponse(BaseResponse):
@@ -36,6 +35,6 @@ class ClientTypeResponse(BaseResponse):
 class ClientTypeListParams(BaseSchema):
     """Parámetros para listar tipos de cliente."""
 
-    search: Optional[str] = Field(None, description="Buscar por nombre")
+    search: str | None = Field(None, description="Buscar por nombre")
     page: int = Field(default=1, ge=1)
     per_page: int = Field(default=50, ge=1, le=100)

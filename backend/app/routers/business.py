@@ -4,15 +4,16 @@ Router para gestión de Business (Negocio).
 
 import logging
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.business import Business
 from app.models.audit_log import AuditLog
+from app.models.business import Business
 from app.schemas.business_schemas import BusinessResponse, BusinessUpdate
-from app.utils.security import get_current_user, get_current_business
+from app.utils.security import get_current_business, get_current_user
 
 logger = logging.getLogger(__name__)
 

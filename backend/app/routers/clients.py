@@ -3,13 +3,14 @@ Router de Clientes.
 Endpoints para gestión de clientes.
 """
 
-from typing import Literal, Optional
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.business import Business
 from app.schemas.base import MessageResponse, PaginatedResponse
 from app.schemas.client import (
     ClientCreate,
@@ -17,9 +18,8 @@ from app.schemas.client import (
     ClientResponse,
     ClientUpdate,
 )
-from app.models.business import Business
-from app.services.client_service import ClientService
 from app.services.afip_sdk_service import AfipSdkService
+from app.services.client_service import ClientService
 from app.utils.security import get_current_business, require_module_access
 
 router = APIRouter(
@@ -56,18 +56,18 @@ async def lookup_cuit(
 
 @router.get("", response_model=PaginatedResponse[ClientResponse])
 async def list_clients(
-    search: Optional[str] = Query(None, description="Buscar por nombre o documento"),
-    tax_condition: Optional[str] = Query(
+    search: str | None = Query(None, description="Buscar por nombre o documento"),
+    tax_condition: str | None = Query(
         None, description="Filtrar por condición fiscal"
     ),
-    client_type_id: Optional[UUID] = Query(
+    client_type_id: UUID | None = Query(
         None, description="Filtrar por tipo de cliente"
     ),
-    current_account_mode: Optional[Literal["disabled", "limited", "unlimited"]] = Query(
+    current_account_mode: Literal["disabled", "limited", "unlimited"] | None = Query(
         None,
         description="Filtrar por modo de cuenta corriente del cliente",
     ),
-    has_balance: Optional[bool] = Query(
+    has_balance: bool | None = Query(
         None, description="Filtrar por saldo pendiente"
     ),
     page: int = Query(1, ge=1),

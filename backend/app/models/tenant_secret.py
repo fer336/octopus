@@ -4,10 +4,9 @@ Los datos sensibles de ARCA/AFIP se almacenan cifrados aquí
 en lugar de en la tabla businesses.
 """
 
-from sqlalchemy import Column, ForeignKey, String, Text, Boolean, DateTime
+from sqlalchemy import Boolean, Column, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 
 from app.models.base import BaseModel
 

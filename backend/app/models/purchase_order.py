@@ -4,7 +4,7 @@ Registra las órdenes generadas a proveedores tras un control de inventario fís
 """
 import enum
 
-from sqlalchemy import Column, Enum, ForeignKey, Integer, Numeric, String, Text, DateTime
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 

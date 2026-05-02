@@ -4,14 +4,13 @@ Contiene toda la lógica de negocio para productos.
 """
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.product import Product
 from app.models.price_history import PriceHistory
+from app.models.product import Product
 from app.schemas.product import ProductCreate, ProductListParams, ProductUpdate
 
 
@@ -39,7 +38,7 @@ class ProductService:
         product_id: UUID,
         business_id: UUID,
         include_deleted: bool = False,
-    ) -> Optional[Product]:
+    ) -> Product | None:
         """Obtiene un producto por ID."""
         query = select(Product).where(
             Product.id == product_id,
@@ -55,7 +54,7 @@ class ProductService:
         self,
         code: str,
         business_id: UUID,
-    ) -> Optional[Product]:
+    ) -> Product | None:
         """Obtiene un producto por código interno."""
         query = select(Product).where(
             Product.code == code,
@@ -155,8 +154,8 @@ class ProductService:
         product_id: UUID,
         business_id: UUID,
         data: ProductUpdate,
-        user_id: Optional[UUID] = None,
-    ) -> Optional[Product]:
+        user_id: UUID | None = None,
+    ) -> Product | None:
         """Actualiza un producto y registra cambios de precio."""
         product = await self.get_by_id(product_id, business_id)
         if not product:
@@ -219,7 +218,7 @@ class ProductService:
         product_id: UUID,
         business_id: UUID,
         quantity_change: int,
-    ) -> Optional[Product]:
+    ) -> Product | None:
         """Actualiza el stock de un producto."""
         product = await self.get_by_id(product_id, business_id)
         if not product:

@@ -9,8 +9,8 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.exc import ProgrammingError
 
-from app.utils.security import get_current_business
 from app.tests.conftest import make_auth_header
+from app.utils.security import get_current_business
 
 
 class _ScalarsResult:

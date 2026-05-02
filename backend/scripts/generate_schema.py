@@ -16,10 +16,11 @@ from pathlib import Path
 # Agregar el backend al path para importar los modelos
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.schema import CreateIndex, CreateTable
+
 import app.models as pkg
 from app.models.base import Base
-from sqlalchemy.schema import CreateTable, CreateIndex
-from sqlalchemy.dialects import postgresql
 
 
 def generate_schema() -> str:

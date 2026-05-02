@@ -2,7 +2,6 @@
 Router de autorizaciones titular/subcliente para Cuenta Corriente.
 """
 
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -28,9 +27,9 @@ router = APIRouter(
 
 @router.get("", response_model=PaginatedResponse[ClientAuthorizationResponse])
 async def list_client_authorizations(
-    billing_client_id: Optional[UUID] = Query(None),
-    operating_client_id: Optional[UUID] = Query(None),
-    is_active: Optional[bool] = Query(None),
+    billing_client_id: UUID | None = Query(None),
+    operating_client_id: UUID | None = Query(None),
+    is_active: bool | None = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),

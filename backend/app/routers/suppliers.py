@@ -3,7 +3,6 @@ Router de Proveedores.
 Endpoints para gestión de proveedores.
 """
 
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -30,7 +29,7 @@ router = APIRouter(
 
 @router.get("", response_model=PaginatedResponse[SupplierResponse])
 async def list_suppliers(
-    search: Optional[str] = Query(None, description="Buscar por nombre o CUIT"),
+    search: str | None = Query(None, description="Buscar por nombre o CUIT"),
     page: int = Query(1, ge=1),
     per_page: int = Query(100, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -149,10 +148,10 @@ async def get_supplier_category_discounts(
     Obtiene los descuentos específicos por categoría de un proveedor.
     Incluye los nombres de las categorías para display.
     """
-    from app.models.supplier_category_discount import SupplierCategoryDiscount
-    from app.models.category import Category
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
+
+    from app.models.supplier_category_discount import SupplierCategoryDiscount
 
     query = (
         select(SupplierCategoryDiscount)

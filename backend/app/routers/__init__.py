@@ -5,13 +5,13 @@ Routers de la API.
 from app.routers import (
     auth,
     categories,
-    clients,
     client_authorizations,
     client_types,
-    products,
-    suppliers,
+    clients,
     feedback,
+    products,
     reports,
+    suppliers,
 )
 
 __all__ = [

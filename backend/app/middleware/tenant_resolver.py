@@ -6,7 +6,6 @@ host + membership + claims de rol.
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
@@ -42,7 +41,7 @@ class AdminContext:
     platform_role: str = "superadmin"
 
 
-async def resolve_tenant_from_host(request: Request) -> Optional[str]:
+async def resolve_tenant_from_host(request: Request) -> str | None:
     """
     Extrae el tenant del host de la request.
     Por ahora retorna None (fallback a membership).
@@ -71,8 +70,8 @@ async def get_tenant_context(
     3. Validar que el usuario tenga al menos una membresía activa
     4. Retornar TenantContext con tenant_id y membership_role
     """
-    from app.models.tenant_membership import TenantMembership
     from app.models.business import Business
+    from app.models.tenant_membership import TenantMembership
 
     # Intentar resolver desde host
     tenant_slug = await resolve_tenant_from_host(request)

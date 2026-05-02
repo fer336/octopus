@@ -1,15 +1,15 @@
 """
 Schemas para Notas de Crédito.
 """
-from pydantic import BaseModel, Field
-from typing import List, Optional
-from uuid import UUID
 from decimal import Decimal
+from uuid import UUID
+
+from pydantic import BaseModel, Field
 
 
 class CreditNoteItemCreate(BaseModel):
     """Item de una Nota de Crédito."""
-    
+
     product_id: UUID
     quantity: Decimal = Field(gt=0, description="Cantidad a devolver")
     unit_price: Decimal = Field(ge=0, description="Precio unitario original")
@@ -20,11 +20,11 @@ class CreditNoteCreate(BaseModel):
     """
     Datos para crear una Nota de Crédito.
     """
-    
+
     original_voucher_id: UUID = Field(description="ID de la factura original")
     reason: str = Field(min_length=1, max_length=500, description="Motivo de la NC")
-    items: List[CreditNoteItemCreate] = Field(min_items=1, description="Productos a devolver")
-    
+    items: list[CreditNoteItemCreate] = Field(min_items=1, description="Productos a devolver")
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -44,7 +44,7 @@ class CreditNoteCreate(BaseModel):
 
 class CreditNoteResponse(BaseModel):
     """Respuesta al crear una NC."""
-    
+
     id: UUID
     voucher_type: str
     sale_point: str
@@ -54,9 +54,9 @@ class CreditNoteResponse(BaseModel):
     subtotal: Decimal
     iva_amount: Decimal
     total: Decimal
-    cae: Optional[str] = None
-    cae_expiration: Optional[str] = None
+    cae: str | None = None
+    cae_expiration: str | None = None
     original_voucher_id: UUID
-    
+
     class Config:
         from_attributes = True

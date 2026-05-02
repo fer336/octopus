@@ -3,7 +3,6 @@ Schemas de filtros para reportes PDF.
 """
 
 from datetime import date
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -12,8 +11,8 @@ from pydantic import BaseModel, Field, model_validator
 class BaseReportFilters(BaseModel):
     """Filtros base para reportes por período."""
 
-    date_from: Optional[date] = Field(default=None)
-    date_to: Optional[date] = Field(default=None)
+    date_from: date | None = Field(default=None)
+    date_to: date | None = Field(default=None)
 
     @model_validator(mode="after")
     def validate_date_range(self):
@@ -25,9 +24,9 @@ class BaseReportFilters(BaseModel):
 class StockReportFilters(BaseModel):
     """Filtros para reporte de stock."""
 
-    search: Optional[str] = Field(default=None, max_length=120)
-    category_id: Optional[UUID] = None
-    supplier_id: Optional[UUID] = None
+    search: str | None = Field(default=None, max_length=120)
+    category_id: UUID | None = None
+    supplier_id: UUID | None = None
     low_stock_only: bool = False
     include_inactive: bool = False
 

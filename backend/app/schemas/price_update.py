@@ -3,7 +3,6 @@ Schemas para actualización masiva de precios.
 """
 from decimal import Decimal
 from enum import Enum
-from typing import List, Optional
 from uuid import UUID
 
 from pydantic import Field, field_serializer
@@ -32,8 +31,8 @@ class FieldToUpdate(str, Enum):
 
 class PriceUpdateRequest(BaseSchema):
     """Request para actualización de precios."""
-    
-    product_ids: List[UUID] = Field(..., description="IDs de productos a actualizar")
+
+    product_ids: list[UUID] = Field(..., description="IDs de productos a actualizar")
     field: FieldToUpdate = Field(..., description="Campo a actualizar")
     update_type: UpdateType = Field(..., description="Tipo de actualización")
     value: Decimal = Field(..., description="Porcentaje o valor según el tipo")
@@ -41,16 +40,16 @@ class PriceUpdateRequest(BaseSchema):
 
 class PriceUpdatePreviewItem(BaseSchema):
     """Item de preview de actualización."""
-    
+
     id: UUID
     code: str
     description: str
-    category_name: Optional[str] = None
-    supplier_name: Optional[str] = None
-    
+    category_name: str | None = None
+    supplier_name: str | None = None
+
     # Valores actuales
     current_value: Decimal
-    
+
     # Valores nuevos (calculados)
     new_value: Decimal
     change_amount: Decimal
@@ -65,15 +64,15 @@ class PriceUpdatePreviewItem(BaseSchema):
 
 class PriceUpdatePreviewResponse(BaseSchema):
     """Respuesta del preview de actualización."""
-    
+
     total_products: int
     field_name: str
     update_description: str
-    items: List[PriceUpdatePreviewItem]
+    items: list[PriceUpdatePreviewItem]
 
 
 class PriceUpdateApplyResponse(BaseSchema):
     """Respuesta al aplicar actualización."""
-    
+
     updated_count: int
     message: str

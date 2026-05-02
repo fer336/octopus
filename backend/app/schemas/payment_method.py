@@ -3,7 +3,6 @@ Schemas para Métodos de Pago y Pagos de Comprobantes.
 """
 
 from decimal import Decimal
-from typing import Optional
 from uuid import UUID
 
 from pydantic import ConfigDict, Field
@@ -15,7 +14,7 @@ class PaymentMethodCreate(BaseSchema):
     """Datos para crear un método de pago del negocio."""
 
     name: str
-    code: Optional[str] = Field(
+    code: str | None = Field(
         default=None,
         max_length=20,
         description="Código interno opcional. Si no se envía, se genera automáticamente.",
@@ -28,7 +27,7 @@ class PaymentMethodUpdate(BaseSchema):
     """Datos para actualizar un método de pago existente."""
 
     name: str
-    code: Optional[str] = Field(default=None, max_length=20)
+    code: str | None = Field(default=None, max_length=20)
     requires_reference: bool
     is_active: bool
 
@@ -54,7 +53,7 @@ class VoucherPaymentCreate(BaseSchema):
 
     payment_method_id: UUID = Field(description="ID del método de pago")
     amount: Decimal = Field(gt=0, description="Monto pagado con este método")
-    reference: Optional[str] = Field(
+    reference: str | None = Field(
         None, max_length=100, description="N° de transacción, cheque, etc."
     )
 
@@ -78,8 +77,8 @@ class VoucherPaymentResponse(BaseSchema):
     voucher_id: UUID
     payment_method_id: UUID
     amount: Decimal
-    reference: Optional[str]
+    reference: str | None
 
     # Datos del método (joined)
-    payment_method_name: Optional[str] = None
-    payment_method_code: Optional[str] = None
+    payment_method_name: str | None = None
+    payment_method_code: str | None = None

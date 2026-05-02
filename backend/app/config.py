@@ -3,7 +3,7 @@ Configuración de la aplicación usando Pydantic Settings.
 Lee variables de entorno desde .env
 """
 
-from typing import Union
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/auth/google/callback"
 
     # CORS — incluye los puertos de Vite más comunes para desarrollo local
-    CORS_ORIGINS: Union[list[str], str] = [
+    CORS_ORIGINS: list[str] | str = [
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:5175",

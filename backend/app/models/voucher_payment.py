@@ -2,10 +2,11 @@
 Modelo de Pago de Comprobante.
 Relación N:N entre Vouchers y PaymentMethods.
 """
-from sqlalchemy import Column, String, ForeignKey, Numeric, CheckConstraint
+
+from sqlalchemy import CheckConstraint, Column, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from decimal import Decimal
+
 from app.models.base import BaseModel
 
 

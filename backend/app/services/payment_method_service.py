@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select
@@ -47,7 +46,7 @@ class PaymentMethodService:
         self,
         payment_method_id: UUID,
         business_id: UUID,
-    ) -> Optional[PaymentMethodCatalog]:
+    ) -> PaymentMethodCatalog | None:
         result = await self.db.execute(
             select(PaymentMethodCatalog).where(
                 PaymentMethodCatalog.id == payment_method_id,
@@ -95,7 +94,7 @@ class PaymentMethodService:
         payment_method_id: UUID,
         business_id: UUID,
         data: PaymentMethodUpdate,
-    ) -> Optional[PaymentMethodCatalog]:
+    ) -> PaymentMethodCatalog | None:
         payment_method = await self.get_by_id(payment_method_id, business_id)
         if not payment_method:
             return None
@@ -131,7 +130,7 @@ class PaymentMethodService:
         payment_method_id: UUID,
         business_id: UUID,
         is_active: bool,
-    ) -> Optional[PaymentMethodCatalog]:
+    ) -> PaymentMethodCatalog | None:
         payment_method = await self.get_by_id(payment_method_id, business_id)
         if not payment_method:
             return None

@@ -12,7 +12,7 @@ Uso típico en servicios:
 
 import logging
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from sqlalchemy import select
@@ -70,7 +70,7 @@ class LLMFactory:
     async def get_active_config(
         business_id: str,
         db: AsyncSession,
-    ) -> Optional[AIProviderConfig]:
+    ) -> AIProviderConfig | None:
         """
         Retorna el AIProviderConfig activo del negocio, o None si no hay ninguno.
         """
@@ -120,7 +120,7 @@ class LLMFactory:
     def build_openai_compatible(
         api_key: str,
         provider: str,
-        base_url: Optional[str] = None,
+        base_url: str | None = None,
     ) -> Any:
         """
         Construye un cliente openai.OpenAI apuntando al endpoint correcto.
@@ -149,7 +149,7 @@ class LLMFactory:
     def build_classifier_client(
         api_key: str,
         provider: str,
-        base_url: Optional[str] = None,
+        base_url: str | None = None,
     ) -> tuple[Any, str]:
         """
         Construye un cliente OpenAI-compatible usando el modelo rápido/barato
@@ -176,8 +176,8 @@ class LLMFactory:
     async def validate_key(
         provider: str,
         api_key: str,
-        base_url: Optional[str] = None,
-        model: Optional[str] = None,
+        base_url: str | None = None,
+        model: str | None = None,
     ) -> tuple[bool, str]:
         """
         Valida una API key haciendo una llamada mínima al proveedor.
@@ -225,7 +225,7 @@ class LLMFactory:
     async def fetch_models(
         provider: str,
         api_key: str,
-        base_url: Optional[str] = None,
+        base_url: str | None = None,
     ) -> list[dict]:
         """
         Consulta la API real del proveedor y retorna la lista de modelos disponibles.
@@ -408,7 +408,7 @@ class LLMFactory:
     async def update_validation_result(
         config: AIProviderConfig,
         is_valid: bool,
-        error_msg: Optional[str],
+        error_msg: str | None,
         db: AsyncSession,
     ) -> None:
         """Persiste el resultado de la validación en la config del proveedor."""

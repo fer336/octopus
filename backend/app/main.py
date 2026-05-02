@@ -5,34 +5,34 @@ Punto de entrada de la aplicación FastAPI.
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import close_db
 from app.routers import (
-    auth,
-    categories,
-    clients,
-    client_authorizations,
-    client_types,
-    products,
-    suppliers,
-    dashboard,
-    pdf_test,
-    vouchers,
-    arca,
-    business,
-    payment_methods,
-    price_update_drafts,
-    cash,
-    purchase_orders,
+    admin,
     ai,
     ai_config,
-    admin,
+    arca,
+    auth,
     billing,
+    business,
+    cash,
+    categories,
+    client_authorizations,
+    client_types,
+    clients,
+    dashboard,
     feedback,
+    payment_methods,
+    pdf_test,
+    price_update_drafts,
+    products,
+    purchase_orders,
     reports,
+    suppliers,
+    vouchers,
 )
 
 settings = get_settings()

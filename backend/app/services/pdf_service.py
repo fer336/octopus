@@ -9,7 +9,7 @@ import io
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import qrcode
 from jinja2 import Environment, FileSystemLoader
@@ -27,7 +27,7 @@ env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
 class PdfService:
     """Servicio para generar PDFs."""
 
-    def generate_voucher_pdf(self, context: Dict[str, Any]) -> bytes:
+    def generate_voucher_pdf(self, context: dict[str, Any]) -> bytes:
         """
         Genera un PDF de comprobante (Cotización, Remito).
 
@@ -54,7 +54,7 @@ class PdfService:
             traceback.print_exc()
             raise
 
-    def generate_invoice_arca_pdf(self, context: Dict[str, Any]) -> bytes:
+    def generate_invoice_arca_pdf(self, context: dict[str, Any]) -> bytes:
         """
         Genera un PDF de factura electrónica ARCA/AFIP.
         Usa el template específico con CAE, QR y formato fiscal.
@@ -223,7 +223,7 @@ class PdfService:
             traceback.print_exc()
             raise
 
-    def generate_closure_pdf(self, context: Dict[str, Any]) -> bytes:
+    def generate_closure_pdf(self, context: dict[str, Any]) -> bytes:
         """Genera PDF compacto de cierre de cuenta corriente."""
         try:
             template = env.get_template("current_account_closure.html")
@@ -254,8 +254,8 @@ class PdfService:
             bytes: Contenido del PDF.
         """
         try:
-            from decimal import Decimal
             from collections import defaultdict
+            from decimal import Decimal
 
             # Calcular desglose de IVA por alícuota
             iva_groups: dict = defaultdict(Decimal)

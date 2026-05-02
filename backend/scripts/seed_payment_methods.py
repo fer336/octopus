@@ -10,12 +10,13 @@ from pathlib import Path
 # Agregar el directorio raíz al path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from app.database import async_session_maker
-from app.models.payment_method import PaymentMethodCatalog
-from app.models.business import Business
-from sqlalchemy import select
 from uuid import uuid4
 
+from sqlalchemy import select
+
+from app.database import async_session_maker
+from app.models.business import Business
+from app.models.payment_method import PaymentMethodCatalog
 
 DEFAULT_PAYMENT_METHODS = [
     {"name": "Efectivo", "code": "CASH", "requires_reference": False},
@@ -71,7 +72,7 @@ async def seed_payment_methods():
                 await db.commit()
                 print(f"  ✅ {created} métodos creados para {business.name}")
             else:
-                print(f"  ℹ️  Todos los métodos ya existían")
+                print("  ℹ️  Todos los métodos ya existían")
 
         print("\n✅ Seed completado!")
 

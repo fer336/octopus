@@ -5,8 +5,8 @@ Todos los endpoints están protegidos con require_superadmin().
 
 import logging
 from datetime import datetime, timedelta
+from typing import Literal
 from uuid import UUID
-from typing import Optional, List, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field, model_validator
@@ -15,20 +15,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.middleware.tenant_resolver import AdminContext, require_superadmin
 from app.models.business import Business
-from app.models.user import User, PlatformRole
 from app.models.tenant_membership import (
     MembershipAccessStatus,
-    TenantMembership,
     MembershipRole,
+    TenantMembership,
 )
 from app.models.tenant_secret import TenantSecret
-from app.models.audit_log import AuditLog
-from app.utils.audit import log_audit
-from app.middleware.tenant_resolver import require_superadmin, AdminContext
+from app.models.user import PlatformRole, User
 from app.services.afip_sdk_service import AfipSdkService
-from app.utils.crypto import encrypt_api_key, get_last4
-from app.utils.security import hash_password
 from app.utils.acl import (
     MODULE_KEYS,
     default_module_permissions,
@@ -36,6 +32,9 @@ from app.utils.acl import (
     normalize_module_permissions,
     parse_module_permissions,
 )
+from app.utils.audit import log_audit
+from app.utils.crypto import encrypt_api_key, get_last4
+from app.utils.security import hash_password
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +65,7 @@ class SecretStatus(BaseModel):
     """Estado de un secreto individual."""
 
     configured: bool = False
-    last4: Optional[str] = None
+    last4: str | None = None
     type: str
 
 
@@ -80,15 +79,15 @@ class ArcaSecretsResponse(BaseModel):
 class ArcaSecretsUpdate(BaseModel):
     """Actualización parcial de secretos ARCA."""
 
-    arca_token: Optional[str] = None
-    arca_sign: Optional[str] = None
-    arca_email: Optional[str] = None
-    arca_cuit_representante: Optional[str] = None
-    arca_environment: Optional[str] = None
-    afipsdk_access_token: Optional[str] = None
-    afip_cert: Optional[str] = None
-    afip_key: Optional[str] = None
-    linear_api_key: Optional[str] = None
+    arca_token: str | None = None
+    arca_sign: str | None = None
+    arca_email: str | None = None
+    arca_cuit_representante: str | None = None
+    arca_environment: str | None = None
+    afipsdk_access_token: str | None = None
+    afip_cert: str | None = None
+    afip_key: str | None = None
+    linear_api_key: str | None = None
 
 
 class ArcaTestResponse(BaseModel):
@@ -97,47 +96,47 @@ class ArcaTestResponse(BaseModel):
     success: bool
     step: str
     message: str
-    cae: Optional[str] = None
-    cae_expiration: Optional[str] = None
-    voucher_number: Optional[str] = None
-    error: Optional[str] = None
+    cae: str | None = None
+    cae_expiration: str | None = None
+    voucher_number: str | None = None
+    error: str | None = None
 
 
 class BrandingResponse(BaseModel):
     """Datos de branding fiscal del negocio."""
 
     id: str
-    name: Optional[str] = None
-    cuit: Optional[str] = None
-    tax_condition: Optional[str] = None
-    address: Optional[str] = None
-    city: Optional[str] = None
-    province: Optional[str] = None
-    postal_code: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    logo_url: Optional[str] = None
-    header_text: Optional[str] = None
-    sale_point: Optional[str] = None
-    arca_environment: Optional[str] = None
+    name: str | None = None
+    cuit: str | None = None
+    tax_condition: str | None = None
+    address: str | None = None
+    city: str | None = None
+    province: str | None = None
+    postal_code: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    logo_url: str | None = None
+    header_text: str | None = None
+    sale_point: str | None = None
+    arca_environment: str | None = None
 
 
 class BrandingUpdate(BaseModel):
     """Actualización parcial de branding."""
 
-    name: Optional[str] = None
-    cuit: Optional[str] = None
-    tax_condition: Optional[str] = None
-    address: Optional[str] = None
-    city: Optional[str] = None
-    province: Optional[str] = None
-    postal_code: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    logo_url: Optional[str] = None
-    header_text: Optional[str] = None
-    sale_point: Optional[str] = None
-    arca_environment: Optional[str] = None
+    name: str | None = None
+    cuit: str | None = None
+    tax_condition: str | None = None
+    address: str | None = None
+    city: str | None = None
+    province: str | None = None
+    postal_code: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    logo_url: str | None = None
+    header_text: str | None = None
+    sale_point: str | None = None
+    arca_environment: str | None = None
 
 
 class FeatureFlagsResponse(BaseModel):
@@ -159,16 +158,16 @@ class FeatureFlagsResponse(BaseModel):
 class FeatureFlagsUpdate(BaseModel):
     """Actualización parcial de feature flags del tenant."""
 
-    ai_agent_enabled: Optional[bool] = None
-    linear_sync_enabled: Optional[bool] = None
-    current_account_mode: Optional[Literal["disabled", "automatic", "manual"]] = None
-    invoicing_enabled: Optional[bool] = None
-    receipts_enabled: Optional[bool] = None
-    quotation_enabled: Optional[bool] = None
-    inventory_enabled: Optional[bool] = None
-    price_update_enabled: Optional[bool] = None
-    reports_enabled: Optional[bool] = None
-    sql_backup_enabled: Optional[bool] = None
+    ai_agent_enabled: bool | None = None
+    linear_sync_enabled: bool | None = None
+    current_account_mode: Literal["disabled", "automatic", "manual"] | None = None
+    invoicing_enabled: bool | None = None
+    receipts_enabled: bool | None = None
+    quotation_enabled: bool | None = None
+    inventory_enabled: bool | None = None
+    price_update_enabled: bool | None = None
+    reports_enabled: bool | None = None
+    sql_backup_enabled: bool | None = None
 
 
 class TenantResponse(BaseModel):
@@ -182,10 +181,10 @@ class TenantResponse(BaseModel):
     created_at: datetime
     can_delete: bool = True
     subscription_status: str = "active"
-    subscription_starts_at: Optional[datetime] = None
-    subscription_ends_at: Optional[datetime] = None
-    subscription_days_remaining: Optional[int] = None
-    subscription_blocked_reason: Optional[str] = None
+    subscription_starts_at: datetime | None = None
+    subscription_ends_at: datetime | None = None
+    subscription_days_remaining: int | None = None
+    subscription_blocked_reason: str | None = None
 
 
 class TenantListResponse(BaseModel):
@@ -204,13 +203,13 @@ class TenantCreateRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=255)
     cuit: str = Field(..., min_length=7, max_length=13)
     tax_condition: str = Field(default="Monotributista", max_length=50)
-    owner_email: Optional[str] = Field(default=None, max_length=255)
-    address: Optional[str] = Field(default=None, max_length=500)
-    city: Optional[str] = Field(default=None, max_length=100)
-    province: Optional[str] = Field(default=None, max_length=100)
-    postal_code: Optional[str] = Field(default=None, max_length=10)
-    phone: Optional[str] = Field(default=None, max_length=50)
-    email: Optional[str] = Field(default=None, max_length=255)
+    owner_email: str | None = Field(default=None, max_length=255)
+    address: str | None = Field(default=None, max_length=500)
+    city: str | None = Field(default=None, max_length=100)
+    province: str | None = Field(default=None, max_length=100)
+    postal_code: str | None = Field(default=None, max_length=10)
+    phone: str | None = Field(default=None, max_length=50)
+    email: str | None = Field(default=None, max_length=255)
 
 
 class TenantDeleteResponse(BaseModel):
@@ -231,7 +230,7 @@ class TenantSubscriptionAccessUpdateRequest(BaseModel):
     """Actualiza estado de acceso del comercio completo."""
 
     subscription_status: Literal["active", "suspended"]
-    blocked_reason: Optional[str] = Field(default=None, max_length=255)
+    blocked_reason: str | None = Field(default=None, max_length=255)
 
 
 class UserResponse(BaseModel):
@@ -267,7 +266,7 @@ class UserCreateRequest(BaseModel):
 
     email: str = Field(..., min_length=3, max_length=255)
     password: str = Field(..., min_length=6, max_length=128)
-    name: Optional[str] = Field(default=None, max_length=255)
+    name: str | None = Field(default=None, max_length=255)
     platform_role: str = Field(default=PlatformRole.TENANT_USER)
     is_active: bool = Field(default=True)
 
@@ -282,11 +281,11 @@ class TenantUserResponse(UserResponse):
     """Usuario asignado a tenant con rol de membresía."""
 
     membership_role: str
-    access_starts_at: Optional[datetime] = None
-    access_ends_at: Optional[datetime] = None
+    access_starts_at: datetime | None = None
+    access_ends_at: datetime | None = None
     access_status: str
-    blocked_reason: Optional[str] = None
-    days_remaining: Optional[int] = None
+    blocked_reason: str | None = None
+    days_remaining: int | None = None
     module_permissions: dict[str, bool] = Field(default_factory=dict)
 
 
@@ -300,8 +299,8 @@ class TenantUserListResponse(BaseModel):
 class TenantUserAssignRequest(BaseModel):
     """Asigna un usuario existente a un tenant por id o email."""
 
-    user_id: Optional[UUID] = None
-    email: Optional[str] = Field(default=None, max_length=255)
+    user_id: UUID | None = None
+    email: str | None = Field(default=None, max_length=255)
     role: str = Field(default=MembershipRole.MANAGER)
 
     @model_validator(mode="after")
@@ -332,8 +331,8 @@ class MembershipAccessUpdateRequest(BaseModel):
     """Actualiza estado de acceso de una membresía."""
 
     access_status: str
-    blocked_reason: Optional[str] = Field(default=None, max_length=255)
-    access_ends_at: Optional[datetime] = None
+    blocked_reason: str | None = Field(default=None, max_length=255)
+    access_ends_at: datetime | None = None
 
     @model_validator(mode="after")
     def validate_access_status(self):
@@ -543,7 +542,7 @@ async def _tenant_can_be_deleted(db: AsyncSession, tenant_id: UUID) -> bool:
     return not any(counts.values())
 
 
-def _calculate_days_remaining(access_ends_at: Optional[datetime]) -> Optional[int]:
+def _calculate_days_remaining(access_ends_at: datetime | None) -> int | None:
     """Calcula días restantes de acceso redondeando hacia arriba."""
     if access_ends_at is None:
         return None
@@ -608,7 +607,7 @@ async def _get_membership_or_404(
 async def list_tenants(
     page: int = Query(1, ge=1, description="Número de página"),
     per_page: int = Query(20, ge=1, le=100, description="Resultados por página"),
-    search: Optional[str] = Query(None, description="Buscar por nombre de negocio"),
+    search: str | None = Query(None, description="Buscar por nombre de negocio"),
     admin: AdminContext = Depends(require_superadmin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -670,7 +669,7 @@ async def create_tenant(
             detail="Ya existe un comercio con ese CUIT",
         )
 
-    owner: Optional[User] = None
+    owner: User | None = None
     if data.owner_email:
         normalized_owner_email = data.owner_email.strip().lower()
         owner_result = await db.execute(
@@ -878,7 +877,7 @@ async def delete_empty_tenant(
 async def list_users(
     page: int = Query(1, ge=1, description="Número de página"),
     per_page: int = Query(20, ge=1, le=100, description="Resultados por página"),
-    search: Optional[str] = Query(None, description="Buscar por email o nombre"),
+    search: str | None = Query(None, description="Buscar por email o nombre"),
     admin: AdminContext = Depends(require_superadmin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1017,7 +1016,7 @@ async def assign_user_to_tenant(
     """Asigna usuario existente a tenant. Es idempotente para evitar duplicados."""
     business = await get_business_or_404(tenant_id, db)
 
-    user: Optional[User] = None
+    user: User | None = None
     if data.user_id:
         result = await db.execute(select(User).where(User.id == data.user_id))
         user = result.scalar_one_or_none()

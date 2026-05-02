@@ -2,9 +2,8 @@
 Schemas para Afip SDK y ARCA/AFIP.
 Define las estructuras de datos para facturación electrónica.
 """
-from typing import List, Optional
-from pydantic import BaseModel, Field
 
+from pydantic import BaseModel, Field
 
 # ============================================================================
 # Schemas de Configuración ARCA (Afip SDK)
@@ -12,10 +11,10 @@ from pydantic import BaseModel, Field
 
 class AfipSdkConfigUpdate(BaseModel):
     """Schema para actualizar la configuración de Afip SDK."""
-    afipsdk_access_token: Optional[str] = Field(None, description="Access token de Afip SDK")
-    afip_cert: Optional[str] = Field(None, description="Contenido del certificado PEM de AFIP")
-    afip_key: Optional[str] = Field(None, description="Contenido de la clave privada PEM de AFIP")
-    arca_environment: Optional[str] = Field(None, description="Entorno: testing o production")
+    afipsdk_access_token: str | None = Field(None, description="Access token de Afip SDK")
+    afip_cert: str | None = Field(None, description="Contenido del certificado PEM de AFIP")
+    afip_key: str | None = Field(None, description="Contenido de la clave privada PEM de AFIP")
+    arca_environment: str | None = Field(None, description="Entorno: testing o production")
 
 
 class AfipSdkConfigResponse(BaseModel):
@@ -24,10 +23,10 @@ class AfipSdkConfigResponse(BaseModel):
     afip_cert_configured: bool = False
     afip_key_configured: bool = False
     arca_environment: str
-    cuit: Optional[str] = None
-    sale_point: Optional[str] = None
-    business_name: Optional[str] = None
-    tax_condition: Optional[str] = None
+    cuit: str | None = None
+    sale_point: str | None = None
+    business_name: str | None = None
+    tax_condition: str | None = None
 
     class Config:
         from_attributes = True
@@ -40,17 +39,17 @@ class AfipSdkConfigResponse(BaseModel):
 class EmitInvoiceRequest(BaseModel):
     """Request desde el frontend para emitir factura."""
     voucher_id: str = Field(..., description="ID del comprobante a emitir")
-    
+
 
 class EmitInvoiceResponse(BaseModel):
     """Response de emisión de factura."""
     success: bool
     message: str
-    cae: Optional[str] = None
-    cae_expiration: Optional[str] = None
-    voucher_number: Optional[str] = None
-    pdf_url: Optional[str] = None
-    errors: Optional[List[str]] = None
+    cae: str | None = None
+    cae_expiration: str | None = None
+    voucher_number: str | None = None
+    pdf_url: str | None = None
+    errors: list[str] | None = None
 
 
 # ============================================================================
@@ -78,10 +77,10 @@ class TestInvoiceResponse(BaseModel):
     """Respuesta de factura de prueba."""
     success: bool
     message: str
-    step: Optional[str] = None
-    cae: Optional[str] = None
-    cae_expiration: Optional[str] = None
-    voucher_number: Optional[int] = None
-    error: Optional[str] = None
-    request_data: Optional[dict] = None
-    api_response: Optional[dict] = None
+    step: str | None = None
+    cae: str | None = None
+    cae_expiration: str | None = None
+    voucher_number: int | None = None
+    error: str | None = None
+    request_data: dict | None = None
+    api_response: dict | None = None

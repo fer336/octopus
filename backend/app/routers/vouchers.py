@@ -2,50 +2,48 @@
 Router de Comprobantes.
 """
 
-from typing import Optional
-from uuid import UUID
 import io
 import logging
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models.voucher import Voucher, VoucherType, VoucherStatus
+from app.models.audit_log import AuditLog
 from app.models.business import Business
 from app.models.client import Client
-from app.models.audit_log import AuditLog
+from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.schemas.base import PaginatedResponse
+from app.schemas.credit_note import CreditNoteCreate
 from app.schemas.voucher import (
-    CurrentAccountCloseRequest,
-    CurrentAccountClosePreviewRequest,
-    CurrentAccountClosePreviewResponse,
-    CurrentAccountCloseHistoryResponse,
-    VoucherCreate,
-    VoucherUpdate,
-    VoucherResponse,
-    ConvertQuotationToInvoice,
-    CompileToInvoiceRequest,
     CompilePreviewRequest,
     CompilePreviewResponse,
+    CompileToInvoiceRequest,
+    ConvertQuotationToInvoice,
+    CurrentAccountCloseHistoryResponse,
+    CurrentAccountClosePreviewRequest,
+    CurrentAccountClosePreviewResponse,
+    CurrentAccountCloseRequest,
+    SourceQuotationResponse,
+    VoucherAuditLogResponse,
+    VoucherCreate,
+    VoucherResponse,
     VoucherTotalsPreviewRequest,
     VoucherTotalsPreviewResponse,
-    VoucherAuditLogResponse,
-    SourceQuotationResponse,
+    VoucherUpdate,
 )
-from app.schemas.credit_note import CreditNoteCreate
-from app.schemas.voucher import CurrentAccountCloseHistoryResponse
-from app.services.voucher_service import VoucherService
 from app.services.afip_sdk_service import AfipSdkService
 from app.services.cash_register_service import get_open_cash_register
+from app.services.voucher_service import VoucherService
 from app.utils.security import (
     get_current_business,
     get_current_user,
     require_module_access,
 )
-from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
 
 
 def serialize_voucher(voucher: Voucher) -> dict:
@@ -198,10 +196,10 @@ def _voucher_snapshot(voucher: Voucher) -> dict:
 async def list_vouchers(
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=20, ge=1, le=100),
-    search: Optional[str] = Query(default=None),
-    voucher_type: Optional[VoucherType] = Query(default=None),
-    status: Optional[VoucherStatus] = Query(default=None),
-    payment_method_id: Optional[UUID] = Query(default=None),
+    search: str | None = Query(default=None),
+    voucher_type: VoucherType | None = Query(default=None),
+    status: VoucherStatus | None = Query(default=None),
+    payment_method_id: UUID | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
 ):
@@ -308,7 +306,7 @@ async def preview_voucher_totals(
 async def list_recent_voucher_audit_logs(
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=20, ge=1, le=100),
-    action: Optional[str] = Query(
+    action: str | None = Query(
         default=None,
         description="Filtrar por acción específica (ej: update, delete)",
     ),
@@ -424,7 +422,7 @@ async def get_voucher_by_code(
     if voucher.invoiced_voucher_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"La cotización ya fue convertida a factura",
+            detail="La cotización ya fue convertida a factura",
         )
 
     return serialize_voucher(voucher)
@@ -445,8 +443,6 @@ async def check_voucher_prices(
 
     from app.models.product import Product
     from app.models.voucher import VoucherType
-    from sqlalchemy import select
-    from sqlalchemy.orm import selectinload
 
     service = VoucherService(db)
     voucher = await service.get_by_code(code, business_id)
@@ -532,7 +528,7 @@ async def get_voucher_pdf(
 @router.delete("/{voucher_id}/delete")
 async def delete_voucher(
     voucher_id: UUID,
-    reason: Optional[str] = Query(default=None, description="Motivo de eliminación"),
+    reason: str | None = Query(default=None, description="Motivo de eliminación"),
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
     current_user=Depends(get_current_user),
@@ -581,14 +577,14 @@ async def delete_voucher(
 async def list_pending_quotations(
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=100, ge=1, le=200),
-    search: Optional[str] = Query(default=None),
-    voucher_type: Optional[VoucherType] = Query(
+    search: str | None = Query(default=None),
+    voucher_type: VoucherType | None = Query(
         default=None, description="Filtrar por tipo: quotation o receipt"
     ),
-    date_from: Optional[str] = Query(
+    date_from: str | None = Query(
         default=None, description="Fecha desde (YYYY-MM-DD)"
     ),
-    date_to: Optional[str] = Query(
+    date_to: str | None = Query(
         default=None, description="Fecha hasta (YYYY-MM-DD)"
     ),
     db: AsyncSession = Depends(get_db),
@@ -742,9 +738,9 @@ async def preview_current_account_close_pdf(
                 }
             )
 
-        from app.services.pdf_service import pdf_service
-
         from datetime import datetime
+
+        from app.services.pdf_service import pdf_service
 
         # Contar remitos únicos
         unique_receipts = len(set(item.receipt_number for item in preview.items))
@@ -799,15 +795,15 @@ async def preview_current_account_close_pdf(
 async def list_current_account_receipts(
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=100, ge=1, le=300),
-    billing_client_id: Optional[UUID] = Query(
+    billing_client_id: UUID | None = Query(
         default=None,
         description="Filtrar por cliente titular",
     ),
-    pending_only: Optional[bool] = Query(
+    pending_only: bool | None = Query(
         default=None,
         description="True: solo pendientes, False: solo cerrados, None: todos",
     ),
-    search: Optional[str] = Query(default=None),
+    search: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
 ):
@@ -941,11 +937,13 @@ async def preview_compile_totals(
     Útil para que el frontend muestre el total correcto antes de confirmar.
     """
     from decimal import Decimal as D
+
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
 
     from app.models.product import Product
-    from app.models.voucher import Voucher as VoucherModel, VoucherType
+    from app.models.voucher import Voucher as VoucherModel
+    from app.models.voucher import VoucherType
 
     if not data.quotation_ids:
         raise HTTPException(

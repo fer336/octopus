@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -15,15 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.business import Business
-from app.models.category import Category
 from app.models.product import Product
 from app.models.purchase_order import (
     PurchaseOrder,
     PurchaseOrderItem,
     PurchaseOrderStatus,
 )
-from app.models.supplier import Supplier
-from app.models.user import User
 from app.schemas.purchase_order import PurchaseOrderCreate, PurchaseOrderUpdate
 from app.utils.audit import log_audit
 
@@ -145,7 +141,7 @@ class PurchaseOrderService:
         self,
         order_id: UUID,
         business_id: UUID,
-    ) -> Optional[PurchaseOrder]:
+    ) -> PurchaseOrder | None:
         """Obtiene una orden de pedido con todos sus ítems y relaciones."""
         result = await self.db.execute(
             select(PurchaseOrder)
@@ -174,9 +170,9 @@ class PurchaseOrderService:
     async def list(
         self,
         business_id: UUID,
-        supplier_id: Optional[UUID] = None,
-        category_id: Optional[UUID] = None,
-        status: Optional[PurchaseOrderStatus] = None,
+        supplier_id: UUID | None = None,
+        category_id: UUID | None = None,
+        status: PurchaseOrderStatus | None = None,
         page: int = 1,
         per_page: int = 20,
     ) -> dict:
@@ -242,7 +238,7 @@ class PurchaseOrderService:
         order_id: UUID,
         business_id: UUID,
         data: PurchaseOrderUpdate,
-    ) -> Optional[PurchaseOrder]:
+    ) -> PurchaseOrder | None:
         """
         Actualiza una orden en estado DRAFT.
         Si se envían ítems nuevos, reemplaza los existentes completos.
@@ -293,7 +289,7 @@ class PurchaseOrderService:
         self,
         order_id: UUID,
         business_id: UUID,
-    ) -> Optional[PurchaseOrder]:
+    ) -> PurchaseOrder | None:
         """Confirma una orden de pedido (DRAFT → CONFIRMED)."""
         order = await self.get_by_id(order_id, business_id)
         if not order:
@@ -309,7 +305,7 @@ class PurchaseOrderService:
         return await self.get_by_id(order_id, business_id)
 
     async def delete(
-        self, order_id: UUID, business_id: UUID, user_id: Optional[UUID] = None
+        self, order_id: UUID, business_id: UUID, user_id: UUID | None = None
     ) -> bool:
         """Soft delete de una orden (solo si está en DRAFT)."""
         order = await self.get_by_id(order_id, business_id)
@@ -351,8 +347,8 @@ class PurchaseOrderService:
     async def get_products_for_count_sheet(
         self,
         business_id: UUID,
-        supplier_id: Optional[UUID] = None,
-        category_id: Optional[UUID] = None,
+        supplier_id: UUID | None = None,
+        category_id: UUID | None = None,
     ) -> list[Product]:
         """
         Retorna los productos activos para generar la planilla de conteo.

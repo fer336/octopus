@@ -11,7 +11,12 @@ from app.schemas.category import (
 )
 from app.schemas.client import ClientCreate, ClientListParams, ClientResponse, ClientUpdate
 from app.schemas.product import ProductCreate, ProductListParams, ProductResponse, ProductUpdate
-from app.schemas.supplier import SupplierCreate, SupplierListParams, SupplierResponse, SupplierUpdate
+from app.schemas.supplier import (
+    SupplierCreate,
+    SupplierListParams,
+    SupplierResponse,
+    SupplierUpdate,
+)
 
 __all__ = [
     # Base

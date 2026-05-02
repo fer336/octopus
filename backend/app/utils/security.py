@@ -2,19 +2,18 @@
 Utilidades de seguridad: JWT, autenticación y dependencies.
 """
 
-from datetime import datetime, timedelta
 import base64
 import hashlib
 import hmac
 import secrets
-from typing import Optional
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from sqlalchemy.exc import ProgrammingError
 from sqlalchemy import select
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -144,7 +143,7 @@ def verify_password(password: str, stored_hash: str | None) -> bool:
 
 
 async def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -404,7 +403,7 @@ def require_module_access(module_key: str):
 
 
 async def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: AsyncSession = Depends(get_db),
 ):
     """

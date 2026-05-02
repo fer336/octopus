@@ -1,10 +1,11 @@
 """
 Endpoint temporal para probar la generación de PDF.
 """
+import io
 from datetime import datetime
+
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
-import io
 
 from app.services.pdf_service import pdf_service
 
@@ -16,7 +17,7 @@ async def preview_pdf(voucher_type: str):
     Genera un PDF de prueba.
     voucher_type: 'a' (Factura A), 'b', 'c', 'r' (Remito), 'x' (Cotización)
     """
-    
+
     # Datos Mock para probar el diseño
     context = {
         "business": {
@@ -72,7 +73,7 @@ async def preview_pdf(voucher_type: str):
         context["voucher"]["cae"] = None
 
     pdf_bytes = pdf_service.generate_voucher_pdf(context)
-    
+
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",

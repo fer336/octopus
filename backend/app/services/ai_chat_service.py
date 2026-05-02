@@ -29,25 +29,24 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Annotated, Any, Literal
-from typing_extensions import TypedDict
-import operator
+from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing_extensions import TypedDict
 
 from app.services.ai_quote_service import (
     _ai_executor,
-    _thread_local,
     _load_catalog_products,
-    _search_candidates_in_memory,
     _quote_graph,
+    _search_candidates_in_memory,
+    _thread_local,
 )
 from app.services.llm_factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 
 try:
-    from langgraph.graph import StateGraph, START, END
+    from langgraph.graph import END, START, StateGraph
 except ImportError as e:
     raise ImportError(
         "LangGraph no está instalado. Ejecutá: pip install langgraph"

@@ -14,19 +14,18 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.ai_provider_config import AIProvider, AIProviderConfig
 from app.schemas.ai_provider_schemas import (
+    PROVIDER_MODELS,
     AIConfigSummaryResponse,
-    AIProviderActivateRequest,
     AIProviderConfigResponse,
     AIProviderUpsertRequest,
     AIProviderValidateResponse,
-    PROVIDER_MODELS,
 )
 from app.services.llm_factory import LLMFactory
 from app.utils.crypto import decrypt_api_key, encrypt_api_key, get_last4

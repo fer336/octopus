@@ -1,12 +1,12 @@
 """Router de feedback de usuarios (bugs y solicitudes)."""
 
-from datetime import datetime
 import logging
-from typing import Literal, Optional
+from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
 import httpx
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,21 +47,21 @@ class FeedbackCreateRequest(BaseModel):
 
 class FeedbackStatusUpdateRequest(BaseModel):
     status: FeedbackStatus
-    admin_note: Optional[str] = Field(default=None, max_length=5000)
+    admin_note: str | None = Field(default=None, max_length=5000)
 
 
 class FeedbackResponse(BaseModel):
     id: str
     business_id: str
-    user_id: Optional[str]
-    user_email: Optional[str]
+    user_id: str | None
+    user_email: str | None
     feedback_type: FeedbackType
     title: str
     description: str
     status: FeedbackStatus
     source: str
-    admin_note: Optional[str]
-    resolved_at: Optional[datetime]
+    admin_note: str | None
+    resolved_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -254,8 +254,8 @@ async def create_feedback(
 
 @tenant_router.get("", response_model=PaginatedResponse[FeedbackResponse])
 async def list_feedback_for_tenant(
-    feedback_type: Optional[FeedbackType] = Query(default=None),
-    status_filter: Optional[FeedbackStatus] = Query(default=None, alias="status"),
+    feedback_type: FeedbackType | None = Query(default=None),
+    status_filter: FeedbackStatus | None = Query(default=None, alias="status"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -295,10 +295,10 @@ async def list_feedback_for_tenant(
 
 @admin_router.get("", response_model=PaginatedResponse[FeedbackResponse])
 async def list_feedback_for_admin(
-    business_id: Optional[UUID] = Query(default=None),
-    feedback_type: Optional[FeedbackType] = Query(default=None),
-    status_filter: Optional[FeedbackStatus] = Query(default=None, alias="status"),
-    q: Optional[str] = Query(default=None),
+    business_id: UUID | None = Query(default=None),
+    feedback_type: FeedbackType | None = Query(default=None),
+    status_filter: FeedbackStatus | None = Query(default=None, alias="status"),
+    q: str | None = Query(default=None),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),

@@ -2,7 +2,6 @@
 Router de métodos de pago.
 """
 
-from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -25,7 +24,7 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=List[PaymentMethodResponse])
+@router.get("", response_model=list[PaymentMethodResponse])
 async def list_payment_methods(
     active_only: bool = Query(
         default=True,

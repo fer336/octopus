@@ -3,14 +3,12 @@ Schemas Pydantic para Órdenes de Pedido e ítems.
 """
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 from uuid import UUID
 
 from pydantic import field_validator, model_validator
 
 from app.models.purchase_order import PurchaseOrderStatus
 from app.schemas.base import BaseResponse, BaseSchema
-
 
 # ---------------------------------------------------------------------------
 # Schemas de ítems
@@ -22,7 +20,7 @@ class PurchaseOrderItemCreate(BaseSchema):
 
     product_id: UUID
     system_stock: int = 0
-    counted_stock: Optional[int] = None
+    counted_stock: int | None = None
     quantity_to_order: int
     unit_cost: Decimal          # Precio de costo con bonificaciones (sin IVA), editable
     iva_rate: Decimal = Decimal("21.00")
@@ -45,9 +43,9 @@ class PurchaseOrderItemCreate(BaseSchema):
 class PurchaseOrderItemUpdate(BaseSchema):
     """Datos para actualizar un ítem de una orden en borrador."""
 
-    quantity_to_order: Optional[int] = None
-    unit_cost: Optional[Decimal] = None
-    counted_stock: Optional[int] = None
+    quantity_to_order: int | None = None
+    unit_cost: Decimal | None = None
+    counted_stock: int | None = None
 
 
 class PurchaseOrderItemResponse(BaseResponse):
@@ -56,7 +54,7 @@ class PurchaseOrderItemResponse(BaseResponse):
     purchase_order_id: UUID
     product_id: UUID
     system_stock: int
-    counted_stock: Optional[int]
+    counted_stock: int | None
     quantity_to_order: int
     unit_cost: Decimal
     iva_rate: Decimal
@@ -65,11 +63,11 @@ class PurchaseOrderItemResponse(BaseResponse):
     total: Decimal
 
     # Datos del producto (para mostrar en UI y PDF)
-    product_code: Optional[str] = None
-    product_description: Optional[str] = None
-    product_supplier_code: Optional[str] = None
-    category_name: Optional[str] = None
-    supplier_name: Optional[str] = None
+    product_code: str | None = None
+    product_description: str | None = None
+    product_supplier_code: str | None = None
+    category_name: str | None = None
+    supplier_name: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -80,9 +78,9 @@ class PurchaseOrderItemResponse(BaseResponse):
 class PurchaseOrderCreate(BaseSchema):
     """Datos para crear una orden de pedido (con ítems)."""
 
-    supplier_id: Optional[UUID] = None
-    category_id: Optional[UUID] = None
-    notes: Optional[str] = None
+    supplier_id: UUID | None = None
+    category_id: UUID | None = None
+    notes: str | None = None
     items: list[PurchaseOrderItemCreate]
 
     @model_validator(mode="after")
@@ -97,16 +95,16 @@ class PurchaseOrderCreate(BaseSchema):
 class PurchaseOrderUpdate(BaseSchema):
     """Datos para actualizar una orden en estado DRAFT."""
 
-    notes: Optional[str] = None
-    items: Optional[list[PurchaseOrderItemCreate]] = None
+    notes: str | None = None
+    items: list[PurchaseOrderItemCreate] | None = None
 
 
 class PurchaseOrderResponse(BaseResponse):
     """Respuesta completa de una orden de pedido."""
 
     business_id: UUID
-    supplier_id: Optional[UUID]
-    category_id: Optional[UUID]
+    supplier_id: UUID | None
+    category_id: UUID | None
     created_by: UUID
     status: PurchaseOrderStatus
     sale_point: str = "0001"
@@ -114,14 +112,14 @@ class PurchaseOrderResponse(BaseResponse):
     subtotal: Decimal
     total_iva: Decimal
     total: Decimal
-    notes: Optional[str]
-    confirmed_at: Optional[datetime]
+    notes: str | None
+    confirmed_at: datetime | None
     items: list[PurchaseOrderItemResponse] = []
 
     # Datos relacionados (para mostrar en la lista)
-    supplier_name: Optional[str] = None
-    category_name: Optional[str] = None
-    created_by_name: Optional[str] = None
+    supplier_name: str | None = None
+    category_name: str | None = None
+    created_by_name: str | None = None
 
     @property
     def full_number(self) -> str:
@@ -132,21 +130,21 @@ class PurchaseOrderResponse(BaseResponse):
 class PurchaseOrderListItem(BaseResponse):
     """Ítem resumido para la lista de órdenes de pedido."""
 
-    supplier_id: Optional[UUID]
-    category_id: Optional[UUID]
+    supplier_id: UUID | None
+    category_id: UUID | None
     status: PurchaseOrderStatus
     sale_point: str = "0001"
     number: str = "00000001"
     subtotal: Decimal
     total_iva: Decimal
     total: Decimal
-    confirmed_at: Optional[datetime]
+    confirmed_at: datetime | None
     items_count: int = 0
 
     # Datos relacionados
-    supplier_name: Optional[str] = None
-    category_name: Optional[str] = None
-    created_by_name: Optional[str] = None
+    supplier_name: str | None = None
+    category_name: str | None = None
+    created_by_name: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -157,8 +155,8 @@ class PurchaseOrderListItem(BaseResponse):
 class InventoryCountFilter(BaseSchema):
     """Filtros para generar la planilla de conteo físico en PDF."""
 
-    supplier_id: Optional[UUID] = None
-    category_id: Optional[UUID] = None
+    supplier_id: UUID | None = None
+    category_id: UUID | None = None
 
     @model_validator(mode="after")
     def supplier_or_category_required(self) -> "InventoryCountFilter":

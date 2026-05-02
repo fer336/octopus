@@ -9,7 +9,6 @@ from typing import Any
 
 from app.models.tenant_membership import MembershipRole
 
-
 MODULE_KEYS = [
     "dashboard",
     "sales",

@@ -3,9 +3,10 @@ Servicio de Comprobantes.
 Maneja la creación de ventas, cálculo de totales y generación de PDF.
 """
 
-from decimal import Decimal, ROUND_HALF_UP
+import builtins
 from datetime import date as date_type
-from typing import Any, Dict, List, Optional, Tuple, Literal
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy import desc, func, or_, select
@@ -18,14 +19,13 @@ from app.models.client import Client
 from app.models.client_authorization import ClientAuthorization
 from app.models.payment_method import PaymentMethodCatalog
 from app.models.product import Product
-from app.models.user import User
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
 from app.models.voucher_payment import VoucherPayment
 from app.schemas.voucher import (
-    CurrentAccountClosePreviewResponse,
-    CurrentAccountCloseItemPreview,
     CurrentAccountCloseHistoryResponse,
+    CurrentAccountCloseItemPreview,
+    CurrentAccountClosePreviewResponse,
     CurrentAccountClosureHistoryItem,
     CurrentAccountClosureReceiptSummary,
     VoucherCreate,
@@ -60,7 +60,7 @@ class VoucherService:
         self,
         business_id: UUID,
         billing_client_id: UUID,
-        operating_client_id: Optional[UUID] = None,
+        operating_client_id: UUID | None = None,
     ) -> Decimal:
         """Suma deuda abierta de remitos en cuenta corriente no facturados."""
         conditions = [
@@ -84,7 +84,7 @@ class VoucherService:
         business_id: UUID,
         data: VoucherCreate,
         total_final: Decimal,
-    ) -> dict[str, Optional[UUID]]:
+    ) -> dict[str, UUID | None]:
         """Valida reglas CC para remitos y retorna IDs normalizados."""
         if data.voucher_type != VoucherType.RECEIPT and data.is_current_account:
             raise ValueError("Cuenta corriente solo aplica a remitos")
@@ -127,7 +127,7 @@ class VoucherService:
                 "El remito excede el límite de crédito del cliente titular"
             )
 
-        authorization: Optional[ClientAuthorization] = None
+        authorization: ClientAuthorization | None = None
         if operating_client.id != billing_client.id:
             auth_query = select(ClientAuthorization).where(
                 ClientAuthorization.business_id == business_id,
@@ -187,12 +187,12 @@ class VoucherService:
         self,
         voucher_id: UUID,
         business_id: UUID,
-        payments: Optional[List[Dict[str, Any]]],
+        payments: list[dict[str, Any]] | None,
         total_expected: Decimal,
         *,
         require_payments: bool = False,
-        cash_register_id: Optional[UUID] = None,
-        user_id: Optional[UUID] = None,
+        cash_register_id: UUID | None = None,
+        user_id: UUID | None = None,
         voucher_full_number: str = "",
     ) -> None:
         """Valida y crea los pagos asociados a un comprobante.
@@ -286,14 +286,14 @@ class VoucherService:
         items_data,
         general_discount: Decimal,
         voucher_type: VoucherType,
-    ) -> tuple[List[VoucherItem], Decimal, Decimal, Decimal]:
+    ) -> tuple[list[VoucherItem], Decimal, Decimal, Decimal]:
         """Construye items del comprobante y recalcula totales."""
         total_subtotal = Decimal(0)
         total_iva = Decimal(0)
         total_final = Decimal(0)
         general_discount_factor = Decimal("1") - (general_discount / Decimal("100"))
 
-        items_db: List[VoucherItem] = []
+        items_db: list[VoucherItem] = []
         for i, item_data in enumerate(items_data):
             product = await self.db.get(Product, item_data.product_id)
             if not product or product.business_id != business_id:
@@ -408,16 +408,16 @@ class VoucherService:
         self,
         *,
         business_id: UUID,
-        source_vouchers: List[Voucher],
+        source_vouchers: list[Voucher],
         price_strategy: Literal["historical", "current"],
         invoice_general_discount: Decimal,
         metadata_strategy: Literal["source", "product"],
-    ) -> tuple[List[VoucherItem], Decimal, Decimal, Decimal]:
+    ) -> tuple[list[VoucherItem], Decimal, Decimal, Decimal]:
         """Construye ítems/totales de factura desde comprobantes origen."""
         total_subtotal = Decimal("0")
         total_iva = Decimal("0")
         total_final = Decimal("0")
-        items_db: List[VoucherItem] = []
+        items_db: list[VoucherItem] = []
         line_number = 1
 
         invoice_discount_factor = Decimal("1") - (
@@ -505,7 +505,7 @@ class VoucherService:
 
     async def create(
         self, business_id: UUID, data: VoucherCreate, user_id: UUID,
-        cash_register_id: Optional[UUID] = None,
+        cash_register_id: UUID | None = None,
     ) -> Voucher:
         """Crea un nuevo comprobante."""
 
@@ -690,7 +690,7 @@ class VoucherService:
         await self.db.refresh(voucher, attribute_names=["items"])
         return await self.get_by_id(voucher.id, business_id)
 
-    async def get_by_id(self, voucher_id: UUID, business_id: UUID) -> Optional[Voucher]:
+    async def get_by_id(self, voucher_id: UUID, business_id: UUID) -> Voucher | None:
         """Obtiene un comprobante por ID con todas sus relaciones."""
         query = (
             select(Voucher)
@@ -709,7 +709,7 @@ class VoucherService:
 
     async def get_by_code(
         self, code: str, business_id: UUID
-    ) -> Optional[Voucher]:
+    ) -> Voucher | None:
         """
         Obtiene un comprobante por código (formato: sale_point-number, ej: "0001-00000001").
        Solo retorna cotizaciones (quotation) que no hayan sido facturadas.
@@ -755,11 +755,11 @@ class VoucherService:
         business_id: UUID,
         page: int = 1,
         per_page: int = 20,
-        search: Optional[str] = None,
-        voucher_type: Optional[VoucherType] = None,
-        status: Optional[VoucherStatus] = None,
-        payment_method_id: Optional[UUID] = None,
-    ) -> Tuple[List[Voucher], int]:
+        search: str | None = None,
+        voucher_type: VoucherType | None = None,
+        status: VoucherStatus | None = None,
+        payment_method_id: UUID | None = None,
+    ) -> tuple[list[Voucher], int]:
         """Lista comprobantes con filtros y paginación."""
 
         base_conditions = [
@@ -822,7 +822,7 @@ class VoucherService:
         voucher_id: UUID,
         business_id: UUID,
         deleted_by_user_id: UUID,
-        reason: Optional[str] = None,
+        reason: str | None = None,
     ) -> bool:
         """Elimina un comprobante (soft delete con auditoría)."""
         voucher = await self.get_by_id(voucher_id, business_id)
@@ -1045,12 +1045,12 @@ class VoucherService:
         # Un receipt tiene invoiced_voucher_id = voucher.id
 
         # Agrupar items por receipt
-        receipts_data: List[Dict[str, Any]] = []
+        receipts_data: list[dict[str, Any]] = []
         # Items vienen con formato: "[001-00000001] Descripción"
         # Parseamos para mostrar agrupados por receipt
 
         # Por cada item, extraer el número de receipt del prefijo
-        items_by_receipt: Dict[str, List[Any]] = {}
+        items_by_receipt: dict[str, list[Any]] = {}
 
         for item in voucher.items:
             # Formato: "[001-00000001] Descripción"
@@ -1221,11 +1221,11 @@ class VoucherService:
         business_id: UUID,
         page: int = 1,
         per_page: int = 100,
-        search: Optional[str] = None,
-        voucher_type: Optional[VoucherType] = None,
-        date_from: Optional[str] = None,
-        date_to: Optional[str] = None,
-    ) -> Tuple[List[Voucher], int]:
+        search: str | None = None,
+        voucher_type: VoucherType | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> tuple[builtins.list[Voucher], int]:
         """
         Lista cotizaciones y/o remitos pendientes de facturar.
 
@@ -1239,7 +1239,6 @@ class VoucherService:
         - fecha: rango de fechas
         - texto: búsqueda en número y notas
         """
-        from datetime import date as date_type
 
         # Tipos permitidos: cotizaciones y remitos
         allowed_types = [VoucherType.QUOTATION, VoucherType.RECEIPT]
@@ -1317,10 +1316,10 @@ class VoucherService:
         business_id: UUID,
         page: int = 1,
         per_page: int = 100,
-        billing_client_id: Optional[UUID] = None,
-        pending_only: Optional[bool] = None,
-        search: Optional[str] = None,
-    ) -> Tuple[List[Voucher], int]:
+        billing_client_id: UUID | None = None,
+        pending_only: bool | None = None,
+        search: str | None = None,
+    ) -> tuple[builtins.list[Voucher], int]:
         """Lista remitos de cuenta corriente para control/cierre."""
         base_conditions = [
             Voucher.business_id == business_id,
@@ -1375,9 +1374,9 @@ class VoucherService:
         self,
         business_id: UUID,
         billing_client_id: UUID,
-        receipt_ids: Optional[List[UUID]],
+        receipt_ids: builtins.list[UUID] | None,
         close_all: bool,
-        notes: Optional[str],
+        notes: str | None,
     ) -> CurrentAccountClosePreviewResponse:
         """
         Previsualiza un cierre de cuenta corriente SIN persistir nada.
@@ -1422,7 +1421,7 @@ class VoucherService:
                 raise ValueError("Uno o más remitos seleccionados no están disponibles")
 
         # Construir items del preview
-        items: List[CurrentAccountCloseItemPreview] = []
+        items: list[CurrentAccountCloseItemPreview] = []
         total_subtotal = Decimal("0")
         total_iva = Decimal("0")
         total_final = Decimal("0")
@@ -1441,7 +1440,7 @@ class VoucherService:
                     receipt_date=receipt.date,
                     operating_client_name=receipt.withdrawal_client_name,
                     is_withdrawal_authorized=receipt.is_withdrawal_authorized,
-general_discount=final_discount,
+general_discount=general_discount,
                     code=item.code,
                     description=desc_with_prefix,
                     quantity=item.quantity,
@@ -1470,9 +1469,9 @@ general_discount=final_discount,
         self,
         business_id: UUID,
         billing_client_id: UUID,
-        receipt_ids: Optional[List[UUID]],
+        receipt_ids: builtins.list[UUID] | None,
         close_all: bool,
-        notes: Optional[str],
+        notes: str | None,
         user_id: UUID,
     ) -> Voucher:
         """Cierra una cuenta corriente creando cotización consolidada pendiente de facturar."""
@@ -1613,7 +1612,7 @@ general_discount=final_discount,
 
         # Para cada closure, buscar los receipts vinculados
         # Un receipt tiene invoiced_voucher_id = closure.id
-        closure_items: List[CurrentAccountClosureHistoryItem] = []
+        closure_items: list[CurrentAccountClosureHistoryItem] = []
 
         for closure in closures:
             # Buscar receipts que apuntan a este closure
@@ -1632,7 +1631,7 @@ general_discount=final_discount,
             receipts_result = await self.db.execute(receipts_query)
             receipts = list(receipts_result.scalars().all())
 
-            receipt_summaries: List[CurrentAccountClosureReceiptSummary] = []
+            receipt_summaries: list[CurrentAccountClosureReceiptSummary] = []
             for receipt in receipts:
                 receipt_summaries.append(
                     CurrentAccountClosureReceiptSummary(
@@ -1668,11 +1667,11 @@ general_discount=final_discount,
         self,
         business_id: UUID,
         quotation_id: UUID,
-        payments: Optional[List[Dict[str, Any]]],
-        fiscal_client_id: Optional[UUID],
+        payments: builtins.list[dict[str, Any]] | None,
+        fiscal_client_id: UUID | None,
         user_id: UUID,
         price_strategy: Literal["historical", "current"] = "historical",
-        cash_register_id: Optional[UUID] = None,
+        cash_register_id: UUID | None = None,
     ) -> Voucher:
         """
         Convierte una cotización existente en una factura.
@@ -1836,13 +1835,13 @@ general_discount=final_discount,
     async def compile_quotations_to_invoice(
         self,
         business_id: UUID,
-        quotation_ids: List[UUID],
-        payments: Optional[List[Dict[str, Any]]],
-        fiscal_client_id: Optional[UUID],
+        quotation_ids: builtins.list[UUID],
+        payments: builtins.list[dict[str, Any]] | None,
+        fiscal_client_id: UUID | None,
         price_strategy: Literal["historical", "current"] = "historical",
         general_discount: Decimal = Decimal("0"),
         user_id: UUID = None,
-        cash_register_id: Optional[UUID] = None,
+        cash_register_id: UUID | None = None,
     ) -> Voucher:
         """
         Compila comprobantes (cotizaciones/remitos) en una sola factura.
@@ -1987,7 +1986,7 @@ general_discount=final_discount,
             date=date_type.today(),
             notes=invoice_notes,
             show_prices="S",
-            general_discount=final_discount,
+            general_discount=general_discount,
         )
 
         # 13. Copiar TODOS los items de TODOS los comprobantes origen
@@ -2000,7 +1999,7 @@ general_discount=final_discount,
             business_id=business_id,
             source_vouchers=source_vouchers,
             price_strategy=price_strategy,
-            invoice_general_discount=final_discount,
+            invoice_general_discount=general_discount,
             metadata_strategy="source",
         )
 
@@ -2040,9 +2039,9 @@ general_discount=final_discount,
         business_id: UUID,
         original_voucher_id: UUID,
         reason: str,
-        items_data: List[Dict[str, Any]],
+        items_data: builtins.list[dict[str, Any]],
         user_id: UUID,
-        cash_register_id: Optional[UUID] = None,
+        cash_register_id: UUID | None = None,
     ) -> Voucher:
         """
         Crea una Nota de Crédito a partir de una factura original.
@@ -2061,7 +2060,6 @@ general_discount=final_discount,
         Raises:
             ValueError: Si hay errores de validación
         """
-        from app.schemas.credit_note import CreditNoteItemCreate
 
         # 1. Obtener y validar factura original
         result = await self.db.execute(
@@ -2217,7 +2215,7 @@ general_discount=final_discount,
         self,
         invoice_id: UUID,
         business_id: UUID,
-    ) -> List[Dict[str, Any]]:
+    ) -> builtins.list[dict[str, Any]]:
         """
         Lista los comprobantes origen (cotizaciones/remitos) de una factura.
 

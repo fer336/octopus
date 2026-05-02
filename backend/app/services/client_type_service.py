@@ -3,7 +3,6 @@ Servicio de Tipos de Cliente.
 """
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -47,7 +46,7 @@ class ClientTypeService:
         client_type_id: UUID,
         business_id: UUID,
         include_deleted: bool = False,
-    ) -> Optional[ClientType]:
+    ) -> ClientType | None:
         """Obtiene un tipo de cliente por ID."""
         query = select(ClientType).where(
             ClientType.id == client_type_id,
@@ -59,7 +58,7 @@ class ClientTypeService:
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_by_name(self, name: str, business_id: UUID) -> Optional[ClientType]:
+    async def get_by_name(self, name: str, business_id: UUID) -> ClientType | None:
         """Busca por nombre (case-insensitive) dentro del tenant."""
         query = select(ClientType).where(
             ClientType.business_id == business_id,
@@ -121,7 +120,7 @@ class ClientTypeService:
         client_type_id: UUID,
         business_id: UUID,
         data: ClientTypeUpdate,
-    ) -> Optional[ClientType]:
+    ) -> ClientType | None:
         """Actualiza tipo de cliente existente."""
         item = await self.get_by_id(client_type_id, business_id)
         if not item:

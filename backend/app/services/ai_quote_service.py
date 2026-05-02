@@ -23,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Annotated, Any, Literal
 
 from openai import OpenAI
-from sqlalchemy import select, or_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.product import Product
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 # Importaciones de LangGraph con manejo de errores descriptivo
 # ─────────────────────────────────────────────────────────────
 try:
-    from langgraph.graph import StateGraph, START, END
+    from langgraph.graph import END, START, StateGraph
     from langgraph.types import Send
 except ImportError as e:
     raise ImportError(
@@ -279,6 +279,7 @@ def _ingest_docx(docx_bytes: bytes) -> str:
     """
     try:
         import io
+
         from docx import Document
     except ImportError:
         raise ImportError(

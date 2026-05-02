@@ -5,7 +5,6 @@ Contiene toda la lógica de negocio para clientes.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -37,7 +36,7 @@ class ClientService:
     async def _resolve_client_type_id(
         self,
         business_id: UUID,
-        client_type_id: Optional[UUID],
+        client_type_id: UUID | None,
     ) -> UUID:
         """Resuelve y valida el tipo de cliente para el tenant actual."""
         if client_type_id:
@@ -81,7 +80,7 @@ class ClientService:
         client_id: UUID,
         business_id: UUID,
         include_deleted: bool = False,
-    ) -> Optional[Client]:
+    ) -> Client | None:
         """Obtiene un cliente por ID."""
         query = select(Client).where(
             Client.id == client_id,
@@ -97,7 +96,7 @@ class ClientService:
         self,
         document_number: str,
         business_id: UUID,
-    ) -> Optional[Client]:
+    ) -> Client | None:
         """Obtiene un cliente por número de documento."""
         query = select(Client).where(
             Client.document_number == document_number,
@@ -166,7 +165,7 @@ class ClientService:
         client_id: UUID,
         business_id: UUID,
         data: ClientUpdate,
-    ) -> Optional[Client]:
+    ) -> Client | None:
         """Actualiza un cliente."""
         client = await self.get_by_id(client_id, business_id)
         if not client:
@@ -209,7 +208,7 @@ class ClientService:
         client_id: UUID,
         amount: Decimal,
         is_debit: bool = True,
-    ) -> Optional[Client]:
+    ) -> Client | None:
         """
         Actualiza el saldo del cliente.
         is_debit=True: aumenta la deuda (factura)

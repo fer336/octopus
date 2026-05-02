@@ -3,7 +3,6 @@ Router de Tipos de Cliente.
 Endpoints para catálogo de tipos por tenant.
 """
 
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -29,7 +28,7 @@ router = APIRouter(
 
 @router.get("", response_model=PaginatedResponse[ClientTypeResponse])
 async def list_client_types(
-    search: Optional[str] = Query(None, description="Buscar por nombre"),
+    search: str | None = Query(None, description="Buscar por nombre"),
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),

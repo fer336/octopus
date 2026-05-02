@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select, delete, func
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.chat_conversation import ChatConversation, ChatMessage

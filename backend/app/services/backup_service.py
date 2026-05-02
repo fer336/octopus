@@ -7,9 +7,8 @@ from __future__ import annotations
 
 import json
 import logging
-from decimal import Decimal
 from datetime import datetime
-from typing import List
+from decimal import Decimal
 from uuid import UUID
 
 logger = logging.getLogger(__name__)
@@ -17,23 +16,22 @@ logger = logging.getLogger(__name__)
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.ai_provider_config import AIProviderConfig
 from app.models.business import Business
+from app.models.cash_register import CashMovement, CashRegister
 from app.models.category import Category
 from app.models.client import Client
 from app.models.payment import Payment
 from app.models.payment_method import PaymentMethodCatalog
 from app.models.price_history import PriceHistory
 from app.models.product import Product
-from app.models.purchase_order import PurchaseOrder
+from app.models.purchase_order import PurchaseOrder, PurchaseOrderItem
 from app.models.supplier import Supplier
 from app.models.tenant_membership import TenantMembership
 from app.models.tenant_secret import TenantSecret
 from app.models.user import User
 from app.models.voucher import Voucher
-from app.models.cash_register import CashMovement, CashRegister
-from app.models.ai_provider_config import AIProviderConfig
 from app.models.voucher_item import VoucherItem
-from app.models.purchase_order import PurchaseOrderItem
 
 
 class BackupService:
@@ -61,17 +59,14 @@ class BackupService:
             return f"'{value.isoformat()}'"
         elif isinstance(value, UUID):
             return f"'{value}'"
-        elif isinstance(value, dict):
-            json_str = json.dumps(value).replace("'", "''")
-            return f"'{json_str}'"
-        elif isinstance(value, list):
+        elif isinstance(value, dict) or isinstance(value, list):
             json_str = json.dumps(value).replace("'", "''")
             return f"'{json_str}'"
         else:
             return self._escape_sql_string(str(value))
 
     def _generate_insert_sql(
-        self, table_name: str, columns: List[str], rows: List[tuple]
+        self, table_name: str, columns: list[str], rows: list[tuple]
     ) -> str:
         """Genera SQL INSERT statements para una tabla."""
         if not rows:
@@ -865,7 +860,6 @@ class BackupService:
 
     def _parse_sql_values(self, values_str: str) -> list:
         """Parsea los valores de un SQL INSERT."""
-        import re
 
         values = []
         current = ""

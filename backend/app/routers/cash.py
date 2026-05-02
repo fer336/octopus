@@ -3,7 +3,7 @@ Router de Caja.
 Endpoints para apertura, cierre y movimientos de la caja diaria.
 """
 
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -83,7 +83,7 @@ async def close_cash(
     return await service.close_cash(db, business_id, current_user, data)
 
 
-@router.get("/history", response_model=List[CashRegisterSummaryResponse])
+@router.get("/history", response_model=list[CashRegisterSummaryResponse])
 async def get_history(
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
@@ -106,7 +106,7 @@ async def get_history(
     ]
 
 
-@router.get("/{cash_register_id}/movements", response_model=List[CashMovementResponse])
+@router.get("/{cash_register_id}/movements", response_model=list[CashMovementResponse])
 async def list_movements(
     cash_register_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -118,9 +118,10 @@ async def list_movements(
     register_response = await service.get_summary(db, business_id, cash_register_id)
     # Reusamos el get_summary para validar que la caja pertenece al negocio
     # y luego obtenemos los movimientos directamente
-    from sqlalchemy import select, and_
-    from app.models.cash_register import CashRegister, CashMovement
+    from sqlalchemy import and_, select
     from sqlalchemy.orm import selectinload
+
+    from app.models.cash_register import CashRegister
 
     result = await db.execute(
         select(CashRegister)
@@ -170,7 +171,8 @@ async def add_movement(
     La caja debe estar abierta y no vencida.
     """
     # Validamos que el cash_register_id corresponda a la caja activa del negocio
-    from sqlalchemy import select, and_
+    from sqlalchemy import and_, select
+
     from app.models.cash_register import CashRegister
 
     result = await db.execute(

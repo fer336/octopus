@@ -3,7 +3,7 @@ Schemas para Clientes.
 """
 
 from decimal import Decimal
-from typing import Literal, Optional
+from typing import Literal
 from uuid import UUID
 
 from pydantic import EmailStr, Field
@@ -18,52 +18,52 @@ class ClientCreate(BaseSchema):
     document_type: str = Field(..., max_length=10, description="CUIT, CUIL o DNI")
     document_number: str = Field(..., max_length=20, description="Número de documento")
     tax_condition: str = Field(..., max_length=50, description="Condición ante IVA")
-    client_type_id: Optional[UUID] = Field(
+    client_type_id: UUID | None = Field(
         None,
         description="Tipo de cliente (si no se envía, se asigna el tipo por defecto)",
     )
 
     # Dirección
-    street: Optional[str] = Field(None, max_length=255)
-    street_number: Optional[str] = Field(None, max_length=20)
-    floor: Optional[str] = Field(None, max_length=10)
-    apartment: Optional[str] = Field(None, max_length=10)
-    city: Optional[str] = Field(None, max_length=100)
-    province: Optional[str] = Field(None, max_length=100)
-    postal_code: Optional[str] = Field(None, max_length=10)
+    street: str | None = Field(None, max_length=255)
+    street_number: str | None = Field(None, max_length=20)
+    floor: str | None = Field(None, max_length=10)
+    apartment: str | None = Field(None, max_length=10)
+    city: str | None = Field(None, max_length=100)
+    province: str | None = Field(None, max_length=100)
+    postal_code: str | None = Field(None, max_length=10)
 
     # Contacto
-    phone: Optional[str] = Field(None, max_length=50)
-    email: Optional[EmailStr] = None
-    notes: Optional[str] = None
+    phone: str | None = Field(None, max_length=50)
+    email: EmailStr | None = None
+    notes: str | None = None
 
-    credit_limit: Optional[Decimal] = Field(None, ge=0)
+    credit_limit: Decimal | None = Field(None, ge=0)
     current_account_mode: Literal["disabled", "limited", "unlimited"] = "disabled"
 
 
 class ClientUpdate(BaseSchema):
     """Schema para actualizar un cliente."""
 
-    name: Optional[str] = Field(None, max_length=255)
-    document_type: Optional[str] = Field(None, max_length=10)
-    document_number: Optional[str] = Field(None, max_length=20)
-    tax_condition: Optional[str] = Field(None, max_length=50)
-    client_type_id: Optional[UUID] = None
+    name: str | None = Field(None, max_length=255)
+    document_type: str | None = Field(None, max_length=10)
+    document_number: str | None = Field(None, max_length=20)
+    tax_condition: str | None = Field(None, max_length=50)
+    client_type_id: UUID | None = None
 
-    street: Optional[str] = Field(None, max_length=255)
-    street_number: Optional[str] = Field(None, max_length=20)
-    floor: Optional[str] = Field(None, max_length=10)
-    apartment: Optional[str] = Field(None, max_length=10)
-    city: Optional[str] = Field(None, max_length=100)
-    province: Optional[str] = Field(None, max_length=100)
-    postal_code: Optional[str] = Field(None, max_length=10)
+    street: str | None = Field(None, max_length=255)
+    street_number: str | None = Field(None, max_length=20)
+    floor: str | None = Field(None, max_length=10)
+    apartment: str | None = Field(None, max_length=10)
+    city: str | None = Field(None, max_length=100)
+    province: str | None = Field(None, max_length=100)
+    postal_code: str | None = Field(None, max_length=10)
 
-    phone: Optional[str] = Field(None, max_length=50)
-    email: Optional[EmailStr] = None
-    notes: Optional[str] = None
+    phone: str | None = Field(None, max_length=50)
+    email: EmailStr | None = None
+    notes: str | None = None
 
-    credit_limit: Optional[Decimal] = Field(None, ge=0)
-    current_account_mode: Optional[Literal["disabled", "limited", "unlimited"]] = None
+    credit_limit: Decimal | None = Field(None, ge=0)
+    current_account_mode: Literal["disabled", "limited", "unlimited"] | None = None
 
 
 class ClientResponse(BaseResponse):
@@ -75,30 +75,30 @@ class ClientResponse(BaseResponse):
     tax_condition: str
     client_type_id: UUID
 
-    street: Optional[str]
-    street_number: Optional[str]
-    floor: Optional[str]
-    apartment: Optional[str]
-    city: Optional[str]
-    province: Optional[str]
-    postal_code: Optional[str]
+    street: str | None
+    street_number: str | None
+    floor: str | None
+    apartment: str | None
+    city: str | None
+    province: str | None
+    postal_code: str | None
 
-    phone: Optional[str]
-    email: Optional[str]
-    notes: Optional[str]
+    phone: str | None
+    email: str | None
+    notes: str | None
 
     current_balance: Decimal
-    credit_limit: Optional[Decimal]
+    credit_limit: Decimal | None
     current_account_mode: Literal["disabled", "limited", "unlimited"]
 
 
 class ClientListParams(BaseSchema):
     """Parámetros para listar clientes."""
 
-    search: Optional[str] = Field(None, description="Buscar por nombre o documento")
-    tax_condition: Optional[str] = None
-    client_type_id: Optional[UUID] = None
-    current_account_mode: Optional[Literal["disabled", "limited", "unlimited"]] = None
-    has_balance: Optional[bool] = Field(None, description="Filtrar clientes con saldo")
+    search: str | None = Field(None, description="Buscar por nombre o documento")
+    tax_condition: str | None = None
+    client_type_id: UUID | None = None
+    current_account_mode: Literal["disabled", "limited", "unlimited"] | None = None
+    has_balance: bool | None = Field(None, description="Filtrar clientes con saldo")
     page: int = Field(default=1, ge=1)
     per_page: int = Field(default=20, ge=1, le=100)

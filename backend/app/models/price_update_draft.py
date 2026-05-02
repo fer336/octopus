@@ -4,7 +4,7 @@ Modelo para borradores de actualización masiva de precios.
 Permite al usuario guardar el estado intermedio del modal de edición masiva
 (lista de productos con cambios pendientes) y retomarlo después.
 """
-from sqlalchemy import Column, String, ForeignKey, Text
+from sqlalchemy import Column, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.models.base import BaseModel

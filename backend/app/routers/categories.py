@@ -3,7 +3,6 @@ Router de Categorías.
 Endpoints para gestión de categorías jerárquicas.
 """
 
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -30,8 +29,8 @@ router = APIRouter(
 
 @router.get("", response_model=PaginatedResponse[CategoryResponse])
 async def list_categories(
-    search: Optional[str] = Query(None, description="Buscar por nombre"),
-    parent_id: Optional[UUID] = Query(None, description="Filtrar por categoría padre"),
+    search: str | None = Query(None, description="Buscar por nombre"),
+    parent_id: UUID | None = Query(None, description="Filtrar por categoría padre"),
     root_only: bool = Query(False, description="Solo categorías raíz"),
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=100),

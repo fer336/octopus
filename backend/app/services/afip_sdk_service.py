@@ -7,14 +7,14 @@ Documentación: https://docs.afipsdk.com/integracion/python
 
 import asyncio
 import logging
-from typing import Optional, Dict, Any, List
 from datetime import datetime
+from typing import Any
 
 from afip import Afip
 
-from app.models.voucher import Voucher, VoucherType
 from app.models.business import Business
 from app.models.client import Client
+from app.models.voucher import Voucher, VoucherType
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ class AfipSdkService:
             business: Instancia del negocio con configuración ARCA
         """
         self.business = business
-        self._afip: Optional[Afip] = None
+        self._afip: Afip | None = None
 
     # CUIT de prueba de Afip SDK (no requiere certificado)
     AFIP_SDK_TEST_CUIT = 20409378472
@@ -152,7 +152,7 @@ class AfipSdkService:
     # Consultas al Padrón (Autocompletado de Clientes)
     # ================================================================
 
-    async def get_taxpayer_details(self, cuit: str) -> Dict[str, Any]:
+    async def get_taxpayer_details(self, cuit: str) -> dict[str, Any]:
         """
         Obtiene los detalles de un contribuyente desde el padrón de AFIP.
         Útil para autocompletar datos de clientes por CUIT.
@@ -264,7 +264,7 @@ class AfipSdkService:
             if not impuestos:
                 impuestos = datos.get("impuesto") or datos.get("impuestos") or []
 
-            tax_ids: List[int] = []
+            tax_ids: list[int] = []
             if isinstance(impuestos, list):
                 for item in impuestos:
                     raw = item.get("idImpuesto") if isinstance(item, dict) else item
@@ -308,7 +308,7 @@ class AfipSdkService:
     # Estado del servidor ARCA
     # ================================================================
 
-    async def get_server_status(self) -> Dict[str, Any]:
+    async def get_server_status(self) -> dict[str, Any]:
         """
         Verifica el estado del servidor de ARCA/AFIP.
 
@@ -333,7 +333,7 @@ class AfipSdkService:
     # Emisión de Facturas
     # ================================================================
 
-    async def create_next_voucher(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_next_voucher(self, data: dict[str, Any]) -> dict[str, Any]:
         """
         Crea el siguiente comprobante electrónico.
         Obtiene automáticamente el último número y lo incrementa.
@@ -368,8 +368,8 @@ class AfipSdkService:
             }
 
     async def create_voucher(
-        self, data: Dict[str, Any], return_response: bool = False
-    ) -> Dict[str, Any]:
+        self, data: dict[str, Any], return_response: bool = False
+    ) -> dict[str, Any]:
         """
         Crea un comprobante electrónico con número específico.
 
@@ -410,7 +410,7 @@ class AfipSdkService:
         self,
         sale_point: int,
         voucher_type: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Obtiene el último número de comprobante emitido.
 
@@ -445,7 +445,7 @@ class AfipSdkService:
         number: int,
         sale_point: int,
         voucher_type: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Obtiene información de un comprobante emitido.
 
@@ -477,7 +477,7 @@ class AfipSdkService:
                 "error": str(e),
             }
 
-    async def get_sales_points(self) -> Dict[str, Any]:
+    async def get_sales_points(self) -> dict[str, Any]:
         """
         Obtiene los puntos de venta habilitados.
 
@@ -510,7 +510,7 @@ class AfipSdkService:
         doc_type = str(client.document_type) if client.document_type else "DNI"
         return self.DOC_TYPE_MAP.get(doc_type, 96)
 
-    def _calculate_iva_breakdown(self, voucher: Voucher) -> List[Dict]:
+    def _calculate_iva_breakdown(self, voucher: Voucher) -> list[dict]:
         """
         Calcula el desglose de IVA por alícuota.
 
@@ -520,7 +520,7 @@ class AfipSdkService:
         Returns:
             Lista de dicts con Id, BaseImp, Importe
         """
-        iva_by_alicuota: Dict[float, Dict[str, float]] = {}
+        iva_by_alicuota: dict[float, dict[str, float]] = {}
 
         for item in voucher.items:
             alicuota = float(item.iva_rate or 21)
@@ -555,7 +555,7 @@ class AfipSdkService:
         self,
         voucher: Voucher,
         client: Client,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Emite una factura electrónica a partir de un Voucher.
 
@@ -642,7 +642,7 @@ class AfipSdkService:
         credit_note: Voucher,
         client: Client,
         original_voucher: Voucher,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Emite una Nota de Crédito electrónica a partir de un Voucher.
 
@@ -752,7 +752,7 @@ class AfipSdkService:
     # Diagnóstico
     # ================================================================
 
-    async def diagnose(self) -> Dict[str, Any]:
+    async def diagnose(self) -> dict[str, Any]:
         """
         Ejecuta un diagnóstico completo de la integración.
 

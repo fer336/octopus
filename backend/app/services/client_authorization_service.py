@@ -3,7 +3,6 @@ Servicio de autorizaciones titular/subcliente para Cuenta Corriente.
 """
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -146,7 +145,7 @@ class ClientAuthorizationService:
         self,
         authorization_id: UUID,
         business_id: UUID,
-    ) -> Optional[ClientAuthorization]:
+    ) -> ClientAuthorization | None:
         """Obtiene autorización por ID."""
         query = select(ClientAuthorization).where(
             ClientAuthorization.id == authorization_id,
@@ -161,7 +160,7 @@ class ClientAuthorizationService:
         authorization_id: UUID,
         business_id: UUID,
         data: ClientAuthorizationUpdate,
-    ) -> Optional[ClientAuthorization]:
+    ) -> ClientAuthorization | None:
         """Actualiza sublímite/estado/notas de una autorización."""
         item = await self.get_by_id(authorization_id, business_id)
         if not item:

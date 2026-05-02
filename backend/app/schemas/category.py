@@ -1,7 +1,6 @@
 """
 Schemas para Categorías.
 """
-from typing import Optional
 from uuid import UUID
 
 from pydantic import Field
@@ -13,24 +12,24 @@ class CategoryCreate(BaseSchema):
     """Schema para crear una categoría."""
 
     name: str = Field(..., max_length=100, description="Nombre de la categoría")
-    description: Optional[str] = None
-    parent_id: Optional[UUID] = Field(None, description="ID de la categoría padre")
+    description: str | None = None
+    parent_id: UUID | None = Field(None, description="ID de la categoría padre")
 
 
 class CategoryUpdate(BaseSchema):
     """Schema para actualizar una categoría."""
 
-    name: Optional[str] = Field(None, max_length=100)
-    description: Optional[str] = None
-    parent_id: Optional[UUID] = None
+    name: str | None = Field(None, max_length=100)
+    description: str | None = None
+    parent_id: UUID | None = None
 
 
 class CategoryResponse(BaseResponse):
     """Schema para respuesta de categoría."""
 
     name: str
-    description: Optional[str]
-    parent_id: Optional[UUID]
+    description: str | None
+    parent_id: UUID | None
 
 
 class CategoryWithChildren(CategoryResponse):
@@ -42,8 +41,8 @@ class CategoryWithChildren(CategoryResponse):
 class CategoryListParams(BaseSchema):
     """Parámetros para listar categorías."""
 
-    search: Optional[str] = Field(None, description="Buscar por nombre")
-    parent_id: Optional[UUID] = Field(None, description="Filtrar por categoría padre")
+    search: str | None = Field(None, description="Buscar por nombre")
+    parent_id: UUID | None = Field(None, description="Filtrar por categoría padre")
     root_only: bool = Field(default=False, description="Solo categorías raíz")
     page: int = Field(default=1, ge=1)
     per_page: int = Field(default=50, ge=1, le=100)

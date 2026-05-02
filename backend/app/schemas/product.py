@@ -3,7 +3,7 @@ Schemas para Productos.
 """
 
 from decimal import Decimal
-from typing import Optional, Literal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -15,29 +15,29 @@ class ProductCreate(BaseSchema):
     """Schema para crear un producto."""
 
     code: str = Field(..., max_length=50, description="Código interno del negocio")
-    supplier_code: Optional[str] = Field(
+    supplier_code: str | None = Field(
         None, max_length=50, description="Código del proveedor"
     )
     description: str = Field(
         ..., max_length=500, description="Descripción del producto"
     )
-    details: Optional[str] = Field(None, description="Descripción extendida")
-    brand: Optional[str] = Field(None, max_length=100)
-    line: Optional[str] = Field(None, max_length=100)
-    application_area: Optional[str] = Field(None, max_length=100)
-    finish: Optional[str] = Field(None, max_length=80)
-    quality_tier: Optional[str] = Field(None, max_length=40)
-    attributes_json: Optional[str] = Field(
+    details: str | None = Field(None, description="Descripción extendida")
+    brand: str | None = Field(None, max_length=100)
+    line: str | None = Field(None, max_length=100)
+    application_area: str | None = Field(None, max_length=100)
+    finish: str | None = Field(None, max_length=80)
+    quality_tier: str | None = Field(None, max_length=40)
+    attributes_json: str | None = Field(
         None,
         description="Atributos por categoría en JSON serializado",
     )
-    customer_terms: Optional[str] = Field(
+    customer_terms: str | None = Field(
         None,
         description="Términos populares / jerga del cliente separados por comas. Usados por el agente IA.",
     )
 
-    category_id: Optional[UUID] = None
-    supplier_id: Optional[UUID] = None
+    category_id: UUID | None = None
+    supplier_id: UUID | None = None
 
     cost_price: Decimal = Field(default=Decimal("0"), ge=0)
     list_price: Decimal = Field(default=Decimal("0"), ge=0)
@@ -62,62 +62,62 @@ class ProductCreate(BaseSchema):
 class ProductUpdate(BaseSchema):
     """Schema para actualizar un producto (todos los campos opcionales)."""
 
-    code: Optional[str] = Field(None, max_length=50)
-    supplier_code: Optional[str] = Field(None, max_length=50)
-    description: Optional[str] = Field(None, max_length=500)
-    details: Optional[str] = None
-    brand: Optional[str] = Field(None, max_length=100)
-    line: Optional[str] = Field(None, max_length=100)
-    application_area: Optional[str] = Field(None, max_length=100)
-    finish: Optional[str] = Field(None, max_length=80)
-    quality_tier: Optional[str] = Field(None, max_length=40)
-    attributes_json: Optional[str] = Field(
+    code: str | None = Field(None, max_length=50)
+    supplier_code: str | None = Field(None, max_length=50)
+    description: str | None = Field(None, max_length=500)
+    details: str | None = None
+    brand: str | None = Field(None, max_length=100)
+    line: str | None = Field(None, max_length=100)
+    application_area: str | None = Field(None, max_length=100)
+    finish: str | None = Field(None, max_length=80)
+    quality_tier: str | None = Field(None, max_length=40)
+    attributes_json: str | None = Field(
         None,
         description="Atributos por categoría en JSON serializado",
     )
-    customer_terms: Optional[str] = Field(
+    customer_terms: str | None = Field(
         None,
         description="Términos populares / jerga del cliente separados por comas.",
     )
 
-    category_id: Optional[UUID] = None
-    supplier_id: Optional[UUID] = None
+    category_id: UUID | None = None
+    supplier_id: UUID | None = None
 
-    cost_price: Optional[Decimal] = Field(None, ge=0)
-    list_price: Optional[Decimal] = Field(None, ge=0)
+    cost_price: Decimal | None = Field(None, ge=0)
+    list_price: Decimal | None = Field(None, ge=0)
 
-    discount_1: Optional[Decimal] = Field(None, ge=0, le=100)
-    discount_2: Optional[Decimal] = Field(None, ge=0, le=100)
-    discount_3: Optional[Decimal] = Field(None, ge=0, le=100)
-    extra_cost: Optional[Decimal] = Field(None, ge=0)
-    profit_margin: Optional[Decimal] = Field(None, ge=0)
+    discount_1: Decimal | None = Field(None, ge=0, le=100)
+    discount_2: Decimal | None = Field(None, ge=0, le=100)
+    discount_3: Decimal | None = Field(None, ge=0, le=100)
+    extra_cost: Decimal | None = Field(None, ge=0)
+    profit_margin: Decimal | None = Field(None, ge=0)
 
-    iva_rate: Optional[Decimal] = None
+    iva_rate: Decimal | None = None
 
-    current_stock: Optional[int] = Field(None, ge=0)
-    minimum_stock: Optional[int] = Field(None, ge=0)
-    unit: Optional[str] = Field(None, max_length=20)
+    current_stock: int | None = Field(None, ge=0)
+    minimum_stock: int | None = Field(None, ge=0)
+    unit: str | None = Field(None, max_length=20)
 
-    is_active: Optional[bool] = None
+    is_active: bool | None = None
 
 
 class ProductResponse(BaseResponse):
     """Schema para respuesta de producto."""
 
     code: str
-    supplier_code: Optional[str]
+    supplier_code: str | None
     description: str
-    details: Optional[str]
-    brand: Optional[str]
-    line: Optional[str]
-    application_area: Optional[str]
-    finish: Optional[str]
-    quality_tier: Optional[str]
-    attributes_json: Optional[str]
-    customer_terms: Optional[str]
+    details: str | None
+    brand: str | None
+    line: str | None
+    application_area: str | None
+    finish: str | None
+    quality_tier: str | None
+    attributes_json: str | None
+    customer_terms: str | None
 
-    category_id: Optional[UUID]
-    supplier_id: Optional[UUID]
+    category_id: UUID | None
+    supplier_id: UUID | None
 
     cost_price: Decimal
     list_price: Decimal
@@ -125,7 +125,7 @@ class ProductResponse(BaseResponse):
     discount_1: Decimal
     discount_2: Decimal
     discount_3: Decimal
-    discount_display: Optional[str]
+    discount_display: str | None
     extra_cost: Decimal
     profit_margin: Decimal
 
@@ -144,16 +144,16 @@ class ProductResponse(BaseResponse):
 class ProductListParams(BaseSchema):
     """Parámetros para listar productos."""
 
-    search: Optional[str] = Field(None, description="Buscar por código o descripción")
-    category_id: Optional[UUID] = None
-    supplier_id: Optional[UUID] = None
-    brand: Optional[str] = None
-    line: Optional[str] = None
-    application_area: Optional[str] = None
-    finish: Optional[str] = None
-    quality_tier: Optional[str] = None
-    is_active: Optional[bool] = True
-    low_stock: Optional[bool] = Field(
+    search: str | None = Field(None, description="Buscar por código o descripción")
+    category_id: UUID | None = None
+    supplier_id: UUID | None = None
+    brand: str | None = None
+    line: str | None = None
+    application_area: str | None = None
+    finish: str | None = None
+    quality_tier: str | None = None
+    is_active: bool | None = True
+    low_stock: bool | None = Field(
         None, description="Filtrar productos con stock bajo"
     )
     sort_by: Literal["description", "sale_price", "current_stock"] = "description"

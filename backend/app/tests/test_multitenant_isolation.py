@@ -9,9 +9,9 @@ Verifica que:
 5. El JWT contiene el claim platform_role
 """
 
-import pytest
-import pytest_asyncio
 from datetime import datetime, timedelta
+
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,8 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.audit_log import AuditLog
 from app.models.business import Business
 from app.models.product import Product
-from app.models.tenant_secret import TenantSecret
 from app.models.tenant_membership import TenantMembership
+from app.models.tenant_secret import TenantSecret
 from app.models.user import User
 from app.tests.conftest import make_auth_header
 

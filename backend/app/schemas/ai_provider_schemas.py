@@ -5,12 +5,10 @@ solo se devuelve api_key_last4 para indicar que hay una key configurada.
 """
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
 from app.models.ai_provider_config import AIProvider
-
 
 # ─────────────────────────────────────────────────────────────
 # Requests
@@ -24,22 +22,22 @@ class AIProviderUpsertRequest(BaseModel):
     si se omite, se mantiene la key ya guardada.
     """
 
-    api_key: Optional[str] = Field(
+    api_key: str | None = Field(
         default=None,
         min_length=1,
         description="API key en texto plano — se cifra antes de guardar. Omitir para no cambiarla.",
     )
-    default_model: Optional[str] = Field(
+    default_model: str | None = Field(
         default=None,
         max_length=100,
         description="Modelo por defecto. Ej: gpt-4o, gemini-2.5-flash, claude-3-5-sonnet-20241022",
     )
-    base_url: Optional[str] = Field(
+    base_url: str | None = Field(
         default=None,
         max_length=500,
         description="URL base personalizada. Requerida para OpenRouter.",
     )
-    display_name: Optional[str] = Field(
+    display_name: str | None = Field(
         default=None,
         max_length=100,
         description="Nombre descriptivo. Ej: 'Cuenta principal OpenAI'",
@@ -65,15 +63,15 @@ class AIProviderConfigResponse(BaseModel):
 
     id: str
     provider: str
-    display_name: Optional[str]
-    api_key_last4: Optional[str]  # Ej: "...sk4F"
+    display_name: str | None
+    api_key_last4: str | None  # Ej: "...sk4F"
     api_key_configured: bool  # True si hay una key guardada
-    default_model: Optional[str]
-    base_url: Optional[str]
+    default_model: str | None
+    base_url: str | None
     is_active: bool
     is_valid: bool
-    validated_at: Optional[datetime]
-    validation_error: Optional[str]
+    validated_at: datetime | None
+    validation_error: str | None
 
     class Config:
         from_attributes = True
@@ -83,8 +81,8 @@ class AIConfigSummaryResponse(BaseModel):
     """Resumen de todos los proveedores configurados para el negocio."""
 
     providers: list[AIProviderConfigResponse]
-    active_provider: Optional[str]  # Nombre del proveedor activo, o None
-    active_model: Optional[str]  # Modelo activo, o None
+    active_provider: str | None  # Nombre del proveedor activo, o None
+    active_model: str | None  # Modelo activo, o None
 
 
 class AIProviderValidateResponse(BaseModel):
@@ -93,7 +91,7 @@ class AIProviderValidateResponse(BaseModel):
     provider: str
     is_valid: bool
     message: str
-    validated_at: Optional[datetime]
+    validated_at: datetime | None
     suggested_models: list[str]  # Modelos disponibles para mostrar en el selector
 
 
