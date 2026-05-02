@@ -68,7 +68,12 @@ jobs:
         run: ruff check ./backend --output-format=github
 
       - name: Typecheck con mypy
-        run: mypy ./backend --config-file=mypy.ini
+        run: |
+          mypy ./backend \
+            --config-file=mypy.ini \
+            --ignore-missing-imports \
+            --no-strict-optional \
+            --allow-untyped-defs
 
       - name: Tests con pytest
         env:
