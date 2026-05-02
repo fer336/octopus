@@ -1,7 +1,7 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
-- [ ] [CMS-LOCALHOST-CONN-06] 🐛 Diagnosticar por qué CMS no conecta en localhost (error de conexión)
+- [ ] [SEO-SITEMAP-04] Agregar URLs de páginas legales al sitemap (`politicas-privacidad.html` y `politicas-seguridad.html`)
 - [b] [DEVOPS-LANDING-05] 🐛 Diagnosticar por qué `landing-deploy` queda en 4/6 y no ejecuta deploy
 - [ ] [BILLING-N8N-CREATE-WF-12] Crear workflow nuevo n8n para post-pago (webhook + activación backend + email)
 - [ ] [BILLING-N8N-WF-FORM-10] Definir si reutilizar `octopus-formulario` o crear webhook nuevo para post-pago y emails transaccionales
@@ -48,6 +48,7 @@
 - [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
 
 ## 🟡 En progreso
+- [/] [CMS-LOCALHOST-CONN-06] 🐛 Diagnosticar por qué CMS no conecta en localhost (error de conexión)
 - [/] [DEVOPS-LANDING-05] 🐛 Diagnosticar por qué `landing-deploy` queda en 4/6 y no ejecuta deploy
 - [/] [BILLING-N8N-WF-FORM-10] Definir si reutilizar `octopus-formulario` o crear webhook nuevo para post-pago y emails transaccionales
 - [/] [VOUCHER-PDF-500-01] 🐛 Diagnosticar y corregir 500 en `GET /api/tenant/vouchers/{id}/pdf` desde Ventas
@@ -66,6 +67,8 @@
 
 
 ## 🟢 Hecho
+
+- [x] [SEO-SITEMAP-04] Agregar URLs de páginas legales al sitemap (`politicas-privacidad.html` y `politicas-seguridad.html`) ✅ 2026-05-02
 
 - [x] [LANDING-LEGAL-PAGES-13] Diseñar y crear `politicas-privacidad.html` y `politicas-seguridad.html` para la landing ✅ 2026-05-02
 
