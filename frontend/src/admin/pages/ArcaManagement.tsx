@@ -300,7 +300,7 @@ export default function ArcaManagement() {
 
   // Test connection mutation
   const testMutation = useMutation({
-    mutationFn: () => adminAPI.testArcaConnection(id),
+    mutationFn: () => adminAPI.testArcaConnection(tenantId),
     onSuccess: (data) => {
       setTestResult(data)
       if (data.success) {
