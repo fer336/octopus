@@ -9,7 +9,7 @@ services:
     image: ghcr.io/fer336/octopustrack-backend:${IMAGE_TAG:-latest}
     networks:
       - octopus_net
-      - traefik_public
+      - network_public
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
@@ -44,7 +44,7 @@ services:
     image: ghcr.io/fer336/octopustrack-frontend:${IMAGE_TAG:-latest}
     networks:
       - octopus_net
-      - traefik_public
+      - network_public
     deploy:
       replicas: 1
       restart_policy:
@@ -68,6 +68,6 @@ networks:
   octopus_net:
     driver: overlay
     attachable: true
-  traefik_public:
+  network_public:
     external: true
-    name: traefik_public
+    name: network_public

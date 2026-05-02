@@ -9,7 +9,7 @@ services:
     image: ghcr.io/fer336/octopustrack-cms:${IMAGE_TAG:-latest}
     networks:
       - octopus_net
-      - traefik_public
+      - network_public
     environment:
       - ENVIRONMENT=production
       - APP_VERSION=${IMAGE_TAG:-unknown}
@@ -41,6 +41,6 @@ networks:
   octopus_net:
     driver: overlay
     attachable: true
-  traefik_public:
+  network_public:
     external: true
-    name: traefik_public
+    name: network_public
