@@ -284,15 +284,6 @@ export default function ArcaManagement() {
     enabled: !!id,
   })
 
-  // Early return después de los hooks
-  if (!id) {
-    return (
-      <div className="p-6">
-        <p className="text-red-600">Tenant no especificado</p>
-      </div>
-    )
-  }
-
   // Update secrets mutation
   const updateMutation = useMutation({
     mutationFn: (data: ArcaSecretsUpdate) => adminAPI.updateArcaSecrets(id, data),
@@ -334,6 +325,15 @@ export default function ArcaManagement() {
       toast.error('Error al eliminar los secretos')
     },
   })
+
+  // Early return DESPUÉS de todos los hooks
+  if (!id) {
+    return (
+      <div className="p-6">
+        <p className="text-red-600">Tenant no especificado</p>
+      </div>
+    )
+  }
 
   const handleChange = (field: keyof FormData, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }))
