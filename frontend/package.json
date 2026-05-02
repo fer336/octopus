@@ -14,6 +14,7 @@
     "build:landing": "tsc && BUILD_APP=landing vite build --config vite.config.ts --outDir dist-landing --emptyOutDir && cp src/landing/sitemap.xml dist-landing/ && cp src/landing/robots.txt dist-landing/ && cp -r public/images dist-landing/",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives",
     "typecheck": "tsc --noEmit",
+    "test": "vitest",
     "preview": "vite preview"
   },
   "dependencies": {
