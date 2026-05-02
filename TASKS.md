@@ -52,6 +52,7 @@
 - [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
 
 ## 🟡 En progreso
+- [/] [DEVOPS-ROLLBACK-LATEST-12] Revertir compose prod a `latest` por incidente de carga en servidor
 - [/] [CMS-LOCALHOST-CONN-06] 🐛 Diagnosticar por qué CMS no conecta en localhost (error de conexión)
 - [/] [N8N-POSTPURCHASE-08] Diseñar flujo n8n post-compra: HTML de confirmación + otorgar acceso según plan (Excel/Sistema)
 - [/] [DEVOPS-LANDING-05] 🐛 Diagnosticar por qué `landing-deploy` queda en 4/6 y no ejecuta deploy
