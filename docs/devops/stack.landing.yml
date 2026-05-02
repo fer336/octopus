@@ -1,0 +1,45 @@
+# stack.landing.yml — Landing Page Octopus
+# URL raw para Portainer: https://raw.githubusercontent.com/fer336/octopus/master/docs/devops/stack.landing.yml
+# En Portainer: Stack > Editor > pegar este contenido
+
+version: "3.9"
+
+services:
+  landing:
+    image: ghcr.io/fer336/octopustrack-landing:${IMAGE_TAG:-latest}
+    networks:
+      - octopus_net
+      - traefik_public
+    environment:
+      - APP_VERSION=${IMAGE_TAG:-unknown}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      rollback_config:
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.octopus-landing.rule=Host(`octopustrack.shop`)"
+        - "traefik.http.routers.octopus-landing.entrypoints=websecure"
+        - "traefik.http.routers.octopus-landing.tls.certresolver=letsencrypt"
+        - "traefik.http.services.octopus-landing.loadbalancer.server.port=80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  octopus_net:
+    driver: overlay
+    attachable: true
+  traefik_public:
+    external: true
+    name: traefik_public
