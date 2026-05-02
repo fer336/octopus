@@ -80,6 +80,7 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/octopus_test
           REDIS_URL: redis://localhost:6379/0
           ENVIRONMENT: test
+          PYTHONPATH: /home/runner/work/octopus/octopus/backend
         run: |
           pytest ./backend/app/tests \
             --tb=short \
