@@ -1,0 +1,75 @@
+# stack.portainer.yml — OctopusTrack en Docker Swarm
+# En Portainer: Stack > Editor > pegar este contenido
+# Variables de entorno del stack: IMAGE_TAG (se actualiza manualmente en Portainer antes de redeploy)
+
+version: "3.9"
+
+services:
+  backend:
+    image: ghcr.io/fer336/octopustrack-backend:${IMAGE_TAG:-latest}
+    # Alternativa Docker Hub: fer336/octopustrack-backend:${IMAGE_TAG:-latest}
+    networks:
+      - octopus_net
+      - traefik_public
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - ENVIRONMENT=production
+      - APP_VERSION=${IMAGE_TAG:-unknown}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        # Levanta la nueva versión antes de bajar la vieja (zero-downtime)
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      rollback_config:
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.octopus-backend.rule=Host(`api.tudominio.com`)"
+        - "traefik.http.routers.octopus-backend.entrypoints=websecure"
+        - "traefik.http.routers.octopus-backend.tls.certresolver=letsencrypt"
+        - "traefik.http.services.octopus-backend.loadbalancer.server.port=8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    image: ghcr.io/fer336/octopustrack-frontend:${IMAGE_TAG:-latest}
+    networks:
+      - octopus_net
+      - traefik_public
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      update_config:
+        order: start-first
+        failure_action: rollback
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.octopus-frontend.rule=Host(`tudominio.com`)"
+        - "traefik.http.routers.octopus-frontend.entrypoints=websecure"
+        - "traefik.http.routers.octopus-frontend.tls.certresolver=letsencrypt"
+        - "traefik.http.services.octopus-frontend.loadbalancer.server.port=80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  octopus_net:
+    driver: overlay
+    attachable: true
+  traefik_public:
+    external: true
+    name: traefik_public

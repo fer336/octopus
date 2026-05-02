@@ -1,0 +1,29 @@
+# ruff.toml — linter y formatter para el backend
+# Colocarlo en la raíz del proyecto o dentro de ./backend/
+
+target-version = "py312"
+line-length = 100
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes (imports no usados, variables no definidas, etc.)
+    "I",    # isort (orden de imports)
+    "N",    # pep8-naming
+    "UP",   # pyupgrade (sintaxis moderna de Python)
+    "B",    # flake8-bugbear (bugs comunes)
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking (imports solo para type hints)
+]
+ignore = [
+    "E501",  # line too long — manejado por el formatter
+    "B008",  # do not perform function calls in argument defaults (común en FastAPI Depends)
+]
+
+[lint.isort]
+known-first-party = ["app"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

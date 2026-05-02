@@ -52,7 +52,7 @@
 - [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
 
 ## 🟡 En progreso
-- [/] [DEVOPS-ROLLBACK-LATEST-12] Revertir compose prod a `latest` por incidente de carga en servidor
+- [/] [DEVOPS-DEPLOY-SELECTIVE-15] Implementar deploys independientes: system-v* (backend+frontend), cms-v* (solo CMS), landing-v* (solo landing)
 - [/] [CMS-LOCALHOST-CONN-06] 🐛 Diagnosticar por qué CMS no conecta en localhost (error de conexión)
 - [/] [N8N-POSTPURCHASE-08] Diseñar flujo n8n post-compra: HTML de confirmación + otorgar acceso según plan (Excel/Sistema)
 - [/] [DEVOPS-LANDING-05] 🐛 Diagnosticar por qué `landing-deploy` queda en 4/6 y no ejecuta deploy
@@ -73,6 +73,12 @@
 
 
 ## 🟢 Hecho
+
+- [x] [DEVOPS-ROOT-CLEANUP-14] Limpiar raíz del repo moviendo/eliminando YML sueltos a ubicación correcta ✅ 2026-05-02
+
+- [x] [DEVOPS-CICD-REFactor-13] Integrar nuevo workflow CI y refactorizar CI/CD (`ci.yml`, `release.yml`, `stack.yml`, `ruff.toml`, `SETUP_NOTES.py`) ✅ 2026-05-02
+
+- [x] [DEVOPS-ROLLBACK-LATEST-12] Revertir compose prod a `latest` por incidente de carga en servidor ✅ 2026-05-02
 
 - [x] [DEVOPS-IMAGE-TAGS-11] Reemplazar `latest` por tags versionados en `docker-compose-prod.yml` para deploy determinístico ✅ 2026-05-02
 
