@@ -841,6 +841,24 @@ function Footer() {
             </div>
           ))}
         </div>
+
+        <nav aria-label="Enlaces legales" className="flex flex-wrap items-center justify-center gap-4 text-sm">
+          <a
+            href="/politicas-privacidad.html"
+            className="text-white/60 underline underline-offset-4 transition-colors hover:text-white"
+          >
+            Política de privacidad
+          </a>
+          <span className="text-white/20" aria-hidden="true">
+            •
+          </span>
+          <a
+            href="/politicas-seguridad.html"
+            className="text-white/60 underline underline-offset-4 transition-colors hover:text-white"
+          >
+            Política de seguridad
+          </a>
+        </nav>
       </div>
     </footer>
   )

@@ -1,6 +1,7 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
+- [ ] [SEO-LEGAL-LINKS-05] Agregar enlaces visibles desde landing principal a política de privacidad y política de seguridad
 - [ ] [SEO-SITEMAP-04] Agregar URLs de páginas legales al sitemap (`politicas-privacidad.html` y `politicas-seguridad.html`)
 - [b] [DEVOPS-LANDING-05] 🐛 Diagnosticar por qué `landing-deploy` queda en 4/6 y no ejecuta deploy
 - [ ] [BILLING-N8N-CREATE-WF-12] Crear workflow nuevo n8n para post-pago (webhook + activación backend + email)
@@ -67,6 +68,8 @@
 
 
 ## 🟢 Hecho
+
+- [x] [SEO-LEGAL-LINKS-05] Agregar enlaces visibles desde landing principal a política de privacidad y política de seguridad ✅ 2026-05-02
 
 - [x] [SEO-SITEMAP-04] Agregar URLs de páginas legales al sitemap (`politicas-privacidad.html` y `politicas-seguridad.html`) ✅ 2026-05-02
 
