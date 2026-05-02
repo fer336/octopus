@@ -1,6 +1,10 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
+- [ ] [CMS-LOCALHOST-CONN-06] 🐛 Diagnosticar por qué CMS no conecta en localhost (error de conexión)
+- [b] [DEVOPS-LANDING-05] 🐛 Diagnosticar por qué `landing-deploy` queda en 4/6 y no ejecuta deploy
+- [ ] [BILLING-N8N-CREATE-WF-12] Crear workflow nuevo n8n para post-pago (webhook + activación backend + email)
+- [ ] [BILLING-N8N-WF-FORM-10] Definir si reutilizar `octopus-formulario` o crear webhook nuevo para post-pago y emails transaccionales
 - [ ] [LANDING-LOGIN-BTN-ENABLE-06] Revisar y re-habilitar botones "Iniciar sesión" en /acceder (OctopusTrack/OctopusFlow)
 - [ ] [LANDING-PLANS-REWORK-05] Actualizar estructura/copy/precios de planes OctopusTrack (Básico/Negocio/Completo/Premium)
 - [ ] [LANDING-PRICE-DISCOUNT-04] Landing: mostrar precio actual 5.99 con precio anterior 20.99 tachado (oferta visual)
@@ -44,6 +48,8 @@
 - [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
 
 ## 🟡 En progreso
+- [/] [DEVOPS-LANDING-05] 🐛 Diagnosticar por qué `landing-deploy` queda en 4/6 y no ejecuta deploy
+- [/] [BILLING-N8N-WF-FORM-10] Definir si reutilizar `octopus-formulario` o crear webhook nuevo para post-pago y emails transaccionales
 - [/] [VOUCHER-PDF-500-01] 🐛 Diagnosticar y corregir 500 en `GET /api/tenant/vouchers/{id}/pdf` desde Ventas
 - [/] [DEVOPS-DOCKER-ARM64-05] Diagnosticar cancelación de build multi-arch en GitHub Actions y re-ejecutar deploy
 - [/] [BILLING-MP-07] Configurar firma/HMAC y allowlist IP (si aplica) para endurecer webhook MP→n8n
@@ -60,6 +66,16 @@
 
 
 ## 🟢 Hecho
+
+- [x] [LANDING-LEGAL-PAGES-13] Diseñar y crear `politicas-privacidad.html` y `politicas-seguridad.html` para la landing ✅ 2026-05-02
+
+- [x] [DEVOPS-MCP-N8N-12] Verificar capacidad MCP n8n para crear/editar workflows: creación y edición confirmadas sobre flujo nuevo `NxUzDAwBIWoEE5QW` ✅ 2026-05-02
+
+- [x] [DEVOPS-MCP-N8N-11] Configurar `n8n-mcp` remoto en `~/.config/opencode/opencode.json` usando variable de entorno en vez de API key hardcodeada ✅ 2026-05-02
+
+- [x] [BILLING-BE-ACTIVATE-09] Backend: exponer endpoint seguro `POST /api/billing/mp/activate` para activación automática por plan ✅ 2026-05-01
+
+- [x] [CMS-TENANT-FEATURES-04] Revisar y corregir feature flags por plan en tenant (Cta Cte/Remitos/Cotizaciones/Inventario/Backup SQL/ARCA crt-key) ✅ 2026-05-01
 
 - [x] [LANDING-LOGIN-BTN-ENABLE-06] Revisar y re-habilitar botones "Iniciar sesión" en /acceder (OctopusTrack/OctopusFlow) ✅ 2026-05-01
 
@@ -472,6 +488,9 @@
 - [x] Corregir visibilidad del Agente IA en frontend tenant según feature flag ✅ 2026-04-12
 
 ## 🚧 Bloqueado
+- [!] [VOUCHER-PDF-500-01-QA] Verificar fix de PDF 500 con test automatizado local 🚧 Entorno local sin `pytest` disponible (`python3 -m pytest` -> No module named pytest)
+- [!] [BILLING-N8N-CREATE-WF-12] Crear workflow nuevo n8n por MCP 🚧 Conexión actual expone lectura/detalle pero falla en operaciones de listado/gestión (schema mismatch -32602)
+- [!] [BILLING-N8N-EMAIL-ACTIVATION-08] Edición directa de nodos n8n desde MCP no disponible 🚧 Se dejó especificación completa en `docs/n8n-payment-approved-email-and-activation.md` para aplicar en UI n8n
 
 - [x] [MKT-LOTTIE-01] Landing: falta asset `tentaculo.json` (Lottie) o fuente final de animación; se cambia estrategia a GSAP sobre SVG existente ✅ 2026-04-28
 - [!] [MKT-20] N8N: definir e implementar workflow de retorno HTML (GET) + completar workflow de notificación (POST) para envío automático por Gmail 🚧 Definición técnica lista en `docs/n8n-octopus-mp-flujos.md`; pendiente aplicar cambios manuales en n8n UI (MCP no permite editar nodos)

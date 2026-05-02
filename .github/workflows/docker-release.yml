@@ -18,10 +18,12 @@ jobs:
             context: ./backend
             dockerfile: ./backend/Dockerfile.prod
             image_name: octopustrack-backend
+            platforms: linux/amd64,linux/arm64
           - service: frontend
             context: ./frontend
             dockerfile: ./frontend/Dockerfile.prod
             image_name: octopustrack-frontend
+            platforms: linux/amd64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,7 +55,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platforms }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
