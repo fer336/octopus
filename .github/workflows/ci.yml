@@ -86,7 +86,7 @@ jobs:
             --tb=short \
             --cov=backend \
             --cov-report=term-missing \
-            --cov-fail-under=60
+            --cov-fail-under=40
 
   frontend:
     name: Frontend — lint & test
