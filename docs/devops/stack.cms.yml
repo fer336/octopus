@@ -32,7 +32,7 @@ services:
         - "traefik.http.routers.octopus-cms.tls.certresolver=letsencrypt"
         - "traefik.http.services.octopus-cms.loadbalancer.server.port=80"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      test: ["CMD", "nginx", "-t"]
       interval: 30s
       timeout: 5s
       retries: 3
