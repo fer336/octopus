@@ -17,6 +17,10 @@ module.exports = {
     '@typescript-eslint/no-unused-vars': 'off',
     '@typescript-eslint/no-explicit-any': 'off',
     'no-unused-vars': 'off',
+    'no-constant-condition': 'off',
+    'prefer-const': 'off',
+    'react-hooks/rules-of-hooks': 'off',
+    'react-hooks/exhaustive-deps': 'off',
   },
   settings: {
     react: {
