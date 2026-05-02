@@ -277,6 +277,14 @@ export default function ArcaManagement() {
     error?: string | null
   } | null>(null)
 
+  // Fetch secrets status - siempre llamar hooks antes de cualquier return
+  const { data: secretsData, isLoading: isLoadingSecrets } = useQuery({
+    queryKey: ['admin-arca-secrets', id],
+    queryFn: () => adminAPI.getArcaSecrets(id),
+    enabled: !!id,
+  })
+
+  // Early return después de los hooks
   if (!id) {
     return (
       <div className="p-6">
@@ -284,12 +292,6 @@ export default function ArcaManagement() {
       </div>
     )
   }
-
-  // Fetch secrets status
-  const { data: secretsData, isLoading: isLoadingSecrets } = useQuery({
-    queryKey: ['admin-arca-secrets', id],
-    queryFn: () => adminAPI.getArcaSecrets(id),
-  })
 
   // Update secrets mutation
   const updateMutation = useMutation({

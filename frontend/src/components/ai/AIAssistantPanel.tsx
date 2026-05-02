@@ -188,7 +188,7 @@ export default function AIAssistantPanel() {
     const limitMatch = lower.match(/\b(\d{1,2})\b/)
     const limit = limitMatch ? Math.max(1, Math.min(Number(limitMatch[1]), 10)) : 5
 
-    let products = [...lastProductsMessage.products]
+    const products = [...lastProductsMessage.products]
 
     if (lower.includes('barato') || lower.includes('baratos') || lower.includes('economico') || lower.includes('económico')) {
       products.sort((a, b) => (a.sale_price ?? Number.MAX_SAFE_INTEGER) - (b.sale_price ?? Number.MAX_SAFE_INTEGER))

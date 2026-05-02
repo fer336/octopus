@@ -52,7 +52,7 @@ export default function BulkEditModal({
 
     const field = fields.find(f => f.key === selectedField)
     let parsedValue: any = fieldValue
-    let extraData: any = {}
+    const extraData: any = {}
 
     if (field?.type === 'number') {
       parsedValue = parseFloat(fieldValue) || 0
