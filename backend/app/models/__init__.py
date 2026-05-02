@@ -23,7 +23,6 @@ from app.models.feedback_ticket import FeedbackTicket
 from app.models.payment import Payment, PaymentMethod
 from app.models.payment_method import PaymentMethodCatalog
 from app.models.price_history import PriceHistory
-from app.models.price_update_draft import PriceUpdateDraft
 from app.models.product import Product
 from app.models.purchase_order import (
     PurchaseOrder,
