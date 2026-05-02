@@ -51,8 +51,9 @@
 - [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
 
 ## 🟡 En progreso
-- [/] [CMS-SYS-DEPLOY-07] Publicar cambios de CMS y sistema en commit/tag selectivo (sin mezclar landing)
+- [/] [DEVOPS-GHA-RETRY-08] Re-ejecutar workflow `landing-deploy` en GitHub Actions y validar que build pase tras fix de tipos
 - [/] [CMS-LOCALHOST-CONN-06] 🐛 Diagnosticar por qué CMS no conecta en localhost (error de conexión)
+- [/] [N8N-POSTPURCHASE-08] Diseñar flujo n8n post-compra: HTML de confirmación + otorgar acceso según plan (Excel/Sistema)
 - [/] [DEVOPS-LANDING-05] 🐛 Diagnosticar por qué `landing-deploy` queda en 4/6 y no ejecuta deploy
 - [/] [BILLING-N8N-WF-FORM-10] Definir si reutilizar `octopus-formulario` o crear webhook nuevo para post-pago y emails transaccionales
 - [/] [VOUCHER-PDF-500-01] 🐛 Diagnosticar y corregir 500 en `GET /api/tenant/vouchers/{id}/pdf` desde Ventas
@@ -71,6 +72,10 @@
 
 
 ## 🟢 Hecho
+
+- [x] [DEVOPS-BUILD-TS-07] 🐛 Corregir fallo de build TypeScript en `src/admin/pages/TenantDetail.tsx` por propiedades faltantes en `TenantFeaturesUpdate` ✅ 2026-05-02
+
+- [x] [CMS-SYS-DEPLOY-07] Publicar cambios de CMS y sistema en commit/tag selectivo (sin mezclar landing) ✅ 2026-05-02
 
 - [x] [SEO-LEGAL-LINKS-05] Agregar enlaces visibles desde landing principal a política de privacidad y política de seguridad ✅ 2026-05-02
 

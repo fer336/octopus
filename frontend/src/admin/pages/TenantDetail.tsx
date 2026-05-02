@@ -6,7 +6,11 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 import { UserMinus, UserRoundCog } from 'lucide-react'
-import adminAPI, { type AdminUser, type BrandingUpdate } from '../../api/adminService'
+import adminAPI, {
+  type AdminUser,
+  type BrandingUpdate,
+  type FeatureFlagsUpdate,
+} from '../../api/adminService'
 
 type Tab = 'general' | 'branding' | 'features' | 'users'
 
@@ -191,16 +195,7 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
   })
 
   const updateMutation = useMutation({
-    mutationFn: (payload: {
-      ai_agent_enabled?: boolean
-      linear_sync_enabled?: boolean
-      current_account_mode?: 'disabled' | 'automatic' | 'manual'
-      invoicing_enabled?: boolean
-      receipts_enabled?: boolean
-      price_update_enabled?: boolean
-      reports_enabled?: boolean
-      sql_backup_enabled?: boolean
-    }) =>
+    mutationFn: (payload: FeatureFlagsUpdate) =>
       adminAPI.updateFeatureFlags(tenantId, payload),
     onSuccess: (_, payload) => {
       if (typeof payload.ai_agent_enabled === 'boolean') {
