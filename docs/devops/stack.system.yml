@@ -56,9 +56,6 @@ services:
     networks:
       - octopus_net
       - network_public
-    environment:
-      - VITE_API_URL=https://octopus.qeva.xyz/api/tenant
-      - VITE_BACKEND_URL=https://octopus.qeva.xyz
     deploy:
       replicas: 1
       restart_policy:
