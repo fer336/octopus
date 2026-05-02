@@ -154,7 +154,7 @@ jobs:
 
           MAX_RETRIES=6
           RETRY_DELAY=10
-          URL="${{ secrets.APP_HEALTH_URL }}"
+          URL="${{ secrets.SYSTEM_HEALTH_URL }}"
 
           for i in $(seq 1 $MAX_RETRIES); do
             echo "Intento $i/$MAX_RETRIES — GET $URL"
