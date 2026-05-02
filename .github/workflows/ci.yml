@@ -81,7 +81,7 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           ENVIRONMENT: test
         run: |
-          pytest ./backend/tests \
+          pytest ./backend/app/tests \
             --tb=short \
             --cov=backend \
             --cov-report=term-missing \
