@@ -2,11 +2,15 @@
 Schemas para Proveedores.
 """
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from pydantic import EmailStr, Field
 
 from app.schemas.base import BaseResponse, BaseSchema
+
+if TYPE_CHECKING:
+    from app.models.supplier import Supplier
 
 
 class CategoryDiscountItem(BaseSchema):

@@ -17,6 +17,10 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.middleware.tenant_resolver import AdminContext, require_superadmin
 from app.models.business import Business
+from app.models.cash_register import CashRegister
+from app.models.client import Client
+from app.models.product import Product
+from app.models.purchase_order import PurchaseOrder
 from app.models.tenant_membership import (
     MembershipAccessStatus,
     MembershipRole,
@@ -24,6 +28,8 @@ from app.models.tenant_membership import (
 )
 from app.models.tenant_secret import TenantSecret
 from app.models.user import PlatformRole, User
+from app.models.voucher import Voucher
+from app.models.ai_provider_config import AIProviderConfig
 from app.services.afip_sdk_service import AfipSdkService
 from app.utils.acl import (
     MODULE_KEYS,

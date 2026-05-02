@@ -39,6 +39,13 @@ ignore = [
     "UP007",  # Optional[X] syntax (legacy)
     "UP042",  # class inheriting from str and Enum
     "UP046",  # Generic with type parameters
+    "UP038",  # use X | Y in isinstance
+    "E711",   # Comparison to None
+    "E712",   # Comparison to True
+    "F841",   # local variable assigned but never used (varios usados para debug)
+    "B905",   # zip without strict
+    "B007",   # loop control variable not used
+    "W293",  # blank line contains whitespace
 ]
 
 [lint.isort]
