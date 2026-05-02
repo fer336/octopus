@@ -279,17 +279,17 @@ export default function ArcaManagement() {
 
   // Fetch secrets status - siempre llamar hooks antes de cualquier return
   const { data: secretsData, isLoading: isLoadingSecrets } = useQuery({
-    queryKey: ['admin-arca-secrets', id],
-    queryFn: () => adminAPI.getArcaSecrets(id),
+    queryKey: ['admin-arca-secrets', tenantId],
+    queryFn: () => adminAPI.getArcaSecrets(tenantId),
     enabled: !!id,
   })
 
   // Update secrets mutation
   const updateMutation = useMutation({
-    mutationFn: (data: ArcaSecretsUpdate) => adminAPI.updateArcaSecrets(id, data),
+    mutationFn: (data: ArcaSecretsUpdate) => adminAPI.updateArcaSecrets(tenantId, data),
     onSuccess: () => {
       toast.success('Secretos ARCA actualizados correctamente')
-      queryClient.invalidateQueries({ queryKey: ['admin-arca-secrets', id] })
+      queryClient.invalidateQueries({ queryKey: ['admin-arca-secrets', tenantId] })
       setForm(initialFormData)
     },
     onError: () => {
@@ -315,10 +315,10 @@ export default function ArcaManagement() {
 
   // Delete secrets mutation
   const deleteMutation = useMutation({
-    mutationFn: () => adminAPI.deleteArcaSecrets(id),
+    mutationFn: () => adminAPI.deleteArcaSecrets(tenantId),
     onSuccess: () => {
       toast.success('Secretos eliminados correctamente')
-      queryClient.invalidateQueries({ queryKey: ['admin-arca-secrets', id] })
+      queryClient.invalidateQueries({ queryKey: ['admin-arca-secrets', tenantId] })
       setShowDeleteConfirm(false)
     },
     onError: () => {
@@ -327,7 +327,8 @@ export default function ArcaManagement() {
   })
 
   // Early return DESPUÉS de todos los hooks
-  if (!id) {
+  const tenantId = id ?? ''
+  if (!tenantId) {
     return (
       <div className="p-6">
         <p className="text-red-600">Tenant no especificado</p>
