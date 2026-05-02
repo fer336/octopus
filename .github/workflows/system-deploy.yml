@@ -155,6 +155,11 @@ jobs:
           MAX_RETRIES=6
           RETRY_DELAY=10
           URL="${{ secrets.SYSTEM_HEALTH_URL }}"
+          echo "URL a verificar: $URL"
+          if [ -z "$URL" ]; then
+            echo "ERROR: SYSTEM_HEALTH_URL secret está vacío"
+            exit 1
+          fi
 
           for i in $(seq 1 $MAX_RETRIES); do
             echo "Intento $i/$MAX_RETRIES — GET $URL"
