@@ -263,6 +263,7 @@ function ConfirmModal({
 
 export default function ArcaManagement() {
   const { id } = useParams<{ id: string }>()
+  const tenantId: string = id ?? ''  // Declarar antes de usar en hooks
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [form, setForm] = useState<FormData>(initialFormData)
@@ -281,7 +282,7 @@ export default function ArcaManagement() {
   const { data: secretsData, isLoading: isLoadingSecrets } = useQuery({
     queryKey: ['admin-arca-secrets', tenantId],
     queryFn: () => adminAPI.getArcaSecrets(tenantId),
-    enabled: !!id,
+    enabled: !!tenantId,
   })
 
   // Update secrets mutation
@@ -327,7 +328,6 @@ export default function ArcaManagement() {
   })
 
   // Early return DESPUÉS de todos los hooks
-  const tenantId = id ?? ''
   if (!tenantId) {
     return (
       <div className="p-6">
