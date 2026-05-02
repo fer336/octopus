@@ -1,6 +1,6 @@
 services:
   backend:
-    image: ferc33/octopustrack-backend:latest
+    image: ferc33/octopustrack-backend:v1.2.16
     networks:
       - network_public
       - octopus-internal
@@ -42,7 +42,7 @@ services:
         - "traefik.http.services.octopus-backend.loadbalancer.server.port=8000"
 
   frontend:
-    image: ferc33/octopustrack-frontend:latest
+    image: ferc33/octopustrack-frontend:v1.2.16
     networks:
       - network_public
       - octopus-internal

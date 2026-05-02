@@ -1,6 +1,7 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
+- [ ] [DEVOPS-RELEASE-TAG-09] Crear tag de release (`vX.Y.Z`) para ejecutar jobs de `Create GitHub Release` + `Deploy to Swarm via Portainer`
 - [ ] [CMS-SYS-DEPLOY-07] Publicar cambios de CMS y sistema en commit/tag selectivo (sin mezclar landing)
 - [ ] [N8N-POSTPURCHASE-08] Diseñar flujo n8n post-compra: HTML de confirmación + otorgar acceso según plan (Excel/Sistema)
 - [ ] [SEO-LEGAL-LINKS-05] Agregar enlaces visibles desde landing principal a política de privacidad y política de seguridad
@@ -51,7 +52,6 @@
 - [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
 
 ## 🟡 En progreso
-- [/] [DEVOPS-GHA-RETRY-08] Re-ejecutar workflow `landing-deploy` en GitHub Actions y validar que build pase tras fix de tipos
 - [/] [CMS-LOCALHOST-CONN-06] 🐛 Diagnosticar por qué CMS no conecta en localhost (error de conexión)
 - [/] [N8N-POSTPURCHASE-08] Diseñar flujo n8n post-compra: HTML de confirmación + otorgar acceso según plan (Excel/Sistema)
 - [/] [DEVOPS-LANDING-05] 🐛 Diagnosticar por qué `landing-deploy` queda en 4/6 y no ejecuta deploy
@@ -72,6 +72,14 @@
 
 
 ## 🟢 Hecho
+
+- [x] [DEVOPS-IMAGE-TAGS-11] Reemplazar `latest` por tags versionados en `docker-compose-prod.yml` para deploy determinístico ✅ 2026-05-02
+
+- [x] [DEVOPS-RELEASE-RETRY-10] Crear nuevo tag de release para re-disparar deploy productivo vía Portainer ✅ 2026-05-02
+
+- [x] [DEVOPS-RELEASE-TAG-09] Crear tag de release (`vX.Y.Z`) para ejecutar jobs de `Create GitHub Release` + `Deploy to Swarm via Portainer` ✅ 2026-05-02
+
+- [x] [DEVOPS-GHA-RETRY-08] Re-ejecutar workflow `landing-deploy` en GitHub Actions y validar que build pase tras fix de tipos ✅ 2026-05-02
 
 - [x] [DEVOPS-BUILD-TS-07] 🐛 Corregir fallo de build TypeScript en `src/admin/pages/TenantDetail.tsx` por propiedades faltantes en `TenantFeaturesUpdate` ✅ 2026-05-02
 
