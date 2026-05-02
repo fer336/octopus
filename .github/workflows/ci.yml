@@ -68,7 +68,7 @@ jobs:
         run: ruff check ./backend --output-format=github
 
       - name: Typecheck con mypy
-        run: mypy ./backend
+        run: mypy ./backend --config-file=mypy.ini
 
       - name: Tests con pytest
         env:
