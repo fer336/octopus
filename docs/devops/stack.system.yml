@@ -43,6 +43,8 @@ services:
     environment:
       - ENVIRONMENT=production
       - APP_VERSION=${IMAGE_TAG:-unknown}
+      - VITE_API_URL=${VITE_API_URL:-https://octopus.qeva.xyz/api/tenant}
+      - VITE_BACKEND_URL=${VITE_BACKEND_URL:-https://octopus.qeva.xyz}
     deploy:
       replicas: 1
       restart_policy:
