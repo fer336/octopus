@@ -1,6 +1,9 @@
 # stack.system.yml — Sistema Octopus (Backend + Frontend)
 # URL raw para Portainer: https://raw.githubusercontent.com/fer336/octopus/master/docs/devops/stack.system.yml
-# En Portainer: Stack > Editor > pegar este contenido
+# En Portainer: Stack > Add stack > Repository > pegar URL
+# IMPORTANTE: Configurar en Environment variables:
+#   - DATABASE_URL, REDIS_URL, JWT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, APP_ENCRYPTION_KEY
+#   - IMAGE_TAG (default: latest)
 
 version: "3.9"
 
@@ -12,8 +15,13 @@ services:
       - network_public
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - APP_ENCRYPTION_KEY=${APP_ENCRYPTION_KEY}
       - ENVIRONMENT=production
-      - APP_VERSION=${IMAGE_TAG:-unknown}
+      - APP_VERSION=${IMAGE_TAG:-latest}
     deploy:
       replicas: 1
       restart_policy:
