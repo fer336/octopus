@@ -1,5 +1,4 @@
 # docker-compose-prod.yml — Production con CMS + Sistema
-# Version original restaurada
 # IMPORTANTE: Crear el secret 'octopus_backend_env' en Portainer > Secrets
 
 version: "3.9"
