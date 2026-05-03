@@ -9,7 +9,7 @@ services:
     image: ghcr.io/fer336/octopustrack-backend:${IMAGE_TAG:-latest}
     networks:
       - network_public
-      - octopus_intern al
+      - octopus_internal
     secrets:
       - source: octopus_backend_env
         target: /run/secrets/backend.env
@@ -57,7 +57,7 @@ services:
     image: ghcr.io/fer336/octopustrack-frontend:${IMAGE_TAG:-latest}
     networks:
       - network_public
-      - octopus_intern al
+      - octopus_internal
     environment:
       - ENVIRONMENT=production
       - APP_VERSION=${IMAGE_TAG:-latest}
@@ -88,12 +88,8 @@ services:
         - "traefik.http.routers.octopus-cms.tls.certresolver=letsencrypt"
         - "traefik.http.routers.octopus-cms.priority=5"
         - "traefik.http.routers.octopus-cms.service=octopus-frontend-cms"
-        # Middleware para servir admin.html en root del CMS
-        - "traefik.http.middlewares.octopus-cms-entry.replacepathregex.regex=^/$$"
-        - "traefik.http.middlewares.octopus-cms-entry.replacepathregex.replacement=/admin.html"
-        # Middleware para servir tenant.html en root del sistema
-        - "traefik.http.middlewares.octopus-erp-entry.replacepathregex.regex=^/$$"
-        - "traefik.http.middlewares.octopus-erp-entry.replacepathregex.replacement=/tenant.html"
+        - "traefik.http.routers.octopus-cms.middlewares=octopus-cms-stripprefix@docker"
+        - "traefik.http.middlewares.octopus-cms-stripprefix.stripprefix.prefixes=/"
         - "traefik.http.services.octopus-frontend-erp.loadbalancer.server.port=80"
         - "traefik.http.services.octopus-frontend-cms.loadbalancer.server.port=80"
     healthcheck:
@@ -106,7 +102,7 @@ networks:
   network_public:
     external: true
     name: network_public
-  octopus_intern al:
+  octopus_internal:
     driver: overlay
     internal: true
 
