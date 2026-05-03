@@ -11,16 +11,12 @@ version: "3.9"
 services:
   backend:
     image: ghcr.io/fer336/octopustrack-backend:1.2.21
+    env_file:
+      - octopus_backend_env
     networks:
       - octopus_net
       - network_public
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - JWT_SECRET=${JWT_SECRET}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - APP_ENCRYPTION_KEY=${APP_ENCRYPTION_KEY}
       - ENVIRONMENT=production
       - APP_VERSION=1.2.21
     deploy:
