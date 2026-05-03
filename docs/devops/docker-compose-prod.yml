@@ -1,12 +1,12 @@
 # docker-compose-prod.yml — Production con CMS + Sistema
-# Archivo original restaurado y actualizado para GHCR
+# Version original restaurada
 # IMPORTANTE: Crear el secret 'octopus_backend_env' en Portainer > Secrets
 
 version: "3.9"
 
 services:
   backend:
-    image: fer336/octopustrack-backend:${IMAGE_TAG:-latest}
+    image: ferc33/octopustrack-backend:${IMAGE_TAG:-latest}
     networks:
       - network_public
       - octopus_internal
@@ -15,6 +15,8 @@ services:
         target: /run/secrets/backend.env
     environment:
       - BACKEND_ENV_FILE=/run/secrets/backend.env
+      - DEBUG=false
+      - API_TENANT_PREFIX=/api/tenant
       - ENVIRONMENT=production
       - APP_VERSION=${IMAGE_TAG:-latest}
     deploy:
@@ -28,24 +30,24 @@ services:
         delay: 10s
         max_attempts: 5
       labels:
-        - "traefik.enable=true"
-        - "traefik.docker.network=network_public"
-        - "traefik.http.routers.octopus-tenant-api.rule=Host(`octopus.qeva.xyz`) && PathPrefix(`/api/tenant`)"
-        - "traefik.http.routers.octopus-tenant-api.entrypoints=websecure"
-        - "traefik.http.routers.octopus-tenant-api.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.octopus-tenant-api.priority=100"
-        - "traefik.http.routers.octopus-tenant-api.service=octopus-backend"
-        - "traefik.http.routers.octopus-admin-api.rule=Host(`octopus.qeva.xyz`) && PathPrefix(`/api/admin`)"
-        - "traefik.http.routers.octopus-admin-api.entrypoints=websecure"
-        - "traefik.http.routers.octopus-admin-api.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.octopus-admin-api.priority=100"
-        - "traefik.http.routers.octopus-admin-api.service=octopus-backend"
-        - "traefik.http.routers.octopus-auth.rule=Host(`octopus.qeva.xyz`) && PathPrefix(`/auth`)"
-        - "traefik.http.routers.octopus-auth.entrypoints=websecure"
-        - "traefik.http.routers.octopus-auth.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.octopus-auth.priority=110"
-        - "traefik.http.routers.octopus-auth.service=octopus-backend"
-        - "traefik.http.services.octopus-backend.loadbalancer.server.port=8000"
+        - traefik.enable=true
+        - traefik.docker.network=network_public
+        - traefik.http.routers.octopus-tenant-api.rule=Host(`octopus.qeva.xyz`) && PathPrefix(`/api/tenant`)
+        - traefik.http.routers.octopus-tenant-api.entrypoints=websecure
+        - traefik.http.routers.octopus-tenant-api.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.octopus-tenant-api.priority=100
+        - traefik.http.routers.octopus-tenant-api.service=octopus-backend
+        - traefik.http.routers.octopus-admin-api.rule=Host(`octopus.qeva.xyz`) && PathPrefix(`/api/admin`)
+        - traefik.http.routers.octopus-admin-api.entrypoints=websecure
+        - traefik.http.routers.octopus-admin-api.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.octopus-admin-api.priority=100
+        - traefik.http.routers.octopus-admin-api.service=octopus-backend
+        - traefik.http.routers.octopus-auth.rule=Host(`octopus.qeva.xyz`) && PathPrefix(`/auth`)
+        - traefik.http.routers.octopus-auth.entrypoints=websecure
+        - traefik.http.routers.octopus-auth.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.octopus-auth.priority=110
+        - traefik.http.routers.octopus-auth.service=octopus-backend
+        - traefik.http.services.octopus-backend.loadbalancer.server.port=8000
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -54,7 +56,7 @@ services:
       start_period: 40s
 
   frontend:
-    image: fer336/octopustrack-frontend:${IMAGE_TAG:-latest}
+    image: ferc33/octopustrack-frontend:${IMAGE_TAG:-latest}
     networks:
       - network_public
       - octopus_internal
@@ -74,24 +76,26 @@ services:
         delay: 10s
         max_attempts: 3
       labels:
-        - "traefik.enable=true"
-        - "traefik.docker.network=network_public"
-        # Sistema - octopus.qeva.xyz → tenant.html
-        - "traefik.http.routers.octopus-erp.rule=Host(`octopus.qeva.xyz`)"
-        - "traefik.http.routers.octopus-erp.entrypoints=websecure"
-        - "traefik.http.routers.octopus-erp.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.octopus-erp.priority=5"
-        - "traefik.http.routers.octopus-erp.service=octopus-frontend-erp"
-        # CMS - cms-octopus.qeva.xyz → admin.html
-        - "traefik.http.routers.octopus-cms.rule=Host(`cms-octopus.qeva.xyz`)"
-        - "traefik.http.routers.octopus-cms.entrypoints=websecure"
-        - "traefik.http.routers.octopus-cms.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.octopus-cms.priority=5"
-        - "traefik.http.routers.octopus-cms.service=octopus-frontend-cms"
-        - "traefik.http.routers.octopus-cms.middlewares=octopus-cms-stripprefix@docker"
-        - "traefik.http.middlewares.octopus-cms-stripprefix.stripprefix.prefixes=/"
-        - "traefik.http.services.octopus-frontend-erp.loadbalancer.server.port=80"
-        - "traefik.http.services.octopus-frontend-cms.loadbalancer.server.port=80"
+        - traefik.enable=true
+        - traefik.docker.network=network_public
+        - traefik.http.routers.octopus-erp.rule=Host(`octopus.qeva.xyz`)
+        - traefik.http.routers.octopus-erp.entrypoints=websecure
+        - traefik.http.routers.octopus-erp.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.octopus-erp.middlewares=octopus-erp-entry@docker
+        - traefik.http.routers.octopus-erp.priority=5
+        - traefik.http.routers.octopus-erp.service=octopus-frontend-erp
+        - traefik.http.routers.octopus-cms.rule=Host(`cms-octopus.qeva.xyz`)
+        - traefik.http.routers.octopus-cms.entrypoints=websecure
+        - traefik.http.routers.octopus-cms.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.octopus-cms.middlewares=octopus-cms-entry@docker
+        - traefik.http.routers.octopus-cms.priority=5
+        - traefik.http.routers.octopus-cms.service=octopus-frontend-cms
+        - traefik.http.middlewares.octopus-erp-entry.replacepathregex.regex=^/$$
+        - traefik.http.middlewares.octopus-erp-entry.replacepathregex.replacement=/tenant.html
+        - traefik.http.middlewares.octopus-cms-entry.replacepathregex.regex=^/$$
+        - traefik.http.middlewares.octopus-cms-entry.replacepathregex.replacement=/admin.html
+        - traefik.http.services.octopus-frontend-erp.loadbalancer.server.port=80
+        - traefik.http.services.octopus-frontend-cms.loadbalancer.server.port=80
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
       interval: 30s
