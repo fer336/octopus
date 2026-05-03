@@ -1,3 +1,7 @@
+# stack.system.yml — Sistema Octopus (Backend + Frontend)
+# URL raw: https://raw.githubusercontent.com/fer336/octopus/master/docs/devops/stack.system.yml
+# IMPORTANTE: Crear el secret 'octopus_backend_env' en Portainer > Secrets antes de deployar
+
 version: "3.9"
 
 services:
@@ -6,13 +10,12 @@ services:
     networks:
       - octopus_net
       - network_public
+    secrets:
+      - source: octopus_backend_env
+        target: /run/secrets/backend.env
     environment:
       - ENVIRONMENT=production
       - APP_VERSION=${IMAGE_TAG:-unknown}
-      - DATABASE_URL=${DATABASE_URL}
-      - SECRET_KEY=${SECRET_KEY}
-      - JWT_SECRET=${JWT_SECRET}
-      - CORS_ORIGINS=${CORS_ORIGINS}
     deploy:
       replicas: 1
       restart_policy:
@@ -66,3 +69,8 @@ networks:
   network_public:
     external: true
     name: network_public
+
+secrets:
+  octopus_backend_env:
+    external: true
+    name: octopus_backend_env
