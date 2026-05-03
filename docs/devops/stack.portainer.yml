@@ -2,21 +2,27 @@
 # En Portainer: Stack > Editor > pegar este contenido
 # IMPORTANTE: El stack debe llamarse "system-octopus" en Portainer
 # IMPORTANTE: Usa GHCR (ghcr.io/fer336/*) con login configurado en Portainer
-# Variables de entorno del stack: IMAGE_TAG (hardcodeado)
+# IMPORTANTE: Los secrets se configuran en Portainer > Stacks > Environment variables:
+#   - DATABASE_URL, REDIS_URL, JWT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, APP_ENCRYPTION_KEY
+#   La variable IMAGE_TAG también se puede usar para cambiar la versión (default: 1.2.21)
 
 version: "3.9"
 
 services:
   backend:
-    image: ghcr.io/fer336/octopustrack-backend:1.2.20
+    image: ghcr.io/fer336/octopustrack-backend:1.2.21
     networks:
       - octopus_net
       - network_public
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - APP_ENCRYPTION_KEY=${APP_ENCRYPTION_KEY}
       - ENVIRONMENT=production
-      - APP_VERSION=${IMAGE_TAG:-unknown}
+      - APP_VERSION=1.2.21
     deploy:
       replicas: 1
       restart_policy:
@@ -55,7 +61,7 @@ services:
       start_period: 40s
 
   frontend:
-    image: ghcr.io/fer336/octopustrack-frontend:1.2.20
+    image: ghcr.io/fer336/octopustrack-frontend:1.2.21
     networks:
       - octopus_net
       - network_public
