@@ -2,13 +2,13 @@
 # En Portainer: Stack > Editor > pegar este contenido
 # IMPORTANTE: El stack debe llamarse "system-octopus" en Portainer
 # IMPORTANTE: Usa GHCR (ghcr.io/fer336/*) con login configurado en Portainer
-# Variables de entorno del stack: IMAGE_TAG (se actualiza manualmente en Portainer antes de redeploy)
+# Variables de entorno del stack: IMAGE_TAG (hardcodeado)
 
 version: "3.9"
 
 services:
   backend:
-    image: ghcr.io/fer336/octopustrack-backend:${IMAGE_TAG:-latest}
+    image: ghcr.io/fer336/octopustrack-backend:1.2.20
     networks:
       - octopus_net
       - network_public
@@ -55,7 +55,7 @@ services:
       start_period: 40s
 
   frontend:
-    image: ghcr.io/fer336/octopustrack-frontend:${IMAGE_TAG:-latest}
+    image: ghcr.io/fer336/octopustrack-frontend:1.2.20
     networks:
       - octopus_net
       - network_public
