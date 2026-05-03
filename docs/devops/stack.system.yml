@@ -1,10 +1,3 @@
-# stack.system.yml — Sistema Octopus (Backend + Frontend)
-# URL raw para Portainer: https://raw.githubusercontent.com/fer336/octopus/master/docs/devops/stack.system.yml
-# En Portainer: Stack > Add stack > Repository > pegar URL
-# IMPORTANTE: Configurar en Environment variables:
-#   - DATABASE_URL, REDIS_URL, JWT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, APP_ENCRYPTION_KEY
-#   - IMAGE_TAG (default: latest)
-
 version: "3.9"
 
 services:
@@ -14,14 +7,12 @@ services:
       - octopus_net
       - network_public
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - JWT_SECRET=${JWT_SECRET}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - APP_ENCRYPTION_KEY=${APP_ENCRYPTION_KEY}
       - ENVIRONMENT=production
-      - APP_VERSION=${IMAGE_TAG:-latest}
+      - APP_VERSION=${IMAGE_TAG:-unknown}
+      - DATABASE_URL=${DATABASE_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGINS=${CORS_ORIGINS}
     deploy:
       replicas: 1
       restart_policy:
@@ -36,57 +27,42 @@ services:
         order: stop-first
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.octopus-tenant-api.rule=Host(`octopus.qeva.xyz`) && PathPrefix(`/api/tenant`)"
-        - "traefik.http.routers.octopus-tenant-api.entrypoints=websecure"
-        - "traefik.http.routers.octopus-tenant-api.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.octopus-tenant-api.priority=100"
-        - "traefik.http.routers.octopus-tenant-api.service=octopus-backend"
-        - "traefik.http.routers.octopus-admin-api.rule=Host(`octopus.qeva.xyz`) && PathPrefix(`/api/admin`)"
-        - "traefik.http.routers.octopus-admin-api.entrypoints=websecure"
-        - "traefik.http.routers.octopus-admin-api.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.octopus-admin-api.priority=100"
-        - "traefik.http.routers.octopus-admin-api.service=octopus-backend"
-        - "traefik.http.routers.octopus-auth.rule=Host(`octopus.qeva.xyz`) && PathPrefix(`/auth`)"
-        - "traefik.http.routers.octopus-auth.entrypoints=websecure"
-        - "traefik.http.routers.octopus-auth.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.octopus-auth.priority=110"
-        - "traefik.http.routers.octopus-auth.service=octopus-backend"
+        - "traefik.http.routers.octopus-backend.rule=Host(`api.octopus.qeva.xyz`)"
+        - "traefik.http.routers.octopus-backend.entrypoints=websecure"
+        - "traefik.http.routers.octopus-backend.tls.certresolver=letsencrypt"
         - "traefik.http.services.octopus-backend.loadbalancer.server.port=8000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
   frontend:
     image: ghcr.io/fer336/octopustrack-frontend:${IMAGE_TAG:-latest}
     networks:
-      - octopus_net
       - network_public
+    environment:
+      - ENVIRONMENT=production
+      - APP_VERSION=${IMAGE_TAG:-unknown}
     deploy:
       replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 5s
+        max_attempts: 3
       update_config:
         order: start-first
         failure_action: rollback
+        delay: 10s
+      rollback_config:
+        order: stop-first
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.octopus-frontend.rule=Host(`octopus.qeva.xyz`)"
         - "traefik.http.routers.octopus-frontend.entrypoints=websecure"
         - "traefik.http.routers.octopus-frontend.tls.certresolver=letsencrypt"
         - "traefik.http.services.octopus-frontend.loadbalancer.server.port=80"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
 
 networks:
   octopus_net:
     driver: overlay
     attachable: true
+
   network_public:
     external: true
     name: network_public
