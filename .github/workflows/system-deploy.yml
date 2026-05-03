@@ -6,10 +6,11 @@ on:
       - "system-v*.*.*"
       - "v*.*.*"
       - "*.*.*"
+
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag a deployar (ej: v1.2.3 o system-v1.2.3)"
+        description: "Tag a deployar. Ej: system-v1.2.19, v1.2.19 o 1.2.19"
         required: true
 
 permissions:
@@ -50,6 +51,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Compute Docker tags
+        id: docker_tags
+        shell: bash
+        run: |
+          RAW_TAG="${{ env.EFFECTIVE_TAG }}"
+
+          VERSION="$RAW_TAG"
+          VERSION="${VERSION#system-v}"
+          VERSION="${VERSION#v}"
+
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][a-zA-Z0-9._-]+)?$ ]]; then
+            echo "Tag inválido: $RAW_TAG"
+            echo "Usá algo como: system-v1.2.19, v1.2.19 o 1.2.19"
+            exit 1
+          fi
+
+          MINOR_TAG="$(echo "$VERSION" | cut -d. -f1,2)"
+
+          IS_STABLE="true"
+          if [[ "$VERSION" == *"-"* ]]; then
+            IS_STABLE="false"
+          fi
+
+          BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "minor_tag=$MINOR_TAG" >> "$GITHUB_OUTPUT"
+          echo "is_stable=$IS_STABLE" >> "$GITHUB_OUTPUT"
+          echo "build_date=$BUILD_DATE" >> "$GITHUB_OUTPUT"
+
+          echo "RAW_TAG=$RAW_TAG"
+          echo "VERSION=$VERSION"
+          echo "MINOR_TAG=$MINOR_TAG"
+          echo "IS_STABLE=$IS_STABLE"
+          echo "BUILD_DATE=$BUILD_DATE"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -77,11 +114,16 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/${{ matrix.image_name }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image_name }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ steps.docker_tags.outputs.version }}
+            type=raw,value=${{ steps.docker_tags.outputs.minor_tag }}
             type=sha,prefix=sha-
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(env.EFFECTIVE_TAG, '-') }}
+            type=raw,value=latest,enable=${{ steps.docker_tags.outputs.is_stable == 'true' }}
             type=raw,value=manual-${{ github.run_number }},enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Show generated image tags
+        run: |
+          echo "Tags generados:"
+          echo "${{ steps.meta.outputs.tags }}"
 
       - name: Build and push
         id: build
@@ -96,12 +138,19 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
           build-args: |
-            APP_VERSION=${{ env.EFFECTIVE_TAG }}
-            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            APP_VERSION=${{ steps.docker_tags.outputs.version }}
+            BUILD_DATE=${{ steps.docker_tags.outputs.build_date }}
             GIT_SHA=${{ github.sha }}
 
       - name: Export image digest
-        run: echo "${{ matrix.service }}=${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
+        run: |
+          echo "## Imagen publicada — ${{ matrix.service }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Campo | Valor |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Servicio | ${{ matrix.service }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Versión Docker | ${{ steps.docker_tags.outputs.version }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Digest | ${{ steps.build.outputs.digest }} |" >> "$GITHUB_STEP_SUMMARY"
 
   github-release:
     name: Create System Release
@@ -110,6 +159,19 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/system-v')
 
     steps:
+      - name: Compute Docker release tag
+        id: release_tags
+        shell: bash
+        run: |
+          RAW_TAG="${{ env.EFFECTIVE_TAG }}"
+
+          VERSION="$RAW_TAG"
+          VERSION="${VERSION#system-v}"
+          VERSION="${VERSION#v}"
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Docker release tag: $VERSION"
+
       - name: Create release from tag
         uses: softprops/action-gh-release@v2
         with:
@@ -121,13 +183,49 @@ jobs:
 
             | Servicio | GHCR | Docker Hub |
             |---|---|---|
-            | backend | `ghcr.io/${{ github.repository_owner }}/octopustrack-backend:${{ env.EFFECTIVE_TAG }}` | `${{ secrets.DOCKERHUB_USERNAME }}/octopustrack-backend:${{ env.EFFECTIVE_TAG }}` |
-            | frontend | `ghcr.io/${{ github.repository_owner }}/octopustrack-frontend:${{ env.EFFECTIVE_TAG }}` | `${{ secrets.DOCKERHUB_USERNAME }}/octopustrack-frontend:${{ env.EFFECTIVE_TAG }}` |
+            | backend | `ghcr.io/${{ github.repository_owner }}/octopustrack-backend:${{ steps.release_tags.outputs.version }}` | `${{ secrets.DOCKERHUB_USERNAME }}/octopustrack-backend:${{ steps.release_tags.outputs.version }}` |
+            | frontend | `ghcr.io/${{ github.repository_owner }}/octopustrack-frontend:${{ steps.release_tags.outputs.version }}` | `${{ secrets.DOCKERHUB_USERNAME }}/octopustrack-frontend:${{ steps.release_tags.outputs.version }}` |
 
-            ## Cómo actualizar en Portainer (Sistema)
-            1. En el stack del sistema, actualizá la variable `IMAGE_TAG` a `${{ env.EFFECTIVE_TAG }}`
-            2. Hacé **Redeploy**
-            3. Si hay cambios de schema en este release, corrés: `alembic upgrade head`
+            ## Tags publicados
+
+            También se publican:
+
+            - `${{ steps.release_tags.outputs.version }}`
+            - `latest`
+            - `sha-xxxxxxx`
+
+            ## Cómo actualizar en Portainer
+
+            ### Opción recomendada para deploy automático
+
+            Dejá el stack usando:
+
+            ```env
+            IMAGE_TAG=latest
+            ```
+
+            Y las imágenes:
+
+            ```yaml
+            image: ghcr.io/${{ github.repository_owner }}/octopustrack-backend:${IMAGE_TAG:-latest}
+            image: ghcr.io/${{ github.repository_owner }}/octopustrack-frontend:${IMAGE_TAG:-latest}
+            ```
+
+            Luego hacé **Redeploy** o usá el webhook.
+
+            ### Opción versionada
+
+            Si querés fijar una versión concreta:
+
+            ```env
+            IMAGE_TAG=${{ steps.release_tags.outputs.version }}
+            ```
+
+            Si hay cambios de schema, corré:
+
+            ```bash
+            alembic upgrade head
+            ```
 
   deploy:
     name: Deploy System to Swarm
@@ -138,6 +236,11 @@ jobs:
     steps:
       - name: Trigger Portainer webhook
         run: |
+          if [ -z "${{ secrets.PORTAINER_WEBHOOK_URL }}" ]; then
+            echo "PORTAINER_WEBHOOK_URL no configurado"
+            exit 1
+          fi
+
           HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}" \
             -X POST \
             "${{ secrets.PORTAINER_WEBHOOK_URL }}")
@@ -147,23 +250,25 @@ jobs:
             exit 1
           fi
 
-          echo "Webhook disparado correctamente (HTTP $HTTP_STATUS)"
+          echo "Webhook disparado correctamente. HTTP $HTTP_STATUS"
 
       - name: Verify deployment health
         run: |
           sleep 30
+
           URL="${{ secrets.SYSTEM_HEALTH_URL }}"
 
           if [ -z "$URL" ]; then
-            echo "⚠️ SYSTEM_HEALTH_URL no configurado, saltando verification"
+            echo "SYSTEM_HEALTH_URL no configurado. Saltando verificación."
             exit 0
           fi
 
           echo "URL a verificar: $URL"
+
           STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 "$URL" || echo "000")
 
           if [ "$STATUS" = "200" ]; then
-            echo "✅ Deploy verificado (HTTP 200)"
+            echo "Deploy verificado correctamente. HTTP 200"
           else
-            echo "⚠️  Health check retornó HTTP $STATUS — revisá Portainer manualmente"
+            echo "Health check retornó HTTP $STATUS. Revisá Portainer manualmente."
           fi
