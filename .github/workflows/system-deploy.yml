@@ -4,10 +4,12 @@ on:
   push:
     tags:
       - "system-v*.*.*"
+      - "v*.*.*"
+      - "*.*.*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag a deployar (ej: system-v1.2.3)"
+        description: "Tag a deployar (ej: v1.2.3 o system-v1.2.3)"
         required: true
 
 permissions:
