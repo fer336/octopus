@@ -823,7 +823,7 @@ export default function Products() {
       </div>
 
       {/* Cards mobile */}
-      <div className="lg:hidden space-y-2" data-tour-products-table>
+      <div className="lg:hidden space-y-2" data-tour-products-table data-tour-products-cards>
         {products.length === 0 ? (
           <div className="rounded-xl border border-gray-200 bg-white px-3 py-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
             No se encontraron productos con estos filtros.

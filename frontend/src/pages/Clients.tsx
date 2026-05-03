@@ -536,7 +536,7 @@ const data = await clientsService.lookupCuit(cuit)
       </div>
 
       {/* Tabla desktop + cards mobile */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col overflow-y-auto lg:overflow-hidden">
         <ResponsiveTable
           data={clients}
           emptyState={

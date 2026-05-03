@@ -2403,6 +2403,10 @@ export default function Sales() {
 
       {/* Contenido mobile por pasos (exacto referencia) */}
       <div className="lg:hidden flex-1 min-h-0 overflow-hidden">
+        {/* Placeholders para Product Tour */}
+        <div data-tour-sales-generate />
+        <div data-tour-sales-save-draft />
+        
         {mobileSection === 'items' && (
           <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white py-2 px-4 dark:border-gray-700 dark:bg-gray-800">
             {/* Botones de acción: Nuevo cliente + Borradores */}
@@ -2648,6 +2652,30 @@ export default function Sales() {
                 <span>TOTAL</span>
                 <span>${formatNumber(totalRounded, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
+            </div>
+
+            {/* Botones de acción en mobile */}
+            <div className="flex gap-2 mt-3">
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                className="flex-1 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+              >
+                Guardar borrador
+              </button>
+              <button
+                type="button"
+                onClick={handleGenerateClick}
+                disabled={isGenerating}
+                className="flex-1 rounded-lg bg-primary-600 px-3 py-2 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+              >
+                {isGenerating 
+                  ? 'Procesando...' 
+                  : voucherType === 'invoice' 
+                    ? 'Emitir' 
+                    : `Generar ${voucherTypes.find(v => v.value === voucherType)?.label}`
+                }
+              </button>
             </div>
           </div>
         )}
@@ -3043,7 +3071,7 @@ export default function Sales() {
                     : `Generar ${voucherTypes.find(v => v.value === voucherType)?.label}`
                 }
               </Button>
-              <Button variant="outline" size="sm" className="w-full text-xs" onClick={handleSaveDraft}>
+              <Button variant="outline" size="sm" className="w-full text-xs" onClick={handleSaveDraft} data-tour-sales-save-draft>
                 <Save size={14} className="mr-1" />
                 Guardar borrador
               </Button>
