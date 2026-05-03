@@ -16,6 +16,7 @@ services:
     environment:
       - ENVIRONMENT=production
       - APP_VERSION=${IMAGE_TAG:-unknown}
+      - BACKEND_ENV_FILE=/run/secrets/backend.env
     deploy:
       replicas: 1
       restart_policy:
