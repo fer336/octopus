@@ -4,6 +4,8 @@ Router de Comprobantes.
 
 import io
 import logging
+from datetime import date as date_type
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -15,9 +17,11 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models.audit_log import AuditLog
 from app.models.business import Business
+from app.models.cash_register import CashMovementType, CashPaymentMethod
 from app.models.client import Client
 from app.models.payment import PaymentMethod
 from app.models.payment_receipt import PaymentReceipt
+from app.models.tenant_membership import TenantMembership
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.schemas.base import PaginatedResponse
 from app.schemas.credit_note import CreditNoteCreate
@@ -43,8 +47,13 @@ from app.schemas.voucher import (
     VoucherUpdate,
 )
 from app.services.afip_sdk_service import AfipSdkService
-from app.services.cash_register_service import get_open_cash_register
+from app.services.cash_register_service import (
+    create_automatic_movement,
+    get_open_cash_register,
+)
+from app.services.pdf_service import pdf_service
 from app.services.voucher_service import VoucherService
+from app.utils.acl import parse_module_permissions
 from app.utils.security import (
     get_current_business,
     get_current_user,
@@ -67,6 +76,23 @@ logger = logging.getLogger(__name__)
 # Tipos de comprobante que requieren caja abierta para emitirse
 INVOICE_TYPES = {VoucherType.INVOICE_A, VoucherType.INVOICE_B, VoucherType.INVOICE_C}
 RECEIPT_TYPES = {VoucherType.RECEIPT}
+
+
+def _map_payment_method_to_cash_method(method: PaymentMethod) -> CashPaymentMethod:
+    """Mapea el método legacy de pago al enum usado por caja."""
+    if method == PaymentMethod.CASH:
+        return CashPaymentMethod.CASH
+    if method in (
+        PaymentMethod.CREDIT_CARD,
+        PaymentMethod.DEBIT_CARD,
+        PaymentMethod.MERCADOPAGO,
+    ):
+        return CashPaymentMethod.CARD
+    if method == PaymentMethod.TRANSFER:
+        return CashPaymentMethod.TRANSFER
+    if method == PaymentMethod.CHECK:
+        return CashPaymentMethod.CHECK
+    return CashPaymentMethod.OTHER
 
 router = APIRouter(
     prefix="/vouchers",
@@ -156,6 +182,68 @@ async def _ensure_invoicing_enabled(db: AsyncSession, business_id: UUID) -> None
         )
 
 
+async def _ensure_current_account_enabled(db: AsyncSession, business_id: UUID) -> None:
+    """Valida que Cuenta Corriente esté activa para el tenant antes de operar."""
+    business = await _get_business_or_404(db, business_id)
+    if (business.current_account_mode or "disabled") == "disabled":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cuenta Corriente deshabilitada para este tenant desde CMS.",
+        )
+
+
+async def _user_has_current_account_access(
+    db: AsyncSession,
+    business_id: UUID,
+    current_user,
+) -> bool:
+    """Valida permiso granular de empleado para Cuenta Corriente dentro del tenant."""
+    if getattr(current_user, "platform_role", None) == "superadmin":
+        return True
+
+    result = await db.execute(
+        select(TenantMembership).where(
+            TenantMembership.user_id == current_user.id,
+            TenantMembership.business_id == business_id,
+            TenantMembership.deleted_at.is_(None),
+        )
+    )
+    membership = result.scalar_one_or_none()
+    if not membership:
+        # Compatibilidad con negocios legacy owner_id sin tenant_memberships.
+        business = await _get_business_or_404(db, business_id)
+        return str(getattr(business, "owner_id", "")) == str(current_user.id)
+
+    module_permissions = parse_module_permissions(
+        membership.module_permissions,
+        membership.role,
+    )
+    return bool(module_permissions.get("current_account", False))
+
+
+async def _ensure_current_account_user_access(
+    db: AsyncSession,
+    business_id: UUID,
+    current_user,
+) -> None:
+    """Bloquea operaciones CC si el empleado no tiene permiso del CMS."""
+    if not await _user_has_current_account_access(db, business_id, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tenés permiso para acceder a Cuenta Corriente.",
+        )
+
+
+async def _ensure_current_account_available(
+    db: AsyncSession,
+    business_id: UUID,
+    current_user,
+) -> None:
+    """Valida plan del tenant y permiso del empleado para operar Cuenta Corriente."""
+    await _ensure_current_account_enabled(db, business_id)
+    await _ensure_current_account_user_access(db, business_id, current_user)
+
+
 def _voucher_snapshot(voucher: Voucher) -> dict:
     """Construye snapshot compacto para auditoría before/after."""
     return {
@@ -206,10 +294,24 @@ async def list_vouchers(
     voucher_type: VoucherType | None = Query(default=None),
     status: VoucherStatus | None = Query(default=None),
     payment_method_id: UUID | None = Query(default=None),
+    is_current_account: bool | None = Query(default=None),
+    current_account_status: str | None = Query(default=None),
+    date_from: date_type | None = Query(default=None),
+    date_to: date_type | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
 ):
     """Lista comprobantes con filtros y paginación."""
+    has_current_account_access = await _user_has_current_account_access(
+        db, business_id, current_user
+    )
+    if (is_current_account is not None or current_account_status) and not has_current_account_access:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tenés permiso para acceder a Cuenta Corriente.",
+        )
+
     service = VoucherService(db)
     vouchers, total = await service.list(
         business_id=business_id,
@@ -219,6 +321,11 @@ async def list_vouchers(
         voucher_type=voucher_type,
         status=status,
         payment_method_id=payment_method_id,
+        is_current_account=is_current_account,
+        current_account_status=current_account_status,
+        date_from=date_from,
+        date_to=date_to,
+        include_current_account=has_current_account_access,
     )
 
     pages = (total + per_page - 1) // per_page if per_page else 0
@@ -245,6 +352,8 @@ async def create_voucher(
     Las facturas (A, B, C) requieren que haya una caja abierta.
     """
     await _ensure_voucher_type_feature_enabled(db, business_id, data.voucher_type)
+    if data.is_current_account:
+        await _ensure_current_account_available(db, business_id, current_user)
 
     # Validar caja abierta para facturas
     if data.voucher_type in INVOICE_TYPES:
@@ -318,6 +427,7 @@ async def list_recent_voucher_audit_logs(
     ),
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
 ):
     """Lista auditoría reciente de comprobantes (cambios y eliminaciones)."""
     allowed_actions = ["update", "delete"]
@@ -508,10 +618,17 @@ async def get_voucher_pdf(
     voucher_id: UUID,
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
 ):
     """Genera y devuelve el PDF inline de un comprobante."""
     service = VoucherService(db)
     try:
+        voucher = await service.get_by_id(voucher_id, business_id)
+        if not voucher:
+            raise ValueError("Comprobante no encontrado")
+        if voucher.is_current_account or voucher.is_current_account_closure:
+            await _ensure_current_account_user_access(db, business_id, current_user)
+
         pdf_bytes = await service.generate_pdf(voucher_id, business_id)
 
         return StreamingResponse(
@@ -529,6 +646,83 @@ async def get_voucher_pdf(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al generar PDF: {str(e)}",
         )
+
+
+@router.get("/{voucher_id}/payment-receipt/pdf")
+async def get_payment_receipt_pdf(
+    voucher_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """Genera el PDF del remito de pago asociado a una factura en cuenta corriente."""
+    await _ensure_current_account_available(db, business_id, current_user)
+    result = await db.execute(
+        select(PaymentReceipt)
+        .options(
+            selectinload(PaymentReceipt.business),
+            selectinload(PaymentReceipt.client),
+            selectinload(PaymentReceipt.invoice_voucher).selectinload(Voucher.items),
+        )
+        .where(
+            PaymentReceipt.invoice_voucher_id == voucher_id,
+            PaymentReceipt.business_id == business_id,
+            PaymentReceipt.deleted_at.is_(None),
+        )
+        .order_by(PaymentReceipt.created_at.desc())
+    )
+    payment_receipt = result.scalars().first()
+
+    if not payment_receipt:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No existe remito de pago para esta factura",
+        )
+
+    invoice = payment_receipt.invoice_voucher
+    context = {
+        "business": payment_receipt.business,
+        "client": payment_receipt.client,
+        "invoice": {
+            "full_number": invoice.full_number,
+            "date": invoice.date.strftime("%d/%m/%Y") if invoice.date else "—",
+        },
+        "receipt": {
+            "full_number": payment_receipt.full_number,
+            "payment_date": payment_receipt.payment_date.strftime("%d/%m/%Y"),
+            "amount": f"{Decimal(str(payment_receipt.amount)):.2f}",
+            "payment_method": payment_receipt.payment_method.value,
+            "reference": payment_receipt.reference,
+            "notes": payment_receipt.notes,
+        },
+        "items": [
+            {
+                "code": item.code,
+                "description": item.description,
+                "quantity": item.quantity,
+                "unit_price": f"{Decimal(str(item.unit_price)):.2f}",
+                "total": f"{Decimal(str(item.total)):.2f}",
+            }
+            for item in (invoice.items or [])
+        ],
+    }
+
+    try:
+        pdf_bytes = pdf_service.generate_payment_receipt_pdf(context)
+    except Exception as e:
+        logger.exception("Error al generar PDF de remito de pago para voucher %s", voucher_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al generar PDF de remito de pago: {str(e)}",
+        )
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"inline; filename=remito_pago_{payment_receipt.full_number}.pdf"
+        },
+    )
 
 
 @router.delete("/{voucher_id}/delete")
@@ -549,6 +743,9 @@ async def delete_voucher(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Comprobante no encontrado"
         )
+
+    if before_voucher.is_current_account or before_voucher.is_current_account_closure:
+        await _ensure_current_account_user_access(db, business_id, current_user)
 
     try:
         success = await service.soft_delete(
@@ -605,6 +802,9 @@ async def list_pending_quotations(
 
     Filtros disponibles: tipo (quotation/receipt), fecha desde/hasta, texto de búsqueda.
     """
+    has_current_account_access = await _user_has_current_account_access(
+        db, business_id, current_user
+    )
     service = VoucherService(db)
     vouchers, total = await service.list_pending_quotations(
         business_id=business_id,
@@ -614,6 +814,7 @@ async def list_pending_quotations(
         voucher_type=voucher_type,
         date_from=date_from,
         date_to=date_to,
+        include_current_account=has_current_account_access,
     )
 
     pages = (total + per_page - 1) // per_page if per_page else 0
@@ -639,6 +840,7 @@ async def close_current_account(
     current_user=Depends(get_current_user),
 ):
     """Cierra cuenta corriente creando comprobante pendiente de facturación."""
+    await _ensure_current_account_available(db, business_id, current_user)
     service = VoucherService(db)
     try:
         closure_voucher = await service.close_current_account(
@@ -681,6 +883,7 @@ async def preview_current_account_close(
     current_user=Depends(get_current_user),
 ):
     """Previsualiza un cierre de cuenta corriente sin persistir nada."""
+    await _ensure_current_account_available(db, business_id, current_user)
     service = VoucherService(db)
     try:
         preview = await service.preview_current_account_close(
@@ -707,6 +910,7 @@ async def preview_current_account_close_pdf(
     """Genera PDF de preview de cierre sin persistir nada."""
     from fastapi.responses import Response
 
+    await _ensure_current_account_available(db, business_id, current_user)
     service = VoucherService(db)
     try:
         preview = await service.preview_current_account_close(
@@ -812,8 +1016,10 @@ async def list_current_account_receipts(
     search: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
 ):
     """Lista remitos de Cuenta Corriente para control previo al cierre."""
+    await _ensure_current_account_available(db, business_id, current_user)
     service = VoucherService(db)
     vouchers, total = await service.list_current_account_receipts(
         business_id=business_id,
@@ -842,8 +1048,10 @@ async def get_current_account_history(
     billing_client_id: UUID,
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
 ):
     """Obtiene el historial de cierres de cuenta corriente por cliente titular."""
+    await _ensure_current_account_available(db, business_id, current_user)
     service = VoucherService(db)
     return await service.get_current_account_closure_history(
         business_id=business_id,
@@ -873,6 +1081,8 @@ async def convert_quotation_to_invoice(
     - Requiere caja abierta.
     """
     await _ensure_invoicing_enabled(db, business_id)
+    if data.is_current_account:
+        await _ensure_current_account_available(db, business_id, current_user)
 
     # Validar caja abierta antes de convertir
     open_register = await get_open_cash_register(db, business_id)
@@ -897,6 +1107,8 @@ async def convert_quotation_to_invoice(
             payments=payments_raw,
             fiscal_client_id=data.fiscal_client_id,
             user_id=current_user.id,
+            is_current_account=data.is_current_account,
+            payment_days=data.payment_days,
             price_strategy=data.price_strategy,
             cash_register_id=open_register.id if open_register else None,
         )
@@ -915,6 +1127,8 @@ async def convert_quotation_to_invoice(
                     str(data.fiscal_client_id) if data.fiscal_client_id else None
                 ),
                 "price_strategy": data.price_strategy,
+                "is_current_account": data.is_current_account,
+                "payment_days": data.payment_days,
             },
         )
 
@@ -1091,6 +1305,8 @@ async def compile_quotations_to_invoice(
     Si falla algo, no se persiste ningún cambio (transacción atómica).
     """
     await _ensure_invoicing_enabled(db, business_id)
+    if data.is_current_account:
+        await _ensure_current_account_available(db, business_id, current_user)
 
     open_register = await get_open_cash_register(db, business_id)
     if not open_register:
@@ -1116,6 +1332,8 @@ async def compile_quotations_to_invoice(
             price_strategy=data.price_strategy,
             general_discount=data.general_discount,
             user_id=current_user.id,
+            is_current_account=data.is_current_account,
+            payment_days=data.payment_days,
             cash_register_id=open_register.id if open_register else None,
         )
 
@@ -1312,6 +1530,7 @@ async def pay_current_account_voucher(
     - Genera un Remito de Pago automáticamente
     - Registra el movimiento en la caja diaria
     """
+    await _ensure_current_account_available(db, business_id, current_user)
     # 1. Buscar la factura
     result = await db.execute(
         select(Voucher).where(
@@ -1349,13 +1568,16 @@ async def pay_current_account_voucher(
         )
     
     # 5. Validar monto
-    if data.amount <= 0:
+    amount = Decimal(str(data.amount))
+    voucher_total = Decimal(str(voucher.total))
+
+    if amount <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El monto debe ser mayor a 0",
         )
     
-    if data.amount > float(voucher.total):
+    if amount > voucher_total:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"El monto no puede exceder el total de la factura (${voucher.total})",
@@ -1363,6 +1585,11 @@ async def pay_current_account_voucher(
     
     # 6. Obtener caja abierta
     cash_register = await get_open_cash_register(db, business_id)
+    if not cash_register:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No hay una caja abierta. Debe abrir la caja antes de registrar cobros.",
+        )
     
     # 7. Generar número de Remito de Pago
     business = await db.get(Business, business_id)
@@ -1376,7 +1603,7 @@ async def pay_current_account_voucher(
         client_id=voucher.billing_client_id or voucher.client_id,
         received_by=current_user.id,
         payment_date=data.payment_date,
-        amount=data.amount,
+        amount=amount,
         payment_method=data.payment_method,
         reference=data.reference,
         sale_point=sale_point,
@@ -1388,11 +1615,22 @@ async def pay_current_account_voucher(
     # 9. Actualizar la factura
     voucher.is_paid = True
     voucher.payment_date = data.payment_date
-    voucher.paid_amount = data.amount
+    voucher.paid_amount = amount
     
     # 10. Actualizar numeración del negocio
     business.last_receipt_number = str(next_number).zfill(8)
     
+    await create_automatic_movement(
+        db=db,
+        cash_register=cash_register,
+        movement_type=CashMovementType.PAYMENT_RECEIVED,
+        payment_method=_map_payment_method_to_cash_method(data.payment_method),
+        amount=amount,
+        description=f"Cobro Cta. Cte. Factura {voucher.full_number} - Remito Pago {payment_receipt.full_number}",
+        created_by=current_user.id,
+        voucher_id=voucher.id,
+    )
+
     await db.commit()
     await db.refresh(payment_receipt)
     await db.refresh(voucher)

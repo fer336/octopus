@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Remito de Pago {{ receipt.full_number }}</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { font-family: Arial, sans-serif; color: #111827; font-size: 12px; }
+    .header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #1d4ed8; padding-bottom: 14px; }
+    .business h1 { margin: 0 0 4px; font-size: 22px; color: #1d4ed8; }
+    .business p, .meta p { margin: 2px 0; color: #4b5563; }
+    .doc-box { border: 2px solid #1d4ed8; border-radius: 10px; padding: 12px 16px; min-width: 210px; text-align: center; }
+    .doc-box h2 { margin: 0 0 8px; font-size: 18px; color: #1d4ed8; text-transform: uppercase; }
+    .doc-box .number { font-size: 16px; font-weight: 700; }
+    .section { margin-top: 18px; border: 1px solid #d1d5db; border-radius: 10px; overflow: hidden; }
+    .section-title { background: #eff6ff; color: #1d4ed8; font-weight: 700; padding: 8px 10px; border-bottom: 1px solid #bfdbfe; }
+    .section-body { padding: 10px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; }
+    .label { color: #6b7280; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+    .value { font-weight: 700; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th { background: #f3f4f6; color: #374151; text-align: left; padding: 7px; font-size: 11px; border-bottom: 1px solid #d1d5db; }
+    td { padding: 7px; border-bottom: 1px solid #e5e7eb; }
+    .right { text-align: right; }
+    .total-box { margin-left: auto; width: 280px; margin-top: 14px; border: 2px solid #1d4ed8; border-radius: 10px; padding: 12px; }
+    .total-line { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; color: #1d4ed8; }
+    .signature { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 44px; }
+    .signature-line { border-top: 1px solid #6b7280; padding-top: 6px; text-align: center; color: #4b5563; }
+    .footer { margin-top: 26px; color: #6b7280; font-size: 10px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="business">
+      <h1>{{ business.name }}</h1>
+      <p>{{ business.address or '' }}</p>
+      <p>CUIT: {{ business.cuit or '—' }}</p>
+      <p>{{ business.phone or '' }} {{ business.email or '' }}</p>
+    </div>
+    <div class="doc-box">
+      <h2>Remito de Pago</h2>
+      <div class="number">{{ receipt.full_number }}</div>
+      <p>Fecha de pago: {{ receipt.payment_date }}</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Datos del cliente y factura abonada</div>
+    <div class="section-body grid">
+      <div><div class="label">Cliente</div><div class="value">{{ client.name }}</div></div>
+      <div><div class="label">Documento</div><div class="value">{{ client.document_type }} {{ client.document_number }}</div></div>
+      <div><div class="label">Factura abonada</div><div class="value">{{ invoice.full_number }}</div></div>
+      <div><div class="label">Fecha factura</div><div class="value">{{ invoice.date }}</div></div>
+      <div><div class="label">Método de pago</div><div class="value">{{ receipt.payment_method }}</div></div>
+      <div><div class="label">Referencia</div><div class="value">{{ receipt.reference or '—' }}</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Detalle de la factura</div>
+    <div class="section-body">
+      <table>
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Descripción</th>
+            <th class="right">Cant.</th>
+            <th class="right">P.Unit</th>
+            <th class="right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td>{{ item.code }}</td>
+            <td>{{ item.description }}</td>
+            <td class="right">{{ item.quantity }}</td>
+            <td class="right">${{ item.unit_price }}</td>
+            <td class="right">${{ item.total }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="total-box">
+        <div class="total-line"><span>Monto abonado</span><span>${{ receipt.amount }}</span></div>
+      </div>
+    </div>
+  </div>
+
+  {% if receipt.notes %}
+  <div class="section">
+    <div class="section-title">Observaciones</div>
+    <div class="section-body">{{ receipt.notes }}</div>
+  </div>
+  {% endif %}
+
+  <div class="signature">
+    <div class="signature-line">Firma quien recibe</div>
+    <div class="signature-line">Aclaración / DNI</div>
+  </div>
+
+  <div class="footer">
+    Documento generado como constancia de pago de la factura {{ invoice.full_number }}.
+  </div>
+</body>
+</html>

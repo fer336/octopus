@@ -9,7 +9,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import desc, func, or_, select
+from sqlalchemy import Integer, cast, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -55,6 +55,14 @@ class VoucherService:
         if not client:
             raise ValueError("Cliente no encontrado")
         return client
+
+    @staticmethod
+    def _ensure_current_account_feature_enabled(business: Business) -> None:
+        """Bloquea Cuenta Corriente si el CMS la deshabilitó para el tenant."""
+        if (business.current_account_mode or "disabled") == "disabled":
+            raise ValueError(
+                "Cuenta Corriente está deshabilitada para este negocio desde el CMS"
+            )
 
     async def _get_open_current_account_total(
         self,
@@ -537,6 +545,9 @@ class VoucherService:
         if not business:
             raise ValueError("Negocio no encontrado")
 
+        if data.is_current_account:
+            self._ensure_current_account_feature_enabled(business)
+
         # 4. Obtener siguiente número según tipo
         voucher_type_str = (
             data.voucher_type.value
@@ -786,6 +797,11 @@ class VoucherService:
         voucher_type: VoucherType | None = None,
         status: VoucherStatus | None = None,
         payment_method_id: UUID | None = None,
+        is_current_account: bool | None = None,
+        current_account_status: str | None = None,
+        date_from: date_type | None = None,
+        date_to: date_type | None = None,
+        include_current_account: bool = True,
     ) -> tuple[list[Voucher], int]:
         """Lista comprobantes con filtros y paginación."""
 
@@ -806,6 +822,33 @@ class VoucherService:
                     VoucherPayment.payment_method_id == payment_method_id
                 )
             )
+
+        if is_current_account is not None:
+            base_conditions.append(Voucher.is_current_account.is_(is_current_account))
+        elif not include_current_account:
+            base_conditions.extend(
+                [
+                    Voucher.is_current_account.is_(False),
+                    Voucher.is_current_account_closure.is_(False),
+                ]
+            )
+
+        if current_account_status == "overdue":
+            today = date_type.today()
+            base_conditions.extend(
+                [
+                    Voucher.is_current_account.is_(True),
+                    Voucher.is_paid.is_(False),
+                    Voucher.payment_days.is_not(None),
+                    (Voucher.date + cast(Voucher.payment_days, Integer)) < today,
+                ]
+            )
+
+        if date_from:
+            base_conditions.append(Voucher.date >= date_from)
+
+        if date_to:
+            base_conditions.append(Voucher.date <= date_to)
 
         if search:
             search_pattern = f"%{search}%"
@@ -1262,6 +1305,7 @@ class VoucherService:
         voucher_type: VoucherType | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
+        include_current_account: bool = True,
     ) -> tuple[builtins.list[Voucher], int]:
         """
         Lista cotizaciones y/o remitos pendientes de facturar.
@@ -1290,6 +1334,14 @@ class VoucherService:
             Voucher.invoiced_voucher_id.is_(None),
             Voucher.deleted_at.is_(None),
         ]
+
+        if not include_current_account:
+            base_conditions.extend(
+                [
+                    Voucher.is_current_account.is_(False),
+                    Voucher.is_current_account_closure.is_(False),
+                ]
+            )
 
         if search:
             search_pattern = f"%{search}%"
@@ -1550,6 +1602,8 @@ general_discount=general_discount,
         if not business:
             raise ValueError("Negocio no encontrado")
 
+        self._ensure_current_account_feature_enabled(business)
+
         last_number = int(business.last_quotation_number or "0")
         next_number = last_number + 1
         business.last_quotation_number = str(next_number).zfill(8)
@@ -1707,6 +1761,8 @@ general_discount=general_discount,
         payments: builtins.list[dict[str, Any]] | None,
         fiscal_client_id: UUID | None,
         user_id: UUID,
+        is_current_account: bool = False,
+        payment_days: int | None = None,
         price_strategy: Literal["historical", "current"] = "historical",
         cash_register_id: UUID | None = None,
     ) -> Voucher:
@@ -1723,8 +1779,10 @@ general_discount=general_discount,
         Args:
             business_id: ID del negocio
             quotation_id: ID de la cotización a convertir
-            payments: Métodos de pago (requerido para facturas)
+            payments: Métodos de pago (requerido salvo factura en cuenta corriente)
             fiscal_client_id: Cliente fiscal final (opcional)
+            is_current_account: Si la factura queda pendiente de pago en cuenta corriente
+            payment_days: Plazo de pago en días para cuenta corriente
             price_strategy: Estrategia de precios ('historical' | 'current')
             user_id: ID del usuario que realiza la conversión
             cash_register_id: ID de la caja abierta (para registrar movimientos)
@@ -1776,10 +1834,16 @@ general_discount=general_discount,
         if invoice_client.tax_condition == "RI":
             invoice_type = VoucherType.INVOICE_A
 
+        if is_current_account and not payment_days:
+            raise ValueError("Debe indicar los días de plazo para la factura en cuenta corriente")
+
         # 3. Obtener business para numeración
         business = await self.db.get(Business, business_id)
         if not business:
             raise ValueError("Negocio no encontrado")
+
+        if is_current_account:
+            self._ensure_current_account_feature_enabled(business)
 
         # 4. Obtener siguiente número de factura
         if invoice_type == VoucherType.INVOICE_A:
@@ -1822,6 +1886,10 @@ general_discount=general_discount,
             notes=invoice_notes,
             show_prices="S",
             general_discount=quotation_general_discount,
+            is_current_account=is_current_account,
+            payment_days=payment_days if is_current_account else None,
+            is_paid=not is_current_account,
+            paid_amount=None if is_current_account else Decimal("0"),
         )
 
         (
@@ -1855,7 +1923,7 @@ general_discount=general_discount,
             business_id=business_id,
             payments=payments,
             total_expected=total_final,
-            require_payments=True,
+            require_payments=not is_current_account,
             cash_register_id=cash_register_id,
             user_id=user_id,
             voucher_full_number=invoice.full_number,
@@ -1878,6 +1946,8 @@ general_discount=general_discount,
         price_strategy: Literal["historical", "current"] = "historical",
         general_discount: Decimal = Decimal("0"),
         user_id: UUID = None,
+        is_current_account: bool = False,
+        payment_days: int | None = None,
         cash_register_id: UUID | None = None,
     ) -> Voucher:
         """
@@ -1891,11 +1961,13 @@ general_discount=general_discount,
         Args:
             business_id: ID del negocio
             quotation_ids: Lista de IDs de cotizaciones/remitos a compilar
-            payments: Métodos de pago (requerido para facturas)
+            payments: Métodos de pago (requerido salvo factura en cuenta corriente)
             fiscal_client_id: Cliente fiscal final (opcional)
             price_strategy: Estrategia de precios ('historical' | 'current')
             general_discount: Descuento general (%) override. Si es 0, usa max de cotizaciones.
             user_id: ID del usuario que realiza la compilación
+            is_current_account: Si la factura queda pendiente de pago en cuenta corriente
+            payment_days: Plazo de pago en días para cuenta corriente
             cash_register_id: ID de la caja abierta (para registrar movimientos)
 
         Returns:
@@ -1971,10 +2043,16 @@ general_discount=general_discount,
         if invoice_client.tax_condition == "RI":
             invoice_type = VoucherType.INVOICE_A
 
+        if is_current_account and not payment_days:
+            raise ValueError("Debe indicar los días de plazo para la factura en cuenta corriente")
+
         # 8. Obtener business para numeración
         business = await self.db.get(Business, business_id)
         if not business:
             raise ValueError("Negocio no encontrado")
+
+        if is_current_account:
+            self._ensure_current_account_feature_enabled(business)
 
         # 9. Obtener siguiente número de factura
         if invoice_type == VoucherType.INVOICE_A:
@@ -2024,6 +2102,10 @@ general_discount=general_discount,
             notes=invoice_notes,
             show_prices="S",
             general_discount=general_discount,
+            is_current_account=is_current_account,
+            payment_days=payment_days if is_current_account else None,
+            is_paid=not is_current_account,
+            paid_amount=None if is_current_account else Decimal("0"),
         )
 
         # 13. Copiar TODOS los items de TODOS los comprobantes origen
@@ -2059,7 +2141,10 @@ general_discount=general_discount,
             business_id=business_id,
             payments=payments,
             total_expected=invoice.total,
-            require_payments=True,
+            require_payments=not is_current_account,
+            cash_register_id=cash_register_id,
+            user_id=user_id,
+            voucher_full_number=invoice.full_number,
         )
 
         # 17. Marcar TODOS los comprobantes origen como facturados

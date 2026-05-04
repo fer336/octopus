@@ -16,6 +16,8 @@ export interface VoucherPayment {
   reference?: string
 }
 
+export type LegacyPaymentMethod = 'cash' | 'transfer' | 'check' | 'credit_card' | 'debit_card' | 'mercadopago' | 'other'
+
 export type PriceStrategy = 'historical' | 'current'
 
 export interface VoucherCreate {
@@ -109,7 +111,26 @@ export interface Voucher {
   related_voucher_id?: string | null
   deleted_at?: string | null
   deletion_reason?: string | null
+  payment_days?: number | null
+  is_paid?: boolean
+  payment_date?: string | null
+  paid_amount?: number | null
   items: VoucherItem[]
+}
+
+export interface VoucherPayRequest {
+  payment_date: string
+  amount: number
+  payment_method: LegacyPaymentMethod
+  reference?: string
+  notes?: string
+}
+
+export interface VoucherPayResponse {
+  voucher_id: string
+  is_paid: boolean
+  payment_date: string
+  paid_amount: number
 }
 
 export interface PaginatedVouchers {
@@ -128,6 +149,10 @@ const vouchersService = {
     voucher_type?: string
     status?: string
     payment_method_id?: string
+    is_current_account?: boolean
+    current_account_status?: string
+    date_from?: string
+    date_to?: string
   }): Promise<PaginatedVouchers> => {
     const response = await httpClient.get('/vouchers', { params })
     return response.data
@@ -197,6 +222,18 @@ const vouchersService = {
     return response.data
   },
 
+  getPaymentReceiptPdf: async (id: string): Promise<Blob> => {
+    const response = await httpClient.get(`/vouchers/${id}/payment-receipt/pdf`, {
+      responseType: 'blob',
+    })
+    return response.data
+  },
+
+  payCurrentAccountInvoice: async (id: string, data: VoucherPayRequest): Promise<VoucherPayResponse> => {
+    const response = await httpClient.post(`/vouchers/${id}/pay`, data)
+    return response.data
+  },
+
   /**
    * Elimina un comprobante (soft delete).
    */
@@ -231,11 +268,14 @@ const vouchersService = {
     payments?: VoucherPayment[],
     fiscalClientId?: string,
     priceStrategy?: PriceStrategy,
+    currentAccount?: { enabled: boolean; paymentDays?: number },
   ): Promise<Voucher> => {
     const response = await httpClient.post(`/vouchers/${quotationId}/convert-to-invoice`, {
       payments: payments ?? null,
       fiscal_client_id: fiscalClientId ?? null,
       price_strategy: priceStrategy ?? 'historical',
+      is_current_account: currentAccount?.enabled ?? false,
+      payment_days: currentAccount?.enabled ? currentAccount.paymentDays : null,
     })
     return response.data
   },
@@ -368,6 +408,7 @@ const vouchersService = {
     generalDiscount?: number,
     fiscalClientId?: string,
     priceStrategy?: PriceStrategy,
+    currentAccount?: { enabled: boolean; paymentDays?: number },
   ): Promise<Voucher> => {
     const response = await httpClient.post('/vouchers/compile-to-invoice', {
       quotation_ids: quotationIds,
@@ -375,6 +416,8 @@ const vouchersService = {
       general_discount: generalDiscount ?? 0,
       fiscal_client_id: fiscalClientId ?? null,
       price_strategy: priceStrategy ?? 'historical',
+      is_current_account: currentAccount?.enabled ?? false,
+      payment_days: currentAccount?.enabled ? currentAccount.paymentDays : null,
     })
     return response.data
   },

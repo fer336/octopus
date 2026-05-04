@@ -16,6 +16,8 @@ import businessService from '../api/businessService'
 import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { useSalesStore } from '../stores/salesStore'
+import { useAuthStore } from '../stores/authStore'
+import { hasModuleAccess } from '../utils/acl'
 import { TAX_CONDITIONS, getTaxConditionLabel } from '../types'
 
 type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'current_account'
@@ -289,6 +291,7 @@ const priceStrategyOptions: Array<{ value: PriceStrategy; label: string; help: s
 
 export default function Sales() {
   const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
   const aiPreloadedItems = useSalesStore((s) => s.items)
   const aiPreloadedFromAI = useSalesStore((s) => s.preloadedFromAI)
   const clearAIPreload = useSalesStore((s) => s.clear)
@@ -301,7 +304,9 @@ export default function Sales() {
   const invoicingEnabled = business?.invoicing_enabled ?? true
   const receiptsEnabled = business?.receipts_enabled ?? true
   const quotationEnabled = business?.quotation_enabled ?? true
-  const currentAccountEnabled = (business?.current_account_mode ?? 'disabled') !== 'disabled'
+  const currentAccountEnabled =
+    (business?.current_account_mode ?? 'disabled') !== 'disabled' &&
+    hasModuleAccess(user, 'current_account')
 
   const voucherTypes = useMemo(
     () =>
@@ -465,18 +470,20 @@ export default function Sales() {
       fiscalClientId,
       priceStrategy,
       sourceVoucherType,
+      currentAccount,
     }: {
       quotationId: string
       payments?: VoucherPayment[]
       fiscalClientId?: string
       priceStrategy: PriceStrategy
       sourceVoucherType?: VoucherType2['voucher_type']
+      currentAccount?: { enabled: boolean; paymentDays?: number }
     }) => {
       if (sourceVoucherType === 'receipt') {
-        return vouchersService.compileToInvoice([quotationId], payments, undefined, fiscalClientId, priceStrategy)
+        return vouchersService.compileToInvoice([quotationId], payments, undefined, fiscalClientId, priceStrategy, currentAccount)
       }
 
-      return vouchersService.convertToInvoice(quotationId, payments, fiscalClientId, priceStrategy)
+      return vouchersService.convertToInvoice(quotationId, payments, fiscalClientId, priceStrategy, currentAccount)
     },
     onSuccess: async (data, variables) => {
       const sourceLabel = variables.sourceVoucherType === 'receipt' ? 'remito' : 'cotización'
@@ -523,6 +530,8 @@ export default function Sales() {
       setSelectedQuotation(null)
       setSelectedConvertFiscalClientId('')
       setConvertPriceStrategy('historical')
+      setConvertPayInCurrentAccount(false)
+      setConvertCurrentAccountDays(30)
       resetConvertPaymentSelections()
       refetchPendingQuotations()
     },
@@ -757,6 +766,18 @@ export default function Sales() {
   const [quotationDateTo, setQuotationDateTo] = useState(_fmt(_lastOfMonth))
   const [isConvertingQuotation, setIsConvertingQuotation] = useState(false)
   const [convertPaymentSelections, setConvertPaymentSelections] = useState<Record<string, PaymentSelectionState>>({})
+  const [convertPayInCurrentAccount, setConvertPayInCurrentAccount] = useState(false)
+  const [convertCurrentAccountDays, setConvertCurrentAccountDays] = useState(30)
+
+  useEffect(() => {
+    if (!currentAccountEnabled) {
+      if (voucherType === 'current_account') {
+        setVoucherType('quotation')
+      }
+      setPayInCurrentAccount(false)
+      setConvertPayInCurrentAccount(false)
+    }
+  }, [currentAccountEnabled, voucherType])
 
   // React Query para comprobantes pendientes de facturar (cotizaciones y remitos)
   // Se ejecuta solo cuando el modal está abierto
@@ -1398,6 +1419,11 @@ export default function Sales() {
       return
     }
 
+    if ((voucherType === 'current_account' || (voucherType === 'invoice' && payInCurrentAccount)) && !currentAccountEnabled) {
+      toast.error('Cuenta Corriente está deshabilitada para este negocio desde el CMS')
+      return
+    }
+
     if (voucherType === 'current_account' && selectedClient.current_account_mode === 'disabled') {
       toast.error('El cliente titular no tiene Cuenta Corriente habilitada. Activala desde Clientes antes de emitir.')
       return
@@ -1414,6 +1440,11 @@ export default function Sales() {
   const handleConfirmGenerate = async () => {
     if (!selectedClient) {
       toast.error('Debe seleccionar un cliente')
+      return
+    }
+
+    if ((voucherType === 'current_account' || (voucherType === 'invoice' && payInCurrentAccount)) && !currentAccountEnabled) {
+      toast.error('Cuenta Corriente está deshabilitada para este negocio desde el CMS')
       return
     }
 
@@ -1844,6 +1875,16 @@ export default function Sales() {
   // Validar pagos del modal de conversión
   const validateConvertPayments = () => {
     if (!selectedQuotation) return { valid: false, message: 'No hay cotización seleccionada' }
+
+    if (convertPayInCurrentAccount) {
+      if (!currentAccountEnabled) {
+        return { valid: false, message: 'Cuenta Corriente está deshabilitada para este negocio desde el CMS' }
+      }
+      if (!convertCurrentAccountDays || convertCurrentAccountDays <= 0) {
+        return { valid: false, message: 'Debe indicar el plazo de vencimiento de la cuenta corriente' }
+      }
+      return { valid: true }
+    }
     
     // Recalcular total desde los items (unit_price es sin IVA en el backend)
     const quotationItems = selectedQuotation.items || []
@@ -1919,6 +1960,10 @@ export default function Sales() {
       fiscalClientId,
       priceStrategy: convertPriceStrategy,
       sourceVoucherType: selectedQuotation.voucher_type,
+      currentAccount: {
+        enabled: convertPayInCurrentAccount,
+        paymentDays: convertPayInCurrentAccount ? convertCurrentAccountDays : undefined,
+      },
     })
   }
 
@@ -3748,12 +3793,16 @@ export default function Sales() {
         onClose={() => setShowConfirmModal(false)} 
         title={voucherType === 'invoice' ? 'Confirmar Emisión de Factura Electrónica' : `Confirmar ${voucherTypes.find(v => v.value === voucherType)?.label}`}
         size={voucherType === 'invoice' ? 'xl' : 'lg'}
+        containerClassName={voucherType === 'invoice' ? 'max-h-[calc(100vh-2rem)]' : undefined}
+        headerClassName={voucherType === 'invoice' ? 'px-4 py-3' : undefined}
+        contentClassName={voucherType === 'invoice' ? 'px-4 py-3 max-h-[calc(100vh-6rem)] overflow-y-auto' : undefined}
+        titleClassName={voucherType === 'invoice' ? 'text-base' : undefined}
       >
-        <div className="space-y-4">
-          <div className={voucherType === 'invoice' ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : ''}>
+        <div className={voucherType === 'invoice' ? 'space-y-2.5' : 'space-y-4'}>
+          <div className={voucherType === 'invoice' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : ''}>
             {/* Detalles Venta */}
-            <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-4">
-              <div className="space-y-2 text-sm">
+            <div className={voucherType === 'invoice' ? 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3' : 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-4'}>
+              <div className={voucherType === 'invoice' ? 'space-y-1.5 text-xs' : 'space-y-2 text-sm'}>
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Cliente:</span>
                   <span className="font-medium text-gray-900 dark:text-white">{selectedClient?.name}</span>
@@ -3825,9 +3874,9 @@ export default function Sales() {
                 )}
 
                 {/* Descuento General Editable */}
-                <div className="pt-3 border-t border-primary-200 dark:border-primary-700">
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <div className="pt-2 border-t border-primary-200 dark:border-primary-700">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
                       Descuento general:
                     </label>
                     <div className="flex items-center gap-2">
@@ -3835,62 +3884,42 @@ export default function Sales() {
                         type="number"
                         value={generalDiscount}
                         onChange={(e) => setGeneralDiscount(parseFloat(e.target.value) || 0)}
-                        className="w-20 px-2 py-1 text-sm text-right border rounded dark:bg-gray-700 dark:border-gray-600"
+                        className="h-7 w-16 px-2 py-1 text-xs text-right border rounded dark:bg-gray-700 dark:border-gray-600"
                         min={0}
                         max={100}
                         step={0.1}
                         placeholder="0"
                       />
-                      <span className="text-sm text-gray-500">%</span>
+                      <span className="text-xs text-gray-500">%</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Desglose de totales */}
-                <div className="space-y-2 pt-2 border-t border-primary-200 dark:border-primary-700">
-                  <div className="flex justify-between text-sm">
+                <div className="space-y-1.5 pt-2 border-t border-primary-200 dark:border-primary-700">
+                  <div className="flex justify-between text-xs">
                     <span className="text-gray-600 dark:text-gray-400">Subtotal (sin IVA):</span>
                     <span className="font-medium">${formatNumber(subtotalWithoutIva, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
 
                   {generalDiscount > 0 && (
-                    <div className="flex justify-between text-sm text-red-600 dark:text-red-400">
+                    <div className="flex justify-between text-xs text-red-600 dark:text-red-400">
                       <span>Descuento ({generalDiscount}%):</span>
                       <span className="font-medium">-${formatNumber(discountAmount, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                   )}
 
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-xs">
                     <span className="text-gray-600 dark:text-gray-400">IVA (21%):</span>
                     <span className="font-medium">${formatNumber(iva, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
 
                   {/* Total final */}
-                  <div className="flex justify-between pt-2 border-t-2 border-primary-300 dark:border-primary-600">
+                  <div className="flex justify-between pt-1.5 border-t-2 border-primary-300 dark:border-primary-600">
                     <span className="font-bold text-gray-900 dark:text-white text-base">TOTAL:</span>
-                    <span className="font-bold text-xl text-primary-600 dark:text-primary-400">
+                    <span className="font-bold text-lg text-primary-600 dark:text-primary-400">
                       ${formatNumber(totalRounded, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
-                  </div>
-                </div>
-
-                {/* Descuento General - después del TOTAL */}
-                <div className="pt-3 border-t border-primary-200 dark:border-primary-700">
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
-                    Descuento General
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      value={generalDiscount}
-                      onChange={(e) => setGeneralDiscount(parseFloat(e.target.value) || 0)}
-                      className="flex-1 px-3 py-2 text-sm text-right border rounded-lg dark:bg-gray-700 dark:border-gray-600 font-medium"
-                      min={0}
-                      max={100}
-                      step={0.1}
-                      placeholder="0"
-                    />
-                    <span className="text-sm font-medium text-gray-500">%</span>
                   </div>
                 </div>
               </div>
@@ -3898,10 +3927,10 @@ export default function Sales() {
 
             {/* Métodos de pago — solo para facturas */}
             {voucherType === 'invoice' && (
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800">
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-800">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Métodos de pago</h3>
+                <h3 className="text-xs font-semibold text-gray-900 dark:text-white">Métodos de pago</h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Obligatorio para facturas.</p>
               </div>
               <div className="text-right">
@@ -3917,7 +3946,7 @@ export default function Sales() {
                 No hay métodos de pago configurados para este negocio.
               </p>
             ) : (
-              <div className="mt-3 space-y-2">
+              <div className="mt-2 space-y-1.5">
                 {paymentMethods.map((method) => {
                   const selection = paymentSelections[method.id]
                   const isSelected = selection?.selected || false
@@ -3925,14 +3954,14 @@ export default function Sales() {
                   return (
                     <div 
                       key={method.id} 
-                      className={`rounded-lg border p-2 transition-colors ${
+                      className={`rounded-lg border px-2 py-1.5 transition-colors ${
                         isSelected 
                           ? 'border-primary-300 dark:border-primary-700 bg-primary-50/50 dark:bg-primary-900/20' 
                           : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
                       }`}
                     >
                       <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                        <label className="flex items-center gap-2 min-w-[140px] shrink-0 cursor-pointer">
+                        <label className="flex items-center gap-2 min-w-[132px] shrink-0 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -3940,7 +3969,7 @@ export default function Sales() {
                             className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                           />
                           <div className="flex flex-col">
-                            <span className={`text-sm font-medium leading-tight ${isSelected ? 'text-primary-900 dark:text-primary-100' : 'text-gray-700 dark:text-gray-300'}`}>
+                              <span className={`text-xs font-medium leading-tight ${isSelected ? 'text-primary-900 dark:text-primary-100' : 'text-gray-700 dark:text-gray-300'}`}>
                               {method.name}
                             </span>
                             {method.requires_reference && (
@@ -3961,7 +3990,7 @@ export default function Sales() {
                               onChange={(e) => handlePaymentAmountChange(method.id, e.target.value)}
                               placeholder="Monto"
                               disabled={!isSelected}
-                              className={`text-right h-8 text-sm w-full ${!isSelected && 'opacity-50 bg-gray-50 dark:bg-gray-900'}`}
+                              className={`text-right h-7 text-xs w-full ${!isSelected && 'opacity-50 bg-gray-50 dark:bg-gray-900'}`}
                             />
                           </div>
 
@@ -3974,7 +4003,7 @@ export default function Sales() {
                                   onChange={(e) => handlePaymentReferenceChange(method.id, e.target.value)}
                                   placeholder={getPaymentReferencePlaceholder(method)}
                                   disabled={!isSelected}
-                                  className={`h-8 text-sm w-[60%] ${!isSelected && 'opacity-50 bg-gray-50 dark:bg-gray-900'}`}
+                                  className={`h-7 text-xs w-[60%] ${!isSelected && 'opacity-50 bg-gray-50 dark:bg-gray-900'}`}
                                 />
                                 <Input
                                   type="date"
@@ -3982,7 +4011,7 @@ export default function Sales() {
                                   onChange={(e) => handlePaymentExtraDateChange(method.id, e.target.value)}
                                   placeholder="Vencimiento"
                                   disabled={!isSelected}
-                                  className={`h-8 text-sm w-[40%] px-1 ${!isSelected && 'opacity-50 bg-gray-50 dark:bg-gray-900'}`}
+                                  className={`h-7 text-xs w-[40%] px-1 ${!isSelected && 'opacity-50 bg-gray-50 dark:bg-gray-900'}`}
                                   title="Fecha de vencimiento"
                                 />
                               </>
@@ -3993,7 +4022,7 @@ export default function Sales() {
                                   onChange={(e) => handlePaymentReferenceChange(method.id, e.target.value)}
                                   placeholder={getPaymentReferencePlaceholder(method)}
                                   disabled={!isSelected}
-                                  className={`h-8 text-sm w-full ${!isSelected && 'opacity-50 bg-gray-50 dark:bg-gray-900'}`}
+                                  className={`h-7 text-xs w-full ${!isSelected && 'opacity-50 bg-gray-50 dark:bg-gray-900'}`}
                                 />
                             )}
                           </div>
@@ -4005,7 +4034,7 @@ export default function Sales() {
               </div>
             )}
 
-            <div className="mt-3 flex items-center justify-between text-sm">
+            <div className="mt-2 flex items-center justify-between text-xs">
               <span className="text-gray-600 dark:text-gray-400">Diferencia:</span>
               <span className={`font-semibold ${isPaymentBalanced ? 'text-primary-600 dark:text-primary-400' : 'text-red-600 dark:text-red-400'}`}>
                 ${formatNumber(paymentDifference, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -4017,7 +4046,7 @@ export default function Sales() {
 
           {/* Opción: Pagar en Cuenta Corriente */}
           {voucherType === 'invoice' && currentAccountEnabled && (
-          <div className="mt-4 border border-primary-200 dark:border-primary-800 rounded-lg p-4 bg-primary-50 dark:bg-primary-900/20">
+          <div className="border border-primary-200 dark:border-primary-800 rounded-lg p-3 bg-primary-50 dark:bg-primary-900/20">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -4033,7 +4062,7 @@ export default function Sales() {
                   }}
                   className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                 />
-                <span className="text-sm font-medium text-primary-900 dark:text-primary-100">
+                  <span className="text-sm font-medium text-primary-900 dark:text-primary-100">
                   Pagar en Cuenta Corriente
                 </span>
               </label>
@@ -4056,7 +4085,7 @@ export default function Sales() {
               )}
             </div>
             {payInCurrentAccount && (
-              <p className="mt-2 text-xs text-primary-700 dark:text-primary-300">
+              <p className="mt-1.5 text-xs text-primary-700 dark:text-primary-300">
                 La factura se emite con {currentAccountDays} días de plazo. No impactará en la caja hasta que se registre el pago.
               </p>
             )}
@@ -4064,15 +4093,15 @@ export default function Sales() {
           )}
 
           {voucherType === 'invoice' && (
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-              <p className="text-sm text-amber-900 dark:text-amber-200">
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
+              <p className="text-xs text-amber-900 dark:text-amber-200">
                 <strong>⚠️ Importante:</strong> Se emitirá una factura electrónica en ARCA/AFIP. 
                 Este proceso es <strong>irreversible</strong> y se obtendrá un CAE oficial.
               </p>
             </div>
           )}
 
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 pt-1">
             <Button 
               variant="outline" 
               onClick={() => setShowConfirmModal(false)} 
@@ -4489,6 +4518,8 @@ export default function Sales() {
             setSelectedQuotation(null)
             setSelectedConvertFiscalClientId('')
             setConvertPriceStrategy('historical')
+            setConvertPayInCurrentAccount(false)
+            setConvertCurrentAccountDays(30)
             resetConvertPaymentSelections()
           }
         }}
@@ -4605,8 +4636,46 @@ export default function Sales() {
               </div>
             </div>
 
+            {currentAccountEnabled && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3 dark:border-blue-800 dark:bg-blue-900/20">
+              <label className="flex cursor-pointer items-start gap-2 text-sm font-semibold text-blue-900 dark:text-blue-100">
+                <input
+                  type="checkbox"
+                  checked={convertPayInCurrentAccount}
+                  onChange={(e) => {
+                    setConvertPayInCurrentAccount(e.target.checked)
+                    if (e.target.checked) {
+                      resetConvertPaymentSelections()
+                    }
+                  }}
+                  className="mt-0.5 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span>Dejar factura en Cuenta Corriente</span>
+              </label>
+              {convertPayInCurrentAccount && (
+                <div className="mt-2">
+                  <label className="mb-1 block text-xs font-medium text-blue-700 dark:text-blue-300">
+                    Vencimiento de la factura
+                  </label>
+                  <select
+                    value={convertCurrentAccountDays}
+                    onChange={(e) => setConvertCurrentAccountDays(Number(e.target.value))}
+                    className="h-9 w-full rounded-lg border border-blue-300 bg-white px-3 text-sm dark:border-blue-700 dark:bg-gray-900"
+                  >
+                    {[7, 15, 30, 60, 90].map((days) => (
+                      <option key={days} value={days}>{days} días</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-blue-700 dark:text-blue-300">
+                    La factura queda impaga y después se cobra con remito de pago.
+                  </p>
+                </div>
+              )}
+            </div>
+            )}
+
             {/* Métodos de pago */}
-            {paymentMethods.length > 0 && (
+            {!convertPayInCurrentAccount && paymentMethods.length > 0 && (
               <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Métodos de Pago</h4>
@@ -4709,6 +4778,8 @@ export default function Sales() {
                   setSelectedQuotation(null)
                   setSelectedConvertFiscalClientId('')
                   setConvertPriceStrategy('historical')
+                  setConvertPayInCurrentAccount(false)
+                  setConvertCurrentAccountDays(30)
                   resetConvertPaymentSelections()
                 }}
                 className="flex-1"

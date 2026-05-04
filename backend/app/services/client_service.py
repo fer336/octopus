@@ -10,6 +10,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.business import Business
 from app.models.client import Client
 from app.models.client_type import ClientType
 from app.schemas.client import ClientCreate, ClientListParams, ClientUpdate
@@ -31,6 +32,24 @@ class ClientService:
         if mode == "limited" and (credit_limit is None):
             raise ValueError(
                 "Para modo de cuenta corriente 'limited' debe informar credit_limit"
+            )
+
+    async def _ensure_business_allows_current_account(
+        self,
+        business_id: UUID,
+        requested_mode: str | None,
+    ) -> None:
+        """Evita habilitar Cuenta Corriente en clientes si el CMS la deshabilitó."""
+        if not requested_mode or requested_mode == "disabled":
+            return
+
+        business = await self.db.get(Business, business_id)
+        if not business:
+            raise ValueError("Negocio no encontrado")
+
+        if (business.current_account_mode or "disabled") == "disabled":
+            raise ValueError(
+                "Cuenta Corriente está deshabilitada para este negocio desde el CMS"
             )
 
     async def _resolve_client_type_id(
@@ -64,6 +83,10 @@ class ClientService:
         payload = data.model_dump()
         payload["client_type_id"] = resolved_client_type_id
         self._validate_current_account_rules(payload)
+        await self._ensure_business_allows_current_account(
+            business_id=business_id,
+            requested_mode=payload.get("current_account_mode"),
+        )
 
         client = Client(
             business_id=business_id,
@@ -185,6 +208,11 @@ class ClientService:
             **update_data,
         }
         self._validate_current_account_rules(merged_payload)
+        if "current_account_mode" in update_data:
+            await self._ensure_business_allows_current_account(
+                business_id=business_id,
+                requested_mode=update_data.get("current_account_mode"),
+            )
 
         for field, value in update_data.items():
             setattr(client, field, value)

@@ -81,6 +81,26 @@
 
 ## 🟢 Hecho
 
+- [x] [CMS-USER-CC-PERMISSION-06] Bloquear Cuenta Corriente por permiso de empleado además del plan del tenant ✅ 2026-05-04
+
+- [x] [CMS-PLAN-GUARDS-05] Auditar y reforzar validaciones backend/frontend para que los flags del CMS no puedan saltearse por plan ✅ 2026-05-04
+
+- [x] [VOUCHERS-ACTIONS-OFFSET-05] Comprobantes: desplazar 1px a la izquierda la fila de acciones ✅ 2026-05-04
+
+- [x] [VOUCHERS-FILTERS-CALENDAR-ICON-04] Comprobantes: centrar iconos de calendario en filtros compactos ✅ 2026-05-04
+
+- [x] [VOUCHERS-FILTERS-CALENDAR-COMPACT-03] Comprobantes: compactar calendarios y evitar corte del botón limpiar ✅ 2026-05-04
+
+- [x] [CMS-CC-GATE-04] Bloquear generación/visibilidad de Cuenta Corriente según flag del CMS y corregir UI de calendarios en filtros ✅ 2026-05-04
+
+- [x] [VOUCHERS-FILTERS-DESIGN-02] Comprobantes: mejorar diseño visual del panel de filtros CC/fechas ✅ 2026-05-04
+
+- [x] [VOUCHERS-FILTERS-CC-DATE-01] Comprobantes: agregar filtro de Cuenta Corriente y rango de fechas con calendario ✅ 2026-05-04
+
+- [x] [CC-INVOICE-VOUCHER-PAY-UI-01] Comprobantes/Sales: badges de factura en cuenta corriente con vencimiento y acción para registrar pago/remito de pago ✅ 2026-05-04
+
+- [x] [SALES-INVOICE-MODAL-COMPACT-01] Compactar modal de emisión de factura electrónica para reducir scroll vertical ✅ 2026-05-04
+
 - [x] [DEVOPS-ROOT-CLEANUP-14] Limpiar raíz del repo moviendo/eliminando YML sueltos a ubicación correcta ✅ 2026-05-02
 
 - [x] [DEVOPS-CICD-REFactor-13] Integrar nuevo workflow CI y refactorizar CI/CD (`ci.yml`, `release.yml`, `stack.yml`, `ruff.toml`, `SETUP_NOTES.py`) ✅ 2026-05-02

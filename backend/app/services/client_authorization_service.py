@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.business import Business
 from app.models.client import Client
 from app.models.client_authorization import ClientAuthorization
 from app.models.client_type import ClientType
@@ -23,6 +24,17 @@ class ClientAuthorizationService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def _ensure_current_account_feature_enabled(self, business_id: UUID) -> None:
+        """Bloquea autorizaciones de Cuenta Corriente si el CMS deshabilitó el módulo."""
+        business = await self.db.get(Business, business_id)
+        if not business:
+            raise ValueError("Negocio no encontrado")
+
+        if (business.current_account_mode or "disabled") == "disabled":
+            raise ValueError(
+                "Cuenta Corriente está deshabilitada para este negocio desde el CMS"
+            )
 
     async def _get_client_or_raise(self, client_id: UUID, business_id: UUID) -> Client:
         query = select(Client).where(
@@ -69,6 +81,7 @@ class ClientAuthorizationService:
         data: ClientAuthorizationCreate,
     ) -> ClientAuthorization:
         """Crea una autorización titular/subcliente."""
+        await self._ensure_current_account_feature_enabled(business_id)
         await self._validate_pair(
             business_id=business_id,
             billing_client_id=data.billing_client_id,
@@ -167,6 +180,9 @@ class ClientAuthorizationService:
             return None
 
         update_data = data.model_dump(exclude_unset=True)
+        if update_data.get("is_active") is True:
+            await self._ensure_current_account_feature_enabled(business_id)
+
         for field, value in update_data.items():
             setattr(item, field, value)
 

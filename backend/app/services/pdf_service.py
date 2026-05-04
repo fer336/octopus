@@ -82,6 +82,27 @@ class PdfService:
             traceback.print_exc()
             raise
 
+    def generate_payment_receipt_pdf(self, context: dict[str, Any]) -> bytes:
+        """
+        Genera el PDF de remito/recibo de pago de una factura en cuenta corriente.
+
+        Args:
+            context: Diccionario con business, client, invoice, receipt, items y totals.
+
+        Returns:
+            bytes: El contenido del archivo PDF.
+        """
+        try:
+            template = env.get_template("payment_receipt.html")
+            html_content = template.render(**context)
+            return HTML(string=html_content).write_pdf()
+        except Exception as e:
+            print(f"Error al generar PDF remito de pago: {str(e)}")
+            import traceback
+
+            traceback.print_exc()
+            raise
+
     def generate_afip_qr(
         self,
         fecha: str,

@@ -369,6 +369,9 @@ def require_module_access(module_key: str):
             )
 
         feature_by_module = {
+            "products": "inventory_enabled",
+            "categories": "inventory_enabled",
+            "suppliers": "inventory_enabled",
             "reports": "reports_enabled",
             "price_update": "price_update_enabled",
             "sql_backup": "sql_backup_enabled",

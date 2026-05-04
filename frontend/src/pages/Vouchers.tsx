@@ -3,12 +3,12 @@
  * Visualiza cotizaciones, remitos y facturas generadas.
  */
 import { useState, useEffect, useRef } from 'react'
-import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle, RotateCcw, FileMinus, ExternalLink, Pencil, Menu, Info } from 'lucide-react'
+import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle, RotateCcw, FileMinus, ExternalLink, Pencil, Menu, Info, CircleDollarSign, CalendarDays, X } from 'lucide-react'
 import gsap from 'gsap'
 import { Button, Table, Pagination, Select, Modal, Input, ResponsiveTable } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import vouchersService, { type Voucher, type VoucherPayment, type PriceStrategy } from '../api/vouchersService'
+import vouchersService, { type LegacyPaymentMethod, type Voucher, type VoucherPayment, type PriceStrategy } from '../api/vouchersService'
 import arcaService from '../api/arcaService'
 import businessService from '../api/businessService'
 import clientsService from '../api/clientsService'
@@ -16,6 +16,8 @@ import { usePaymentMethods } from '../hooks/usePaymentMethods'
 import CreditNoteModal from '../components/vouchers/CreditNoteModal'
 import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
+import { useAuthStore } from '../stores/authStore'
+import { hasModuleAccess } from '../utils/acl'
 
 type VoucherListItem = Voucher
 
@@ -70,6 +72,65 @@ const statusLabels: Record<string, { label: string; className: string }> = {
   cancelled: { label: 'Anulado', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
 }
 
+const isInvoiceVoucher = (voucher: VoucherListItem): boolean => voucher.voucher_type?.startsWith('invoice_')
+
+const parseLocalDate = (value?: string | null): Date | null => {
+  if (!value) return null
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return null
+  return new Date(year, month - 1, day)
+}
+
+const formatLocalDate = (date: Date): string => date.toLocaleDateString('es-AR')
+
+const getCurrentAccountInvoiceInfo = (voucher: VoucherListItem) => {
+  if (!isInvoiceVoucher(voucher) || !voucher.is_current_account) return null
+
+  const baseDate = parseLocalDate(voucher.date)
+  const days = Number(voucher.payment_days || 0)
+  if (!baseDate || !days) return null
+
+  const dueDate = new Date(baseDate)
+  dueDate.setDate(dueDate.getDate() + days)
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  dueDate.setHours(0, 0, 0, 0)
+
+  const isPaid = Boolean(voucher.is_paid)
+  const isOverdue = !isPaid && dueDate < today
+
+  if (isPaid) {
+    return {
+      isPaid,
+      isOverdue,
+      label: `Cta Cte pagada ${voucher.payment_date ? formatLocalDate(parseLocalDate(voucher.payment_date) || dueDate) : ''}`.trim(),
+      className: 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300 dark:border-green-700',
+    }
+  }
+
+  return {
+    isPaid,
+    isOverdue,
+    label: isOverdue ? `Cta Cte vencida ${formatLocalDate(dueDate)}` : `Cta Cte vence ${formatLocalDate(dueDate)}`,
+    className: isOverdue
+      ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700'
+      : 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700',
+  }
+}
+
+const mapCatalogPaymentMethodToLegacy = (method: any): LegacyPaymentMethod => {
+  const raw = `${method?.code || ''} ${method?.name || ''}`.toLowerCase()
+  if (raw.includes('efectivo') || raw.includes('cash')) return 'cash'
+  if (raw.includes('transfer')) return 'transfer'
+  if (raw.includes('cheque') || raw.includes('check')) return 'check'
+  if (raw.includes('mercadopago') || raw.includes('mercado pago') || raw.includes('mp')) return 'mercadopago'
+  if (raw.includes('débito') || raw.includes('debito') || raw.includes('debit')) return 'debit_card'
+  if (raw.includes('crédito') || raw.includes('credito') || raw.includes('credit')) return 'credit_card'
+  if (raw.includes('tarjeta') || raw.includes('card')) return 'credit_card'
+  return 'other'
+}
+
 const priceStrategyOptions: Array<{ value: PriceStrategy; label: string; help: string }> = [
   {
     value: 'historical',
@@ -86,6 +147,7 @@ const priceStrategyOptions: Array<{ value: PriceStrategy; label: string; help: s
 export default function Vouchers() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
   const { data: business } = useQuery({
     queryKey: ['business-me-vouchers'],
     queryFn: () => businessService.getMyBusiness(),
@@ -93,11 +155,17 @@ export default function Vouchers() {
   })
   const invoicingEnabled = business?.invoicing_enabled ?? true
   const receiptsEnabled = business?.receipts_enabled ?? true
+  const currentAccountEnabled =
+    (business?.current_account_mode ?? 'disabled') !== 'disabled' &&
+    hasModuleAccess(user, 'current_account')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('')
+  const [filterCurrentAccount, setFilterCurrentAccount] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [voucherToDelete, setVoucherToDelete] = useState<VoucherListItem | null>(null)
   const [deleteReason, setDeleteReason] = useState('')
@@ -121,6 +189,34 @@ export default function Vouchers() {
   const [_compilePreviewLoading, _setCompilePreviewLoading] = useState(false)
   const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null)
   const [openSubrowDetailsId, setOpenSubrowDetailsId] = useState<string | null>(null)
+  const [voucherToPay, setVoucherToPay] = useState<VoucherListItem | null>(null)
+  const [payPaymentMethodId, setPayPaymentMethodId] = useState('')
+  const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [payReference, setPayReference] = useState('')
+  const [payNotes, setPayNotes] = useState('')
+  const [payError, setPayError] = useState('')
+  const [compilePayInCurrentAccount, setCompilePayInCurrentAccount] = useState(false)
+  const [compileCurrentAccountDays, setCompileCurrentAccountDays] = useState(30)
+  const hasActiveFilters = Boolean(
+    search ||
+    filterType ||
+    filterStatus ||
+    filterPaymentMethod ||
+    filterCurrentAccount ||
+    filterDateFrom ||
+    filterDateTo,
+  )
+
+  const resetFilters = () => {
+    setSearch('')
+    setFilterType('')
+    setFilterStatus('')
+    setFilterPaymentMethod('')
+    setFilterCurrentAccount('')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+    setPage(1)
+  }
   
   // Refs para animaciones GSAP
   const expandedChildRefs = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -135,6 +231,17 @@ export default function Vouchers() {
   }
 
   // Efecto para animaciones de expandir/colapsar
+  useEffect(() => {
+    if (!currentAccountEnabled && filterCurrentAccount) {
+      setFilterCurrentAccount('')
+      setPage(1)
+    }
+
+    if (!currentAccountEnabled && compilePayInCurrentAccount) {
+      setCompilePayInCurrentAccount(false)
+    }
+  }, [currentAccountEnabled, filterCurrentAccount, compilePayInCurrentAccount])
+
   useEffect(() => {
     const current = expandedInvoiceId
     const previous = prevExpandedRef.current
@@ -156,7 +263,7 @@ export default function Vouchers() {
 
   // Query para comprobantes
   const { data: vouchersData, isLoading, error } = useQuery({
-    queryKey: ['vouchers', page, search, filterType, filterStatus, filterPaymentMethod],
+    queryKey: ['vouchers', page, search, filterType, filterStatus, filterPaymentMethod, filterCurrentAccount, filterDateFrom, filterDateTo],
     queryFn: () => vouchersService.getAll({ 
       page, 
       per_page: 20, 
@@ -164,6 +271,10 @@ export default function Vouchers() {
       voucher_type: filterType || undefined,
       status: filterStatus || undefined,
       payment_method_id: filterPaymentMethod || undefined,
+      is_current_account: filterCurrentAccount === 'current_account' || filterCurrentAccount === 'current_account_overdue' ? true : undefined,
+      current_account_status: filterCurrentAccount === 'current_account_overdue' ? 'overdue' : undefined,
+      date_from: filterDateFrom || undefined,
+      date_to: filterDateTo || undefined,
     }),
     retry: false,
   })
@@ -294,8 +405,8 @@ export default function Vouchers() {
   })
 
   const compileMutation = useMutation({
-    mutationFn: ({ quotationIds, payments, general_discount, fiscal_client_id, price_strategy }: { quotationIds: string[]; payments: VoucherPayment[]; general_discount?: number; fiscal_client_id?: string; price_strategy: PriceStrategy }) =>
-      vouchersService.compileToInvoice(quotationIds, payments, general_discount, fiscal_client_id, price_strategy),
+    mutationFn: ({ quotationIds, payments, general_discount, fiscal_client_id, price_strategy, currentAccount }: { quotationIds: string[]; payments?: VoucherPayment[]; general_discount?: number; fiscal_client_id?: string; price_strategy: PriceStrategy; currentAccount?: { enabled: boolean; paymentDays?: number } }) =>
+      vouchersService.compileToInvoice(quotationIds, payments, general_discount, fiscal_client_id, price_strategy, currentAccount),
     onSuccess: async (invoice: any) => {
       queryClient.invalidateQueries({ queryKey: ['vouchers'] })
       setShowCompileModal(false)
@@ -306,6 +417,8 @@ export default function Vouchers() {
       setCompilePaymentError('')
       setCompileFiscalClientId('')
       setCompilePriceStrategy('historical')
+      setCompilePayInCurrentAccount(false)
+      setCompileCurrentAccountDays(30)
       toast.success('Factura generada correctamente', { icon: '✅' })
 
       if (invoice?.voucher_type?.startsWith('invoice_')) {
@@ -342,6 +455,44 @@ export default function Vouchers() {
         setTimeout(() => URL.revokeObjectURL(pdfUrl), 10000)
       } catch {
         toast.error('Factura creada pero no se pudo abrir el PDF')
+      }
+    },
+    onError: (error: any) => {
+      toast.error(formatErrorMessage(error))
+    },
+  })
+
+  const payInvoiceMutation = useMutation({
+    mutationFn: async ({ voucher, paymentMethodId, paymentDate, reference, notes }: { voucher: VoucherListItem; paymentMethodId: string; paymentDate: string; reference?: string; notes?: string }) => {
+      const method = paymentMethods.find((pm: any) => pm.id === paymentMethodId)
+      if (!method) {
+        throw new Error('Método de pago inválido')
+      }
+
+      return vouchersService.payCurrentAccountInvoice(voucher.id, {
+        payment_date: paymentDate,
+        amount: Number(voucher.total),
+        payment_method: mapCatalogPaymentMethodToLegacy(method),
+        reference: reference?.trim() || undefined,
+        notes: notes?.trim() || undefined,
+      })
+    },
+    onSuccess: async (_response, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['vouchers'] })
+      toast.success('Pago registrado y remito de pago generado', { icon: '✅' })
+      setVoucherToPay(null)
+      setPayPaymentMethodId('')
+      setPayReference('')
+      setPayNotes('')
+      setPayError('')
+
+      try {
+        const pdfBlob = await vouchersService.getPaymentReceiptPdf(variables.voucher.id)
+        const pdfUrl = URL.createObjectURL(pdfBlob)
+        window.open(pdfUrl, '_blank')
+        setTimeout(() => URL.revokeObjectURL(pdfUrl), 10000)
+      } catch (error) {
+        toast.error(`Pago registrado, pero no se pudo abrir el remito de pago: ${formatErrorMessage(error)}`)
       }
     },
     onError: (error: any) => {
@@ -612,6 +763,7 @@ export default function Vouchers() {
         const closureLockInfo = getCurrentAccountClosureLockInfo(item)
         const hasCreditNote = item.voucher_type?.startsWith('invoice_') && item.has_credit_note
         const isCreditNote = item.voucher_type?.startsWith('credit_note_')
+        const currentAccountInfo = getCurrentAccountInvoiceInfo(item)
         const parentNode = (
           <div className="flex items-center gap-2 flex-wrap">
             <Icon size={16} className={`${typeInfo.textClass} shrink-0`} />
@@ -657,6 +809,14 @@ export default function Vouchers() {
                 className="inline-flex items-center px-1.5 h-5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700 text-[9px] font-bold leading-none shrink-0"
               >
                 NC
+              </span>
+            )}
+            {currentAccountInfo && (
+              <span
+                title={currentAccountInfo.label}
+                className={`inline-flex items-center px-1.5 h-5 rounded-full border text-[9px] font-bold leading-none shrink-0 ${currentAccountInfo.className}`}
+              >
+                {currentAccountInfo.label}
               </span>
             )}
           </div>
@@ -836,13 +996,14 @@ export default function Vouchers() {
       key: 'actions',
       header: 'Acciones',
       className: 'text-center w-[140px] max-w-[140px] align-top',
-       render: (item: VoucherListItem) => {
-         const isDeleted = !!item.deleted_at
+        render: (item: VoucherListItem) => {
+          const isDeleted = !!item.deleted_at
           const closureLockInfo = getCurrentAccountClosureLockInfo(item)
           const isLockedByClosure = closureLockInfo.isLocked
+          const canPayCurrentAccountInvoice = currentAccountEnabled && isInvoiceVoucher(item) && !!item.is_current_account && !item.is_paid
 
         const parentActions = (
-          <div className="mx-auto flex w-[128px] flex-nowrap items-center justify-center gap-1 overflow-x-auto whitespace-nowrap">
+          <div className="mx-auto flex w-[128px] -translate-x-px flex-nowrap items-center justify-center gap-1 overflow-x-auto whitespace-nowrap">
             {!isDeleted && (
               <>
                 {item.voucher_type === 'quotation' && !item.invoiced_voucher_id && (
@@ -868,6 +1029,24 @@ export default function Vouchers() {
                 >
                   <Download size={14} />
                 </button>
+
+                {canPayCurrentAccountInvoice && (
+                  <button
+                    onClick={(e) => {
+                      animateButton(e)
+                      setVoucherToPay(item)
+                      setPayPaymentMethodId(paymentMethods.find((pm: any) => pm.is_active !== false)?.id || '')
+                      setPayDate(new Date().toISOString().slice(0, 10))
+                      setPayReference('')
+                      setPayNotes('')
+                      setPayError('')
+                    }}
+                    className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+                    title="Cobrar factura y generar remito de pago"
+                  >
+                    <CircleDollarSign size={14} />
+                  </button>
+                )}
                 
                 {/* Botón Nota de Crédito - SOLO para facturas con CAE y SIN NC previa */}
                 {invoicingEnabled && item.voucher_type.startsWith('invoice_') && item.cae && !item.has_credit_note && (
@@ -1072,61 +1251,150 @@ export default function Vouchers() {
   return (
     <div className="space-y-4 w-full max-w-none">
       {/* Filtros */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por número..."
-              className="w-full pl-9 pr-4 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-          
-          <Select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            options={[
-              { value: '', label: 'Todos los Tipos' },
-              { value: 'quotation',     label: 'Cotizaciones' },
-              ...(receiptsEnabled ? [{ value: 'receipt', label: 'Remitos' }] : []),
-              ...(invoicingEnabled
-                ? [
-                    { value: 'invoice_a', label: 'Facturas A' },
-                    { value: 'invoice_b', label: 'Facturas B' },
-                    { value: 'invoice_c', label: 'Facturas C' },
-                    { value: 'credit_note_a', label: 'Notas de Crédito A' },
-                    { value: 'credit_note_b', label: 'Notas de Crédito B' },
-                    { value: 'credit_note_c', label: 'Notas de Crédito C' },
-                  ]
-                : []),
-            ]}
-          />
-          
-          <Select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            options={[
-              { value: '', label: 'Todos los Estados' },
-              { value: 'draft', label: 'Borradores' },
-              { value: 'confirmed', label: 'Confirmados' },
-              { value: 'cancelled', label: 'Anulados' },
-            ]}
-          />
+      <div className="rounded-2xl border border-gray-200 bg-white/95 p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800/95">
+        <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_repeat(4,minmax(120px,132px))_40px_40px_40px]">
+            <div className="space-y-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Buscar
+              </span>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value)
+                    setPage(1)
+                  }}
+                  placeholder="Número de comprobante"
+                  className="h-10 w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-4 text-sm text-gray-900 outline-none transition focus:border-primary-400 focus:bg-white focus:ring-2 focus:ring-primary-500/20 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-100 dark:focus:bg-gray-900"
+                />
+              </div>
+            </div>
 
-          <Select
-            value={filterPaymentMethod}
-            onChange={(e) => setFilterPaymentMethod(e.target.value)}
-            options={[
-              { value: '', label: 'Todos los Medios de Pago' },
-              ...paymentMethods.map((method) => ({
-                value: method.id,
-                label: method.is_active ? method.name : `${method.name} (inactivo)`,
-              })),
-            ]}
-          />
+            <Select
+              label="Tipo"
+              value={filterType}
+              className="h-10 rounded-xl bg-gray-50 text-sm dark:bg-gray-900/40 sm:w-[132px]"
+              onChange={(e) => {
+                setFilterType(e.target.value)
+                setPage(1)
+              }}
+              options={[
+                { value: '', label: 'Todos los tipos' },
+                { value: 'quotation',     label: 'Cotizaciones' },
+                ...(receiptsEnabled ? [{ value: 'receipt', label: 'Remitos' }] : []),
+                ...(invoicingEnabled
+                  ? [
+                      { value: 'invoice_a', label: 'Facturas A' },
+                      { value: 'invoice_b', label: 'Facturas B' },
+                      { value: 'invoice_c', label: 'Facturas C' },
+                      { value: 'credit_note_a', label: 'Notas de Crédito A' },
+                      { value: 'credit_note_b', label: 'Notas de Crédito B' },
+                      { value: 'credit_note_c', label: 'Notas de Crédito C' },
+                    ]
+                  : []),
+              ]}
+            />
+
+            <Select
+              label="Estado"
+              value={filterStatus}
+              className="h-10 rounded-xl bg-gray-50 text-sm dark:bg-gray-900/40 sm:w-[132px]"
+              onChange={(e) => {
+                setFilterStatus(e.target.value)
+                setPage(1)
+              }}
+              options={[
+                { value: '', label: 'Todos los estados' },
+                { value: 'draft', label: 'Borradores' },
+                { value: 'confirmed', label: 'Confirmados' },
+                { value: 'cancelled', label: 'Anulados' },
+              ]}
+            />
+
+            <Select
+              label="Medio de pago"
+              value={filterPaymentMethod}
+              className="h-10 rounded-xl bg-gray-50 text-sm dark:bg-gray-900/40 sm:w-[132px]"
+              onChange={(e) => {
+                setFilterPaymentMethod(e.target.value)
+                setPage(1)
+              }}
+              options={[
+                { value: '', label: 'Todos los métodos' },
+                ...paymentMethods.map((method) => ({
+                  value: method.id,
+                  label: method.is_active ? method.name : `${method.name} (inactivo)`,
+                })),
+              ]}
+            />
+
+            <Select
+              label="Cuenta"
+              value={filterCurrentAccount}
+              className="h-10 rounded-xl bg-gray-50 text-sm dark:bg-gray-900/40 sm:w-[132px]"
+              onChange={(e) => {
+                setFilterCurrentAccount(e.target.value)
+                setPage(1)
+              }}
+              options={[
+                { value: '', label: 'Todas' },
+                ...(currentAccountEnabled
+                  ? [
+                      { value: 'current_account', label: 'Solo Ctas Ctes' },
+                      { value: 'current_account_overdue', label: 'Ctas Ctes vencidas' },
+                    ]
+                  : []),
+              ]}
+            />
+            <div className="space-y-1">
+              <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <CalendarDays size={12} />
+                Desde
+              </span>
+              <input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => {
+                  setFilterDateFrom(e.target.value)
+                  setPage(1)
+                }}
+                aria-label="Fecha desde"
+                title={filterDateFrom ? `Desde: ${filterDateFrom}` : 'Fecha desde'}
+                className="relative h-10 w-10 cursor-pointer rounded-xl border border-gray-200 bg-gray-50 px-0 text-transparent outline-none transition [color-scheme:light] focus:border-primary-400 focus:bg-white focus:ring-2 focus:ring-primary-500/20 dark:border-gray-700 dark:bg-gray-900/40 dark:[color-scheme:dark] dark:focus:bg-gray-900 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:left-1/2 [&::-webkit-calendar-picker-indicator]:top-1/2 [&::-webkit-calendar-picker-indicator]:h-5 [&::-webkit-calendar-picker-indicator]:w-5 [&::-webkit-calendar-picker-indicator]:-translate-x-1/2 [&::-webkit-calendar-picker-indicator]:-translate-y-1/2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:p-0 [&::-webkit-calendar-picker-indicator]:opacity-70"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <CalendarDays size={12} />
+                Hasta
+              </span>
+              <input
+                type="date"
+                value={filterDateTo}
+                min={filterDateFrom || undefined}
+                onChange={(e) => {
+                  setFilterDateTo(e.target.value)
+                  setPage(1)
+                }}
+                aria-label="Fecha hasta"
+                title={filterDateTo ? `Hasta: ${filterDateTo}` : 'Fecha hasta'}
+                className="relative h-10 w-10 cursor-pointer rounded-xl border border-gray-200 bg-gray-50 px-0 text-transparent outline-none transition [color-scheme:light] focus:border-primary-400 focus:bg-white focus:ring-2 focus:ring-primary-500/20 dark:border-gray-700 dark:bg-gray-900/40 dark:[color-scheme:dark] dark:focus:bg-gray-900 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:left-1/2 [&::-webkit-calendar-picker-indicator]:top-1/2 [&::-webkit-calendar-picker-indicator]:h-5 [&::-webkit-calendar-picker-indicator]:w-5 [&::-webkit-calendar-picker-indicator]:-translate-x-1/2 [&::-webkit-calendar-picker-indicator]:-translate-y-1/2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:p-0 [&::-webkit-calendar-picker-indicator]:opacity-70"
+              />
+            </div>
+
+              <button
+                type="button"
+                onClick={resetFilters}
+                disabled={!hasActiveFilters}
+                title="Limpiar filtros"
+                aria-label="Limpiar filtros"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-500 transition hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                <X size={16} />
+              </button>
         </div>
       </div>
 
@@ -1191,6 +1459,8 @@ export default function Vouchers() {
             const statusLabel = statusRaw.label
             // Para mobile, convertir className bg-green-* a bg-emerald-* para consistente con el diseño
             const statusColor = statusRaw.className.replace('green', 'emerald')
+            const currentAccountInfo = getCurrentAccountInvoiceInfo(voucher)
+            const canPayCurrentAccountInvoice = currentAccountEnabled && isInvoiceVoucher(voucher) && !!voucher.is_current_account && !voucher.is_paid
             
             return (
               <div key={voucher.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -1221,6 +1491,11 @@ export default function Vouchers() {
                     </span>
                     {isDeleted && (
                       <span className="text-xs font-bold text-red-600">ELIMINADO</span>
+                    )}
+                    {currentAccountInfo && (
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${currentAccountInfo.className}`}>
+                        {currentAccountInfo.label}
+                      </span>
                     )}
                   </div>
                   <span className="font-mono text-sm font-bold text-gray-900 dark:text-white">
@@ -1256,6 +1531,23 @@ export default function Vouchers() {
                       <button onClick={(e) => { animateButton(e); handleDownloadPdf(voucher.id, `${voucher.sale_point}-${voucher.number}`) }} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg" title="Descargar PDF">
                         <Download size={16} />
                       </button>
+                      {canPayCurrentAccountInvoice && (
+                        <button
+                          onClick={(e) => {
+                            animateButton(e)
+                            setVoucherToPay(voucher)
+                            setPayPaymentMethodId(paymentMethods.find((pm: any) => pm.is_active !== false)?.id || '')
+                            setPayDate(new Date().toISOString().slice(0, 10))
+                            setPayReference('')
+                            setPayNotes('')
+                            setPayError('')
+                          }}
+                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
+                          title="Cobrar factura y generar remito de pago"
+                        >
+                          <CircleDollarSign size={16} />
+                        </button>
+                      )}
                       <button onClick={(e) => { animateButton(e); setExpandedInvoiceId(expandedInvoiceId === voucher.id ? null : voucher.id) }} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg" title="Ver vinculados">
                         <Menu size={16} />
                       </button>
@@ -1322,6 +1614,119 @@ export default function Vouchers() {
         totalItems={vouchersData?.total || 0}
         onPageChange={setPage}
       />
+
+      {/* Modal de cobro de factura en Cuenta Corriente */}
+      <Modal
+        isOpen={!!voucherToPay}
+        onClose={() => {
+          if (!payInvoiceMutation.isPending) {
+            setVoucherToPay(null)
+            setPayPaymentMethodId('')
+            setPayReference('')
+            setPayNotes('')
+            setPayError('')
+          }
+        }}
+        title="Cobrar factura en Cuenta Corriente"
+      >
+        {voucherToPay && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-blue-200 bg-blue-50/80 p-3 text-sm dark:border-blue-800 dark:bg-blue-900/20">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                    Factura a cobrar
+                  </p>
+                  <p className="font-mono font-bold text-gray-900 dark:text-white">
+                    {voucherToPay.sale_point}-{voucherToPay.number}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-blue-700 dark:text-blue-300">Total</p>
+                  <p className="text-lg font-bold text-gray-900 dark:text-white">
+                    ${Number(voucherToPay.total).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+              {getCurrentAccountInvoiceInfo(voucherToPay) && (
+                <span className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${getCurrentAccountInvoiceInfo(voucherToPay)?.className}`}>
+                  {getCurrentAccountInvoiceInfo(voucherToPay)?.label}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Fecha de pago
+                </label>
+                <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Método de pago
+                </label>
+                <Select
+                  value={payPaymentMethodId}
+                  onChange={(e) => {
+                    setPayPaymentMethodId(e.target.value)
+                    setPayError('')
+                  }}
+                  options={[
+                    { value: '', label: 'Seleccionar método' },
+                    ...paymentMethods
+                      .filter((method: any) => method.is_active !== false)
+                      .map((method: any) => ({ value: method.id, label: method.name })),
+                  ]}
+                />
+              </div>
+            </div>
+
+            <Input
+              value={payReference}
+              onChange={(e) => setPayReference(e.target.value)}
+              placeholder="Referencia opcional: transferencia, cheque, cupón..."
+            />
+            <Input
+              value={payNotes}
+              onChange={(e) => setPayNotes(e.target.value)}
+              placeholder="Notas opcionales para el remito de pago"
+            />
+
+            {payError && <p className="text-sm text-red-600 dark:text-red-400">{payError}</p>}
+
+            <div className="flex gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">
+              <Button variant="outline" className="flex-1" disabled={payInvoiceMutation.isPending} onClick={() => setVoucherToPay(null)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
+                disabled={payInvoiceMutation.isPending}
+                onClick={() => {
+                  if (!payPaymentMethodId) {
+                    setPayError('Seleccioná un método de pago')
+                    return
+                  }
+                  if (!payDate) {
+                    setPayError('Indicá la fecha de pago')
+                    return
+                  }
+                  payInvoiceMutation.mutate({
+                    voucher: voucherToPay,
+                    paymentMethodId: payPaymentMethodId,
+                    paymentDate: payDate,
+                    reference: payReference,
+                    notes: payNotes,
+                  })
+                }}
+              >
+                {payInvoiceMutation.isPending ? 'Registrando...' : 'Cobrar y generar remito'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Modal de Eliminación */}
       <Modal
@@ -1417,6 +1822,8 @@ export default function Vouchers() {
           setCompilePaymentError('')
           setCompileFiscalClientId('')
           setCompilePriceStrategy('historical')
+          setCompilePayInCurrentAccount(false)
+          setCompileCurrentAccountDays(30)
         }}
         title="Facturar comprobantes seleccionados"
         size="xl"
@@ -1451,7 +1858,9 @@ export default function Vouchers() {
                     const previewTotal = compilePreviewTotals?.total ?? 0
                     const previewDiscountAmount = compilePreviewTotals?.discount_amount ?? 0
                     const discountPercent = Number(compileGeneralDiscount) || 0
-                    const assignedTotal = compileSelectedPaymentMethodId
+                    const assignedTotal = compilePayInCurrentAccount
+                      ? 0
+                      : compileSelectedPaymentMethodId
                       ? previewTotal
                       : 0
 
@@ -1628,8 +2037,8 @@ export default function Vouchers() {
                             <div className="flex justify-between text-xs">
                               <span
                                 className={
-                                  assignedTotal >= previewTotal - 0.01 &&
-                                  assignedTotal <= previewTotal + 0.01
+                                  compilePayInCurrentAccount || (assignedTotal >= previewTotal - 0.01 &&
+                                  assignedTotal <= previewTotal + 0.01)
                                     ? 'text-green-600'
                                     : 'text-orange-600'
                                 }
@@ -1638,8 +2047,8 @@ export default function Vouchers() {
                               </span>
                               <span
                                 className={
-                                  assignedTotal >= previewTotal - 0.01 &&
-                                  assignedTotal <= previewTotal + 0.01
+                                  compilePayInCurrentAccount || (assignedTotal >= previewTotal - 0.01 &&
+                                  assignedTotal <= previewTotal + 0.01)
                                     ? 'text-green-600'
                                     : 'text-orange-600'
                                 }
@@ -1648,16 +2057,16 @@ export default function Vouchers() {
                               </span>
                               <span
                                 className={
-                                  assignedTotal >= previewTotal - 0.01 &&
-                                  assignedTotal <= previewTotal + 0.01
+                                  compilePayInCurrentAccount || (assignedTotal >= previewTotal - 0.01 &&
+                                  assignedTotal <= previewTotal + 0.01)
                                     ? 'text-green-600'
                                     : 'text-orange-600'
                                 }
                               >
-                                ${assignedTotal.toLocaleString('es-AR', {
+                                {compilePayInCurrentAccount ? 'Pendiente en Cta. Cte.' : `$${assignedTotal.toLocaleString('es-AR', {
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2,
-                                })}
+                                })}`}
                               </span>
                             </div>
                             {compilePaymentError && (
@@ -1718,6 +2127,44 @@ export default function Vouchers() {
                             </div>
                           </div>
 
+                          {currentAccountEnabled && (
+                          <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3 dark:border-blue-800 dark:bg-blue-900/20">
+                            <label className="flex cursor-pointer items-start gap-2 text-sm font-semibold text-blue-900 dark:text-blue-100">
+                              <input
+                                type="checkbox"
+                                checked={compilePayInCurrentAccount}
+                                onChange={(e) => {
+                                  setCompilePayInCurrentAccount(e.target.checked)
+                                  if (e.target.checked) {
+                                    setCompileSelectedPaymentMethodId(null)
+                                    setCompilePaymentReferences({})
+                                  }
+                                  setCompilePaymentError('')
+                                }}
+                                className="mt-0.5 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span>Dejar factura en Cuenta Corriente</span>
+                            </label>
+                            {compilePayInCurrentAccount && (
+                              <div className="mt-2">
+                                <label className="mb-1 block text-xs font-medium text-blue-700 dark:text-blue-300">
+                                  Vencimiento
+                                </label>
+                                <select
+                                  value={compileCurrentAccountDays}
+                                  onChange={(e) => setCompileCurrentAccountDays(Number(e.target.value))}
+                                  className="h-9 w-full rounded-lg border border-blue-300 bg-white px-3 text-sm dark:border-blue-700 dark:bg-gray-900"
+                                >
+                                  {[7, 15, 30, 60, 90].map((days) => (
+                                    <option key={days} value={days}>{days} días</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                          )}
+
+                          {!compilePayInCurrentAccount && (
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                               Métodos de pago
@@ -1812,6 +2259,7 @@ export default function Vouchers() {
                               </div>
                             )}
                           </div>
+                          )}
                         </div>
                       </div>
                     )
@@ -1842,56 +2290,67 @@ export default function Vouchers() {
                       const payments: VoucherPayment[] = []
                       let assignedTotal = 0
 
-                      if (!compileSelectedPaymentMethodId) {
-                        setCompilePaymentError('Debe seleccionar un método de pago')
-                        return
-                      }
-
                       if (!compileFiscalClientId) {
                         setCompilePaymentError('Debe seleccionar el cliente a facturar')
                         return
                       }
 
-                      const selectedMethod = paymentMethods.find((pm: any) => pm.id === compileSelectedPaymentMethodId)
-                      if (!selectedMethod) {
-                        setCompilePaymentError('Método de pago inválido')
+                      if (compilePayInCurrentAccount && !currentAccountEnabled) {
+                        setCompilePaymentError('Cuenta Corriente está deshabilitada para este negocio desde el CMS')
                         return
                       }
 
-                      const methodName = String(selectedMethod.name || '').toLowerCase()
-                      const methodCode = String(selectedMethod.code || '').toLowerCase()
-                      const isCheque = methodName.includes('cheque') || methodCode.includes('cheque')
-                      const isCard = methodName.includes('crédito') || methodName.includes('credito') || methodName.includes('débito') || methodName.includes('debito') || methodName.includes('tarjeta') || methodCode.includes('credit') || methodCode.includes('debit') || methodCode.includes('card')
-                      const shouldAskReference = Boolean(selectedMethod.requires_reference) || isCheque || isCard
+                      if (!compilePayInCurrentAccount) {
+                        if (!compileSelectedPaymentMethodId) {
+                          setCompilePaymentError('Debe seleccionar un método de pago')
+                          return
+                        }
 
-                      if (shouldAskReference && !compilePaymentReferences[selectedMethod.id]?.trim()) {
-                        setCompilePaymentError(`Debe ingresar referencia para ${selectedMethod.name}`)
-                        return
-                      }
+                        const selectedMethod = paymentMethods.find((pm: any) => pm.id === compileSelectedPaymentMethodId)
+                        if (!selectedMethod) {
+                          setCompilePaymentError('Método de pago inválido')
+                          return
+                        }
 
-                      payments.push({
-                        payment_method_id: selectedMethod.id,
-                        amount: previewTotal,
-                        reference: compilePaymentReferences[selectedMethod.id]?.trim() || undefined,
-                      })
-                      assignedTotal = previewTotal
+                        const methodName = String(selectedMethod.name || '').toLowerCase()
+                        const methodCode = String(selectedMethod.code || '').toLowerCase()
+                        const isCheque = methodName.includes('cheque') || methodCode.includes('cheque')
+                        const isCard = methodName.includes('crédito') || methodName.includes('credito') || methodName.includes('débito') || methodName.includes('debito') || methodName.includes('tarjeta') || methodCode.includes('credit') || methodCode.includes('debit') || methodCode.includes('card')
+                        const shouldAskReference = Boolean(selectedMethod.requires_reference) || isCheque || isCard
 
-                      if (payments.length === 0) {
-                        setCompilePaymentError('Debe cargar al menos un método de pago')
-                        return
-                      }
+                        if (shouldAskReference && !compilePaymentReferences[selectedMethod.id]?.trim()) {
+                          setCompilePaymentError(`Debe ingresar referencia para ${selectedMethod.name}`)
+                          return
+                        }
 
-                      if (assignedTotal < previewTotal - 0.01 || assignedTotal > previewTotal + 0.01) {
-                        setCompilePaymentError(`El total asignado ($${assignedTotal.toFixed(2)}) no coincide con el total a pagar ($${previewTotal.toFixed(2)})`)
-                        return
+                        payments.push({
+                          payment_method_id: selectedMethod.id,
+                          amount: previewTotal,
+                          reference: compilePaymentReferences[selectedMethod.id]?.trim() || undefined,
+                        })
+                        assignedTotal = previewTotal
+
+                        if (payments.length === 0) {
+                          setCompilePaymentError('Debe cargar al menos un método de pago')
+                          return
+                        }
+
+                        if (assignedTotal < previewTotal - 0.01 || assignedTotal > previewTotal + 0.01) {
+                          setCompilePaymentError(`El total asignado ($${assignedTotal.toFixed(2)}) no coincide con el total a pagar ($${previewTotal.toFixed(2)})`)
+                          return
+                        }
                       }
 
                       compileMutation.mutate({
                         quotationIds: selectedQuotationIds,
-                        payments,
+                        payments: compilePayInCurrentAccount ? undefined : payments,
                         general_discount: Number(compileGeneralDiscount) || 0,
                         fiscal_client_id: compileFiscalClientId,
                         price_strategy: compilePriceStrategy,
+                        currentAccount: {
+                          enabled: compilePayInCurrentAccount,
+                          paymentDays: compilePayInCurrentAccount ? compileCurrentAccountDays : undefined,
+                        },
                       })
                     }}
                      disabled={

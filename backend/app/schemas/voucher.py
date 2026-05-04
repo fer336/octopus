@@ -206,6 +206,16 @@ class ConvertQuotationToInvoice(BaseSchema):
         default=None,
         description="Métodos de pago (requerido para que quede registrado el cobro)",
     )
+    is_current_account: bool = Field(
+        default=False,
+        description="Si la factura resultante queda pendiente en cuenta corriente.",
+    )
+    payment_days: int | None = Field(
+        default=None,
+        ge=1,
+        le=365,
+        description="Días de plazo para facturas en cuenta corriente.",
+    )
     price_strategy: Literal["historical", "current"] = Field(
         default="historical",
         description=(
@@ -236,6 +246,16 @@ class CompileToInvoiceRequest(BaseSchema):
     payments: list[VoucherPaymentCreate] | None = Field(
         default=None,
         description="Métodos de pago (requerido para facturas)",
+    )
+    is_current_account: bool = Field(
+        default=False,
+        description="Si la factura compilada queda pendiente en cuenta corriente.",
+    )
+    payment_days: int | None = Field(
+        default=None,
+        ge=1,
+        le=365,
+        description="Días de plazo para facturas en cuenta corriente.",
     )
     fiscal_client_id: UUID | None = Field(
         default=None,
