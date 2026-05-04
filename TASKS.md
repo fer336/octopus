@@ -1,6 +1,13 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
+- [ ] [CC-INVOICE-01] Diseñar lógica de comprobantes CC: facturas con budget/circle budget diferente, estado impago, y generar pago desde la factura para cobrar cuenta corriente
+- [ ] [CC-PAY-01] Backend: migraciones y modelos para facturación CC con plazos de pago
+- [ ] [CC-PAY-02] Backend: endpoint POST /vouchers/{id}/pay para registrar pagos de facturas CC
+- [ ] [CC-PAY-03] Frontend Sales: selector de "Factura Cta Cte" con dropdown de días de plazo
+- [ ] [CC-PAY-04] Frontend Vouchers: opción "Pagar Cuenta Corriente" para facturas pendientes
+- [ ] [CC-PAY-05] PDF Factura: mostrar fecha de vencimiento cuando hay payment_days
+- [ ] [CC-PAY-06] Backend: registrar movimiento en caja al pagar factura CC
 - [ ] [DEVOPS-RELEASE-TAG-09] Crear tag de release (`vX.Y.Z`) para ejecutar jobs de `Create GitHub Release` + `Deploy to Swarm via Portainer`
 - [ ] [CMS-SYS-DEPLOY-07] Publicar cambios de CMS y sistema en commit/tag selectivo (sin mezclar landing)
 - [ ] [N8N-POSTPURCHASE-08] Diseñar flujo n8n post-compra: HTML de confirmación + otorgar acceso según plan (Excel/Sistema)
