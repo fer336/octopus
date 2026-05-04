@@ -4,10 +4,13 @@
  * y el botón para abrir/cerrar el Asistente IA.
  */
 import type { ReactNode } from 'react'
-import { Sun, Moon, LogOut, Menu, ChevronLeft, Sparkles, LifeBuoy } from 'lucide-react'
+import { Sun, Moon, LogOut, Menu, ChevronLeft, Sparkles, LifeBuoy, ShieldAlert } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../../context/ThemeContext'
 import { useAuthStore } from '../../stores/authStore'
 import { useAIStore } from '../../stores/aiStore'
+import vouchersService from '../../api/vouchersService'
 import Button from '../ui/Button'
 
 interface HeaderProps {
@@ -35,6 +38,18 @@ export default function Header({
   const { user, logout } = useAuthStore()
   const isAIOpen = useAIStore((s) => s.isOpen)
   const toggleAI = useAIStore((s) => s.toggle)
+  const navigate = useNavigate()
+
+  // Query para autorizaciones pendientes (solo si el usuario tiene rol de manager/owner)
+  const { data: authData } = useQuery({
+    queryKey: ['pending-authorizations'],
+    queryFn: () => vouchersService.getPendingAuthorizations(),
+    refetchInterval: 30000, // Refrescar cada 30 segundos
+    retry: false,
+    enabled: !!user, // Solo si hay usuario logueado
+  })
+
+  const pendingCount = authData?.total ?? 0
 
   const handleLogout = () => {
     logout()
@@ -109,6 +124,26 @@ export default function Header({
                 className="relative z-10 group-hover:rotate-12 transition-transform duration-200"
               />
               <span className="relative z-10 hidden sm:inline">IA</span>
+            </button>
+          )}
+
+          {/* ── Badge Autorizaciones Pendientes ──────────────────────── */}
+          {pendingCount > 0 && (
+            <button
+              type="button"
+              onClick={() => navigate('/authorizations')}
+              className="
+                relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl
+                bg-amber-100 dark:bg-amber-900/40
+                hover:bg-amber-200 dark:hover:bg-amber-800/40
+                text-amber-700 dark:text-amber-300 text-xs font-semibold
+                border border-amber-300 dark:border-amber-700
+                transition-colors cursor-pointer
+              "
+              aria-label={`${pendingCount} autorizaciones pendientes`}
+            >
+              <ShieldAlert size={15} />
+              <span className="relative z-10">{pendingCount}</span>
             </button>
           )}
 

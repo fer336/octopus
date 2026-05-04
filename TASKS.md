@@ -1,6 +1,7 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
+- [ ] [SALES-RETURNS-INVOICE-ONLY-07] Restringir saldo a favor/devolución excedente exclusivamente al flujo Factura y quitar leyenda contable del PDF
 - [ ] [CC-INVOICE-01] Diseñar lógica de comprobantes CC: facturas con budget/circle budget diferente, estado impago, y generar pago desde la factura para cobrar cuenta corriente
 - [ ] [CC-PAY-01] Backend: migraciones y modelos para facturación CC con plazos de pago
 - [ ] [CC-PAY-02] Backend: endpoint POST /vouchers/{id}/pay para registrar pagos de facturas CC
@@ -59,6 +60,7 @@
 - [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
 
 ## 🟡 En progreso
+- [/] [SALES-RETURNS-INVOICE-ONLY-07] Restringir saldo a favor/devolución excedente exclusivamente al flujo Factura y quitar leyenda contable del PDF
 - [/] [DEVOPS-DEPLOY-SELECTIVE-15] Implementar deploys independientes: system-v* (backend+frontend), cms-v* (solo CMS), landing-v* (solo landing)
 - [/] [CMS-LOCALHOST-CONN-06] 🐛 Diagnosticar por qué CMS no conecta en localhost (error de conexión)
 - [/] [N8N-POSTPURCHASE-08] Diseñar flujo n8n post-compra: HTML de confirmación + otorgar acceso según plan (Excel/Sistema)
@@ -80,6 +82,16 @@
 
 
 ## 🟢 Hecho
+
+- [x] [SALES-RETURNS-RECEIPT-06] Caja diaria: mantener devoluciones como actividad no monetaria sin impactar efectivo esperado ✅ 2026-05-04
+- [x] [SALES-RETURNS-RECEIPT-05] Frontend Comprobantes/Cuenta Corriente: identificar y reimprimir remitos de devolución ✅ 2026-05-04
+- [x] [SALES-RETURNS-RECEIPT-04] Backend: generar remito de devolución reimprimible cuando la devolución excedente queda como saldo a favor ✅ 2026-05-04
+
+- [x] [SALES-RETURNS-CREDIT-03] Frontend: mostrar confirmación/aviso para guardar saldo a favor cuando la devolución supere la venta ✅ 2026-05-04
+- [x] [SALES-RETURNS-CREDIT-02] Backend: registrar saldo a favor por devolución excedente en cuenta corriente con movimiento auditado ✅ 2026-05-04
+- [x] [SALES-RETURNS-CREDIT-01] Ventas: permitir devoluciones con cantidad negativa, factura siempre positiva y excedente como saldo a favor del cliente ✅ 2026-05-04
+
+- [x] [SALES-RETURNS-NEGATIVE-QTY-01] Analizar soporte de cantidades negativas en Ventas para devoluciones con impacto inverso en stock y totales ✅ 2026-05-04
 
 - [x] [CI-VOUCHERS-CURRENT-USER-01] 🐛 Corregir fallo CI Ruff F821 por `current_user` indefinido en `pending-quotations` ✅ 2026-05-04
 

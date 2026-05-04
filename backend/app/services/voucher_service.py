@@ -13,9 +13,11 @@ from sqlalchemy import Integer, cast, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.authorization import AuthorizationRequest, AuthorizationStatus, AuthorizationType
 from app.models.business import Business
 from app.models.cash_register import CashMovement, CashMovementType, CashPaymentMethod
 from app.models.client import Client
+from app.models.client_account import ClientAccount, MovementType
 from app.models.client_authorization import ClientAuthorization
 from app.models.payment_method import PaymentMethodCatalog
 from app.models.product import Product
@@ -405,6 +407,120 @@ class VoucherService:
             self._round_money(total_final),
         )
 
+    async def register_customer_credit_return(
+        self,
+        *,
+        business_id: UUID,
+        client_id: UUID,
+        items_data,
+        general_discount: Decimal,
+        movement_date: date_type,
+        user_id: UUID,
+        notes: str | None = None,
+    ) -> dict[str, Decimal | UUID | str]:
+        """Registra una devolución cuyo neto queda a favor del cliente.
+
+        Esta operación NO emite factura negativa. Aplica el impacto de stock de
+        los renglones y, si el total neto es negativo, crea un movimiento auditado
+        en cuenta corriente como crédito/saldo a favor del cliente.
+        """
+        client = await self._get_client_or_raise(client_id, business_id)
+        business = await self.db.get(Business, business_id)
+        if not business:
+            raise ValueError("Negocio no encontrado")
+
+        previous_balance = Decimal(str(client.current_balance or Decimal("0")))
+
+        (
+            items_db,
+            total_subtotal,
+            total_iva,
+            total_final,
+        ) = await self._build_items_and_totals(
+            business_id=business_id,
+            items_data=items_data,
+            general_discount=general_discount,
+            voucher_type=VoucherType.RECEIPT,
+        )
+
+        if total_final > Decimal("0"):
+            await self.db.rollback()
+            raise ValueError(
+                "El total de la operación es positivo. Debe emitirse un comprobante de venta normal."
+            )
+
+        credit_amount = abs(total_final)
+        new_balance = previous_balance - credit_amount
+        client.current_balance = new_balance
+
+        last_number = int(business.last_receipt_number or "0")
+        next_number = last_number + 1
+        business.last_receipt_number = str(next_number).zfill(8)
+
+        return_receipt = Voucher(
+            business_id=business_id,
+            client_id=client.id,
+            created_by=user_id,
+            voucher_type=VoucherType.RECEIPT,
+            status=VoucherStatus.CONFIRMED,
+            sale_point=business.sale_point or "0001",
+            number=str(next_number).zfill(8),
+            date=movement_date,
+            notes=notes or "Remito de devolución con saldo a favor del cliente",
+            show_prices="S",
+            general_discount=general_discount,
+            subtotal=total_subtotal,
+            iva_amount=total_iva,
+            total=total_final,
+            is_return_receipt=True,
+        )
+
+        self.db.add(return_receipt)
+        await self.db.flush()
+
+        for item in items_db:
+            item.voucher_id = return_receipt.id
+            self.db.add(item)
+
+        if credit_amount > Decimal("0"):
+            description = "Saldo a favor por devolución excedente en ventas"
+            if notes:
+                description = f"{description}: {notes[:180]}"
+
+            self.db.add(
+                ClientAccount(
+                    client_id=client.id,
+                    voucher_id=return_receipt.id,
+                    payment_id=None,
+                    date=movement_date,
+                    movement_type=MovementType.ADJUSTMENT_CREDIT,
+                    description=description,
+                    debit=Decimal("0"),
+                    credit=credit_amount,
+                    balance=new_balance,
+                )
+            )
+
+        await self.db.commit()
+        await self.db.refresh(client)
+
+        return {
+            "client_id": client.id,
+            "return_receipt_id": return_receipt.id,
+            "return_receipt_number": return_receipt.full_number,
+            "credit_amount": self._round_money(credit_amount),
+            "previous_balance": self._round_money(previous_balance),
+            "new_balance": self._round_money(new_balance),
+            "subtotal": total_subtotal,
+            "iva_amount": total_iva,
+            "total": total_final,
+            "message": (
+                "Saldo a favor registrado correctamente"
+                if credit_amount > Decimal("0")
+                else "Devolución registrada sin saldo a favor"
+            ),
+        }
+
     @staticmethod
     def _resolve_price_and_iva_by_strategy(
         *,
@@ -545,6 +661,15 @@ class VoucherService:
         if not business:
             raise ValueError("Negocio no encontrado")
 
+        if (
+            data.voucher_type == VoucherType.RECEIPT
+            and data.is_current_account
+            and any(Decimal(str(item.quantity)) < Decimal("0") for item in data.items)
+        ):
+            raise ValueError(
+                "Las devoluciones no se pueden registrar desde Cta Cte. Usá el flujo de Factura."
+            )
+
         if data.is_current_account:
             self._ensure_current_account_feature_enabled(business)
 
@@ -608,6 +733,16 @@ class VoucherService:
         voucher.subtotal = total_subtotal
         voucher.iva_amount = total_iva
         voucher.total = total_final
+
+        if data.voucher_type in {
+            VoucherType.INVOICE_A,
+            VoucherType.INVOICE_B,
+            VoucherType.INVOICE_C,
+        } and total_final <= Decimal("0"):
+            await self.db.rollback()
+            raise ValueError(
+                "El total de la factura debe ser mayor a $0. Si la devolución supera la venta, registre el saldo a favor del cliente."
+            )
 
         cc_context = await self._validate_current_account_for_receipt(
             business_id=business_id,
@@ -894,7 +1029,7 @@ class VoucherService:
         deleted_by_user_id: UUID,
         reason: str | None = None,
     ) -> bool:
-        """Elimina un comprobante (soft delete con auditoría)."""
+        """Elimina un comprobante (soft delete con auditoría y reversión de efectos)."""
         voucher = await self.get_by_id(voucher_id, business_id)
         if not voucher:
             return False
@@ -902,6 +1037,7 @@ class VoucherService:
         if not reason or not reason.strip():
             raise ValueError("Debe indicar un motivo de eliminación")
 
+        # Validaciones existentes
         if voucher.is_current_account_closure:
             raise ValueError(
                 "No se puede eliminar un comprobante de cierre de cuenta corriente"
@@ -912,12 +1048,238 @@ class VoucherService:
                 "No se puede eliminar un remito incluido en un cierre de cuenta corriente"
             )
 
+        # ========================================
+        # LÓGICA DE REVERSIÓN PARA DEVOLUCIONES
+        # ========================================
+        is_return_receipt = voucher.is_return_receipt
+
+        # Verificar si es una factura que tiene devoluciones asociadas (cascade)
+        is_invoice_with_returns = (
+            voucher.voucher_type in [VoucherType.INVOICE_A, VoucherType.INVOICE_B, VoucherType.INVOICE_C]
+            and not voucher.deleted_at
+        )
+
+        # Obtenerdevoluciones asociadas si es una factura
+        return_receipts_to_delete = []
+        if is_invoice_with_returns:
+            # Buscar todos los remitos de devolución relacionados a esta factura
+            return_receipts_to_delete = await self._get_return_receipts_for_invoice(
+                voucher.id, business_id
+            )
+
+        has_returns = is_return_receipt or len(return_receipts_to_delete) > 0
+
+        if has_returns:
+            # Calcular antigüedad
+            days_old = (date_type.today() - voucher.date).days
+            if days_old > 7:
+                raise ValueError(
+                    f"No se pueden eliminar devoluciones con más de 7 días de antigüedad (esta tiene {days_old} días)"
+                )
+
+            # Verificar pagos aplicados en factura si hay devoluciones
+            if is_invoice_with_returns and (voucher.is_paid or voucher.paid_amount):
+                raise ValueError(
+                    "No se puede eliminar: la factura tiene pagos aplicados. Primero debe revertir los pagos."
+                )
+
+            # Revertir efectos de las devoluciones
+            # 1) Si es un return receipt, revertir este
+            # 2) Si es una factura, revertir cada return receipt asociado
+            vouchers_to_revert = [voucher] if is_return_receipt else return_receipts_to_delete
+
+            for rev_voucher in vouchers_to_revert:
+                # Revertir stock
+                self._revert_stock_from_voucher(rev_voucher)
+
+                # Revertir saldo en cuenta corriente
+                await self._revert_client_account_from_voucher(rev_voucher)
+
+        # ========================================
+        # SOFT DELETE DEL VOUCHER
+        # ========================================
         voucher.soft_delete()
         voucher.deleted_by = deleted_by_user_id
         voucher.deletion_reason = reason.strip()
 
         await self.db.commit()
         return True
+
+    def _revert_stock_from_voucher(self, voucher: Voucher) -> None:
+        """Revierte el stock de lositems de un voucher de devolución."""
+        # Por cada item: si quantity < 0 (era devolución),sumar al stock
+        # si quantity > 0, restar del stock (porque en creación se hizo al revés)
+        for item in voucher.items:
+            if item.product:
+                if item.quantity < 0:
+                    # Era un item de devolución (quantity negativo)
+                    # Al crear: product.stock -= quantity (negativo = sumar)
+                    # Al revertir: product.stock -= quantity (negativo = sumar de nuevo, restaura)
+                    # Pero espera - en la creación hicimos:
+                    # product.current_stock -= int(quantity) donde quantity es negativo
+                    # Entonces: current_stock -= (-5) = current_stock + 5 (suma stock)
+                    # Al revertir: current_stock -= (-5) = current_stock + 5 (devuelve al origen)
+                    item.product.current_stock -= int(item.quantity)
+                else:
+                    # Era un item normal (no devolución)
+                    # Al crear: product.stock -= quantity (restó)
+                    # Al revertir: product.stock += quantity (devuelve)
+                    item.product.current_stock += int(item.quantity)
+
+    async def _revert_client_account_from_voucher(self, voucher: Voucher) -> None:
+        """Revierte el movimiento de cuenta corriente creado por una devolución."""
+        # Buscar el ClientAccount asociado a este voucher
+        result = await self.db.execute(
+            select(ClientAccount).where(
+                ClientAccount.voucher_id == voucher.id,
+                ClientAccount.deleted_at.is_(None),
+                ClientAccount.movement_type == MovementType.ADJUSTMENT_CREDIT,
+            )
+        )
+        client_account = result.scalar_one_or_none()
+
+        if client_account:
+            # Soft delete del movimiento
+            from datetime import datetime, timezone
+
+            client_account.deleted_at = datetime.now(timezone.utc)
+            client_account.deleted_by = voucher.deleted_by
+
+            # Actualizar el saldo del cliente (sumar porque al crear se restó)
+            if voucher.client:
+                current_balance = voucher.client.current_balance or Decimal("0")
+                credit_amount = client_account.credit or Decimal("0")
+                voucher.client.current_balance = current_balance + credit_amount
+
+    async def _get_return_receipts_for_invoice(
+        self, invoice_id: UUID, business_id: UUID
+    ) -> list[Voucher]:
+        """Obtiene todos los remitos de devolución asociados a una factura."""
+        result = await self.db.execute(
+            select(Voucher).where(
+                Voucher.business_id == business_id,
+                Voucher.related_voucher_id == invoice_id,
+                Voucher.is_return_receipt == True,
+                Voucher.deleted_at.is_(None),
+            )
+        )
+        return list(result.scalars().all())
+
+    def requires_authorization(
+        self,
+        voucher: Voucher,
+        membership_role: str,
+    ) -> tuple[bool, str]:
+        """Determina si una eliminación requiere autorización de segundo usuario.
+
+        Returns:
+            tuple: (requires_authorization, reason)
+        """
+        # Solo para devoluciones (return receipts o facturas con devoluciones)
+        is_return = voucher.is_return_receipt
+
+        if not is_return:
+            # Verificar si es factura con devoluciones asociadas
+            # Esto se maneja en cascada, pero por ahora solo el return receipt directo
+            return False, ""
+
+        # Calcular antigüedad
+        days_old = (date_type.today() - voucher.date).days
+        amount = abs(float(voucher.total or 0))
+
+        # Condiciones que requieren autorización:
+        # 1. Monto > $100,000
+        # 2. Antigüedad > 3 días
+        # 3. Es eliminación en cascada (marcado externamente)
+
+        reasons = []
+        if amount > 100000:
+            reasons.append(f"monto > $100,000 (actual: ${amount:,.2f})")
+        if days_old > 3:
+            reasons.append(f"antigüedad > 3 días ({days_old} días)")
+
+        if reasons:
+            return True, f"Se requiere autorización por: {', '.join(reasons)}"
+
+        return False, ""
+
+    async def create_authorization_request(
+        self,
+        voucher_id: UUID,
+        business_id: UUID,
+        requested_by_user_id: UUID,
+        reason: str,
+        authorization_type: AuthorizationType = AuthorizationType.VOUCHER_RETURN_DELETION,
+    ) -> AuthorizationRequest:
+        """Crea una solicitud de autorización para eliminar una devolución."""
+        auth_request = AuthorizationRequest(
+            requested_by=requested_by_user_id,
+            business_id=business_id,
+            authorization_type=authorization_type,
+            resource_id=voucher_id,
+            status=AuthorizationStatus.PENDING,
+            reason=reason,
+        )
+        self.db.add(auth_request)
+        await self.db.commit()
+        await self.db.refresh(auth_request)
+        return auth_request
+
+    async def approve_authorization(
+        self,
+        authorization_id: UUID,
+        authorized_by_user_id: UUID,
+    ) -> AuthorizationRequest:
+        """Aprueba una solicitud de autorización."""
+        result = await self.db.execute(
+            select(AuthorizationRequest).where(
+                AuthorizationRequest.id == authorization_id,
+                AuthorizationRequest.status == AuthorizationStatus.PENDING,
+            )
+        )
+        auth_request = result.scalar_one_or_none()
+        if not auth_request:
+            raise ValueError("Solicitud de autorización no encontrada o ya resuelta")
+
+        # Aprobar
+        from datetime import datetime, timezone
+
+        auth_request.status = AuthorizationStatus.APPROVED
+        auth_request.authorized_by = authorized_by_user_id
+        auth_request.resolved_at = datetime.now(timezone.utc)
+
+        await self.db.commit()
+        await self.db.refresh(auth_request)
+        return auth_request
+
+    async def reject_authorization(
+        self,
+        authorization_id: UUID,
+        authorized_by_user_id: UUID,
+        rejection_reason: str,
+    ) -> AuthorizationRequest:
+        """Rechaza una solicitud de autorización."""
+        result = await self.db.execute(
+            select(AuthorizationRequest).where(
+                AuthorizationRequest.id == authorization_id,
+                AuthorizationRequest.status == AuthorizationStatus.PENDING,
+            )
+        )
+        auth_request = result.scalar_one_or_none()
+        if not auth_request:
+            raise ValueError("Solicitud de autorización no encontrada o ya resuelta")
+
+        # Rechazar
+        from datetime import datetime, timezone
+
+        auth_request.status = AuthorizationStatus.REJECTED
+        auth_request.authorized_by = authorized_by_user_id
+        auth_request.rejection_reason = rejection_reason
+        auth_request.resolved_at = datetime.now(timezone.utc)
+
+        await self.db.commit()
+        await self.db.refresh(auth_request)
+        return auth_request
 
     async def generate_pdf(self, voucher_id: UUID, business_id: UUID) -> bytes:
         """Genera el PDF de un comprobante existente."""
@@ -1212,7 +1574,7 @@ class VoucherService:
         if "invoice" in voucher.voucher_type.value:
             type_name = "FACTURA"
         elif "receipt" in voucher.voucher_type.value:
-            type_name = "REMITO"
+            type_name = "REMITO DE DEVOLUCIÓN" if voucher.is_return_receipt else "REMITO"
 
         is_subclient_withdrawal = bool(
             voucher.billing_client_id
@@ -1260,6 +1622,8 @@ class VoucherService:
                 "date": voucher.date.strftime("%d/%m/%Y"),
                 "show_prices": voucher.show_prices == "S",
                 "is_current_account": bool(voucher.is_current_account),
+                "is_return_receipt": bool(voucher.is_return_receipt),
+                "customer_credit_amount": f"{abs(Decimal(str(voucher.total or 0))):,.2f}",
                 "is_withdrawal_authorized": bool(voucher.is_withdrawal_authorized),
                 "withdrawal_client_name": voucher.withdrawal_client_name,
                 "withdrawal_client_display_name": withdrawal_client_display_name,
@@ -1283,14 +1647,23 @@ class VoucherService:
                     if hasattr(item, "discount_percent") and item.discount_percent
                     else "0",
                     "subtotal": f"{item.subtotal:,.2f}",
+                    "is_return_item": Decimal(str(item.quantity)) < Decimal("0"),
                 }
                 for item in voucher.items
             ],
             "totals": {
-                "subtotal": f"{voucher.subtotal:,.2f}",
-                "discount": f"{sum((item.unit_price * item.quantity * (item.discount_percent or 0) / 100) for item in voucher.items):,.2f}",
-                "iva": f"{voucher.iva_amount:,.2f}",
-                "total": f"{voucher.total:,.2f}",
+                "subtotal": f"{abs(Decimal(str(voucher.subtotal or 0))):,.2f}"
+                if voucher.is_return_receipt
+                else f"{voucher.subtotal:,.2f}",
+                "discount": f"{abs(sum((item.unit_price * item.quantity * (item.discount_percent or 0) / 100) for item in voucher.items)):,.2f}"
+                if voucher.is_return_receipt
+                else f"{sum((item.unit_price * item.quantity * (item.discount_percent or 0) / 100) for item in voucher.items):,.2f}",
+                "iva": f"{abs(Decimal(str(voucher.iva_amount or 0))):,.2f}"
+                if voucher.is_return_receipt
+                else f"{voucher.iva_amount:,.2f}",
+                "total": f"{abs(Decimal(str(voucher.total or 0))):,.2f}"
+                if voucher.is_return_receipt
+                else f"{voucher.total:,.2f}",
             },
         }
 
@@ -1332,6 +1705,7 @@ class VoucherService:
             Voucher.business_id == business_id,
             Voucher.voucher_type.in_(type_filter),
             Voucher.invoiced_voucher_id.is_(None),
+            Voucher.is_return_receipt.is_(False),
             Voucher.deleted_at.is_(None),
         ]
 

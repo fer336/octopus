@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.models.voucher import VoucherStatus, VoucherType
 from app.schemas.base import BaseResponse, BaseSchema
@@ -19,12 +19,48 @@ class VoucherItemCreate(BaseSchema):
     """Schema para crear un ítem de comprobante."""
 
     product_id: UUID
-    quantity: Decimal = Field(..., gt=0)
+    quantity: Decimal = Field(
+        ...,
+        description="Cantidad del ítem. Permite negativos para devoluciones; no permite cero.",
+    )
     discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
 
     # Precios que vienen del frontend (o se recalculan en backend)
     # Es mejor que el backend recalcule, pero recibimos algunos datos base
     unit_price: Decimal = Field(..., ge=0)
+
+    @field_validator("quantity")
+    @classmethod
+    def quantity_cannot_be_zero(cls, value: Decimal) -> Decimal:
+        """Evita renglones sin impacto comercial ni stock."""
+        if value == Decimal("0"):
+            raise ValueError("La cantidad no puede ser cero")
+        return value
+
+
+class CustomerCreditReturnRequest(BaseSchema):
+    """Request para registrar devolución excedente como saldo a favor."""
+
+    client_id: UUID
+    date: date
+    notes: str | None = None
+    general_discount: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    items: list[VoucherItemCreate]
+
+
+class CustomerCreditReturnResponse(BaseSchema):
+    """Respuesta de registro de saldo a favor por devolución."""
+
+    client_id: UUID
+    return_receipt_id: UUID | None = None
+    return_receipt_number: str | None = None
+    credit_amount: Decimal
+    previous_balance: Decimal
+    new_balance: Decimal
+    subtotal: Decimal
+    iva_amount: Decimal
+    total: Decimal
+    message: str
 
 
 class VoucherCreate(BaseSchema):
@@ -342,6 +378,7 @@ class VoucherResponse(BaseResponse):
     notes: str | None = None
     is_current_account: bool = False
     is_current_account_closure: bool = False
+    is_return_receipt: bool = False
     billing_client_id: UUID | None = None
     operating_client_id: UUID | None = None
     billing_client: VoucherPartySummary | None = None

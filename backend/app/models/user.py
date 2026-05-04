@@ -45,6 +45,9 @@ class User(BaseModel):
     memberships = relationship(
         "TenantMembership", back_populates="user", cascade="all, delete-orphan"
     )
+    drafts = relationship(
+        "Draft", back_populates="user", cascade="all, delete-orphan", lazy="selectin"
+    )
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"

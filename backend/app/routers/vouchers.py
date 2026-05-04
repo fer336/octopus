@@ -34,6 +34,8 @@ from app.schemas.voucher import (
     CompilePreviewResponse,
     CompileToInvoiceRequest,
     ConvertQuotationToInvoice,
+    CustomerCreditReturnRequest,
+    CustomerCreditReturnResponse,
     CurrentAccountCloseHistoryResponse,
     CurrentAccountClosePreviewRequest,
     CurrentAccountClosePreviewResponse,
@@ -234,6 +236,29 @@ async def _ensure_current_account_user_access(
         )
 
 
+async def _get_user_membership_role(
+    db: AsyncSession,
+    business_id: UUID,
+    user_id: UUID,
+) -> str | None:
+    """Obtiene el rol del usuario en el negocio."""
+    result = await db.execute(
+        select(TenantMembership).where(
+            TenantMembership.user_id == user_id,
+            TenantMembership.business_id == business_id,
+            TenantMembership.deleted_at.is_(None),
+        )
+    )
+    membership = result.scalar_one_or_none()
+    if membership:
+        return membership.role
+    # Si no hay membership, verificar si es owner del negocio
+    business = await db.get(Business, business_id)
+    if business and str(business.owner_id) == str(user_id):
+        return "owner"
+    return None
+
+
 async def _ensure_current_account_available(
     db: AsyncSession,
     business_id: UUID,
@@ -413,6 +438,52 @@ async def preview_voucher_totals(
             iva_amount=iva_amount,
             total=total,
         )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post(
+    "/customer-credit-return",
+    response_model=CustomerCreditReturnResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def register_customer_credit_return(
+    data: CustomerCreditReturnRequest,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """Registra una devolución excedente como saldo a favor del cliente."""
+    await _ensure_current_account_available(db, business_id, current_user)
+
+    service = VoucherService(db)
+    try:
+        result = await service.register_customer_credit_return(
+            business_id=business_id,
+            client_id=data.client_id,
+            items_data=data.items,
+            general_discount=data.general_discount,
+            movement_date=data.date,
+            user_id=current_user.id,
+            notes=data.notes,
+        )
+
+        await _log_audit(
+            db=db,
+            user_id=current_user.id,
+            business_id=business_id,
+            action="create",
+            resource_type="customer_credit_return",
+            resource_id=data.client_id,
+            details={
+                "description": "Saldo a favor por devolución excedente",
+                "client_id": str(data.client_id),
+                "credit_amount": str(result["credit_amount"]),
+                "total": str(result["total"]),
+            },
+        )
+
+        return CustomerCreditReturnResponse(**result)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -734,8 +805,9 @@ async def delete_voucher(
     current_user=Depends(get_current_user),
 ):
     """
-    Elimina un comprobante (soft delete con auditoría).
+    Elimina un comprobante (soft delete con auditoría y reversión de efectos para devoluciones).
     El registro queda marcado como eliminado pero visible en el historial.
+    Para devoluciones, puede requerir autorización según monto/antigüedad.
     """
     service = VoucherService(db)
     before_voucher = await service.get_by_id(voucher_id, business_id)
@@ -747,6 +819,39 @@ async def delete_voucher(
     if before_voucher.is_current_account or before_voucher.is_current_account_closure:
         await _ensure_current_account_user_access(db, business_id, current_user)
 
+    # ========================================
+    # VALIDACIÓN DE ROL Y AUTORIZACIÓN
+    # ========================================
+    membership_role = await _get_user_membership_role(db, business_id, current_user.id)
+
+    # Solo OWNER y MANAGER pueden eliminar devoluciones
+    if before_voucher.is_return_receipt and membership_role not in ["owner", "manager"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los usuarios con rol Owner o Manager pueden eliminar devoluciones",
+        )
+
+    # Verificar si requiere autorización
+    if before_voucher.is_return_receipt:
+        requires_auth, auth_reason = service.requires_authorization(
+            before_voucher, membership_role or ""
+        )
+
+        if requires_auth:
+            # Crear solicitud de autorización
+            auth_request = await service.create_authorization_request(
+                voucher_id=voucher_id,
+                business_id=business_id,
+                requested_by_user_id=current_user.id,
+                reason=reason or "Eliminación de devolución",
+            )
+            return {
+                "authorization_required": True,
+                "authorization_id": str(auth_request.id),
+                "message": auth_reason + ". Solicitud enviada para aprobación.",
+            }
+
+    # Ejecutar eliminación directamente
     try:
         success = await service.soft_delete(
             voucher_id, business_id, current_user.id, reason
@@ -774,6 +879,154 @@ async def delete_voucher(
     )
 
     return {"message": "Comprobante eliminado correctamente"}
+
+
+# ========================================
+# ENDPOINTS DE AUTORIZACIÓN
+# ========================================
+
+
+@router.get("/authorizations/pending")
+async def list_pending_authorizations(
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """Lista las solicitudes de autorización pendientes para el usuario."""
+    # Obtener rol del usuario actual
+    membership_role = await _get_user_membership_role(db, business_id, current_user.id)
+
+    # Solo owner y manager pueden ver autorizaciones pendientes
+    if membership_role not in ["owner", "manager"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo Owner o Manager pueden gestionar autorizaciones",
+        )
+
+    # Buscar autorizaciones pendientes del negocio
+    from app.models.authorization import AuthorizationRequest, AuthorizationStatus
+
+    result = await db.execute(
+        select(AuthorizationRequest).where(
+            AuthorizationRequest.business_id == business_id,
+            AuthorizationRequest.status == AuthorizationStatus.PENDING,
+            AuthorizationRequest.deleted_at.is_(None),
+        )
+    )
+    authorizations = result.scalars().all()
+
+    return {
+        "items": [
+            {
+                "id": str(a.id),
+                "requested_by_user_id": str(a.requested_by),
+                "authorization_type": a.authorization_type.value,
+                "resource_id": str(a.resource_id),
+                "reason": a.reason,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+            }
+            for a in authorizations
+        ],
+        "total": len(authorizations),
+    }
+
+
+@router.post("/authorizations/{authorization_id}/approve")
+async def approve_authorization(
+    authorization_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """Aprueba una solicitud de eliminación de devolución."""
+    membership_role = await _get_user_membership_role(db, business_id, current_user.id)
+
+    if membership_role not in ["owner", "manager"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo Owner o Manager pueden aprobar autorizaciones",
+        )
+
+    service = VoucherService(db)
+
+    try:
+        auth_request = await service.approve_authorization(
+            authorization_id, current_user.id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    # Si se aprueba, ejecutar la eliminación del voucher
+    try:
+        success = await service.soft_delete(
+            auth_request.resource_id,
+            business_id,
+            current_user.id,
+            f"Aprobado por authorization {authorization_id}",
+        )
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Comprobante no encontrado",
+            )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    await _log_audit(
+        db=db,
+        user_id=current_user.id,
+        business_id=business_id,
+        action="approve_authorization_and_delete",
+        resource_type="authorization_request",
+        resource_id=authorization_id,
+        details={
+            "authorization_id": str(authorization_id),
+            "voucher_id": str(auth_request.resource_id),
+        },
+    )
+
+    return {"message": "Autorización aprobada y comprobante eliminado"}
+
+
+@router.post("/authorizations/{authorization_id}/reject")
+async def reject_authorization(
+    authorization_id: UUID,
+    rejection_reason: str = Query(..., description="Motivo del rechazo"),
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """Rechaza una solicitud de eliminación de devolución."""
+    membership_role = await _get_user_membership_role(db, business_id, current_user.id)
+
+    if membership_role not in ["owner", "manager"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo Owner o Manager pueden rechazar autorizaciones",
+        )
+
+    service = VoucherService(db)
+
+    try:
+        auth_request = await service.reject_authorization(
+            authorization_id, current_user.id, rejection_reason
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    await _log_audit(
+        db=db,
+        user_id=current_user.id,
+        business_id=business_id,
+        action="reject_authorization",
+        resource_type="authorization_request",
+        resource_id=authorization_id,
+        details={
+            "rejection_reason": rejection_reason,
+        },
+    )
+
+    return {"message": "Solicitud de autorización rechazada"}
 
 
 @router.get("/pending-quotations", response_model=PaginatedResponse[VoucherResponse])

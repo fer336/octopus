@@ -10,6 +10,7 @@ import productsService from '../api/productsService'
 import clientsService from '../api/clientsService'
 import clientAuthorizationsService from '../api/clientAuthorizationsService'
 import vouchersService, { VoucherCreate, VoucherUpdate, VoucherPayment, Voucher as VoucherType2, type PriceStrategy, type VoucherTotalsPreviewRequest } from '../api/vouchersService'
+import draftsService from '../api/draftsService'
 import arcaService from '../api/arcaService'
 import paymentMethodsService from '../api/paymentMethodsService'
 import businessService from '../api/businessService'
@@ -47,6 +48,7 @@ interface Product {
 }
 
 interface CartItem extends Product {
+  product_id?: string
   quantity: number
   discount: number // Descuento adicional en la venta
   sourceBudgetId?: string // ID del presupuesto origen (para rastrear de qué cotización viene cada item)
@@ -81,20 +83,6 @@ interface Client {
   credit_limit?: number
 }
 
-interface Draft {
-  id: string
-  voucherType: VoucherType
-  client: Client
-  selectedOperatingClientId?: string
-  items: CartItem[]
-  subtotal: number
-  iva: number
-  total: number
-  generalDiscount: number
-  showPrices?: boolean
-  createdAt: string
-}
-
 interface PaymentSelectionState {
   selected: boolean
   amount: string
@@ -127,13 +115,15 @@ const normalizeCartItems = (rawItems: unknown[]): CartItem[] => {
   return rawItems
     .map((raw) => {
       const item = raw as Partial<CartItem> & { amount?: unknown; monto?: unknown; net_price?: unknown }
-      const quantity = Math.max(1, Math.trunc(safeNumber(item.quantity || 1)))
+      const quantity = Math.trunc(safeNumber(item.quantity))
+      const productId = safeText(item.product_id) || safeText(item.id)
       const salePrice = safeNumber(item.sale_price)
       // Si hay net_price, usarlo, sino calcularlo desde sale_price
       const netPrice = item.net_price ? safeNumber(item.net_price) : salePrice / 1.21
 
       return {
-        id: safeText(item.id),
+        id: productId,
+        product_id: productId,
         code: safeText(item.code),
         description: safeText(item.description),
         net_price: netPrice,
@@ -142,7 +132,7 @@ const normalizeCartItems = (rawItems: unknown[]): CartItem[] => {
         discount: safeNumber(item.discount),
       }
     })
-    .filter((item) => item.id && item.description)
+    .filter((item) => item.id && item.description && item.quantity !== 0)
 }
 
 const safeText = (value: unknown): string => (typeof value === 'string' ? value : '')
@@ -253,19 +243,6 @@ const resolveBackendVoucherType = (
   if (type === 'quotation') return 'quotation'
   if (type === 'receipt' || type === 'current_account') return 'receipt'
   return taxCondition === 'RI' ? 'invoice_a' : 'invoice_b'
-}
-
-const parseStoredDrafts = (value: string | null): Draft[] => {
-  if (!value) {
-    return []
-  }
-
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
 }
 
 const documentTypes = [
@@ -379,7 +356,7 @@ export default function Sales() {
   const [selectedProductIndex, setSelectedProductIndex] = useState(0)
   const productListRef = useRef<HTMLDivElement>(null)
   const selectedRowRef = useRef<HTMLTableRowElement>(null)
-  const [drafts, setDrafts] = useState<Draft[]>([])
+  const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null)
   const [zoomLevel, setZoomLevel] = useState(1)
   const [isGenerating, setIsGenerating] = useState(false)
   const [paymentSelections, setPaymentSelections] = useState<Record<string, PaymentSelectionState>>({})
@@ -462,6 +439,12 @@ export default function Sales() {
     return defaultMessage
   }
 
+  // Query para obtener borradores desde la API
+  const { data: apiDrafts, refetch: refetchDrafts } = useQuery({
+    queryKey: ['drafts'],
+    queryFn: () => draftsService.getAll(),
+  })
+
   // Mutation para convertir cotización en factura
   const convertQuotationMutation = useMutation({
     mutationFn: ({
@@ -534,6 +517,16 @@ export default function Sales() {
       setConvertCurrentAccountDays(30)
       resetConvertPaymentSelections()
       refetchPendingQuotations()
+      
+      // Limpiar los borradores cargados (se convirtieron en documentos)
+      setLoadedBudgets([])
+      setLoadedBudgetsPriceStrategy('historical')
+      
+      // Eliminar el borrador local si estaba cargado
+      if (loadedDraftId) {
+        deleteDraftMutation.mutate(loadedDraftId)
+        setLoadedDraftId(null)
+      }
     },
     onError: (error: any) => {
       const message = voucherType === 'current_account'
@@ -601,6 +594,12 @@ export default function Sales() {
       setLoadedBudgetsPriceStrategy('historical')
       resetPaymentSelections()
       refetchPendingQuotations()
+      
+      // Eliminar el borrador local si estaba cargado
+      if (loadedDraftId) {
+        deleteDraftMutation.mutate(loadedDraftId)
+        setLoadedDraftId(null)
+      }
     },
     onError: (error: any) => {
       const message = formatErrorMessage(error)
@@ -609,6 +608,37 @@ export default function Sales() {
     onSettled: () => {
       setIsGenerating(false)
     }
+  })
+
+  // Mutation para guardar borrador en la API
+  const saveDraftMutation = useMutation({
+    mutationFn: (data: { voucherType: string; clientId?: string; clientName?: string; operatingClientId?: string; items: any[]; generalDiscount: number; showPrices: boolean }) => 
+      draftsService.create({
+        voucher_type: data.voucherType,
+        client_id: data.clientId,
+        client_name: data.clientName,
+        operating_client_id: data.operatingClientId,
+        items: data.items,
+        general_discount: data.generalDiscount,
+        show_prices: data.showPrices,
+      }),
+    onSuccess: () => {
+      refetchDrafts()
+    },
+    onError: (error: any) => {
+      toast.error('Error al guardar borrador: ' + formatErrorMessage(error))
+    },
+  })
+
+  // Mutation para eliminar borrador de la API
+  const deleteDraftMutation = useMutation({
+    mutationFn: (id: string) => draftsService.delete(id),
+    onSuccess: () => {
+      refetchDrafts()
+    },
+    onError: (error: any) => {
+      toast.error('Error al eliminar borrador: ' + formatErrorMessage(error))
+    },
   })
 
   // Mutation para crear comprobante
@@ -692,6 +722,18 @@ export default function Sales() {
       setShowPrices(voucherType === 'receipt' || voucherType === 'current_account' ? false : true)
       setProductSearch('')
       resetPaymentSelections()
+      
+      // Limpiar los borradores cargados (se convirtieron en documentos)
+      if (loadedBudgets.length > 0) {
+        setLoadedBudgets([])
+        setLoadedBudgetsPriceStrategy('historical')
+      }
+
+      // Eliminar el borrador local si estaba cargado
+      if (loadedDraftId) {
+        deleteDraftMutation.mutate(loadedDraftId)
+        setLoadedDraftId(null)
+      }
     },
     onError: (error: any) => {
       toast.error(formatErrorMessage(error))
@@ -699,6 +741,50 @@ export default function Sales() {
     onSettled: () => {
       setIsGenerating(false)
     }
+  })
+
+  const customerCreditReturnMutation = useMutation({
+    mutationFn: (data: Parameters<typeof vouchersService.registerCustomerCreditReturn>[0]) =>
+      vouchersService.registerCustomerCreditReturn(data),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['clients'] })
+      void queryClient.invalidateQueries({ queryKey: ['vouchers'] })
+      toast.success(
+        data.credit_amount > 0
+          ? `Saldo a favor registrado: $${formatNumber(data.credit_amount, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          : 'Devolución registrada sin saldo a favor',
+        { icon: '💳', duration: 5000 },
+      )
+
+      if (data.return_receipt_id) {
+        void vouchersService.getPdf(data.return_receipt_id).then((pdfBlob) => {
+          const blobUrl = URL.createObjectURL(pdfBlob)
+          setPdfUrl(blobUrl)
+          setPdfVoucherInfo({
+            type: 'return_receipt',
+            number: data.return_receipt_number || '',
+          })
+          setShowPdfModal(true)
+        }).catch((error) => {
+          toast.error(`Saldo registrado, pero no se pudo abrir el remito de devolución: ${formatErrorMessage(error)}`)
+        })
+      }
+
+      setItems([])
+      setSelectedClient(null)
+      setSelectedOperatingClientId('')
+      setClientSearch('')
+      setGeneralDiscount(0)
+      setShowPrices(voucherType === 'receipt' || voucherType === 'current_account' ? false : true)
+      setProductSearch('')
+      resetPaymentSelections()
+    },
+    onError: (error: any) => {
+      toast.error(formatErrorMessage(error))
+    },
+    onSettled: () => {
+      setIsGenerating(false)
+    },
   })
 
   const updateQuotationMutation = useMutation({
@@ -1127,13 +1213,7 @@ export default function Sales() {
     }
   }
 
-  // Cargar borradores al iniciar
-  useEffect(() => {
-    const parsedDrafts = parseStoredDrafts(localStorage.getItem('sales-drafts'))
-    if (parsedDrafts.length > 0) {
-      setDrafts(parsedDrafts)
-    }
-  }, [])
+  // Los borradores ahora se cargan desde la API via useQuery
 
   // Toggle producto en lista temporal (agregar o quitar)
   const toggleProductInTemp = (product: Product) => {
@@ -1419,6 +1499,16 @@ export default function Sales() {
       return
     }
 
+    if (items.some((item) => Number(item.quantity) === 0)) {
+      toast.error('La cantidad no puede ser 0. Usá positivo para venta o negativo para devolución.')
+      return
+    }
+
+    if (voucherType === 'current_account' && hasReturnItems) {
+      toast.error('Las devoluciones se registran desde Factura, no desde Cta Cte.')
+      return
+    }
+
     if ((voucherType === 'current_account' || (voucherType === 'invoice' && payInCurrentAccount)) && !currentAccountEnabled) {
       toast.error('Cuenta Corriente está deshabilitada para este negocio desde el CMS')
       return
@@ -1433,6 +1523,16 @@ export default function Sales() {
       setSelectedOperatingClientId(selectedClient.id)
     }
 
+    if (isCustomerCreditReturn && !currentAccountEnabled) {
+      toast.error('Para guardar saldo a favor, Cuenta Corriente debe estar habilitada para este negocio y usuario')
+      return
+    }
+
+    if (voucherType === 'invoice' && totalRounded <= 0 && !isCustomerCreditReturn) {
+      toast.error('El total de la factura debe ser mayor a $0')
+      return
+    }
+
     // Mostrar modal de confirmación
     setShowConfirmModal(true)
   }
@@ -1440,6 +1540,22 @@ export default function Sales() {
   const handleConfirmGenerate = async () => {
     if (!selectedClient) {
       toast.error('Debe seleccionar un cliente')
+      return
+    }
+
+    if (items.some((item) => Number(item.quantity) === 0)) {
+      toast.error('La cantidad no puede ser 0. Usá positivo para venta o negativo para devolución.')
+      return
+    }
+
+    if (voucherType === 'current_account' && hasReturnItems) {
+      toast.error('Las devoluciones se registran desde Factura, no desde Cta Cte.')
+      return
+    }
+
+    // Bloquear devoluciones con saldo a favor en cotización y remito (solo permitido en facturas)
+    if ((voucherType === 'quotation' || voucherType === 'receipt') && hasReturnItems && totalRounded <= 0) {
+      toast.error('Las devoluciones con saldo a favor solo se pueden registrar en Facturas con Cuenta Corriente.')
       return
     }
 
@@ -1459,6 +1575,43 @@ export default function Sales() {
         toast.error('No se pudo validar el total con backend. Reintentá en unos segundos.')
         return
       }
+    }
+
+    if (isCustomerCreditReturn) {
+      if (!currentAccountEnabled) {
+        toast.error('Para guardar saldo a favor, Cuenta Corriente debe estar habilitada para este negocio y usuario')
+        return
+      }
+
+      const normalizedItems = normalizeCartItems(items)
+      if (normalizedItems.length === 0) {
+        toast.error('No hay renglones válidos para registrar la devolución')
+        return
+      }
+
+      const today = new Date()
+      const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+      setShowConfirmModal(false)
+      setIsGenerating(true)
+      customerCreditReturnMutation.mutate({
+        client_id: selectedClient.id,
+        date: localDate,
+        notes: 'Devolución excedente registrada desde Ventas',
+        general_discount: generalDiscount,
+        items: normalizedItems.map((item) => ({
+          product_id: item.id,
+          quantity: item.quantity,
+          unit_price: item.net_price,
+          discount_percent: item.discount,
+        })),
+      })
+      return
+    }
+
+    if (voucherType === 'invoice' && totalRounded <= 0) {
+      toast.error('El total de la factura debe ser mayor a $0')
+      return
     }
 
     const paymentValidation = validatePayments()
@@ -1588,23 +1741,34 @@ export default function Sales() {
       return
     }
 
-    const draft: Draft = {
-      id: Date.now().toString(),
+    // Convertir items al formato de la API
+    const draftItems = items.map(item => ({
+      product_id: item.product_id || item.id || '',
+      code: item.code || '',
+      description: item.description || '',
+      net_price: item.net_price || 0,
+      sale_price: item.sale_price || 0,
+      quantity: item.quantity || 0,
+      discount: item.discount || 0,
+    })).filter(item => item.product_id && item.code) // Filtrar items sin ID válido
+
+    // Guardar en la API
+    saveDraftMutation.mutate({
       voucherType,
-      client: selectedClient,
-      selectedOperatingClientId: voucherType === 'current_account' ? selectedOperatingClientId : undefined,
-      items,
-      subtotal: subtotal,
-      iva: iva,
-      total: total,
+      clientId: selectedClient.id,
+      clientName: selectedClient.name,
+      operatingClientId: voucherType === 'current_account' ? selectedOperatingClientId || selectedClient.id : undefined,
+      items: draftItems,
       generalDiscount,
       showPrices,
-      createdAt: new Date().toISOString(),
-    }
+    })
 
-    const savedDrafts = [...drafts, draft]
-    setDrafts(savedDrafts)
-    localStorage.setItem('sales-drafts', JSON.stringify(savedDrafts))
+    // Limpiar el formulario
+    setItems([])
+    setSelectedClient(null)
+    setSelectedOperatingClientId('')
+    setClientSearch('')
+    setShowPrices(voucherType === 'receipt' || voucherType === 'current_account' ? false : true)
 
     // Mostrar modal de éxito
     setShowSaveDraftSuccessModal(true)
@@ -1618,23 +1782,48 @@ export default function Sales() {
     setShowPrices(voucherType === 'receipt' || voucherType === 'current_account' ? false : true)
   }
 
-  const loadDraft = (draft: Draft) => {
-    setEditingVoucherId(null)
-    setEditingVoucherDate(null)
-    setEditingVoucherNotes(undefined)
-    sessionStorage.removeItem('sales-edit-voucher')
-    setVoucherType(draft.voucherType)
-    setShowPrices(draft.showPrices ?? (draft.voucherType === 'receipt' || draft.voucherType === 'current_account' ? false : true))
-    setSelectedClient(draft.client)
-    setSelectedOperatingClientId(
-      draft.voucherType === 'current_account'
-        ? draft.selectedOperatingClientId || draft.client.id
-        : '',
-    )
-    setClientSearch(draft.client.name)
-    setItems(draft.items)
-    setGeneralDiscount(draft.generalDiscount || 0)
-    setShowDraftsModal(false)
+  const loadDraft = async (draftId: string) => {
+    try {
+      const draft = await draftsService.getById(draftId)
+      
+      setEditingVoucherId(null)
+      setEditingVoucherDate(null)
+      setEditingVoucherNotes(undefined)
+      sessionStorage.removeItem('sales-edit-voucher')
+      setVoucherType(draft.voucher_type as VoucherType)
+      setShowPrices(draft.show_prices)
+      setLoadedDraftId(draftId)
+      
+      // Cargar cliente si existe
+      if (draft.client_id) {
+        const client = allClients.find(c => c.id === draft.client_id)
+        if (client) {
+          setSelectedClient(client)
+          setClientSearch(client.name)
+          if (draft.voucher_type === 'current_account') {
+            setSelectedOperatingClientId(draft.operating_client_id || draft.client_id)
+          }
+        }
+      }
+      
+      // Convertir items del formato API al formato CartItem
+      const cartItems = draft.items.map((item: any, index: number) => ({
+        id: `${draft.id}-${index}`,
+        product_id: item.product_id,
+        code: item.code,
+        description: item.description,
+        net_price: item.net_price,
+        sale_price: item.sale_price,
+        quantity: item.quantity,
+        discount: item.discount,
+      }))
+      
+      setItems(cartItems)
+      setGeneralDiscount(draft.general_discount || 0)
+      setShowDraftsModal(false)
+    } catch (error) {
+      toast.error('Error al cargar el borrador')
+    }
   }
 
   const handleDeleteDraftClick = (draftId: string) => {
@@ -1644,9 +1833,7 @@ export default function Sales() {
 
   const confirmDeleteDraft = () => {
     if (draftToDelete) {
-      const updatedDrafts = drafts.filter(d => d.id !== draftToDelete)
-      setDrafts(updatedDrafts)
-      localStorage.setItem('sales-drafts', JSON.stringify(updatedDrafts))
+      deleteDraftMutation.mutate(draftToDelete)
       toast.success('Borrador eliminado correctamente')
     }
     setShowDeleteDraftModal(false)
@@ -2181,7 +2368,32 @@ export default function Sales() {
   const discountAmount = subtotal * (generalDiscount / 100)
   const total = subtotal - discountAmount
   const totalRounded = Number(totalsPreviewQuery.data?.total) || calculateBackendCompatibleTotalFromCart(items, generalDiscount)
-  
+  const returnSummary = useMemo(() => {
+    const generalDiscountFactor = 1 - (safeNumber(generalDiscount) / 100)
+    return items.reduce(
+      (acc, item) => {
+        const quantity = safeNumber(item.quantity)
+        const itemDiscountFactor = 1 - (safeNumber(item.discount) / 100)
+        const lineTotal = roundMoney(safeNumber(item.sale_price) * Math.abs(quantity) * itemDiscountFactor * generalDiscountFactor)
+
+        if (quantity < 0) {
+          acc.returnTotal += lineTotal
+          acc.returnItems += 1
+        } else if (quantity > 0) {
+          acc.saleTotal += lineTotal
+          acc.saleItems += 1
+        }
+
+        return acc
+      },
+      { saleTotal: 0, returnTotal: 0, saleItems: 0, returnItems: 0 },
+    )
+  }, [items, generalDiscount])
+  const hasReturnItems = returnSummary.returnItems > 0
+  const isCustomerCreditReturn = voucherType === 'invoice' && hasReturnItems && totalRounded <= 0
+  const customerCreditAmount = isCustomerCreditReturn ? Math.abs(totalRounded) : 0
+  const invoiceableTotal = Math.max(totalRounded, 0)
+   
   // Calcular IVA real para mostrar en UI (separando el IVA del precio final)
   // El total incluye IVA, entonces: Subtotal = Total / 1.21, IVA = Total - Subtotal
   const subtotalWithoutIva = total / 1.21
@@ -2326,11 +2538,11 @@ export default function Sales() {
                 aria-label="Borradores"
               >
                 <FileText size={16} />
-                {drafts.length > 0 && (
-                  <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-600 px-1 text-[10px] font-bold leading-none text-white">
-                    {drafts.length}
-                  </span>
-                )}
+{(apiDrafts?.length ?? 0) > 0 && (
+                        <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-600 px-1 text-[10px] font-bold leading-none text-white">
+{(apiDrafts?.length ?? 0)}
+                        </span>
+                      )}
               </Button>
             </div>
 
@@ -2492,8 +2704,8 @@ export default function Sales() {
               <button type="button" onClick={() => setShowDraftsModal(true)} className="relative flex flex-1 items-center justify-center gap-1 rounded-lg border border-gray-300 px-1 py-1.5 text-[9px] font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                 <FileText size={10} />
                 Borradores
-                {drafts.length > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-3 min-w-3 items-center justify-center rounded-full bg-primary-600 px-0.5 text-[8px] font-bold leading-none text-white">{drafts.length}</span>
+                {(apiDrafts?.length ?? 0) > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-3 min-w-3 items-center justify-center rounded-full bg-primary-600 px-0.5 text-[8px] font-bold leading-none text-white">{apiDrafts?.length ?? 0}</span>
                 )}
               </button>
             </div>
@@ -2667,10 +2879,10 @@ export default function Sales() {
                         <p className="text-[10px] text-gray-500 dark:text-gray-400">Cant.</p>
                         <input
                           type="number"
-                          min={1}
+                          min={-9999}
                           value={item.quantity}
-                          onChange={(e) => updateItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
-                          className="w-full bg-transparent text-right text-xs font-medium text-gray-800 outline-none dark:text-gray-100"
+                          onChange={(e) => updateItem(item.id, 'quantity', Number.isNaN(parseInt(e.target.value)) ? 0 : parseInt(e.target.value))}
+                          className={`w-full bg-transparent text-right text-xs font-medium outline-none ${item.quantity < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-gray-100'}`}
                         />
                       </div>
                       <div className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 dark:border-gray-600 dark:bg-gray-700">
@@ -2685,10 +2897,10 @@ export default function Sales() {
                           className="w-full bg-transparent text-right text-xs font-medium text-gray-800 outline-none dark:text-gray-100"
                         />
                       </div>
-                      <div className="rounded-md border border-primary-200 bg-primary-50 px-2 py-1 dark:border-primary-700 dark:bg-primary-900/20">
-                        <p className="text-[10px] text-primary-600 dark:text-primary-300">Subtotal</p>
-                        <p className="text-right text-xs font-semibold text-primary-800 dark:text-primary-200">
-                          ${formatNumber(calculateItemTotal(item), undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <div className={`rounded-md border px-2 py-1 ${item.quantity < 0 ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20' : 'border-primary-200 bg-primary-50 dark:border-primary-700 dark:bg-primary-900/20'}`}>
+                        <p className={`text-[10px] ${item.quantity < 0 ? 'text-red-600 dark:text-red-300' : 'text-primary-600 dark:text-primary-300'}`}>{item.quantity < 0 ? 'Devuelve' : 'Subtotal'}</p>
+                        <p className={`text-right text-xs font-semibold ${item.quantity < 0 ? 'text-red-700 dark:text-red-300' : 'text-primary-800 dark:text-primary-200'}`}>
+                          ${formatNumber(Math.abs(calculateItemTotal(item)), undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                       </div>
                     </div>
@@ -2722,9 +2934,26 @@ export default function Sales() {
                 <span>IVA (21%)</span>
                 <span>${formatNumber(iva, undefined, { minimumFractionDigits: 2 })}</span>
               </div>
+              {hasReturnItems && (
+                <div className="my-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs dark:border-red-800 dark:bg-red-900/20">
+                  <div className="flex justify-between text-gray-700 dark:text-gray-200">
+                    <span>Productos vendidos</span>
+                    <span>${formatNumber(returnSummary.saleTotal, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold text-red-700 dark:text-red-300">
+                    <span>Devoluciones</span>
+                    <span>-${formatNumber(returnSummary.returnTotal, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  {isCustomerCreditReturn && (
+                    <p className="mt-1 rounded-md bg-white/70 px-2 py-1 font-semibold text-blue-700 dark:bg-gray-900/40 dark:text-blue-300">
+                      Saldo a favor: ${formatNumber(customerCreditAmount, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="mt-1 flex justify-between border-t border-gray-300 pt-2 text-base font-semibold text-gray-900 dark:border-gray-500 dark:text-white">
-                <span>TOTAL</span>
-                <span>${formatNumber(totalRounded, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span>{isCustomerCreditReturn ? 'A FACTURAR' : 'TOTAL'}</span>
+                <span>${formatNumber(invoiceableTotal, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
 
@@ -2904,20 +3133,30 @@ export default function Sales() {
                     </tr>
                   ) : (
                     items.map((item, rowIndex) => (
-                      <tr key={item.id} className={`hover:bg-primary-50 dark:hover:bg-primary-900/20 ${rowIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-primary-50/30 dark:bg-primary-900/10'}`}>
-                        <td className="px-3 py-[3px] font-medium text-gray-800 dark:text-gray-100">{item.code}</td>
+                      <tr key={item.id} className={`hover:bg-primary-50 dark:hover:bg-primary-900/20 ${item.quantity < 0 ? 'bg-red-50/70 dark:bg-red-900/10' : rowIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-primary-50/30 dark:bg-primary-900/10'}`}>
+                        <td className="px-3 py-[3px]">
+                          {item.quantity < 0 && (
+                            <span
+                              title="Producto devuelto"
+                              className="inline-flex items-center justify-center w-5 h-5 rounded-full shadow-sm border border-red-300 bg-gradient-to-br from-red-200 to-red-100 text-red-700 dark:from-red-900/40 dark:to-red-800 dark:border-red-700 dark:text-red-300 text-[10px] font-bold mr-1 shrink-0"
+                            >
+                              D
+                            </span>
+                          )}
+                          <span className="font-medium text-gray-800 dark:text-gray-100">{item.code}</span>
+                        </td>
                         <td className="px-3 py-[3px] text-gray-700 dark:text-gray-200">{item.description}</td>
                         <td className="px-3 py-[3px] text-right">
                           <input
                             type="number"
                             value={item.quantity}
-                            onChange={(e) => updateItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
-                            className="w-full text-right border rounded dark:bg-gray-700 dark:border-gray-600"
+                            onChange={(e) => updateItem(item.id, 'quantity', Number.isNaN(parseInt(e.target.value)) ? 0 : parseInt(e.target.value))}
+                            className={`w-full text-right border rounded dark:bg-gray-700 dark:border-gray-600 ${item.quantity < 0 ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300' : ''}`}
                             style={{ 
                               fontSize: `${0.875 * zoomLevel}rem`,
                               padding: `${0.09 * zoomLevel}rem ${0.28 * zoomLevel}rem`
                             }}
-                            min={1}
+                            min={-9999}
                           />
                         </td>
                         <td className="px-3 py-[3px] text-right">${formatNumber(item.sale_price)}</td>
@@ -2936,8 +3175,8 @@ export default function Sales() {
                             step={0.1}
                           />
                         </td>
-                        <td className="px-3 py-[3px] text-right font-medium">
-                          ${formatNumber(calculateItemTotal(item))}
+                        <td className={`px-3 py-[3px] text-right font-medium ${item.quantity < 0 ? 'text-red-600 dark:text-red-400' : ''}`}>
+                          ${formatNumber(Math.abs(calculateItemTotal(item)))}
                         </td>
                         <td className="px-3 py-[3px]">
                           <button onClick={() => removeItem(item.id)} className="text-red-500 hover:text-red-700">
@@ -3100,10 +3339,27 @@ export default function Sales() {
                 <span>IVA (21%)</span>
                 <span className="font-medium">${formatNumber(iva, undefined, { minimumFractionDigits: 2 })}</span>
               </div>
-              
+              {hasReturnItems && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-2 dark:border-red-800 dark:bg-red-900/20">
+                  <div className="flex justify-between text-xs text-gray-700 dark:text-gray-200">
+                    <span>Productos vendidos</span>
+                    <span>${formatNumber(returnSummary.saleTotal, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between text-xs font-semibold text-red-700 dark:text-red-300">
+                    <span>Devoluciones</span>
+                    <span>-${formatNumber(returnSummary.returnTotal, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  {isCustomerCreditReturn && (
+                    <div className="mt-1 rounded-md bg-white/70 px-2 py-1 text-xs font-semibold text-blue-700 dark:bg-gray-900/40 dark:text-blue-300">
+                      Saldo a favor: ${formatNumber(customerCreditAmount, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  )}
+                </div>
+              )}
+               
               <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white pt-2 border-t-2 border-gray-300 dark:border-gray-600">
-                <span>TOTAL</span>
-                <span>${formatNumber(totalRounded, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span>{isCustomerCreditReturn ? 'A FACTURAR' : 'TOTAL'}</span>
+                <span>${formatNumber(invoiceableTotal, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
 
@@ -3654,14 +3910,14 @@ export default function Sales() {
       {/* Modal borradores */}
       <Modal isOpen={showDraftsModal} onClose={() => setShowDraftsModal(false)} title="Borradores Guardados">
         <div className="space-y-3">
-          {drafts.length === 0 ? (
+          {!apiDrafts || apiDrafts.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <FileText className="mx-auto mb-2 opacity-50" size={32} />
               <p className="text-sm">No hay borradores guardados</p>
             </div>
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {drafts.map((draft) => (
+              {apiDrafts.map((draft) => (
                 <div
                   key={draft.id}
                   className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -3670,31 +3926,25 @@ export default function Sales() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-semibold text-primary-600 dark:text-primary-400">
-                          {voucherTypes.find(v => v.value === draft.voucherType)?.label}
+                          {voucherTypes.find(v => v.value === draft.voucher_type)?.label || draft.voucher_type}
                         </span>
                         <span className="text-xs text-gray-500">
-                          {new Date(draft.createdAt).toLocaleDateString()} {new Date(draft.createdAt).toLocaleTimeString()}
+                          {new Date(draft.created_at).toLocaleDateString()} {new Date(draft.created_at).toLocaleTimeString()}
                         </span>
                       </div>
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {draft.client.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {draft.client.document_type}: {draft.client.document_number}
+                        {draft.client_name || 'Sin cliente'}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold text-gray-900 dark:text-gray-100">
-                        ${formatNumber(draft.total)}
-                      </p>
                       <p className="text-xs text-gray-500">
-                        {draft.items.length} productos
+                        {draft.item_count} productos
                       </p>
                     </div>
                   </div>
 
                   <div className="flex gap-2 mt-2">
-                    <Button variant="primary" size="sm" onClick={() => loadDraft(draft)} className="flex-1 text-xs">
+                    <Button variant="primary" size="sm" onClick={() => loadDraft(draft.id)} className="flex-1 text-xs">
                       Cargar
                     </Button>
                     <Button
@@ -3914,19 +4164,40 @@ export default function Sales() {
                     <span className="font-medium">${formatNumber(iva, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
 
+                  {hasReturnItems && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs dark:border-red-800 dark:bg-red-900/20">
+                      <div className="flex justify-between text-gray-700 dark:text-gray-200">
+                        <span>Productos vendidos:</span>
+                        <span>${formatNumber(returnSummary.saleTotal, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between font-semibold text-red-700 dark:text-red-300">
+                        <span>Devoluciones:</span>
+                        <span>-${formatNumber(returnSummary.returnTotal, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Total final */}
                   <div className="flex justify-between pt-1.5 border-t-2 border-primary-300 dark:border-primary-600">
-                    <span className="font-bold text-gray-900 dark:text-white text-base">TOTAL:</span>
+                    <span className="font-bold text-gray-900 dark:text-white text-base">{isCustomerCreditReturn ? 'A FACTURAR:' : 'TOTAL:'}</span>
                     <span className="font-bold text-lg text-primary-600 dark:text-primary-400">
-                      ${formatNumber(totalRounded, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ${formatNumber(invoiceableTotal, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
+                  {isCustomerCreditReturn && (
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-100">
+                      <p className="font-bold">Saldo a favor del cliente: ${formatNumber(customerCreditAmount, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      <p className="mt-1">
+                        La devolución supera la venta. No se emitirá factura negativa: se reincorpora stock y se guarda este crédito en la cuenta del cliente.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Métodos de pago — solo para facturas */}
-            {voucherType === 'invoice' && (
+            {voucherType === 'invoice' && !isCustomerCreditReturn && (
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-800">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -4045,7 +4316,7 @@ export default function Sales() {
           </div>
 
           {/* Opción: Pagar en Cuenta Corriente */}
-          {voucherType === 'invoice' && currentAccountEnabled && (
+          {voucherType === 'invoice' && currentAccountEnabled && !isCustomerCreditReturn && (
           <div className="border border-primary-200 dark:border-primary-800 rounded-lg p-3 bg-primary-50 dark:bg-primary-900/20">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <label className="flex items-center gap-2 cursor-pointer">
@@ -4095,8 +4366,11 @@ export default function Sales() {
           {voucherType === 'invoice' && (
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
               <p className="text-xs text-amber-900 dark:text-amber-200">
-                <strong>⚠️ Importante:</strong> Se emitirá una factura electrónica en ARCA/AFIP. 
-                Este proceso es <strong>irreversible</strong> y se obtendrá un CAE oficial.
+                {isCustomerCreditReturn ? (
+                  <><strong>⚠️ Importante:</strong> Esta operación guardará saldo a favor; no se emitirá factura electrónica porque el neto no es positivo.</>
+                ) : (
+                  <><strong>⚠️ Importante:</strong> Se emitirá una factura electrónica en ARCA/AFIP. Este proceso es <strong>irreversible</strong> y se obtendrá un CAE oficial.</>
+                )}
               </p>
             </div>
           )}
@@ -4114,7 +4388,7 @@ export default function Sales() {
               onClick={handleConfirmGenerate}
               className="flex-1"
             >
-              {voucherType === 'invoice' ? 'Emitir Factura Electrónica' : editingVoucherId ? 'Actualizar' : 'Confirmar'}
+              {isCustomerCreditReturn ? 'Guardar saldo a favor' : voucherType === 'invoice' ? 'Emitir Factura Electrónica' : editingVoucherId ? 'Actualizar' : 'Confirmar'}
             </Button>
           </div>
         </div>

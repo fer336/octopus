@@ -391,13 +391,23 @@ export default function Vouchers() {
   const deleteMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       vouchersService.delete(id, reason),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vouchers'] })
-      toast.success('Comprobante eliminado correctamente', { icon: '✅' })
-      setShowDeleteModal(false)
-      setVoucherToDelete(null)
-      setDeleteReason('')
-      setDeleteReasonError('')
+    onSuccess: (response: any) => {
+      // Verificar si se requiere autorización
+      if (response.authorization_required) {
+        queryClient.invalidateQueries({ queryKey: ['pending-authorizations'] })
+        toast.success(response.message || 'Solicitud de autorización enviada', { icon: '🔒' })
+        setShowDeleteModal(false)
+        setVoucherToDelete(null)
+        setDeleteReason('')
+        setDeleteReasonError('')
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['vouchers'] })
+        toast.success('Comprobante eliminado correctamente', { icon: '✅' })
+        setShowDeleteModal(false)
+        setVoucherToDelete(null)
+        setDeleteReason('')
+        setDeleteReasonError('')
+      }
     },
     onError: (error: any) => {
       toast.error(formatErrorMessage(error))
@@ -734,7 +744,8 @@ export default function Vouchers() {
       render: (item: VoucherListItem) => {
         const isSelectable =
           (item.voucher_type === 'quotation' || item.voucher_type === 'receipt') &&
-          !item.invoiced_voucher_id
+          !item.invoiced_voucher_id &&
+          !item.is_return_receipt
         if (!isSelectable) return null
         return (
           <input
@@ -756,9 +767,11 @@ export default function Vouchers() {
       key: 'type',
       header: 'Tipo',
        render: (item: VoucherListItem) => {
-        const typeInfo = voucherTypeLabels[item.voucher_type] || { label: item.voucher_type, textClass: 'text-gray-600 dark:text-gray-400', icon: FileText }
+        const typeInfo = item.is_return_receipt
+          ? { label: 'Remito de devolución', textClass: 'text-red-600 dark:text-red-400', icon: RotateCcw }
+          : voucherTypeLabels[item.voucher_type] || { label: item.voucher_type, textClass: 'text-gray-600 dark:text-gray-400', icon: FileText }
         const Icon = typeInfo.icon
-        const isInvoiced = (item.voucher_type === 'quotation' || item.voucher_type === 'receipt') && item.invoiced_voucher_id
+        const isInvoiced = (item.voucher_type === 'quotation' || item.voucher_type === 'receipt') && item.invoiced_voucher_id && !item.is_return_receipt
         const isCCClosure = !!item.is_current_account_closure
         const closureLockInfo = getCurrentAccountClosureLockInfo(item)
         const hasCreditNote = item.voucher_type?.startsWith('invoice_') && item.has_credit_note
@@ -770,6 +783,14 @@ export default function Vouchers() {
             <span className={`text-xs font-medium ${typeInfo.textClass}`}>
               {typeInfo.label}
             </span>
+            {item.is_return_receipt && (
+              <span
+                title="Remito de devolución"
+                className="inline-flex items-center justify-center w-5 h-5 rounded-full shadow-sm border border-red-300 bg-gradient-to-br from-red-200 to-red-100 text-red-700 dark:from-red-900/40 dark:to-red-800 dark:border-red-700 dark:text-red-300 text-[10px] font-bold leading-none shrink-0"
+              >
+                D
+              </span>
+            )}
             {isInvoiced && (
               <span
                 title="Este comprobante ya fue facturado"
@@ -868,9 +889,19 @@ export default function Vouchers() {
 
         const parentNode = (
           <div className="flex flex-col gap-0.5">
-            <span className="font-mono text-sm font-medium">
-              {item.sale_point}-{item.number}
-            </span>
+            <div className="flex items-center gap-1">
+              {item.is_return_receipt && (
+                <span
+                  title="Remito de devolución"
+                  className="inline-flex items-center justify-center w-5 h-5 rounded-full shadow-sm border border-red-300 bg-gradient-to-br from-red-200 to-red-100 text-red-700 dark:from-red-900/40 dark:to-red-800 dark:border-red-700 dark:text-red-300 text-[10px] font-bold shrink-0"
+                >
+                  D
+                </span>
+              )}
+              <span className="font-mono text-sm font-medium">
+                {item.sale_point}-{item.number}
+              </span>
+            </div>
 
             {invoicedRef && (
               <button
@@ -1445,7 +1476,7 @@ export default function Vouchers() {
           renderCard={(voucher, _idx) => {
             const isDeleted = !!voucher.deleted_at
             // Selectable: quotation or receipt not yet invoiced
-            const isSelectable = (voucher.voucher_type === 'quotation' || voucher.voucher_type === 'receipt') && !voucher.invoiced_voucher_id
+            const isSelectable = (voucher.voucher_type === 'quotation' || voucher.voucher_type === 'receipt') && !voucher.invoiced_voucher_id && !voucher.is_return_receipt
             const typeLabels: Record<string, { label: string; color: string }> = {
               quotation: { label: 'Cotización', color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/30' },
               receipt: { label: 'Remito', color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30' },
@@ -1453,7 +1484,9 @@ export default function Vouchers() {
               invoice_b: { label: 'Factura B', color: 'text-green-600 bg-green-50 dark:bg-green-900/30' },
               invoice_c: { label: 'Factura C', color: 'text-green-600 bg-green-50 dark:bg-green-900/30' },
             }
-            const typeInfo = typeLabels[voucher.voucher_type] || { label: voucher.voucher_type, color: 'text-gray-600 bg-gray-50 dark:bg-gray-700' }
+            const typeInfo = voucher.is_return_receipt
+              ? { label: 'Remito de devolución', color: 'text-red-700 bg-red-50 dark:text-red-300 dark:bg-red-900/30' }
+              : typeLabels[voucher.voucher_type] || { label: voucher.voucher_type, color: 'text-gray-600 bg-gray-50 dark:bg-gray-700' }
             // Usar labels consistentes con desktop
             const statusRaw = statusLabels[voucher.status] || { label: voucher.status, className: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' }
             const statusLabel = statusRaw.label

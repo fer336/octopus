@@ -980,10 +980,15 @@ export default function CurrentAccount() {
             const isLocked = !!voucher.invoiced_voucher_id
             const isAuthorized = !!voucher.is_withdrawal_authorized
             const isSelected = selectedReceiptIds.includes(voucher.id)
+            const isReturnReceipt = voucher.is_return_receipt
             
             return (
               <div key={voucher.id} className={`rounded-xl border p-3 shadow-sm ${
-                isSelected ? 'border-primary-300 bg-primary-50 dark:border-primary-700 dark:bg-primary-900/20' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
+                isSelected 
+                  ? 'border-primary-300 bg-primary-50 dark:border-primary-700 dark:bg-primary-900/20' 
+                  : isReturnReceipt 
+                  ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
+                  : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
               }`}>
                 {/* Checkbox + Número */}
                 <div className="flex items-center justify-between mb-2">
@@ -998,8 +1003,13 @@ export default function CurrentAccount() {
                     <span className="font-mono font-semibold text-gray-900 dark:text-white">
                       {voucher.sale_point}-{voucher.number}
                     </span>
+                    {isReturnReceipt && (
+                      <span className="inline-flex items-center rounded-full bg-red-100 text-red-700 px-1.5 py-0.5 text-[10px] font-medium dark:bg-red-900/50 dark:text-red-300">
+                        Devolución
+                      </span>
+                    )}
                   </label>
-                  <span className="font-mono font-bold text-gray-900 dark:text-white">
+                  <span className={`font-mono font-bold ${isReturnReceipt ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
                     ${Number(voucher.total).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -1075,9 +1085,10 @@ export default function CurrentAccount() {
                     clientsById.get(voucher.billing_client_id || '')?.name ||
                     '—'
                   const isAuthorized = !!voucher.is_withdrawal_authorized
+                  const isReturnReceipt = voucher.is_return_receipt
 
                   return (
-                    <tr key={voucher.id} className="border-t border-gray-100 dark:border-gray-700">
+                    <tr key={voucher.id} className={`border-t border-gray-100 dark:border-gray-700 ${isReturnReceipt ? 'bg-red-50 dark:bg-red-900/20' : ''}`}>
                       <td className="px-3 py-2">
                         <input
                           type="checkbox"
@@ -1087,8 +1098,15 @@ export default function CurrentAccount() {
                           className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                         />
                       </td>
-                      <td className="px-3 py-2 text-gray-900 dark:text-white">
-                        {voucher.sale_point}-{voucher.number}
+                      <td className="px-3 py-2">
+                        <span className="text-gray-900 dark:text-white">
+                          {voucher.sale_point}-{voucher.number}
+                        </span>
+                        {isReturnReceipt && (
+                          <span className="ml-2 inline-flex items-center rounded-full bg-red-100 text-red-700 px-1.5 py-0.5 text-[10px] font-medium dark:bg-red-900/50 dark:text-red-300">
+                            Devolución
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
                         {new Date(`${voucher.date}T00:00:00`).toLocaleDateString('es-AR')}
@@ -1118,7 +1136,7 @@ export default function CurrentAccount() {
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-right text-gray-900 dark:text-white font-medium">
+                      <td className={`px-3 py-2 text-right font-medium ${isReturnReceipt ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
                         $
                         {Number(voucher.total).toLocaleString('es-AR', {
                           minimumFractionDigits: 2,

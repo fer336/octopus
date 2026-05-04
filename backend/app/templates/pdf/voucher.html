@@ -106,7 +106,6 @@
 		.info-line strong {
 			font-weight: bold;
 		}
-
         .logo-img {
             max-height: 50px;
             max-width: 180px;
@@ -171,6 +170,26 @@
 			text-align: left;
 			word-break: break-word;
 		}
+        .items-table tr.return-item td {
+            background: #fee2e2;
+            color: #7f1d1d;
+            font-weight: bold;
+        }
+        .return-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            margin-left: 4px;
+            border-radius: 50%;
+            border: 1px solid #fca5a5;
+            background: linear-gradient(180deg, #fecaca 0%, #f87171 100%);
+            color: #7f1d1d;
+            font-size: 9px;
+            font-weight: bold;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
 		.items-table th:nth-child(1),
 		.items-table th:nth-child(2),
 		.items-table td:nth-child(1),
@@ -260,7 +279,6 @@
             </tr>
         </table>
     </div>
-
     <!-- Client -->
     <div class="client-container">
         <table class="client-table">
@@ -306,10 +324,10 @@
         </thead>
         <tbody>
             {% for item in items %}
-            <tr>
+            <tr class="{% if item.is_return_item %}return-item{% endif %}">
                 <td>{{ item.quantity }}</td>
                 <td>{{ item.code or '-' }}</td>
-                <td>{{ item.description }}</td>
+                <td>{{ item.description }}{% if item.is_return_item %}<span class="return-badge">D</span>{% endif %}</td>
                 {% if voucher.show_prices %}
                 <td>{{ item.unit_price }}</td>
                 <td>{{ item.discount or '0,00' }}</td>

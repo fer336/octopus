@@ -100,6 +100,9 @@ class Business(BaseModel):
     memberships = relationship(
         "TenantMembership", back_populates="business", cascade="all, delete-orphan"
     )
+    drafts = relationship(
+        "Draft", back_populates="business", cascade="all, delete-orphan", lazy="dynamic"
+    )
 
     def __repr__(self) -> str:
         return f"<Business {self.name}>"

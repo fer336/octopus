@@ -5,6 +5,7 @@ Exporta todos los modelos para facilitar las importaciones.
 
 from app.models.ai_provider_config import AIProvider, AIProviderConfig
 from app.models.audit_log import AuditLog
+from app.models.authorization import AuthorizationRequest, AuthorizationStatus, AuthorizationType
 from app.models.base import BaseModel
 from app.models.business import Business
 from app.models.cash_register import (
@@ -56,6 +57,10 @@ __all__ = [
     "MembershipAccessStatus",
     "AuditLog",
     "FeedbackTicket",
+    # Autorizaciones
+    "AuthorizationRequest",
+    "AuthorizationStatus",
+    "AuthorizationType",
     # Entidades principales
     "Category",
     "Supplier",

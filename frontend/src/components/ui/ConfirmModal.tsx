@@ -10,11 +10,12 @@ interface ConfirmModalProps {
   onClose: () => void
   onConfirm: () => void
   title: string
-  description: string
+  description?: string
   confirmText?: string
   cancelText?: string
   variant?: 'danger' | 'warning' | 'info'
   isLoading?: boolean
+  children?: React.ReactNode  // Contenido adicional opcional
 }
 
 export default function ConfirmModal({
@@ -27,6 +28,7 @@ export default function ConfirmModal({
   cancelText = 'Cancelar',
   variant = 'danger',
   isLoading = false,
+  children,
 }: ConfirmModalProps) {
   const icons = {
     danger: <Trash2 className="w-10 h-10 text-red-600 dark:text-red-400" />,
@@ -51,9 +53,12 @@ export default function ConfirmModal({
           {title}
         </h3>
         
-        <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-xs">
+        <p className="text-gray-600 dark:text-gray-400 mb-4 max-w-xs">
           {description}
         </p>
+        
+        {/* Contenido adicional opcional */}
+        {children}
 
         <div className="flex flex-col sm:flex-row gap-3 w-full">
           <Button

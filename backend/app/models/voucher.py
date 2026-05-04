@@ -109,6 +109,7 @@ class Voucher(BaseModel):
     show_prices = Column(String(1), default="S")  # S/N - Mostrar precios en remito
     is_current_account = Column(Boolean, nullable=False, default=False)
     is_current_account_closure = Column(Boolean, nullable=False, default=False)
+    is_return_receipt = Column(Boolean, nullable=False, default=False)
 
     # Para facturas en cuenta corriente (pago diferido)
     payment_days = Column(Numeric(3, 0), nullable=True)  # Días hábiles de plazo (7, 15, 30, 60, 90)

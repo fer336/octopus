@@ -41,6 +41,27 @@ export interface VoucherTotalsPreviewRequest {
   items: VoucherItemCreate[]
 }
 
+export interface CustomerCreditReturnRequest {
+  client_id: string
+  date: string
+  notes?: string
+  general_discount: number
+  items: VoucherItemCreate[]
+}
+
+export interface CustomerCreditReturnResponse {
+  client_id: string
+  return_receipt_id?: string | null
+  return_receipt_number?: string | null
+  credit_amount: number
+  previous_balance: number
+  new_balance: number
+  subtotal: number
+  iva_amount: number
+  total: number
+  message: string
+}
+
 export interface VoucherUpdate {
   client_id: string
   date: string
@@ -90,6 +111,7 @@ export interface Voucher {
   show_prices?: boolean
   is_current_account?: boolean
   is_current_account_closure?: boolean
+  is_return_receipt?: boolean
   current_account_closure_voucher_id?: string | null
   is_receipt_linked_to_current_account_closure?: boolean
   billing_client_id?: string
@@ -200,6 +222,11 @@ const vouchersService = {
     total: number
   }> => {
     const response = await httpClient.post('/vouchers/preview-totals', data)
+    return response.data
+  },
+
+  registerCustomerCreditReturn: async (data: CustomerCreditReturnRequest): Promise<CustomerCreditReturnResponse> => {
+    const response = await httpClient.post('/vouchers/customer-credit-return', data)
     return response.data
   },
 
@@ -438,6 +465,51 @@ const vouchersService = {
   > => {
     const response = await httpClient.get(
       `/vouchers/${invoiceId}/source-quotations`,
+    )
+    return response.data
+  },
+
+  // ========================================
+  // AUTORIZACIONES (4-eyes principle)
+  // ========================================
+
+  /**
+   * Obtiene las autorizaciones pendientes para el usuario actual (manager/owner).
+   */
+  getPendingAuthorizations: async (): Promise<{
+    items: Array<{
+      id: string
+      requested_by_user_id: string
+      authorization_type: string
+      resource_id: string
+      reason: string
+      created_at: string | null
+    }>
+    total: number
+  }> => {
+    const response = await httpClient.get('/vouchers/authorizations/pending')
+    return response.data
+  },
+
+  /**
+   * Aprueba una solicitud de autorización y ejecuta la eliminación.
+   */
+  approveAuthorization: async (authorizationId: string): Promise<{ message: string }> => {
+    const response = await httpClient.post(
+      `/vouchers/authorizations/${authorizationId}/approve`,
+    )
+    return response.data
+  },
+
+  /**
+   * Rechaza una solicitud de autorización.
+   */
+  rejectAuthorization: async (
+    authorizationId: string,
+    rejectionReason: string,
+  ): Promise<{ message: string }> => {
+    const response = await httpClient.post(
+      `/vouchers/authorizations/${authorizationId}/reject?rejection_reason=${encodeURIComponent(rejectionReason)}`,
     )
     return response.data
   },
