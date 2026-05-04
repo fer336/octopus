@@ -59,7 +59,7 @@ class AuthorizationRequest(BaseModel):
     )
 
     # Tipo de operación
-    authorization_type = Column(
+    authorization_type: Mapped[AuthorizationType] = mapped_column(
         Enum(AuthorizationType),
         nullable=False,
     )
@@ -72,7 +72,7 @@ class AuthorizationRequest(BaseModel):
     )
 
     # Estado de la solicitud
-    status = Column(
+    status: Mapped[AuthorizationStatus] = mapped_column(
         Enum(AuthorizationStatus),
         nullable=False,
         default=AuthorizationStatus.PENDING,
