@@ -623,7 +623,7 @@ class AfipSdkService:
                 )
         else:
             # Factura B: siempre Consumidor Final (DocTipo=99, DocNro=0)
-            # Aunque el cliente sea Responsable Inscripto, en Factura B 
+            # Aunque el cliente sea Responsable Inscripto, en Factura B
             # se factura como Consumidor Final porque el IVA está incluido
             doc_tipo = 99
             doc_nro = 0
