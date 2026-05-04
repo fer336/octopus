@@ -4043,15 +4043,17 @@ export default function Sales() {
         onClose={() => setShowConfirmModal(false)} 
         title={voucherType === 'invoice' ? 'Confirmar Emisión de Factura Electrónica' : `Confirmar ${voucherTypes.find(v => v.value === voucherType)?.label}`}
         size={voucherType === 'invoice' ? 'xl' : 'lg'}
-        containerClassName={voucherType === 'invoice' ? 'max-h-[calc(100vh-2rem)]' : undefined}
-        headerClassName={voucherType === 'invoice' ? 'px-4 py-3' : undefined}
-        contentClassName={voucherType === 'invoice' ? 'px-4 py-3 max-h-[calc(100vh-6rem)] overflow-y-auto' : undefined}
-        titleClassName={voucherType === 'invoice' ? 'text-base' : undefined}
+        containerClassName={voucherType === 'invoice' ? 'max-h-[95vh]' : undefined}
+        headerClassName={voucherType === 'invoice' ? 'px-4 py-2' : undefined}
+        contentClassName={voucherType === 'invoice' ? 'p-0' : undefined}
+        titleClassName={voucherType === 'invoice' ? 'text-sm' : undefined}
       >
-        <div className={voucherType === 'invoice' ? 'space-y-2.5' : 'space-y-4'}>
+        <div className={voucherType === 'invoice' ? 'flex flex-col max-h-[80vh] overflow-hidden' : 'space-y-4'}>
+          {/* Body scrolleable (solo invoice) */}
+          <div className={voucherType === 'invoice' ? 'flex-1 overflow-y-auto px-4 py-3 space-y-2.5 text-[11px]' : ''}>
           <div className={voucherType === 'invoice' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : ''}>
             {/* Detalles Venta */}
-            <div className={voucherType === 'invoice' ? 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3' : 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-4'}>
+            <div className={voucherType === 'invoice' ? 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-2' : 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-4'}>
               <div className={voucherType === 'invoice' ? 'space-y-1.5 text-xs' : 'space-y-2 text-sm'}>
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Cliente:</span>
@@ -4198,7 +4200,7 @@ export default function Sales() {
 
             {/* Métodos de pago — solo para facturas */}
             {voucherType === 'invoice' && !isCustomerCreditReturn && (
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-800">
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-2 bg-white dark:bg-gray-800">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-xs font-semibold text-gray-900 dark:text-white">Métodos de pago</h3>
@@ -4317,7 +4319,7 @@ export default function Sales() {
 
           {/* Opción: Pagar en Cuenta Corriente */}
           {voucherType === 'invoice' && currentAccountEnabled && !isCustomerCreditReturn && (
-          <div className="border border-primary-200 dark:border-primary-800 rounded-lg p-3 bg-primary-50 dark:bg-primary-900/20">
+          <div className="border border-primary-200 dark:border-primary-800 rounded-lg p-2 bg-primary-50 dark:bg-primary-900/20">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -4364,7 +4366,7 @@ export default function Sales() {
           )}
 
           {voucherType === 'invoice' && (
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2">
               <p className="text-xs text-amber-900 dark:text-amber-200">
                 {isCustomerCreditReturn ? (
                   <><strong>⚠️ Importante:</strong> Esta operación guardará saldo a favor; no se emitirá factura electrónica porque el neto no es positivo.</>
@@ -4374,23 +4376,46 @@ export default function Sales() {
               </p>
             </div>
           )}
-
-          <div className="flex gap-3 pt-1">
-            <Button 
-              variant="outline" 
-              onClick={() => setShowConfirmModal(false)} 
-              className="flex-1"
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleConfirmGenerate}
-              className="flex-1"
-            >
-              {isCustomerCreditReturn ? 'Guardar saldo a favor' : voucherType === 'invoice' ? 'Emitir Factura Electrónica' : editingVoucherId ? 'Actualizar' : 'Confirmar'}
-            </Button>
           </div>
+
+          {/* Footer con botones */}
+          {voucherType === 'invoice' ? (
+            <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmGenerate}
+                  className="flex-1 rounded-lg border border-primary-200 bg-primary-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-primary-700"
+                >
+                  {isCustomerCreditReturn ? 'Guardar saldo' : 'Emitir Factura'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-3 pt-1">
+              <Button
+                variant="outline"
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleConfirmGenerate}
+                className="flex-1"
+              >
+                {isCustomerCreditReturn ? 'Guardar saldo a favor' : editingVoucherId ? 'Actualizar' : 'Confirmar'}
+              </Button>
+            </div>
+          )}
         </div>
       </Modal>
 
