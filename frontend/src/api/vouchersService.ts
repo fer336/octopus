@@ -28,6 +28,7 @@ export interface VoucherCreate {
   billing_client_id?: string
   operating_client_id?: string
   general_discount: number
+  payment_days?: number // Días de plazo para facturas en cuenta corriente
   items: VoucherItemCreate[]
   payments?: VoucherPayment[]
 }

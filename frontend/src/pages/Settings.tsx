@@ -20,7 +20,7 @@ export default function Settings() {
   const [formData, setFormData] = useState({
     name: '',
     cuit: '',
-    tax_condition: 'MONO',
+    tax_condition: 'Responsable Monotributo',
     address: '',
     city: '',
     province: '',
@@ -42,7 +42,7 @@ export default function Settings() {
       setFormData({
         name: data.name || '',
         cuit: data.cuit || '',
-        tax_condition: data.tax_condition || 'MONO',
+        tax_condition: data.tax_condition || 'Responsable Monotributo',
         address: data.address || '',
         city: data.city || '',
         province: data.province || '',

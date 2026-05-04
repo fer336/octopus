@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react'
 import { Plus, Edit, Trash2, Users, Search, Phone, Mail, MapPin, FileText, Settings2, UserRoundCheck, Inbox } from 'lucide-react'
 import { Button, Table, Pagination, Modal, Input, Select, ConfirmModal, ResponsiveTable } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
-import { TAX_CONDITIONS, DOCUMENT_TYPES } from '../types'
+import { TAX_CONDITIONS, DOCUMENT_TYPES, normalizeTaxCondition, getTaxConditionLabel } from '../types'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import clientsService, { ClientCreate, ClientUpdate, Client } from '../api/clientsService'
 import clientTypesService, { ClientType } from '../api/clientTypesService'
@@ -193,7 +193,11 @@ export default function Clients() {
     if (client) {
       setIsEditing(true)
       setEditingId(client.id)
-      setFormData(client)
+      // Normalizar condición IVA al cargar (códigos -> valores completos)
+      setFormData({
+        ...client,
+        tax_condition: normalizeTaxCondition(client.tax_condition),
+      })
     } else {
       resetForm()
       if (clientTypes.length > 0) {
@@ -232,7 +236,7 @@ export default function Clients() {
       client_type_id: formData.client_type_id,
       document_type: formData.document_type!,
       document_number: formData.document_number!.trim(),
-      tax_condition: formData.tax_condition!,
+      tax_condition: normalizeTaxCondition(formData.tax_condition),
       current_account_mode: formData.current_account_mode || 'disabled',
       credit_limit:
         formData.current_account_mode === 'limited' && formData.credit_limit != null
@@ -360,7 +364,7 @@ const data = await clientsService.lookupCuit(cuit)
       header: 'Condición IVA',
       render: (item: Client) => (
         <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300 border border-primary-100 dark:border-primary-800">
-          {item.tax_condition}
+          {getTaxConditionLabel(item.tax_condition)}
         </span>
       ),
     },

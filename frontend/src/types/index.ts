@@ -225,19 +225,38 @@ export interface ListParams {
   per_page?: number
 }
 
-// Condiciones fiscales
+// Condiciones fiscales - Usar nombres completos para compatibilidad con backend
 export const TAX_CONDITIONS = [
-  { value: 'RI', label: 'Responsable Inscripto' },
-  { value: 'MONO', label: 'Monotributista' },
-  { value: 'CF', label: 'Consumidor Final' },
-  { value: 'EX', label: 'Exento' },
+  { value: 'Responsable Inscripto', label: 'Responsable Inscripto' },
+  { value: 'Responsable Monotributo', label: 'Monotributista' },
+  { value: 'Consumidor Final', label: 'Consumidor Final' },
+  { value: 'IVA Sujeto Exento', label: 'IVA Exento' },
 ] as const
 
 // Helper function to get tax condition label
 export function getTaxConditionLabel(value?: string | null): string {
   if (!value) return ''
-  const found = TAX_CONDITIONS.find((tc) => tc.value === value)
-  return found?.label || value
+  
+  // Normalizar códigos viejos a valores nuevos
+  const normalized = normalizeTaxCondition(value)
+  
+  // Buscar en las condiciones
+  const found = TAX_CONDITIONS.find((tc) => tc.value === normalized || tc.label === normalized)
+  return found?.label || normalized
+}
+
+// Normalizar condición IVA: convertir códigos a valores completos
+export function normalizeTaxCondition(value?: string | null): string {
+  if (!value) return 'Consumidor Final'
+  
+  const codeToValue: Record<string, string> = {
+    'RI': 'Responsable Inscripto',
+    'CF': 'Consumidor Final',
+    'MONO': 'Responsable Monotributo',
+    'EX': 'IVA Sujeto Exento',
+  }
+  
+  return codeToValue[value] || value
 }
 
 // Tipos de documento

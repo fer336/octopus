@@ -1545,7 +1545,7 @@ export default function Vouchers() {
                                   Condición IVA: {fiscalTaxCondition || '—'} →
                                   Factura{' '}
                                   {fiscalTaxCondition
-                                    ? fiscalTaxCondition === 'RI'
+                                    ? fiscalTaxCondition === 'Responsable Inscripto'
                                       ? 'A'
                                       : 'B'
                                     : '—'}

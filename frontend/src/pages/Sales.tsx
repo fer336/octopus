@@ -378,6 +378,9 @@ export default function Sales() {
   const [zoomLevel, setZoomLevel] = useState(1)
   const [isGenerating, setIsGenerating] = useState(false)
   const [paymentSelections, setPaymentSelections] = useState<Record<string, PaymentSelectionState>>({})
+  // Estado para pago en cuenta corriente
+  const [payInCurrentAccount, setPayInCurrentAccount] = useState(false)
+  const [currentAccountDays, setCurrentAccountDays] = useState(30)
 
   const {
     data: authorizationsData,
@@ -1497,15 +1500,20 @@ export default function Sales() {
         ? selectedOperatingClientId || selectedClient.id
         : undefined
 
+    // Determinar si es cuenta corriente (por tipo de voucher o por checkbox en factura)
+    const isCC = voucherType === 'current_account' || (voucherType === 'invoice' && payInCurrentAccount)
+
     const voucherData: VoucherCreate = {
       client_id: selectedClient.id,
       voucher_type: backendType as any,
       date: localDate,
       show_prices: voucherType === 'invoice' || voucherType === 'quotation' ? true : showPrices,
-      is_current_account: voucherType === 'current_account',
-      billing_client_id: voucherType === 'current_account' ? selectedClient.id : undefined,
+      is_current_account: isCC,
+      billing_client_id: (voucherType === 'current_account' || (voucherType === 'invoice' && payInCurrentAccount)) ? selectedClient.id : undefined,
       operating_client_id: operatingClientIdForPayload,
       general_discount: generalDiscount,
+      // Días de plazo para facturas en cuenta corriente
+      payment_days: (voucherType === 'invoice' && payInCurrentAccount) ? currentAccountDays : undefined,
       items: normalizedItems.map(item => ({
         product_id: item.id,
         quantity: item.quantity,
@@ -2021,6 +2029,11 @@ export default function Sales() {
 
   // Construir payload de pagos para el backend
   const buildPaymentsPayload = (): VoucherPayment[] | undefined => {
+    // Si es cuenta corriente, no se requieren métodos de pago (pago diferido)
+    if (voucherType === 'invoice' && payInCurrentAccount) {
+      return undefined
+    }
+    
     const payload = paymentMethods
       .map((method) => {
         const selection = paymentSelections[method.id]
@@ -2050,6 +2063,11 @@ export default function Sales() {
 
   // Validar montos y referencias de pagos
   const validatePayments = () => {
+    // Si es cuenta corriente, no se requieren métodos de pago
+    if (voucherType === 'invoice' && payInCurrentAccount) {
+      return { valid: true }
+    }
+    
     if (paymentMethods.length === 0) {
       if (voucherType === 'invoice') {
         return { valid: false, message: 'No hay métodos de pago disponibles para facturas' }
@@ -2081,6 +2099,11 @@ export default function Sales() {
       const amountValue = Number(selection.amount)
       return acc + (Number.isFinite(amountValue) ? amountValue : 0)
     }, 0)
+
+    // Si es cuenta corriente, no se requieren métodos de pago
+    if (voucherType === 'invoice' && payInCurrentAccount) {
+      return { valid: true }
+    }
 
     if (voucherType === 'invoice' && assignedTotal <= 0) {
       return { valid: false, message: 'Debe cargar al menos un método de pago para facturas' }
@@ -2120,16 +2143,22 @@ export default function Sales() {
   const iva = total - subtotalWithoutIva
   const discountedItemsCount = items.filter((item) => item.discount > 0).length
 
-  const assignedPaymentsTotal = paymentMethods.reduce((acc, method) => {
-    const selection = paymentSelections[method.id]
-    if (!selection?.selected) return acc
-    const amountValue = Number(selection.amount)
-    return acc + (Number.isFinite(amountValue) ? amountValue : 0)
-  }, 0)
+  // Cuando es cuenta corriente, no hay pagos registrados todavía
+  const isCCActive = voucherType === 'invoice' && payInCurrentAccount
+  const assignedPaymentsTotal = isCCActive 
+    ? 0 
+    : paymentMethods.reduce((acc, method) => {
+        const selection = paymentSelections[method.id]
+        if (!selection?.selected) return acc
+        const amountValue = Number(selection.amount)
+        return acc + (Number.isFinite(amountValue) ? amountValue : 0)
+      }, 0)
 
-  const shouldShowPaymentDifference = assignedPaymentsTotal > 0 || voucherType === 'invoice'
-  const paymentDifference = shouldShowPaymentDifference ? Number((totalRounded - assignedPaymentsTotal).toFixed(2)) : 0
-  const isPaymentBalanced = shouldShowPaymentDifference ? Math.abs(totalRounded - Number(assignedPaymentsTotal.toFixed(2))) <= 0.01 : true
+  const shouldShowPaymentDifference = !isCCActive && (assignedPaymentsTotal > 0 || voucherType === 'invoice')
+  const paymentDifference = isCCActive 
+    ? 0 
+    : (shouldShowPaymentDifference ? Number((totalRounded - assignedPaymentsTotal).toFixed(2)) : 0)
+  const isPaymentBalanced = isCCActive || (!shouldShowPaymentDifference || Math.abs(totalRounded - Number(assignedPaymentsTotal.toFixed(2))) <= 0.01)
 
   const mobileSteps: Array<{ key: MobileSalesSection; label: string }> = [
     { key: 'items', label: 'Cliente' },
@@ -3985,6 +4014,54 @@ export default function Sales() {
           </div>
           )} {/* fin panel métodos de pago */}
           </div>
+
+          {/* Opción: Pagar en Cuenta Corriente */}
+          {voucherType === 'invoice' && currentAccountEnabled && (
+          <div className="mt-4 border border-primary-200 dark:border-primary-800 rounded-lg p-4 bg-primary-50 dark:bg-primary-900/20">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={payInCurrentAccount}
+                  onChange={(e) => {
+                    const checked = e.target.checked
+                    setPayInCurrentAccount(checked)
+                    if (checked) {
+                      // Limpiar métodos de pago seleccionados cuando se activa CC
+                      resetPaymentSelections()
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                />
+                <span className="text-sm font-medium text-primary-900 dark:text-primary-100">
+                  Pagar en Cuenta Corriente
+                </span>
+              </label>
+              
+              {payInCurrentAccount && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-primary-700 dark:text-primary-300">Plazo:</span>
+                  <select
+                    value={currentAccountDays}
+                    onChange={(e) => setCurrentAccountDays(Number(e.target.value))}
+                    className="w-32 h-8 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+                  >
+                    <option value={7}>7 días</option>
+                    <option value={15}>15 días</option>
+                    <option value={30}>30 días</option>
+                    <option value={60}>60 días</option>
+                    <option value={90}>90 días</option>
+                  </select>
+                </div>
+              )}
+            </div>
+            {payInCurrentAccount && (
+              <p className="mt-2 text-xs text-primary-700 dark:text-primary-300">
+                La factura se emite con {currentAccountDays} días de plazo. No impactará en la caja hasta que se registre el pago.
+              </p>
+            )}
+          </div>
+          )}
 
           {voucherType === 'invoice' && (
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">

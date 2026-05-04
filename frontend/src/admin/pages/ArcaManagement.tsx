@@ -340,14 +340,26 @@ export default function ArcaManagement() {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
+  // Normalizar environment: "homologacion" -> "testing", "produccion" -> "production"
+  const normalizeEnvironment = (value: string) => {
+    if (value === 'homologacion') return 'testing'
+    if (value === 'produccion') return 'production'
+    return value
+  }
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Only send non-empty fields
+    // Only send non-empty fields, normalizando el environment
     const update: ArcaSecretsUpdate = {}
     for (const [key, value] of Object.entries(form)) {
       if (value && value.trim()) {
-        update[key as keyof ArcaSecretsUpdate] = value
+        // Normalizar environment antes de enviar
+        if (key === 'arca_environment') {
+          update[key as keyof ArcaSecretsUpdate] = normalizeEnvironment(value)
+        } else {
+          update[key as keyof ArcaSecretsUpdate] = value
+        }
       }
     }
 
@@ -412,6 +424,13 @@ export default function ArcaManagement() {
               status={secrets.afipsdk_access_token}
               onChange={handleChange}
             />
+            <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3">
+              <p className="text-xs text-blue-800 dark:text-blue-200">
+                <strong>💡 Modo rápido:</strong> Con solo el Access Token y el entorno en "Homologación (testing)" 
+                podés usar la constancia de inscripción de AFIP y emitir facturas de prueba sin necesidad de 
+                certificado (.crt) ni clave (.key).
+              </p>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <CertificateField
                 label="Certificado AFIP (.crt)"

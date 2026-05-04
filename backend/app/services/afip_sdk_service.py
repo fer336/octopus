@@ -112,10 +112,6 @@ class AfipSdkService:
                     "Obtené uno en https://afipsdk.com y configuralo en Ajustes."
                 )
 
-            cuit = self.business.cuit.replace("-", "") if self.business.cuit else None
-            if not cuit:
-                raise ValueError("El CUIT del negocio no está configurado.")
-
             is_production = (
                 str(self.business.arca_environment) == "production"
                 if self.business.arca_environment
@@ -123,6 +119,7 @@ class AfipSdkService:
             )
 
             # En modo testing sin certificado, usar CUIT de prueba de Afip SDK
+            # (no requiere CUIT propio configurado)
             has_cert = bool(self.business.afip_cert and self.business.afip_key)
             if not is_production and not has_cert:
                 logger.info(
@@ -130,7 +127,13 @@ class AfipSdkService:
                 )
                 effective_cuit = self.AFIP_SDK_TEST_CUIT
             else:
-                effective_cuit = int(cuit)
+                # Requiere CUIT propio
+                if not self.business.cuit:
+                    raise ValueError(
+                        "El CUIT del negocio no está configurado. "
+                        "Para usar certificados propios necesitás tener el CUIT configurado."
+                    )
+                effective_cuit = int(self.business.cuit.replace("-", ""))
 
             options = {
                 "CUIT": effective_cuit,
@@ -193,9 +196,22 @@ class AfipSdkService:
                 err = result_dict.get("errorConstancia") or {}
                 errores = err.get("error") if isinstance(err, dict) else None
                 if errores:
+                    raw_error = errores[0] if isinstance(errores, list) else str(errores)
+                    
+                    # Mejorar mensajes específicos de AFIP
+                    if "domicilio fiscal electrónico" in raw_error.lower():
+                        return {
+                            "success": False,
+                            "error": (
+                                "El CUIT tiene pendiente configurar el domicilio fiscal electrónico "
+                                "(RG 4280/18). El contribuyente debe completar este paso en AFIP/ARCA "
+                                "para poder consultar sus datos."
+                            ),
+                        }
+                    
                     return {
                         "success": False,
-                        "error": f"Error en padrón AFIP: {errores[0]}",
+                        "error": f"Error en padrón AFIP: {raw_error}",
                     }
 
             persona_return = result_dict.get("personaReturn")
@@ -584,24 +600,45 @@ class AfipSdkService:
         # Fecha del comprobante (formato YYYYMMDD)
         cbte_fch = voucher.date.strftime("%Y%m%d")
 
-        # Obtener tipo de documento
-        doc_tipo = self._get_doc_type(client)
-        doc_nro = (
-            int(client.document_number.replace("-", ""))
-            if client.document_number
-            else 0
-        )
-
-        # Si es Consumidor Final, DocTipo = 99, DocNro = 0
-        if doc_tipo == 99 or not client.document_number:
+        # ================================================================
+        # LÓGICA CORRECTA SEGÚN RG 5616:
+        # - Factura A (tipo 1): Requiere CUIT del cliente, condición IVA detallada
+        # - Factura B (tipo 6): Consumidor Final, IVA incluido en precio
+        # ================================================================
+        
+        # Determinar tipo de documento y número según tipo de comprobante
+        # Factura A (1) o Nota de Crédito A (3) → usar CUIT del cliente
+        es_factura_a = cbte_tipo in (1, 3, 2)  # A, NC A, ND A
+        
+        if es_factura_a:
+            # Factura A: usar CUIT del cliente
+            if client.document_number:
+                doc_tipo = 80  # CUIT
+                doc_nro = int(client.document_number.replace("-", ""))
+            else:
+                # Si no tiene documento, no se puede emitir Factura A
+                raise ValueError(
+                    "No se puede emitir Factura A sin CUIT del cliente. "
+                    "El cliente debe tener un CUIT configurado."
+                )
+        else:
+            # Factura B: siempre Consumidor Final (DocTipo=99, DocNro=0)
+            # Aunque el cliente sea Responsable Inscripto, en Factura B 
+            # se factura como Consumidor Final porque el IVA está incluido
             doc_tipo = 99
             doc_nro = 0
 
-        # Condición IVA del receptor (obligatorio por RG 5616)
+        # Condición IVA del receptor según tipo de comprobante
         iva_condition = (
             str(client.tax_condition) if client.tax_condition else "Consumidor Final"
         )
-        condicion_iva_receptor_id = self.IVA_CONDITION_TO_ID.get(iva_condition, 5)
+        
+        if es_factura_a:
+            # Factura A: usar la condición real del cliente
+            condicion_iva_receptor_id = self.IVA_CONDITION_TO_ID.get(iva_condition, 5)
+        else:
+            # Factura B: siempre Consumidor Final (el IVA ya está incluido en el precio)
+            condicion_iva_receptor_id = 5
 
         # Desglose de IVA
         iva_breakdown = self._calculate_iva_breakdown(voucher)
@@ -683,16 +720,26 @@ class AfipSdkService:
         # Fecha del comprobante (formato YYYYMMDD)
         cbte_fch = credit_note.date.strftime("%Y%m%d")
 
-        # Obtener tipo de documento
-        doc_tipo = self._get_doc_type(client)
-        doc_nro = (
-            int(client.document_number.replace("-", ""))
-            if client.document_number
-            else 0
-        )
-
-        # Si es Consumidor Final, DocTipo = 99, DocNro = 0
-        if doc_tipo == 99 or not client.document_number:
+        # ================================================================
+        # LÓGICA CORRECTA PARA NOTAS DE CRÉDITO:
+        # - NC A (tipo 3): usar CUIT del cliente
+        # - NC B (tipo 8): Consumidor Final
+        # ================================================================
+        
+        # NC A (3), NC A (13), ND A (2) → usar CUIT
+        es_nota_a = cbte_tipo in (3, 13, 2)
+        
+        if es_nota_a:
+            # NC A: usar CUIT del cliente
+            if client.document_number:
+                doc_tipo = 80  # CUIT
+                doc_nro = int(client.document_number.replace("-", ""))
+            else:
+                raise ValueError(
+                    "No se puede emitir Nota de Crédito A sin CUIT del cliente."
+                )
+        else:
+            # NC B: siempre Consumidor Final
             doc_tipo = 99
             doc_nro = 0
 
@@ -700,7 +747,13 @@ class AfipSdkService:
         iva_condition = (
             str(client.tax_condition) if client.tax_condition else "Consumidor Final"
         )
-        condicion_iva_receptor_id = self.IVA_CONDITION_TO_ID.get(iva_condition, 5)
+        
+        if es_nota_a:
+            # NC A: usar condición real del cliente
+            condicion_iva_receptor_id = self.IVA_CONDITION_TO_ID.get(iva_condition, 5)
+        else:
+            # NC B: siempre Consumidor Final
+            condicion_iva_receptor_id = 5
 
         # Desglose de IVA
         iva_breakdown = self._calculate_iva_breakdown(credit_note)

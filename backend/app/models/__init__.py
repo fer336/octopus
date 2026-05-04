@@ -21,6 +21,7 @@ from app.models.client_authorization import ClientAuthorization
 from app.models.client_type import ClientType
 from app.models.feedback_ticket import FeedbackTicket
 from app.models.payment import Payment, PaymentMethod
+from app.models.payment_receipt import PaymentReceipt
 from app.models.payment_method import PaymentMethodCatalog
 from app.models.price_history import PriceHistory
 from app.models.product import Product
@@ -74,6 +75,7 @@ __all__ = [
     # Pagos y cuenta corriente
     "Payment",
     "PaymentMethod",
+    "PaymentReceipt",
     "PaymentMethodCatalog",
     "VoucherPayment",
     "ClientAccount",

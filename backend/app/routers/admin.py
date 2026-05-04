@@ -1272,16 +1272,26 @@ async def update_arca_secrets(
     Actualiza los secretos ARCA de un tenant.
     Acepta actualizaciones parciales — solo se procesan los campos enviados.
     Los valores se cifran antes de almacenar.
+
+    IMPORTANTE: arca_environment se guarda tanto en secrets como en la tabla business.
     """
     business = await get_business_or_404(tenant_id, db)
 
     updates = data.model_dump(exclude_unset=True)
     updated_types = []
 
+    # Separar arca_environment para actualizar también la tabla business
+    arca_env = updates.pop('arca_environment', None)
+
     for secret_type, plain_value in updates.items():
         if plain_value is not None and plain_value.strip():
             await _upsert_secret(db, tenant_id, secret_type, plain_value)
             updated_types.append(secret_type)
+
+    # Actualizar arca_environment en la tabla business (campo real que usa AfipSdkService)
+    if arca_env and arca_env.strip():
+        business.arca_environment = arca_env.strip()
+        updated_types.append('arca_environment')
 
     await db.commit()
 
