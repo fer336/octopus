@@ -2,6 +2,7 @@
 Servicio de Comprobantes.
 Maneja la creación de ventas, cálculo de totales y generación de PDF.
 """
+from __future__ import annotations
 
 import builtins
 from datetime import date as date_type, timedelta
