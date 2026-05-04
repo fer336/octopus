@@ -1142,7 +1142,7 @@ class VoucherService:
             # Soft delete del movimiento
             from datetime import datetime, timezone
 
-            client_account.deleted_at = datetime.now(timezone.utc)
+            client_account.deleted_at = datetime.now(datetime.UTC)
             client_account.deleted_by = voucher.deleted_by
 
             # Actualizar el saldo del cliente (sumar porque al crear se restó)
@@ -1246,7 +1246,7 @@ class VoucherService:
 
         auth_request.status = AuthorizationStatus.APPROVED
         auth_request.authorized_by = authorized_by_user_id
-        auth_request.resolved_at = datetime.now(timezone.utc)
+        auth_request.resolved_at = datetime.now(datetime.UTC)
 
         await self.db.commit()
         await self.db.refresh(auth_request)
@@ -1275,7 +1275,7 @@ class VoucherService:
         auth_request.status = AuthorizationStatus.REJECTED
         auth_request.authorized_by = authorized_by_user_id
         auth_request.rejection_reason = rejection_reason
-        auth_request.resolved_at = datetime.now(timezone.utc)
+        auth_request.resolved_at = datetime.now(datetime.UTC)
 
         await self.db.commit()
         await self.db.refresh(auth_request)
