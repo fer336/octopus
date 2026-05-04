@@ -49,7 +49,7 @@ class PaymentReceipt(BaseModel):
     # Datos del pago
     payment_date = Column(Date, nullable=False)
     amount = Column(Numeric(12, 2), nullable=False)  # Monto abonado
-    payment_method = Column(Enum(PaymentMethod), nullable=False)
+    payment_method: PaymentMethod = Column(Enum(PaymentMethod), nullable=False)
     reference = Column(String(100), nullable=True)  # Número de referencia (transferencia, cheque, etc.)
 
     # Numeración del remito de pago
