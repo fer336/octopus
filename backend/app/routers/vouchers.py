@@ -792,6 +792,7 @@ async def list_pending_quotations(
     ),
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
 ):
     """
     Lista las cotizaciones y remitos pendientes de facturar.

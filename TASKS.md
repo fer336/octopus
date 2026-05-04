@@ -81,6 +81,8 @@
 
 ## 🟢 Hecho
 
+- [x] [CI-VOUCHERS-CURRENT-USER-01] 🐛 Corregir fallo CI Ruff F821 por `current_user` indefinido en `pending-quotations` ✅ 2026-05-04
+
 - [x] [CMS-USER-CC-PERMISSION-06] Bloquear Cuenta Corriente por permiso de empleado además del plan del tenant ✅ 2026-05-04
 
 - [x] [CMS-PLAN-GUARDS-05] Auditar y reforzar validaciones backend/frontend para que los flags del CMS no puedan saltearse por plan ✅ 2026-05-04
