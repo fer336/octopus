@@ -3,14 +3,12 @@ name: System Deploy
 on:
   push:
     tags:
-      - "system-v*.*.*"
-      - "v*.*.*"
-      - "*.*.*"
+      - "[0-9]+.[0-9]+.[0-9]+"
 
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag a deployar. Ej: system-v1.2.19, v1.2.19 o 1.2.19"
+        description: "Tag a deployar (sin v). Ej: 1.2.19"
         required: true
 
 permissions:
@@ -57,15 +55,14 @@ jobs:
         run: |
           RAW_TAG="${{ env.EFFECTIVE_TAG }}"
 
-          VERSION="$RAW_TAG"
-          VERSION="${VERSION#system-v}"
-          VERSION="${VERSION#v}"
-
-          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][a-zA-Z0-9._-]+)?$ ]]; then
+          # Validar que sea formato numérico (sin v, sin system-)
+          if ! [[ "$RAW_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Tag inválido: $RAW_TAG"
-            echo "Usá algo como: system-v1.2.19, v1.2.19 o 1.2.19"
+            echo "Usá formato numérico: 1.2.19, 1.3.0, etc."
             exit 1
           fi
+
+          VERSION="$RAW_TAG"
 
           MINOR_TAG="$(echo "$VERSION" | cut -d. -f1,2)"
 
@@ -156,19 +153,14 @@ jobs:
     name: Create System Release
     runs-on: ubuntu-latest
     needs: publish
-    if: startsWith(github.ref, 'refs/tags/system-v')
+    if: startsWith(github.ref, 'refs/tags/')
 
     steps:
       - name: Compute Docker release tag
         id: release_tags
         shell: bash
         run: |
-          RAW_TAG="${{ env.EFFECTIVE_TAG }}"
-
-          VERSION="$RAW_TAG"
-          VERSION="${VERSION#system-v}"
-          VERSION="${VERSION#v}"
-
+          VERSION="${{ env.EFFECTIVE_TAG }}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Docker release tag: $VERSION"
 
@@ -231,7 +223,7 @@ jobs:
     name: Deploy System to Swarm
     runs-on: ubuntu-latest
     needs: publish
-    if: startsWith(github.ref, 'refs/tags/system-v') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Trigger Portainer webhook
