@@ -110,6 +110,12 @@ class Voucher(BaseModel):
     is_current_account = Column(Boolean, nullable=False, default=False)
     is_current_account_closure = Column(Boolean, nullable=False, default=False)
 
+    # Para facturas en cuenta corriente (pago diferido)
+    payment_days = Column(Numeric(3, 0), nullable=True)  # Días hábiles de plazo (7, 15, 30, 60, 90)
+    is_paid = Column(Boolean, nullable=False, default=False)  # Si la factura está pagada
+    payment_date = Column(Date, nullable=True)  # Fecha en que se registró el pago
+    paid_amount = Column(Numeric(12, 2), nullable=True)  # Monto abonado (puede ser parcial)
+
     # Auditoría de eliminación
     deleted_by = Column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True

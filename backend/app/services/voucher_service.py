@@ -4,7 +4,7 @@ Maneja la creación de ventas, cálculo de totales y generación de PDF.
 """
 
 import builtins
-from datetime import date as date_type
+from datetime import date as date_type, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Literal
 from uuid import UUID
@@ -85,20 +85,28 @@ class VoucherService:
         data: VoucherCreate,
         total_final: Decimal,
     ) -> dict[str, UUID | None]:
-        """Valida reglas CC para remitos y retorna IDs normalizados."""
-        if data.voucher_type != VoucherType.RECEIPT and data.is_current_account:
-            raise ValueError("Cuenta corriente solo aplica a remitos")
-
+        """Valida reglas CC para remitos y facturas, retorna IDs normalizados."""
+        # Permitir cuenta corriente para remitos y facturas
+        if data.is_current_account:
+            # Para facturas, verificar que tenga payment_days
+            if data.voucher_type in (VoucherType.INVOICE_A, VoucherType.INVOICE_B, VoucherType.INVOICE_C):
+                if not data.payment_days:
+                    raise ValueError("Las facturas en cuenta corriente deben tener días de plazo de pago")
+        
         if not data.is_current_account:
             return {
                 "billing_client_id": None,
                 "operating_client_id": None,
             }
 
+        # Para facturas CC, usar client_id si no hay billing_client_id
         if not data.billing_client_id:
-            raise ValueError(
-                "Debe indicar el cliente titular para remitos en cuenta corriente"
-            )
+            if data.voucher_type in (VoucherType.INVOICE_A, VoucherType.INVOICE_B, VoucherType.INVOICE_C):
+                data.billing_client_id = data.client_id
+            else:
+                raise ValueError(
+                    "Debe indicar el cliente titular para remitos en cuenta corriente"
+                )
 
         billing_client = await self._get_client_or_raise(
             data.billing_client_id, business_id
@@ -510,14 +518,26 @@ class VoucherService:
         """Crea un nuevo comprobante."""
 
         # 1. Obtener cliente principal de comprobante
-        await self._get_client_or_raise(data.client_id, business_id)
+        client = await self._get_client_or_raise(data.client_id, business_id)
 
-        # 2. Obtener business para numeración correlativa
+        # 2. Ajustar automáticamente el tipo de factura según condición fiscal del cliente
+        # Si cliente es Responsable Inscripto → Factura A
+        # Si cliente es Consumidor Final, Monotributista, Exento → Factura B
+        if data.voucher_type in (VoucherType.INVOICE_A, VoucherType.INVOICE_B, VoucherType.INVOICE_C):
+            client_tax_condition = (client.tax_condition or "").lower().strip()
+            is_responsible = client_tax_condition in ["responsable inscripto", "ri", "responsable"]
+            
+            if is_responsible and data.voucher_type == VoucherType.INVOICE_B:
+                data.voucher_type = VoucherType.INVOICE_A
+            elif not is_responsible and data.voucher_type == VoucherType.INVOICE_A:
+                data.voucher_type = VoucherType.INVOICE_B
+
+        # 3. Obtener business para numeración correlativa
         business = await self.db.get(Business, business_id)
         if not business:
             raise ValueError("Negocio no encontrado")
 
-        # 3. Obtener siguiente número según tipo
+        # 4. Obtener siguiente número según tipo
         voucher_type_str = (
             data.voucher_type.value
             if hasattr(data.voucher_type, "value")
@@ -588,6 +608,10 @@ class VoucherService:
         voucher.operating_client_id = cc_context["operating_client_id"]
         if cc_context["billing_client_id"]:
             voucher.client_id = cc_context["billing_client_id"]
+        
+        # Payment days for current account (Cuenta Corriente)
+        if data.payment_days and int(data.payment_days) > 0:
+            voucher.payment_days = int(data.payment_days)
 
         # Guardar todo
         self.db.add(voucher)
@@ -602,17 +626,20 @@ class VoucherService:
             if data.payments
             else None
         )
+        # Solo exigir pagos si es factura Y NO es cuenta corriente
+        is_invoice = data.voucher_type in {
+            VoucherType.INVOICE_A,
+            VoucherType.INVOICE_B,
+            VoucherType.INVOICE_C,
+        }
+        require_payments = is_invoice and not data.is_current_account
+        
         await self._create_voucher_payments(
             voucher_id=voucher.id,
             business_id=business_id,
             payments=payments_raw,
             total_expected=total_final,
-            require_payments=data.voucher_type
-            in {
-                VoucherType.INVOICE_A,
-                VoucherType.INVOICE_B,
-                VoucherType.INVOICE_C,
-            },
+            require_payments=require_payments,
             cash_register_id=cash_register_id,
             user_id=user_id,
             voucher_full_number=voucher.full_number,
@@ -1011,6 +1038,16 @@ class VoucherService:
                 # Vendedor que emitió el comprobante
                 "seller": voucher.created_by_user.name if voucher.created_by_user else None,
                 "seller_email": voucher.created_by_user.email if voucher.created_by_user else None,
+                # Cuenta corriente
+                "is_current_account": voucher.is_current_account,
+                "payment_days": voucher.payment_days,
+                "payment_due_date": (
+                    (voucher.date + timedelta(days=int(voucher.payment_days))).strftime("%d/%m/%Y")
+                    if voucher.is_current_account and voucher.payment_days
+                    else None
+                ),
+                # Métodos de pago (para facturas no-CC) - simplificado para evitar errores async
+                "payment_methods_display": "Contado" if not voucher.is_current_account else None,
             },
             "items": [
                 {

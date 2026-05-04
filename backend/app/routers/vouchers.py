@@ -16,9 +16,15 @@ from app.database import get_db
 from app.models.audit_log import AuditLog
 from app.models.business import Business
 from app.models.client import Client
+from app.models.payment import PaymentMethod
+from app.models.payment_receipt import PaymentReceipt
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.schemas.base import PaginatedResponse
 from app.schemas.credit_note import CreditNoteCreate
+from app.schemas.payment_receipt import (
+    VoucherPayRequest,
+    VoucherPayResponse,
+)
 from app.schemas.voucher import (
     CompilePreviewRequest,
     CompilePreviewResponse,
@@ -1289,3 +1295,113 @@ async def create_credit_note(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al crear Nota de Crédito: {str(e)}",
         )
+
+
+@router.post("/{voucher_id}/pay", response_model=VoucherPayResponse)
+async def pay_current_account_voucher(
+    voucher_id: UUID,
+    data: VoucherPayRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+    business_id: UUID = Depends(get_current_business),
+):
+    """
+    Registrar el pago de una factura en cuenta corriente.
+    
+    - Actualiza el estado de la factura (is_paid, payment_date, paid_amount)
+    - Genera un Remito de Pago automáticamente
+    - Registra el movimiento en la caja diaria
+    """
+    # 1. Buscar la factura
+    result = await db.execute(
+        select(Voucher).where(
+            Voucher.id == voucher_id,
+            Voucher.business_id == business_id,
+        )
+    )
+    voucher = result.scalar_one_or_none()
+    
+    if not voucher:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comprobante no encontrado",
+        )
+    
+    # 2. Validar que es una factura en cuenta corriente
+    if not voucher.is_current_account:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Este comprobante no es una factura en cuenta corriente",
+        )
+    
+    # 3. Validar que es una factura (no remito)
+    if not voucher.voucher_type.name.startswith("INVOICE"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se pueden pagar facturas en cuenta corriente",
+        )
+    
+    # 4. Validar que no esté ya pagada
+    if voucher.is_paid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Esta factura ya está pagada",
+        )
+    
+    # 5. Validar monto
+    if data.amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El monto debe ser mayor a 0",
+        )
+    
+    if data.amount > float(voucher.total):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El monto no puede exceder el total de la factura (${voucher.total})",
+        )
+    
+    # 6. Obtener caja abierta
+    cash_register = await get_open_cash_register(db, business_id)
+    
+    # 7. Generar número de Remito de Pago
+    business = await db.get(Business, business_id)
+    next_number = int(business.last_receipt_number or "0") + 1
+    sale_point = business.sale_point
+    
+    # 8. Crear el Remito de Pago
+    payment_receipt = PaymentReceipt(
+        business_id=business_id,
+        invoice_voucher_id=voucher.id,
+        client_id=voucher.billing_client_id or voucher.client_id,
+        received_by=current_user.id,
+        payment_date=data.payment_date,
+        amount=data.amount,
+        payment_method=data.payment_method,
+        reference=data.reference,
+        sale_point=sale_point,
+        number=str(next_number).zfill(8),
+        notes=data.notes,
+    )
+    db.add(payment_receipt)
+    
+    # 9. Actualizar la factura
+    voucher.is_paid = True
+    voucher.payment_date = data.payment_date
+    voucher.paid_amount = data.amount
+    
+    # 10. Actualizar numeración del negocio
+    business.last_receipt_number = str(next_number).zfill(8)
+    
+    await db.commit()
+    await db.refresh(payment_receipt)
+    await db.refresh(voucher)
+    
+    # 11. Generar respuesta
+    return VoucherPayResponse(
+        voucher_id=voucher.id,
+        is_paid=voucher.is_paid,
+        payment_date=voucher.payment_date,
+        paid_amount=voucher.paid_amount,
+        payment_receipt=None,  # Por ahora no devolvemos el receipt completo
+    )

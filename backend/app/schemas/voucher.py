@@ -44,6 +44,13 @@ class VoucherCreate(BaseSchema):
         le=100,
         description="Descuento general (%) aplicado sobre el subtotal de todos los ítems",
     )
+    # Días de plazo para facturas en cuenta corriente
+    payment_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=999,
+        description="Días hábiles de plazo para pago (7, 15, 30, 60, 90). Solo para facturas en cuenta corriente.",
+    )
 
     items: list[VoucherItemCreate]
     payments: list[VoucherPaymentCreate] | None = Field(
@@ -340,6 +347,12 @@ class VoucherResponse(BaseResponse):
 
     # ID de la factura generada a partir de esta cotización (None = pendiente de facturar)
     invoiced_voucher_id: UUID | None = None
+
+    # Campos de pago para facturas en cuenta corriente
+    payment_days: int | None = None
+    is_paid: bool = False
+    payment_date: date | None = None
+    paid_amount: Decimal | None = None
 
     items: list[VoucherItemResponse]
 

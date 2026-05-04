@@ -270,20 +270,18 @@
                     <img class="logo-img" src="{{ business.logo_url }}" alt="Logo">
                     {% endif %}
                     <div class="business-name">{{ business.name }}</div>
-                    <div class="info-line"><strong>Domicilio Comercial:</strong> {{ business.address or 'Sin domicilio' }}</div>
-                    <div class="info-line"><strong>Condición Frente al IVA:</strong> {{ business.tax_condition }}</div>
-                    <br>
-                    <div class="info-line"><strong>Período Facturado Desde:</strong> {{ voucher.date }}</div>
-                    <div class="info-line"><strong>Hasta:</strong> {{ voucher.date }}</div>
-                    {% if voucher.seller %}
-                    <div class="info-line"><strong>Vendedor:</strong> {{ voucher.seller }}</div>
-                    {% endif %}
+                    <div style="margin-top: 30px;">
+                        <div class="info-line"><strong>Domicilio:</strong> {{ business.address or 'Sin domicilio' }}</div>
+                        <div class="info-line"><strong>Condición Frente al IVA:</strong> {{ business.tax_condition }}</div>
+                        {% if voucher.seller %}
+                        <div class="info-line"><strong>Vendedor:</strong> {{ voucher.seller }}</div>
+                        {% endif %}
+                    </div>
                 </td>
                 <td class="header-col-right">
                     <div class="invoice-title">{{ voucher.type_name }}</div>
                     <div class="info-line"><strong>Punto de Venta:</strong> {{ voucher.sale_point }}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>Comp. Nro:</strong> {{ voucher.comp_number }}</div>
                     <div class="info-line"><strong>Fecha de Emisión:</strong> {{ voucher.date }}</div>
-                    <div class="info-line"><strong>Fecha de Vto. para el pago:</strong> {{ voucher.due_date or voucher.date }}</div>
                     <div class="info-line"><strong>CUIT:</strong> {{ business.cuit }}</div>
                     <div class="info-line"><strong>Ingresos Brutos:</strong> {{ business.iibb or '-' }}</div>
                     <div class="info-line"><strong>Fecha de Inicio de Actividades:</strong> {{ business.start_date or '-' }}</div>
@@ -299,10 +297,18 @@
                 <td class="client-col-left">
                     <div class="info-line"><strong>Apellido y Nombre / Razón social:</strong> {{ client.name }}</div>
                     <div class="info-line"><strong>Domicilio:</strong> {{ client.address or 'Sin domicilio' }}</div>
+                    {% if voucher.is_current_account %}
+                    <div class="info-line"><strong>Condición de venta:</strong> Cta Cte{% if voucher.payment_days %} - {{ voucher.payment_days }} días{% endif %}</div>
+                    {% else %}
+                    <div class="info-line"><strong>Condición de venta:</strong> {{ payment_methods_display or 'Contado' }}</div>
+                    {% endif %}
                 </td>
                 <td class="client-col-right">
                     <div class="info-line"><strong>CUIL/CUIT:</strong> {{ client.document_number or '-' }}</div>
                     <div class="info-line"><strong>Condición Frente al IVA:</strong> {{ client.tax_condition or 'Consumidor Final' }}</div>
+                    {% if voucher.is_current_account and voucher.payment_due_date %}
+                    <div class="info-line"><strong>Vto:</strong> {{ voucher.payment_due_date }}</div>
+                    {% endif %}
                 </td>
             </tr>
         </table>
