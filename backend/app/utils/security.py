@@ -371,11 +371,12 @@ def require_module_access(module_key: str):
         feature_by_module = {
             "products": "inventory_enabled",
             "categories": "inventory_enabled",
-            "suppliers": "inventory_enabled",
+            "suppliers": "suppliers_enabled",
             "reports": "reports_enabled",
             "price_update": "price_update_enabled",
             "sql_backup": "sql_backup_enabled",
             "inventory": "inventory_enabled",
+            "stockpiles": "inventory_enabled",
         }
         feature_field = feature_by_module.get(module_key)
         if feature_field:

@@ -30,6 +30,10 @@ export interface SaveDraftPayload {
   products: any[]
 }
 
+export interface DeleteAllDraftsResponse {
+  deleted_count: number
+}
+
 const priceUpdateDraftsService = {
   list: async (): Promise<DraftSummary[]> => {
     const res = await httpClient.get('/price-update-drafts')
@@ -53,6 +57,11 @@ const priceUpdateDraftsService = {
 
   delete: async (id: string): Promise<void> => {
     await httpClient.delete(`/price-update-drafts/${id}`)
+  },
+
+  deleteAll: async (): Promise<DeleteAllDraftsResponse> => {
+    const res = await httpClient.delete('/price-update-drafts')
+    return res.data
   },
 }
 

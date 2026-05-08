@@ -60,6 +60,10 @@ class DraftDetailResponse(DraftResponse):
     products: list  # array deserializado
 
 
+class DeleteAllDraftsResponse(BaseModel):
+    deleted_count: int
+
+
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 
@@ -226,6 +230,28 @@ async def update_draft(
         created_at=draft.created_at.isoformat(),
         updated_at=draft.updated_at.isoformat(),
     )
+
+
+@router.delete("", response_model=DeleteAllDraftsResponse)
+async def delete_all_drafts(
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """Elimina todos los borradores activos del negocio (soft delete)."""
+    result = await db.execute(
+        select(PriceUpdateDraft).where(
+            PriceUpdateDraft.business_id == business_id,
+            PriceUpdateDraft.deleted_at.is_(None),
+        )
+    )
+    drafts = result.scalars().all()
+
+    for draft in drafts:
+        draft.soft_delete()
+
+    await db.commit()
+
+    return DeleteAllDraftsResponse(deleted_count=len(drafts))
 
 
 @router.delete("/{draft_id}", status_code=status.HTTP_204_NO_CONTENT)

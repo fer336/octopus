@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.price_history import PriceHistory
 from app.models.product import Product
-from app.schemas.product import ProductCreate, ProductListParams, ProductUpdate
+from app.schemas.product import ProductBulkUpdateItem, ProductCreate, ProductListParams, ProductUpdate
 
 
 class ProductService:
@@ -202,6 +202,76 @@ class ProductService:
         await self.db.commit()
         await self.db.refresh(product)
         return product
+
+    async def bulk_update(
+        self,
+        business_id: UUID,
+        items: list[ProductBulkUpdateItem],
+        user_id: UUID | None = None,
+    ) -> tuple[list[Product], list[UUID]]:
+        """Actualiza varios productos en una única transacción."""
+        product_ids = [item.id for item in items]
+        result = await self.db.execute(
+            select(Product).where(
+                Product.id.in_(product_ids),
+                Product.business_id == business_id,
+                Product.deleted_at.is_(None),
+            )
+        )
+        products_by_id = {product.id: product for product in result.scalars().all()}
+
+        updated_products: list[Product] = []
+        not_found_ids: list[UUID] = []
+        price_fields = {
+            "list_price",
+            "discount_1",
+            "discount_2",
+            "discount_3",
+            "iva_rate",
+            "extra_cost",
+            "profit_margin",
+        }
+
+        for item in items:
+            product = products_by_id.get(item.id)
+            if not product:
+                not_found_ids.append(item.id)
+                continue
+
+            old_list_price = product.list_price
+            old_net_price = product.net_price
+            old_sale_price = product.sale_price
+
+            update_data = item.model_dump(exclude={"id"}, exclude_unset=True)
+            for field, value in update_data.items():
+                setattr(product, field, value)
+
+            if price_fields & set(update_data.keys()):
+                product.calculate_prices()
+
+                if product.sale_price != old_sale_price:
+                    self.db.add(
+                        PriceHistory(
+                            product_id=product.id,
+                            changed_by=user_id,
+                            old_list_price=old_list_price,
+                            old_net_price=old_net_price,
+                            old_sale_price=old_sale_price,
+                            new_list_price=product.list_price,
+                            new_net_price=product.net_price,
+                            new_sale_price=product.sale_price,
+                            change_reason="Actualización masiva",
+                        )
+                    )
+
+            updated_products.append(product)
+
+        await self.db.commit()
+
+        for product in updated_products:
+            await self.db.refresh(product)
+
+        return updated_products, not_found_ids
 
     async def soft_delete(self, product_id: UUID, business_id: UUID) -> bool:
         """Elimina un producto (soft delete)."""

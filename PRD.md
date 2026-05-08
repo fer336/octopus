@@ -155,6 +155,26 @@ precio_venta = precio_con_bonif + IVA
 - Actualización automática de precios: al subir un nuevo Excel, se actualizan los precios de los productos existentes (match por `codigo` o `codigo_producto`)
 - Registro de historial de cambios de precio (fecha, precio anterior, precio nuevo)
 - Vista previa de cambios antes de confirmar la actualización
+- La pantalla "Actualizar Productos" debe incluir un botón "Actualización Masiva" con iconografía de actualización/sincronización y paleta violeta `primary-*`.
+- El flujo de actualización masiva por Excel de proveedor debe permitir subir un archivo `.xlsx`/`.xls`, detectar columnas, mostrar una muestra de filas y permitir mapeo manual flexible de columnas.
+- El mapeo mínimo requerido para actualizar precios por Excel es: columna de código de proveedor y columna de precio base/lista.
+- El sistema debe cruzar el código de proveedor contra `products.supplier_code` y, como fallback, contra `products.code`.
+- Antes de aplicar cambios, debe mostrarse confirmación con cantidad de productos afectados y proveedor indicado/detectado.
+- Al confirmar, debe mostrarse una barra de progreso visible y representativa del avance producto a producto; no usar spinner genérico como único feedback.
+- Los cálculos de precios deben reutilizar la lógica canónica del producto (`calculate_prices`) para mantener consistencia con la pantalla "Editar Productos".
+- Al finalizar, debe mostrarse resumen de productos actualizados correctamente y errores encontrados.
+
+##### Arquitectura de estado del flujo de actualización masiva
+- La edición masiva de precios debe tratarse como una transacción temporal: el usuario abre la ventana de edición, modifica productos localmente, guarda un borrador de trabajo y recién al confirmar ejecuta el update definitivo sobre la base de productos.
+- Mientras la ventana/modal de edición está abierta, el modal es la única fuente de verdad del estado editable (*single source of truth*). La pantalla padre no debe rehidratar ni sobrescribir los productos editados en cada autosave o render.
+- El estado transitorio de edición incluye todos los campos modificables del producto y la marca por fila `P` / `is_pending` cuando el producto quedó pendiente de confirmación.
+- La sincronización con la pantalla padre debe ocurrir solo en eventos frontera (*commit boundaries*): guardado explícito del borrador, cierre del modal y confirmación definitiva.
+- El guardado de borradores debe ser una acción explícita del usuario mediante el botón "Guardar borrador" / "Actualizar borrador". No debe existir autosave automático mientras el usuario edita.
+- Al presionar `X` o "Cancelar", el modal debe cerrarse inmediatamente sin persistir cambios temporales. Si el usuario quiere conservarlos, debe guardar el borrador antes de cerrar.
+- Los borradores deben persistir el estado temporal en la tabla `price_update_drafts`, usando `products_data` como snapshot JSON completo de la sesión de edición.
+- Al reabrir un borrador, el modal debe reconstruir exactamente el snapshot guardado: productos, valores editados, filtros asociados y marcas `P` visibles.
+- Una vez que el usuario confirma el update definitivo, el sistema debe aplicar los cambios en lote y eliminar automáticamente el borrador asociado.
+- Se debe evitar cualquier flujo de sincronización circular del tipo: modal actualiza padre → padre cambia props → modal rehidrata → modal vuelve a autosalvar. Ese patrón genera bucles infinitos y reversión de cambios.
 
 ### 3.4 Gestión de Clientes
 

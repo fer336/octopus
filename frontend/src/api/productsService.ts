@@ -92,6 +92,16 @@ export interface ProductUpdate {
   is_active?: boolean
 }
 
+export interface ProductBulkUpdateItem extends ProductUpdate {
+  id: string
+}
+
+export interface ProductBulkUpdateResponse {
+  updated_count: number
+  not_found_ids: string[]
+  products: Product[]
+}
+
 export interface PaginatedResponse<T> {
   items: T[]
   total: number
@@ -191,6 +201,14 @@ export const productsService = {
    */
   update: async (id: string, data: ProductUpdate): Promise<Product> => {
     const response = await httpClient.put(`/products/${id}`, data)
+    return response.data
+  },
+
+  /**
+   * Actualiza varios productos en una sola petición.
+   */
+  bulkUpdate: async (products: ProductBulkUpdateItem[]): Promise<ProductBulkUpdateResponse> => {
+    const response = await httpClient.post('/products/bulk-update', { products })
     return response.data
   },
 

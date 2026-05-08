@@ -4,15 +4,61 @@
  * Soporta guardar listas de selección en memoria (localStorage) para continuar después.
  */
 import { useState, type MouseEvent } from 'react'
-import { TrendingUp, Search, Filter, DollarSign, FolderOpen, Trash2, ChevronUp, Clock, Package } from 'lucide-react'
-import { Button, Table } from '../components/ui'
+import { TrendingUp, Search, Filter, DollarSign, FolderOpen, Trash2, ChevronUp, Clock, Package, RefreshCw } from 'lucide-react'
+import { Button, ConfirmModal } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import productsService, { Product } from '../api/productsService'
+import productsService, { Product, ProductBulkUpdateItem, ProductUpdate } from '../api/productsService'
 import categoriesService from '../api/categoriesService'
 import suppliersService from '../api/suppliersService'
 import priceUpdateDraftsService, { DraftSummary } from '../api/priceUpdateDraftsService'
 import BulkEditProductsModal from '../components/prices/BulkEditProductsModal'
+import ExcelMassPriceUpdateModal from '../components/prices/ExcelMassPriceUpdateModal'
 import toast from 'react-hot-toast'
+
+const EMPTY_PRODUCTS: Product[] = []
+
+const toNonNegativeNumber = (value: unknown, fallback = 0) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.max(0, parsed)
+}
+
+const toNonNegativeInteger = (value: unknown, fallback = 0) => {
+  return Math.trunc(toNonNegativeNumber(value, fallback))
+}
+
+const buildPriceUpdatePayload = (product: {
+  list_price?: unknown
+  discount_1?: unknown
+  discount_2?: unknown
+  discount_3?: unknown
+  extra_cost?: unknown
+  profit_margin?: unknown
+  current_stock?: unknown
+}): ProductUpdate => ({
+  list_price: toNonNegativeNumber(product.list_price),
+  discount_1: Math.min(100, toNonNegativeNumber(product.discount_1)),
+  discount_2: Math.min(100, toNonNegativeNumber(product.discount_2)),
+  discount_3: Math.min(100, toNonNegativeNumber(product.discount_3)),
+  extra_cost: toNonNegativeNumber(product.extra_cost),
+  profit_margin: toNonNegativeNumber(product.profit_margin),
+  current_stock: toNonNegativeInteger(product.current_stock),
+})
+
+const formatMoney = (value: unknown) => `$${toNonNegativeNumber(value).toFixed(2)}`
+
+const formatNumber = (value: unknown) => toNonNegativeNumber(value).toLocaleString('es-AR', {
+  maximumFractionDigits: 2,
+})
+
+const getDiscountDisplay = (product: Product) => {
+  if (product.discount_display) return product.discount_display
+  const discounts = [product.discount_1, product.discount_2, product.discount_3]
+    .map((discount) => Number(discount || 0))
+    .filter((discount) => discount > 0)
+
+  return discounts.length > 0 ? discounts.join('+') : '0'
+}
 
 // ─── Componente ────────────────────────────────────────────────────────────────
 
@@ -28,7 +74,10 @@ export default function PriceUpdate() {
   // Selección de productos
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
   const [showBulkEditModal, setShowBulkEditModal] = useState(false)
+  const [showExcelMassUpdateModal, setShowExcelMassUpdateModal] = useState(false)
   const [activeDraftId, setActiveDraftId] = useState<string | undefined>()
+  const [showDeleteAllDraftsModal, setShowDeleteAllDraftsModal] = useState(false)
+  const [isDeletingAllDrafts, setIsDeletingAllDrafts] = useState(false)
 
   // Panel de borradores
   const [showDrafts, setShowDrafts] = useState(false)
@@ -64,7 +113,7 @@ export default function PriceUpdate() {
     retry: false,
   })
 
-  const products = productsData?.items || []
+  const products = productsData?.items ?? EMPTY_PRODUCTS
   const categories = Array.isArray(categoriesData) ? categoriesData : []
   const suppliers = Array.isArray(suppliersData?.items) ? suppliersData.items : []
 
@@ -124,6 +173,20 @@ export default function PriceUpdate() {
     }
   }
 
+  const handleDraftSaved = (draftId: string) => {
+    setActiveDraftId(draftId)
+    void refetchDrafts()
+  }
+
+  const handleCloseBulkEdit = (draftId?: string, products?: any[]) => {
+    setShowBulkEditModal(false)
+
+    if (draftId && products) {
+      setActiveDraftId(draftId)
+      setDraftProducts(products)
+    }
+  }
+
   const handleDeleteDraft = async (draftId: string, e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation()
     try {
@@ -135,29 +198,44 @@ export default function PriceUpdate() {
     }
   }
 
+  const handleDeleteAllDrafts = async () => {
+    const draftCount = draftsData?.length ?? 0
+    if (draftCount === 0) return
+
+    setIsDeletingAllDrafts(true)
+    try {
+      const result = await priceUpdateDraftsService.deleteAll()
+      setActiveDraftId(undefined)
+      setDraftProducts(null)
+      await refetchDrafts()
+      setShowDeleteAllDraftsModal(false)
+      toast.success(`${result.deleted_count} borradores eliminados`, { icon: '🗑️' })
+    } catch {
+      toast.error('Error al eliminar los borradores')
+    } finally {
+      setIsDeletingAllDrafts(false)
+    }
+  }
+
   // ─── Guardar cambios ────────────────────────────────────────────────────────
 
-  const handleSaveBulkEdit = async (editedProducts: any[]) => {
+  const handleSaveBulkEdit = async (editedProducts: any[], draftId?: string) => {
     try {
-      for (const product of editedProducts) {
-        await productsService.update(product.id, {
+      const payload: ProductBulkUpdateItem[] = editedProducts.map((product) => ({
+        id: product.id,
           description: product.description,
-          category_id: product.category_id || null,
-          supplier_id: product.supplier_id || null,
-          list_price: product.list_price,
-          discount_1: product.discount_1,
-          discount_2: product.discount_2,
-          discount_3: product.discount_3,
-          extra_cost: product.extra_cost,
-          profit_margin: product.profit_margin,
-          current_stock: product.current_stock,
-        })
-      }
+          ...(product.category_id ? { category_id: product.category_id } : {}),
+          ...(product.supplier_id ? { supplier_id: product.supplier_id } : {}),
+          ...buildPriceUpdatePayload(product),
+      }))
+
+      const result = await productsService.bulkUpdate(payload)
 
       // Si se guardó desde un borrador, eliminarlo — ya no tiene sentido guardarlo
-      if (activeDraftId) {
+      const draftToDelete = draftId || activeDraftId
+      if (draftToDelete) {
         try {
-          await priceUpdateDraftsService.delete(activeDraftId)
+          await priceUpdateDraftsService.delete(draftToDelete)
           refetchDrafts()
         } catch {
           // No bloquear el flujo si falla el delete del borrador
@@ -166,7 +244,7 @@ export default function PriceUpdate() {
         setDraftProducts(null)
       }
 
-      toast.success(`${editedProducts.length} productos actualizados correctamente`, {
+      toast.success(`${result.updated_count} productos actualizados correctamente`, {
         duration: 5000,
         icon: '✅'
       })
@@ -177,93 +255,6 @@ export default function PriceUpdate() {
       throw error
     }
   }
-
-  // ─── Columnas de la tabla ────────────────────────────────────────────────────
-
-  const columns: any[] = [
-    {
-      key: 'select',
-      header: (
-        <input
-          type="checkbox"
-          checked={selectedProducts.size === products.length && products.length > 0}
-          onChange={toggleSelectAll}
-          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          data-tour-price-select-all
-        />
-      ),
-      render: (item: Product) => (
-        <input
-          type="checkbox"
-          checked={selectedProducts.has(item.id)}
-          onChange={() => toggleSelectProduct(item.id)}
-          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-        />
-      ),
-    },
-    {
-      key: 'code',
-      header: 'Código',
-      render: (item: Product) => <span className="font-mono text-xs">{item.code}</span>,
-    },
-    {
-      key: 'description',
-      header: 'Descripción',
-      render: (item: Product) => <span className="text-sm">{item.description}</span>,
-    },
-    {
-      key: 'category',
-      header: 'Categoría',
-      render: (item: Product) => {
-        const category = categories.find(c => c.id === item.category_id)
-        return category ? (
-          <span className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded">
-            {category.name}
-          </span>
-        ) : <span className="text-gray-400 text-xs">-</span>
-      },
-    },
-    {
-      key: 'supplier',
-      header: 'Proveedor',
-      render: (item: Product) => {
-        const supplier = suppliers.find(s => s.id === item.supplier_id)
-        return supplier ? (
-          <span className="text-xs">{supplier.name}</span>
-        ) : <span className="text-gray-400 text-xs">-</span>
-      },
-    },
-    {
-      key: 'list_price',
-      header: 'P. Lista',
-      render: (item: Product) => (
-        <span className="font-medium text-sm">${Number(item.list_price).toFixed(2)}</span>
-      ),
-    },
-    {
-      key: 'discount',
-      header: 'Bonif.',
-      render: (item: Product) => (
-        <span className="text-xs text-green-600 dark:text-green-400">
-          {item.discount_display || '-'}
-        </span>
-      ),
-    },
-    {
-      key: 'sale_price',
-      header: 'P. Venta',
-      render: (item: Product) => (
-        <span className="font-bold text-sm text-primary-600 dark:text-primary-400">
-          ${Number(item.sale_price).toFixed(2)}
-        </span>
-      ),
-    },
-    {
-      key: 'stock',
-      header: 'Stock',
-      render: (item: Product) => <span className="text-sm">{item.current_stock}</span>,
-    },
-  ]
 
   const hasActiveFilter = !!(selectedCategory || selectedSupplier || search)
 
@@ -288,22 +279,30 @@ export default function PriceUpdate() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 lg:flex lg:items-center lg:gap-4 lg:ml-auto">
+          <div className="grid grid-cols-2 items-center gap-2 lg:flex lg:items-center lg:gap-3 lg:ml-auto">
+            <button
+              onClick={() => setShowExcelMassUpdateModal(true)}
+              className="inline-flex h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-primary-200 bg-primary-50 px-3 text-primary-700 transition-colors hover:border-primary-400 hover:bg-primary-100 hover:text-primary-800 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-200 dark:hover:border-primary-600 dark:hover:bg-primary-900/40 lg:w-auto"
+            >
+              <RefreshCw size={16} className="shrink-0" />
+              <span className="text-xs font-medium">Actualización Masiva</span>
+            </button>
+
             <button
               onClick={() => setShowDrafts(v => !v)}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-2 py-1.5 text-gray-500 hover:text-orange-600 hover:border-orange-300 dark:border-gray-700 dark:text-gray-400 dark:hover:text-orange-400 dark:hover:border-orange-700 transition-colors"
+              className="inline-flex h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-primary-200 px-3 text-primary-600 transition-colors hover:border-primary-400 hover:bg-primary-50 hover:text-primary-700 dark:border-primary-800 dark:text-primary-300 dark:hover:border-primary-600 dark:hover:bg-primary-900/20 lg:w-auto"
               data-tour-price-drafts
             >
               <FolderOpen size={16} className="shrink-0" />
               <span className="text-xs font-medium">Borradores</span>
               {draftsData && draftsData.length > 0 && (
-                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold leading-none text-white">
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-600 px-1 text-[10px] font-bold leading-none text-white">
                   {draftsData.length}
                 </span>
               )}
             </button>
 
-            <div className="rounded-lg border border-gray-200 px-2 py-1 text-center dark:border-gray-700">
+            <div className="flex h-10 min-w-[108px] flex-col items-center justify-center rounded-lg border border-gray-200 px-3 text-center dark:border-gray-700">
               <div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Seleccionados</div>
               <div className="text-lg font-bold leading-tight text-gray-900 dark:text-white">{selectedProducts.size}</div>
             </div>
@@ -321,7 +320,7 @@ export default function PriceUpdate() {
               }}
               disabled={products.length === 0}
               size="sm"
-              className="w-full lg:w-auto bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white disabled:opacity-50"
+              className="h-10 w-full whitespace-nowrap bg-gradient-to-r from-orange-500 to-amber-600 px-3 hover:from-orange-600 hover:to-amber-700 text-white disabled:opacity-50 lg:w-auto"
               data-tour-price-update-top
             >
               <TrendingUp size={14} className="mr-1.5" />
@@ -335,18 +334,30 @@ export default function PriceUpdate() {
 
         {/* Panel de borradores (desplegable) */}
         {showDrafts && (
-          <div className="mb-4 bg-white dark:bg-gray-800 rounded-lg shadow border border-orange-200 dark:border-orange-800 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="mb-4 bg-white dark:bg-gray-800 rounded-lg shadow border border-primary-200 dark:border-primary-800 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 dark:border-gray-700">
               <div className="flex items-center gap-2">
-                <FolderOpen size={16} className="text-orange-500" />
+                <FolderOpen size={16} className="text-primary-600 dark:text-primary-300" />
                 <h3 className="font-semibold text-sm text-gray-900 dark:text-white">Borradores guardados</h3>
-                <span className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded-full font-medium">
+                <span className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded-full font-medium">
                   {draftsData?.length ?? 0}
                 </span>
               </div>
-              <button onClick={() => setShowDrafts(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                <ChevronUp size={16} />
-              </button>
+              <div className="flex items-center gap-2">
+                {draftsData && draftsData.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteAllDraftsModal(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100 dark:border-primary-800 dark:bg-primary-900/25 dark:text-primary-300 dark:hover:border-primary-700 dark:hover:bg-primary-900/40"
+                  >
+                    <Trash2 size={13} />
+                    Eliminar todos
+                  </button>
+                )}
+                <button onClick={() => setShowDrafts(false)} className="text-gray-400 hover:text-primary-600 dark:hover:text-primary-300">
+                  <ChevronUp size={16} />
+                </button>
+              </div>
             </div>
 
             {!draftsData || draftsData.length === 0 ? (
@@ -364,7 +375,7 @@ export default function PriceUpdate() {
                     <button
                       key={draft.id}
                       onClick={() => handleLoadDraft(draft)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors group text-left"
+                      className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors group text-left"
                     >
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-gray-900 dark:text-white truncate">{draft.name}</p>
@@ -384,7 +395,7 @@ export default function PriceUpdate() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 ml-3 shrink-0">
-                        <span className="text-xs text-orange-500 dark:text-orange-400 group-hover:underline font-medium">Retomar →</span>
+                        <span className="text-xs text-primary-600 dark:text-primary-300 group-hover:underline font-medium">Retomar →</span>
                         <button
                           onClick={(e) => handleDeleteDraft(draft.id, e)}
                           className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
@@ -498,8 +509,80 @@ export default function PriceUpdate() {
             {products.length} productos encontrados
           </span>
         </div>
-        <div className="hidden lg:block max-h-[58vh] overflow-y-auto rounded-lg" data-tour-price-table>
-          <Table columns={columns} data={products} density="compact" emptyMessage="No se encontraron productos con los filtros seleccionados" />
+        <div className="hidden lg:block max-h-[58vh] overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700" data-tour-price-table>
+          {products.length === 0 ? (
+            <div className="bg-gray-50 px-4 py-8 text-center text-sm text-gray-500 dark:bg-gray-900/30 dark:text-gray-400">
+              No se encontraron productos con los filtros seleccionados
+            </div>
+          ) : (
+            <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+              <thead className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur dark:bg-gray-900/95">
+                <tr className="text-left text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  <th className="w-10 px-3 py-2.5">
+                    <input
+                      type="checkbox"
+                      checked={selectedProducts.size === products.length && products.length > 0}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      data-tour-price-select-all
+                    />
+                  </th>
+                  <th className="px-3 py-2.5">Código</th>
+                  <th className="min-w-[220px] px-3 py-2.5">Descripción</th>
+                  <th className="px-3 py-2.5">Categoría</th>
+                  <th className="px-3 py-2.5">Proveedor</th>
+                  <th className="w-28 px-3 py-2.5 text-center">P. Lista</th>
+                  <th className="w-24 px-3 py-2.5 text-center">Bonif.</th>
+                  <th className="w-24 px-3 py-2.5 text-center">Cargo</th>
+                  <th className="w-24 px-3 py-2.5 text-center">Ganancia</th>
+                  <th className="w-24 px-3 py-2.5 text-center">Stock</th>
+                  <th className="w-28 px-3 py-2.5 text-right">P. Venta</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-800">
+                {products.map((item) => {
+                  const categoryName = getCategoryName(item.category_id)
+                  const supplierName = getSupplierName(item.supplier_id)
+                  const salePrice = Number(item.sale_price || 0)
+                  const isSelected = selectedProducts.has(item.id)
+
+                  return (
+                    <tr
+                      key={item.id}
+                      className={`transition-colors ${isSelected ? 'bg-orange-50/70 dark:bg-orange-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-900/30'}`}
+                    >
+                      <td className="px-3 py-2 align-middle">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectProduct(item.id)}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                      </td>
+                      <td className="px-3 py-2 align-middle font-mono text-xs text-gray-600 dark:text-gray-300">{item.code}</td>
+                      <td className="px-3 py-2 align-middle">
+                        <span className="line-clamp-2 text-sm font-medium text-gray-900 dark:text-gray-100">{item.description}</span>
+                      </td>
+                      <td className="px-3 py-2 align-middle">
+                        {categoryName ? (
+                          <span className="rounded bg-primary-100 px-2 py-0.5 text-xs text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">{categoryName}</span>
+                        ) : <span className="text-xs text-gray-400">-</span>}
+                      </td>
+                      <td className="px-3 py-2 align-middle">
+                        {supplierName ? <span className="text-xs text-gray-600 dark:text-gray-300">{supplierName}</span> : <span className="text-xs text-gray-400">-</span>}
+                      </td>
+                      <td className="px-3 py-2 align-middle text-center font-semibold text-gray-900 dark:text-gray-100">{formatMoney(item.list_price)}</td>
+                      <td className="px-3 py-2 align-middle text-center text-gray-700 dark:text-gray-300">{getDiscountDisplay(item)}</td>
+                      <td className="px-3 py-2 align-middle text-center text-gray-700 dark:text-gray-300">{formatNumber(item.extra_cost)}</td>
+                      <td className="px-3 py-2 align-middle text-center text-gray-700 dark:text-gray-300">{formatNumber(item.profit_margin)}</td>
+                      <td className="px-3 py-2 align-middle text-center font-medium text-gray-900 dark:text-gray-100">{formatNumber(item.current_stock)}</td>
+                      <td className="px-3 py-2 align-middle text-right font-bold text-orange-600 dark:text-orange-300">${salePrice.toFixed(2)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
 
         <div className="lg:hidden space-y-2" data-tour-price-table>
@@ -513,6 +596,7 @@ export default function PriceUpdate() {
               const supplierName = getSupplierName(item.supplier_id)
               const lowStock = item.current_stock < 10
               const isSelected = selectedProducts.has(item.id)
+              const salePrice = Number(item.sale_price || 0)
 
               return (
                 <article
@@ -572,21 +656,27 @@ export default function PriceUpdate() {
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
                       <p className="text-[10px] text-gray-500 dark:text-gray-400">P. Lista</p>
-                      <p className="font-medium text-gray-800 dark:text-gray-200">${Number(item.list_price).toFixed(2)}</p>
+                      <p className="mt-1 font-semibold text-gray-900 dark:text-gray-100">{formatMoney(item.list_price)}</p>
                     </div>
                     <div className="rounded-lg border border-orange-200 bg-orange-50 px-2 py-1.5 dark:border-orange-800 dark:bg-orange-900/20">
                       <p className="text-[10px] text-orange-700 dark:text-orange-300">P. Venta</p>
-                      <p className="font-semibold text-orange-700 dark:text-orange-300">${Number(item.sale_price).toFixed(2)}</p>
+                      <p className="mt-1 font-semibold text-orange-700 dark:text-orange-300">${salePrice.toFixed(2)}</p>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
                       <p className="text-[10px] text-gray-500 dark:text-gray-400">Bonif.</p>
-                      <p className="font-medium text-green-700 dark:text-green-300">{item.discount_display || '-'}</p>
+                      <p className="mt-1 font-semibold text-gray-900 dark:text-gray-100">{getDiscountDisplay(item)}</p>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400">Cargo</p>
+                      <p className="mt-1 font-semibold text-gray-900 dark:text-gray-100">{formatNumber(item.extra_cost)}</p>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400">Ganancia</p>
+                      <p className="mt-1 font-semibold text-gray-900 dark:text-gray-100">{formatNumber(item.profit_margin)}</p>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
                       <p className="text-[10px] text-gray-500 dark:text-gray-400">Stock</p>
-                      <p className={`font-semibold ${lowStock ? 'text-red-600 dark:text-red-300' : 'text-gray-800 dark:text-gray-200'}`}>
-                        {item.current_stock}
-                      </p>
+                      <p className="mt-1 font-semibold text-gray-900 dark:text-gray-100">{formatNumber(item.current_stock)}</p>
                     </div>
                   </div>
                 </article>
@@ -622,13 +712,9 @@ export default function PriceUpdate() {
       {/* Modal de edición masiva */}
       <BulkEditProductsModal
         isOpen={showBulkEditModal}
-        onClose={() => {
-          setShowBulkEditModal(false)
-          setActiveDraftId(undefined)
-          setDraftProducts(null)
-        }}
+        onClose={handleCloseBulkEdit}
         onSave={handleSaveBulkEdit}
-        onDraftSaved={refetchDrafts}
+        onDraftSaved={handleDraftSaved}
         products={draftProducts ?? products.filter(p => selectedProducts.has(p.id))}
         categories={categories}
         suppliers={suppliers}
@@ -641,6 +727,38 @@ export default function PriceUpdate() {
         }}
         existingDraftId={activeDraftId}
       />
+
+      <ExcelMassPriceUpdateModal
+        isOpen={showExcelMassUpdateModal}
+        onClose={() => setShowExcelMassUpdateModal(false)}
+        onCompleted={async () => {
+          await queryClient.invalidateQueries({ queryKey: ['products'] })
+        }}
+      />
+
+      <ConfirmModal
+        isOpen={showDeleteAllDraftsModal}
+        onClose={() => setShowDeleteAllDraftsModal(false)}
+        onConfirm={handleDeleteAllDrafts}
+        title="Eliminar todos los borradores"
+        description="Vas a eliminar todos los borradores guardados de actualización de precios. Esta acción no se puede deshacer."
+        confirmText={isDeletingAllDrafts ? 'Eliminando...' : 'Eliminar todos'}
+        cancelText="Cancelar"
+        variant="info"
+        isLoading={isDeletingAllDrafts}
+      >
+        <div className="mb-5 w-full rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-left dark:border-primary-800 dark:bg-primary-900/20">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-600 dark:text-primary-300">
+            Borradores afectados
+          </p>
+          <p className="mt-1 text-2xl font-black text-primary-800 dark:text-primary-100">
+            {draftsData?.length ?? 0}
+          </p>
+          <p className="mt-1 text-xs text-primary-700/80 dark:text-primary-200/80">
+            Se quitarán del listado y no vas a poder retomarlos después.
+          </p>
+        </div>
+      </ConfirmModal>
     </div>
   )
 }

@@ -3,6 +3,7 @@ Schemas para actualización masiva de precios.
 """
 from decimal import Decimal
 from enum import Enum
+from typing import Any
 from uuid import UUID
 
 from pydantic import Field, field_serializer
@@ -76,3 +77,53 @@ class PriceUpdateApplyResponse(BaseSchema):
 
     updated_count: int
     message: str
+
+
+class ExcelPriceUpdateColumnPreviewResponse(BaseSchema):
+    """Columnas y filas detectadas desde un Excel de actualización de precios."""
+
+    file_name: str
+    total_rows: int
+    columns: list[str]
+    sample_rows: list[dict[str, Any]]
+    rows: list[dict[str, Any]]
+
+
+class ExcelPriceUpdateMappingRequest(BaseSchema):
+    """Mapeo manual de columnas para cruzar códigos de proveedor contra productos."""
+
+    rows: list[dict[str, Any]] = Field(..., min_length=1)
+    code_column: str = Field(..., min_length=1)
+    price_column: str = Field(..., min_length=1)
+    supplier_name: str | None = None
+
+
+class ExcelPriceUpdatePreviewItem(BaseSchema):
+    """Resultado de cruzar una fila del Excel contra un producto existente."""
+
+    row_number: int
+    supplier_code: str
+    imported_list_price: Decimal | None = None
+    product_id: UUID | None = None
+    product_code: str | None = None
+    description: str | None = None
+    current_list_price: Decimal | None = None
+    current_sale_price: Decimal | None = None
+    new_sale_price: Decimal | None = None
+    status: str
+    error_message: str | None = None
+
+    @field_serializer('imported_list_price', 'current_list_price', 'current_sale_price', 'new_sale_price')
+    def serialize_decimal_or_none(self, value: Decimal | None) -> float | None:
+        """Convierte Decimal a float para JSON."""
+        return float(value) if value is not None else None
+
+
+class ExcelPriceUpdatePreviewResponse(BaseSchema):
+    """Preview del cruce Excel → productos antes de aplicar cambios."""
+
+    total_rows: int
+    matched_count: int
+    error_count: int
+    supplier_name: str | None = None
+    items: list[ExcelPriceUpdatePreviewItem]

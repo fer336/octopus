@@ -20,6 +20,7 @@ from app.models.client import Client
 from app.models.client_account import ClientAccount, MovementType
 from app.models.client_authorization import ClientAuthorization
 from app.models.client_type import ClientType
+from app.models.draft import Draft
 from app.models.feedback_ticket import FeedbackTicket
 from app.models.payment import Payment, PaymentMethod
 from app.models.payment_receipt import PaymentReceipt
@@ -44,6 +45,7 @@ from app.models.user import User
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
 from app.models.voucher_payment import VoucherPayment
+from app.models.stockpile import Stockpile, StockpileItem, StockpileStatus
 
 __all__ = [
     # Base
@@ -69,6 +71,7 @@ __all__ = [
     "Client",
     "ClientAuthorization",
     "ClientType",
+    "Draft",
     "Product",
     # Historial
     "PriceHistory",
@@ -95,6 +98,10 @@ __all__ = [
     "PurchaseOrder",
     "PurchaseOrderItem",
     "PurchaseOrderStatus",
+    # Acopio
+    "Stockpile",
+    "StockpileItem",
+    "StockpileStatus",
     # IA
     "AIProviderConfig",
     "AIProvider",

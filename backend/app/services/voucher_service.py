@@ -25,6 +25,7 @@ from app.models.product import Product
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
 from app.models.voucher_payment import VoucherPayment
+from app.models.stockpile import Stockpile, StockpileStatus
 from app.schemas.voucher import (
     CurrentAccountCloseHistoryResponse,
     CurrentAccountCloseItemPreview,
@@ -361,6 +362,51 @@ class VoucherService:
                 product.current_stock -= int(item_data.quantity)
 
         return items_db, total_subtotal, total_iva, total_final
+
+    async def _validate_stockpile_returns(
+        self,
+        *,
+        stockpile_id: UUID,
+        business_id: UUID,
+        items_data,
+    ) -> None:
+        """Valida que las devoluciones de acopio sean sobre productos retirados.
+
+        Solo permite cantidades negativas para productos previamente retirados en
+        remitos hijos del mismo acopio. La cantidad devuelta no puede superar la
+        cantidad neta retirada (retiros positivos menos devoluciones previas).
+        """
+        return_items = [
+            item for item in items_data if Decimal(str(item.quantity)) < Decimal("0")
+        ]
+        if not return_items:
+            return
+
+        for item in return_items:
+            result = await self.db.execute(
+                select(VoucherItem.quantity)
+                .join(Voucher, Voucher.id == VoucherItem.voucher_id)
+                .where(
+                    Voucher.business_id == business_id,
+                    Voucher.stockpile_id == stockpile_id,
+                    Voucher.deleted_at.is_(None),
+                    VoucherItem.product_id == item.product_id,
+                )
+            )
+            net_withdrawn = sum(
+                (Decimal(str(quantity)) for quantity in result.scalars().all()),
+                Decimal("0"),
+            )
+            return_quantity = abs(Decimal(str(item.quantity)))
+
+            if net_withdrawn <= Decimal("0"):
+                raise ValueError(
+                    "No se puede devolver un producto que no fue retirado de este acopio"
+                )
+            if return_quantity > net_withdrawn:
+                raise ValueError(
+                    f"La devolución supera lo retirado para este producto. Disponible para devolver: {net_withdrawn:g}"
+                )
 
     async def preview_totals(
         self,
@@ -760,6 +806,56 @@ class VoucherService:
         if data.payment_days and int(data.payment_days) > 0:
             voucher.payment_days = int(data.payment_days)
 
+        # Validar y procesar stockpile_id para retiros parciales de acopio
+        stockpile = None
+        if data.stockpile_id and data.voucher_type == VoucherType.RECEIPT:
+            has_stockpile_returns = any(
+                Decimal(str(item.quantity)) < Decimal("0") for item in data.items
+            )
+            # Buscar el acopio
+            stockpile = await self.db.get(Stockpile, data.stockpile_id)
+            if not stockpile:
+                raise ValueError("Acopio no encontrado")
+            
+            # Verificar que pertenece al mismo negocio
+            if stockpile.business_id != business_id:
+                raise ValueError("El acopio no pertenece a este negocio")
+            
+            # Verificar estado del acopio
+            if stockpile.status == StockpileStatus.CANCELLED:
+                raise ValueError("El acopio está cancelado")
+            
+            if stockpile.status == StockpileStatus.COMPLETED and not has_stockpile_returns:
+                raise ValueError("El acopio ya está completado")
+
+            if has_stockpile_returns:
+                await self._validate_stockpile_returns(
+                    stockpile_id=data.stockpile_id,
+                    business_id=business_id,
+                    items_data=data.items,
+                )
+            
+            # Validar que el monto del remito no exceda el saldo disponible
+            if total_final > stockpile.remaining_amount:
+                raise ValueError(
+                    f"El monto del remito (${total_final:,.2f}) excede el saldo disponible del acopio (${stockpile.remaining_amount:,.2f})"
+                )
+            
+            # Verificar que el cliente sea compatible (mismo cliente o billing_client)
+            # Para cuentas corrientes, usamos el billing_client como cliente del acopio
+            effective_client_id = data.billing_client_id or data.client_id
+            if stockpile.client_id != effective_client_id and stockpile.billing_client_id != effective_client_id:
+                raise ValueError("El cliente del remito no coincide con el cliente del acopio")
+            
+            # Validar expiración si aplica
+            if stockpile.expiration_mode == "due_date" and stockpile.due_date:
+                from datetime import date as date_type
+                if date_type.today() > stockpile.due_date:
+                    raise ValueError("El acopio ha vencido")
+            
+            # Vincular el voucher al stockpile
+            voucher.stockpile_id = data.stockpile_id
+
         # Guardar todo
         self.db.add(voucher)
         await self.db.flush()  # Para obtener ID del voucher
@@ -791,6 +887,20 @@ class VoucherService:
             user_id=user_id,
             voucher_full_number=voucher.full_number,
         )
+
+        # Actualizar montos del acopio si es un retiro parcial
+        if stockpile:
+            stockpile.withdrawn_amount = (stockpile.withdrawn_amount or Decimal("0")) + total_final
+            stockpile.remaining_amount = (stockpile.remaining_amount or Decimal("0")) - total_final
+            
+            # Actualizar estado del stockpile
+            if stockpile.remaining_amount <= Decimal("0"):
+                stockpile.status = StockpileStatus.COMPLETED
+                from datetime import datetime
+                stockpile.completed_at = datetime.utcnow()
+            elif stockpile.remaining_amount > Decimal("0"):
+                stockpile.status = StockpileStatus.PARTIAL
+                stockpile.completed_at = None
 
         await self.db.commit()
         await self.db.refresh(voucher)
@@ -875,6 +985,9 @@ class VoucherService:
                 selectinload(Voucher.billing_client),
                 selectinload(Voucher.operating_client),
                 selectinload(Voucher.created_by_user),
+                selectinload(Voucher.principal_stockpile).selectinload(
+                    Stockpile.principal_voucher
+                ),
             )
             .where(Voucher.id == voucher_id, Voucher.business_id == business_id)
         )
@@ -1577,6 +1690,36 @@ class VoucherService:
         elif "receipt" in voucher.voucher_type.value:
             type_name = "REMITO DE DEVOLUCIÓN" if voucher.is_return_receipt else "REMITO"
 
+        # Detectar si es un remito de acopio (retiro parcial)
+        is_stockpile_receipt = bool(
+            voucher.voucher_type == VoucherType.RECEIPT
+            and voucher.stockpile_id
+            and hasattr(voucher, 'principal_stockpile')
+            and voucher.principal_stockpile is not None
+        )
+        
+        # Para remitos de acopio, mostrar diseño especial
+        acopio_info = None
+        if is_stockpile_receipt:
+            # Cambiar tipo a "REMITO DE ACOPIO"
+            type_name = "REMITO DE ACOPIO"
+            
+            # Obtener info del stockpile principal
+            stockpile = voucher.principal_stockpile
+            if stockpile:
+                principal_number = (
+                    stockpile.principal_voucher.full_number
+                    if stockpile.principal_voucher
+                    else f"ACOP-{stockpile.id.hex[:8].upper()}"
+                )
+                acopio_info = {
+                    "name": stockpile.name,
+                    "number": principal_number,
+                    "date": stockpile.created_at.strftime("%d/%m/%Y") if stockpile.created_at else "",
+                    "initial_amount": f"{stockpile.initial_amount:,.2f}" if stockpile.initial_amount else "0.00",
+                    "remaining_amount": f"{stockpile.remaining_amount:,.2f}" if stockpile.remaining_amount else "0.00",
+                }
+
         is_subclient_withdrawal = bool(
             voucher.billing_client_id
             and voucher.operating_client_id
@@ -1585,6 +1728,9 @@ class VoucherService:
         withdrawal_client_display_name = (
             voucher.withdrawal_client_name if is_subclient_withdrawal else "TITULAR"
         )
+
+        # Para remitos de acopio, siempre mostrar precios
+        show_prices = True if is_stockpile_receipt else (voucher.show_prices == "S")
 
         context = {
             "business": {
@@ -1621,9 +1767,11 @@ class VoucherService:
                 "comp_number": voucher.number,
                 "number": f"{voucher.sale_point}-{voucher.number}",
                 "date": voucher.date.strftime("%d/%m/%Y"),
-                "show_prices": voucher.show_prices == "S",
+                "show_prices": show_prices,
                 "is_current_account": bool(voucher.is_current_account),
                 "is_return_receipt": bool(voucher.is_return_receipt),
+                "is_stockpile_receipt": is_stockpile_receipt,
+                "acopio_info": acopio_info,
                 "customer_credit_amount": f"{abs(Decimal(str(voucher.total or 0))):,.2f}",
                 "is_withdrawal_authorized": bool(voucher.is_withdrawal_authorized),
                 "withdrawal_client_name": voucher.withdrawal_client_name,

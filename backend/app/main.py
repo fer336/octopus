@@ -33,8 +33,10 @@ from app.routers import (
     purchase_orders,
     reports,
     suppliers,
+    stockpiles,
     vouchers,
 )
+from app.services.pdf_service import PdfService
 
 settings = get_settings()
 
@@ -107,6 +109,7 @@ app.include_router(ai.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(ai_config.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(feedback.tenant_router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(reports.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(stockpiles.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(admin.router)  # /api/admin/* (prefijo interno)
 app.include_router(feedback.admin_router)
 app.include_router(billing.router)

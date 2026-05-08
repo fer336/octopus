@@ -160,6 +160,11 @@ class Voucher(BaseModel):
         UUID(as_uuid=True), ForeignKey("vouchers.id"), nullable=True, index=True
     )
 
+    # Para acopios: vínculo al stockpile principal (si este voucher generó un acopio parcial)
+    stockpile_id = Column(
+        UUID(as_uuid=True), ForeignKey("stockpiles.id"), nullable=True, index=True
+    )
+
     # Relación con comprobante padre (ej: NC -> Factura original)
     related_voucher = relationship(
         "Voucher",
@@ -174,6 +179,18 @@ class Voucher(BaseModel):
         back_populates="related_voucher",
         foreign_keys="Voucher.related_voucher_id",
         lazy="selectin",
+    )
+
+    # Para acopios: relación al stockpile principal
+    principal_stockpile = relationship(
+        "Stockpile",
+        back_populates="child_vouchers",
+        foreign_keys=[stockpile_id],
+    )
+    child_stockpiles = relationship(
+        "Stockpile",
+        back_populates="principal_voucher",
+        foreign_keys="Stockpile.principal_voucher_id",
     )
 
     @property

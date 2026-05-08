@@ -3,13 +3,17 @@
  * Permite crear cotizaciones, remitos y facturas.
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings, MoreVertical } from 'lucide-react'
+import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings, MoreVertical, Archive } from 'lucide-react'
 import { Button, Modal, Select, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import productsService from '../api/productsService'
 import clientsService from '../api/clientsService'
 import clientAuthorizationsService from '../api/clientAuthorizationsService'
 import vouchersService, { VoucherCreate, VoucherUpdate, VoucherPayment, Voucher as VoucherType2, type PriceStrategy, type VoucherTotalsPreviewRequest } from '../api/vouchersService'
+import stockpileService, {
+  OpenStockpileItem,
+  StockpileSummary,
+} from '../api/stockpileService'
 import draftsService from '../api/draftsService'
 import arcaService from '../api/arcaService'
 import paymentMethodsService from '../api/paymentMethodsService'
@@ -21,7 +25,7 @@ import { useAuthStore } from '../stores/authStore'
 import { hasModuleAccess } from '../utils/acl'
 import { TAX_CONDITIONS, getTaxConditionLabel } from '../types'
 
-type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'current_account'
+type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'current_account' | 'acopio'
 type SalesMenuMode = VoucherType
 type MobileSalesSection = 'items' | 'products' | 'summary'
 
@@ -30,6 +34,7 @@ const baseVoucherTypes = [
   { value: 'receipt', label: 'Remito', icon: Truck },
   { value: 'invoice', label: 'Factura', icon: Receipt },
   { value: 'current_account', label: 'Cta Cte', icon: ClipboardList },
+  { value: 'acopio', label: 'Acopio', icon: Archive },
 ]
 
 const baseSalesMenuModes: Array<{ value: SalesMenuMode; label: string; icon: any; comingSoon?: boolean }> = [
@@ -37,6 +42,7 @@ const baseSalesMenuModes: Array<{ value: SalesMenuMode; label: string; icon: any
   { value: 'receipt', label: 'Remito', icon: Truck },
   { value: 'invoice', label: 'Factura', icon: Receipt },
   { value: 'current_account', label: 'Cta Cte', icon: ClipboardList },
+  { value: 'acopio', label: 'Acopio', icon: Archive },
 ]
 
 interface Product {
@@ -213,6 +219,21 @@ const formatNumber = (
   options?: Intl.NumberFormatOptions,
 ): string => safeNumber(value).toLocaleString(locale, options)
 
+const formatDisplayDate = (
+  value: string | Date | null | undefined,
+  options?: Intl.DateTimeFormatOptions,
+): string => {
+  if (!value) return '—'
+
+  const date = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00`)
+    : new Date(value)
+
+  if (Number.isNaN(date.getTime())) return '—'
+
+  return date.toLocaleDateString('es-AR', options)
+}
+
 const roundMoney = (value: number): number => Math.round((safeNumber(value) + Number.EPSILON) * 100) / 100
 
 const calculateBackendCompatibleTotalFromCart = (
@@ -364,6 +385,40 @@ export default function Sales() {
   const [payInCurrentAccount, setPayInCurrentAccount] = useState(false)
   const [currentAccountDays, setCurrentAccountDays] = useState(30)
 
+  // Estado para Acopio (SALES-ACOPIO-02)
+  const [acopioName, setAcopioName] = useState('')
+  const [acopioDescription, setAcopioDescription] = useState('')
+  const [acopioAmount, setAcopioAmount] = useState('')
+  const [acopioDiscount, setAcopioDiscount] = useState(0)
+  const [acopioCurrency, setAcopioCurrency] = useState('ARS')
+  // SALES-ACOPIO-02: replacing 'now/later' with explicit Yes/No for invoice
+  const [acopioGenerateInvoice, setAcopioGenerateInvoice] = useState(false)
+
+  // SALES-ACOPIO-FRONTEND-03: state for linking receipt to acopio
+  const [selectedStockpile, setSelectedStockpile] = useState<OpenStockpileItem | null>(null)
+  const [stockpileSummary, setStockpileSummary] = useState<StockpileSummary | null>(null)
+  const [showStockpileSelectorModal, setShowStockpileSelectorModal] = useState(false)
+  const [openStockpiles, setOpenStockpiles] = useState<OpenStockpileItem[]>([])
+  const [isLoadingStockpiles, setIsLoadingStockpiles] = useState(false)
+  const [stockpileSelectorError, setStockpileSelectorError] = useState<string | null>(null)
+
+  const acopioSyntheticItem = useMemo<CartItem>(() => {
+    const amount = safeNumber(acopioAmount)
+
+    return {
+      id: 'synthetic-acopio-importe',
+      product_id: undefined,
+      code: 'ACOPIO-0001',
+      description: acopioDescription.trim() || acopioName.trim() || 'ACOPIO DE MATERIALES POR IMPORTE TOTAL',
+      quantity: 1,
+      discount: acopioDiscount,
+      sale_price: amount,
+      net_price: amount / 1.21,
+    }
+  }, [acopioAmount, acopioDescription, acopioDiscount, acopioName])
+
+  const visibleItems = voucherType === 'acopio' ? [acopioSyntheticItem] : items
+
   const {
     data: authorizationsData,
     isError: authorizationsLoadError,
@@ -443,6 +498,38 @@ export default function Sales() {
   const { data: apiDrafts, refetch: refetchDrafts } = useQuery({
     queryKey: ['drafts'],
     queryFn: () => draftsService.getAll(),
+  })
+
+  // Mutation para crear acopio por monto (SALES-ACOPIO-01/02)
+  const createAcopioMutation = useMutation({
+    mutationFn: (data: {
+      client_id: string
+      billing_client_id?: string
+      name: string
+      amount: number
+      discount_percent: number
+      description?: string
+      currency?: string
+      generate_invoice: boolean
+    }) => stockpileService.createByAmount(data),
+    onSuccess: async (data) => {
+      toast.success(`Acopio "${data.name}" creado correctamente`, { icon: '✅' })
+      // Reset form
+      setAcopioName('')
+      setAcopioDescription('')
+      setAcopioAmount('')
+      setAcopioDiscount(0)
+      setAcopioCurrency('ARS')
+      setAcopioGenerateInvoice(false)
+      // SALES-ACOPIO-02: If user selected invoice generation, trigger it
+      // (Phase 2 pending - show clear pending message)
+      // Note: createByAmount returns { ... } which is the stockpile object
+      // For now, if generate_invoice was true, we inform the user Phase 2 is pending
+      // The actual invoice flow for acopios is handled in a future phase
+    },
+    onError: (error: any) => {
+      toast.error('Error al crear acopio: ' + formatErrorMessage(error))
+    },
   })
 
   // Mutation para convertir cotización en factura
@@ -892,6 +979,7 @@ export default function Sales() {
   )
 
   const voucherTotalsPreviewPayload = useMemo<VoucherTotalsPreviewRequest | null>(() => {
+    if (voucherType === 'acopio') return null
     if (!selectedClient || items.length === 0) return null
 
     const normalizedItems = normalizeCartItems(items)
@@ -1310,6 +1398,16 @@ export default function Sales() {
       setSelectedOperatingClientId('')
     }
 
+    // Reset acopio form when switching away from acopio tab (SALES-ACOPIO-01/02)
+    if (nextType !== 'acopio') {
+      setAcopioName('')
+      setAcopioDescription('')
+      setAcopioAmount('')
+      setAcopioDiscount(0)
+      setAcopioCurrency('ARS')
+      setAcopioGenerateInvoice(false)
+    }
+
     // Defaults por tipo (el usuario puede ajustar en cotización/remito)
     if (nextType === 'invoice') {
       setShowPrices(true)
@@ -1350,6 +1448,9 @@ export default function Sales() {
     setConvertPriceStrategy('historical')
     sessionStorage.removeItem('sales-edit-voucher')
     resetPaymentSelections()
+    // SALES-ACOPIO-FRONTEND-03: limpiar estado de acopio vinculado
+    setSelectedStockpile(null)
+    setStockpileSummary(null)
   }
 
   const handleClear = () => {
@@ -1359,6 +1460,24 @@ export default function Sales() {
     }
 
     clearSalesScreen()
+  }
+
+  // SALES-ACOPIO-FRONTEND-03: Abrir selector de acopios abiertos del cliente
+  const handleOpenStockpileSelector = async () => {
+    if (!selectedClient?.id) return
+    setShowStockpileSelectorModal(true)
+    setIsLoadingStockpiles(true)
+    setStockpileSelectorError(null)
+    setOpenStockpiles([])
+    try {
+      const stockpiles = await stockpileService.getOpenByClient(selectedClient.id)
+      setOpenStockpiles(stockpiles)
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.message || 'Error al cargar acopios'
+      setStockpileSelectorError(msg)
+    } finally {
+      setIsLoadingStockpiles(false)
+    }
   }
 
   const handleConfirmClear = () => {
@@ -1489,6 +1608,35 @@ export default function Sales() {
   }
 
   const handleGenerateClick = () => {
+    if (voucherType === 'acopio') {
+      if (!selectedClient) {
+        toast.error('Debe seleccionar un cliente')
+        return
+      }
+
+      const amount = parseFloat(acopioAmount)
+      if (!Number.isFinite(amount) || amount <= 0) {
+        toast.error('Debe indicar un importe válido para el acopio')
+        return
+      }
+
+      if (acopioGenerateInvoice) {
+        toast.error('La generación de factura para acopios queda pendiente para Fase 2. Elegí "No" para generar el acopio sin factura.')
+        return
+      }
+
+      createAcopioMutation.mutate({
+        client_id: selectedClient.id,
+        name: acopioName.trim() || 'ACOPIO DE MATERIALES POR IMPORTE TOTAL',
+        description: acopioDescription.trim() || acopioName.trim() || 'ACOPIO DE MATERIALES POR IMPORTE TOTAL',
+        amount,
+        discount_percent: acopioDiscount,
+        currency: acopioCurrency,
+        generate_invoice: acopioGenerateInvoice,
+      })
+      return
+    }
+
     if (items.length === 0) {
       toast.error('No hay productos en la lista')
       return
@@ -1521,6 +1669,16 @@ export default function Sales() {
 
     if (voucherType === 'current_account' && !selectedOperatingClientId && selectedClient.id) {
       setSelectedOperatingClientId(selectedClient.id)
+    }
+
+    // SALES-ACOPIO-FRONTEND-03: Bloquear remito si el retiro excede el saldo del acopio vinculado
+    if (voucherType === 'receipt' && selectedStockpile) {
+      if (totalRounded > selectedStockpile.remaining_amount) {
+        toast.error(
+          `El retiro ($${formatNumber(totalRounded, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) excede el saldo disponible del acopio ($${formatNumber(selectedStockpile.remaining_amount, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Ajustá los productos o el monto.`
+        )
+        return
+      }
     }
 
     if (isCustomerCreditReturn && !currentAccountEnabled) {
@@ -1691,7 +1849,7 @@ export default function Sales() {
       client_id: selectedClient.id,
       voucher_type: backendType as any,
       date: localDate,
-      show_prices: voucherType === 'invoice' || voucherType === 'quotation' ? true : showPrices,
+      show_prices: voucherType === 'invoice' || voucherType === 'quotation' || selectedStockpile ? true : showPrices,
       is_current_account: isCC,
       billing_client_id: (voucherType === 'current_account' || (voucherType === 'invoice' && payInCurrentAccount)) ? selectedClient.id : undefined,
       operating_client_id: operatingClientIdForPayload,
@@ -1705,6 +1863,12 @@ export default function Sales() {
         discount_percent: item.discount
       })),
       payments: buildPaymentsPayload(),
+      // TODO(SALES-ACOPIO-FRONTEND-03): Agregar stockpile_id aquí cuando backend soporte persistencia
+      // de relación remito hijo → acopio padre en VoucherCreate.
+      // Por ahora se persiste solo la UI (bloqueo, resumen), la relación real viene en fase siguiente.
+      ...(voucherType === 'receipt' && selectedStockpile
+        ? { stockpile_id: selectedStockpile.id }
+        : {}),
     }
 
     if (editingVoucherId) {
@@ -2357,7 +2521,7 @@ export default function Sales() {
   // Cálculos de totales
   // IMPORTANTE: sale_price del producto YA CONTIENE IVA incluido (sale_price = net_price * 1.21)
   // Por lo tanto, usamos sale_price directamente como el total sin recalcular IVA
-  const subtotal = items.reduce((acc, item) => {
+  const subtotal = visibleItems.reduce((acc, item) => {
     // quantity * sale_price (que ya incluye IVA)
     const itemTotal = item.sale_price * item.quantity
     const discountAmount = itemTotal * (item.discount / 100)
@@ -2367,7 +2531,9 @@ export default function Sales() {
   // Descuento general sobre el subtotal (ya incluye IVA)
   const discountAmount = subtotal * (generalDiscount / 100)
   const total = subtotal - discountAmount
-  const totalRounded = Number(totalsPreviewQuery.data?.total) || calculateBackendCompatibleTotalFromCart(items, generalDiscount)
+  const totalRounded = voucherType === 'acopio'
+    ? roundMoney(total)
+    : Number(totalsPreviewQuery.data?.total) || calculateBackendCompatibleTotalFromCart(items, generalDiscount)
   const returnSummary = useMemo(() => {
     const generalDiscountFactor = 1 - (safeNumber(generalDiscount) / 100)
     return items.reduce(
@@ -2398,7 +2564,7 @@ export default function Sales() {
   // El total incluye IVA, entonces: Subtotal = Total / 1.21, IVA = Total - Subtotal
   const subtotalWithoutIva = total / 1.21
   const iva = total - subtotalWithoutIva
-  const discountedItemsCount = items.filter((item) => item.discount > 0).length
+  const discountedItemsCount = visibleItems.filter((item) => item.discount > 0).length
 
   // Cuando es cuenta corriente, no hay pagos registrados todavía
   const isCCActive = voucherType === 'invoice' && payInCurrentAccount
@@ -2775,6 +2941,222 @@ export default function Sales() {
               </div>
             )}
 
+            {/* SALES-ACOPIO-02: Acopio tab form - synthetic editable product line */}
+            {voucherType === 'acopio' && (
+              <div className="space-y-3 rounded-lg border border-purple-200 bg-purple-50/50 p-3 dark:border-purple-800 dark:bg-purple-900/20">
+                <div className="flex items-center gap-2 border-b border-purple-200 pb-2 dark:border-purple-700">
+                  <Archive size={16} className="text-purple-600 dark:text-purple-400" />
+                  <span className="text-sm font-semibold text-purple-800 dark:text-purple-200">Nuevo Acopio</span>
+                </div>
+
+                {/* Cliente */}
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Cliente</label>
+                  <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
+                    <input
+                      type="text"
+                      value={selectedClient ? selectedClient.name : clientSearch}
+                      onChange={(e) => {
+                        setClientSearch(e.target.value)
+                        if (!e.target.value) {
+                          setSelectedClient(null)
+                        }
+                      }}
+                      placeholder="Buscar cliente..."
+                      className="w-full bg-transparent text-sm text-gray-800 outline-none dark:text-gray-100"
+                      readOnly={!!selectedClient}
+                    />
+                    {selectedClient && (
+                      <button
+                        onClick={() => {
+                          setSelectedClient(null)
+                          setClientSearch('')
+                        }}
+                        className="text-gray-400 hover:text-red-600"
+                        title="Quitar cliente"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowClientSelectorModal(true)}
+                    className="mt-1 w-full text-xs"
+                  >
+                    <Search size={14} className="mr-1" />
+                    Seleccionar cliente
+                  </Button>
+                </div>
+
+                {/* Nombre/Obra del acopio */}
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Nombre / Obra</label>
+                  <input
+                    type="text"
+                    value={acopioName}
+                    onChange={(e) => setAcopioName(e.target.value)}
+                    placeholder="Ej: Construcción Casa Pérez"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Descripción del acopio</label>
+                  <input
+                    type="text"
+                    value={acopioDescription}
+                    onChange={(e) => setAcopioDescription(e.target.value)}
+                    placeholder="Ej: Acopio materiales baño obra Pérez"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+                  />
+                  <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+                    El sistema asignará el código definitivo ACOPIO-0001, ACOPIO-0002, etc.
+                  </p>
+                </div>
+
+                {/* SALES-ACOPIO-02: Synthetic product line preview */}
+                <div className="rounded-lg border border-purple-300 bg-purple-100/50 p-2 dark:border-purple-600 dark:bg-purple-900/30">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="text-[10px] font-medium uppercase text-purple-700 dark:text-purple-300">Ítem sintético de acopio</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded bg-purple-200 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-purple-800 dark:bg-purple-800 dark:text-purple-200">ACOPIO-0001</span>
+                    <span className="flex-1 text-xs text-gray-700 dark:text-gray-300">
+                      {acopioDescription.trim() || acopioName.trim() || 'ACOPIO DE MATERIALES POR IMPORTE TOTAL'}
+                    </span>
+                  </div>
+                  {/* Precio editable como monto del acopio */}
+                  <div className="mt-1.5 flex items-center justify-between">
+                    <label className="text-[10px] text-gray-500 dark:text-gray-400">Precio editable</label>
+                    <input
+                      type="number"
+                      value={acopioAmount}
+                      onChange={(e) => setAcopioAmount(e.target.value)}
+                      placeholder="0.00"
+                      min="0"
+                      step="0.01"
+                      className="w-32 rounded border border-purple-300 bg-white px-2 py-1 text-right text-sm font-medium dark:border-purple-600 dark:bg-gray-700"
+                    />
+                  </div>
+                  {/* Descuento */}
+                  <div className="mt-1 flex items-center justify-between">
+                    <label className="text-[10px] text-gray-500 dark:text-gray-400">Descuento (%)</label>
+                    <input
+                      type="number"
+                      value={acopioDiscount}
+                      onChange={(e) => setAcopioDiscount(parseFloat(e.target.value) || 0)}
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      className="w-24 rounded border border-gray-300 bg-white px-2 py-1 text-right text-sm dark:border-gray-600 dark:bg-gray-700"
+                    />
+                  </div>
+                </div>
+
+                {/* Moneda */}
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Moneda</label>
+                  <select
+                    value={acopioCurrency}
+                    onChange={(e) => setAcopioCurrency(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+                  >
+                    <option value="ARS">ARS - Pesos</option>
+                    <option value="USD">USD - Dólares</option>
+                  </select>
+                </div>
+
+                {/* SALES-ACOPIO-02: Generar factura Sí/No — replaces Facturar ahora/luego */}
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Generar factura</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAcopioGenerateInvoice(true)}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                        acopioGenerateInvoice
+                          ? 'border-green-400 bg-green-100 text-green-800 dark:border-green-600 dark:bg-green-900/40 dark:text-green-200'
+                          : 'border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                      }`}
+                    >
+                      Sí
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAcopioGenerateInvoice(false)}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                        !acopioGenerateInvoice
+                          ? 'border-gray-400 bg-gray-200 text-gray-800 dark:border-gray-500 dark:bg-gray-700 dark:text-gray-200'
+                          : 'border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                      }`}
+                    >
+                      No
+                    </button>
+                  </div>
+                </div>
+
+                {/* Botón crear acopio */}
+                <Button
+                  onClick={() => {
+                    if (!selectedClient) {
+                      toast.error('Debe seleccionar un cliente')
+                      return
+                    }
+                    if (!acopioName.trim()) {
+                      toast.error('Debe indicar un nombre/obra para el acopio')
+                      return
+                    }
+                    if (!acopioAmount || parseFloat(acopioAmount) <= 0) {
+                      toast.error('Debe indicar un monto válido')
+                      return
+                    }
+                    // SALES-ACOPIO-02: Pass generate_invoice to the mutation
+                    if (acopioGenerateInvoice) {
+                      toast.error('La generación de factura para acopios queda pendiente para Fase 2. Elegí "No" para emitir el acopio sin factura.')
+                      return
+                    }
+
+                    createAcopioMutation.mutate({
+                      client_id: selectedClient.id,
+                      name: acopioName.trim(),
+                      description: acopioDescription.trim() || acopioName.trim(),
+                      amount: parseFloat(acopioAmount),
+                      discount_percent: acopioDiscount,
+                      currency: acopioCurrency,
+                      generate_invoice: acopioGenerateInvoice,
+                    })
+                  }}
+                  disabled={createAcopioMutation.isPending || !selectedClient || !acopioName.trim() || !acopioAmount}
+                  className="w-full"
+                >
+                  {createAcopioMutation.isPending ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Creando...
+                    </span>
+                  ) : acopioGenerateInvoice ? (
+                    <>Factura de Acopio pendiente Fase 2</>
+                  ) : (
+                    <>Emitir Acopio</>
+                  )}
+                </Button>
+
+                {/* Note about invoice generation — SALES-ACOPIO-02 */}
+                {!acopioGenerateInvoice && (
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                    📝 La factura se emitirá cuando el cliente retire productos del acopio
+                  </p>
+                )}
+                {acopioGenerateInvoice && (
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                    ⚠️ La generación de factura para acopios se encuentra en desarrollo. Fase 2 pendiente.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Cargar presupuesto</label>
               <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
@@ -2969,7 +3351,7 @@ export default function Sales() {
               <button
                 type="button"
                 onClick={handleGenerateClick}
-                disabled={isGenerating}
+                disabled={isGenerating || createAcopioMutation.isPending}
                 className="flex-1 rounded-lg bg-primary-600 px-3 py-2 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-50"
               >
                 {isGenerating 
@@ -3087,7 +3469,7 @@ export default function Sales() {
             <div className="px-2 py-1.5 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                  Productos seleccionados ({items.length})
+                  Productos seleccionados ({visibleItems.length})
                 </h3>
                 <div className="inline-flex items-center rounded-md border border-gray-200 bg-white p-0.5 dark:border-gray-600 dark:bg-gray-800">
                   <button
@@ -3124,7 +3506,51 @@ export default function Sales() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {items.length === 0 ? (
+                  {voucherType === 'acopio' ? (
+                    <tr className="bg-purple-50/70 dark:bg-purple-900/10">
+                      <td className="px-3 py-[5px]">
+                        <span className="font-mono font-semibold text-purple-800 dark:text-purple-200">ACOPIO-0001</span>
+                      </td>
+                      <td className="px-3 py-[5px]">
+                        <input
+                          type="text"
+                          value={acopioDescription}
+                          onChange={(e) => setAcopioDescription(e.target.value)}
+                          placeholder="Descripción del acopio"
+                          className="w-full rounded border border-purple-200 bg-white px-2 py-1 text-sm text-gray-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-purple-700 dark:bg-gray-700 dark:text-gray-100"
+                        />
+                      </td>
+                      <td className="px-3 py-[5px] text-center text-gray-500 dark:text-gray-400">1</td>
+                      <td className="px-3 py-[5px] text-right">
+                        <input
+                          type="number"
+                          value={acopioAmount}
+                          onChange={(e) => setAcopioAmount(e.target.value)}
+                          placeholder="0.00"
+                          min="0"
+                          step="0.01"
+                          className="w-full rounded border border-purple-200 bg-white px-2 py-1 text-right text-sm font-medium text-gray-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-purple-700 dark:bg-gray-700 dark:text-gray-100"
+                          style={{ fontSize: `${0.875 * zoomLevel}rem` }}
+                        />
+                      </td>
+                      <td className="px-3 py-[5px] text-right">
+                        <input
+                          type="number"
+                          value={acopioDiscount}
+                          onChange={(e) => setAcopioDiscount(parseFloat(e.target.value) || 0)}
+                          min={0}
+                          max={100}
+                          step={0.1}
+                          className="w-full rounded border border-purple-200 bg-white px-2 py-1 text-right text-sm dark:border-purple-700 dark:bg-gray-700"
+                          style={{ fontSize: `${0.875 * zoomLevel}rem` }}
+                        />
+                      </td>
+                      <td className="px-3 py-[5px] text-right font-semibold text-purple-800 dark:text-purple-200">
+                        ${formatNumber(Math.abs(calculateItemTotal(acopioSyntheticItem)))}
+                      </td>
+                      <td className="px-3 py-[5px]"></td>
+                    </tr>
+                  ) : items.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-3 py-6 text-center text-gray-400">
                         <ShoppingCart className="mx-auto mb-1 opacity-50" size={28 * zoomLevel} />
@@ -3191,8 +3617,20 @@ export default function Sales() {
             </div>
           </div>
 
+          {voucherType === 'acopio' && (
+            <div className="w-full flex-1 rounded-md border border-purple-200 bg-purple-50/60 p-4 text-sm text-purple-900 shadow-sm dark:border-purple-800 dark:bg-purple-900/20 dark:text-purple-100">
+              <div className="mb-2 flex items-center gap-2 font-semibold">
+                <Archive size={16} />
+                Acopio por importe
+              </div>
+              <p className="text-xs leading-relaxed text-purple-700 dark:text-purple-200">
+                Editá el importe directamente en el renglón superior. Este acopio no toma productos del catálogo ahora; el retiro de materiales y la facturación real quedan para la siguiente etapa.
+              </p>
+            </div>
+          )}
+
           {/* TABLA INFERIOR - Búsqueda */}
-          <div className={`w-full bg-white dark:bg-gray-800 rounded-md shadow-sm border border-gray-200 dark:border-gray-700 flex-1 min-h-0 flex-col overflow-hidden ${mobileSection === 'items' ? 'hidden lg:flex' : 'flex'}`}>
+          <div className={`w-full bg-white dark:bg-gray-800 rounded-md shadow-sm border border-gray-200 dark:border-gray-700 flex-1 min-h-0 flex-col overflow-hidden ${voucherType === 'acopio' ? 'hidden' : mobileSection === 'items' ? 'hidden lg:flex' : 'flex'}`}>
             <div className="px-2 py-1.5 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <Search size={14} className="text-gray-400" />
@@ -3383,6 +3821,95 @@ export default function Sales() {
               </div>
             </div>
 
+            {/* SALES-ACOPIO-FRONTEND-03: Acopio summary panel — solo para remito */}
+            {voucherType === 'receipt' && selectedClient && (
+              <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+                {selectedStockpile ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1">
+                        <Archive size={12} />
+                        Acopio vinculado
+                      </h4>
+                      <button
+                        onClick={() => {
+                          setSelectedStockpile(null)
+                          setStockpileSummary(null)
+                        }}
+                        className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 font-medium"
+                        title="Desvincular acopio"
+                      >
+                        ✕ Desvincular
+                      </button>
+                    </div>
+                    <div className="rounded-lg border border-purple-200 bg-purple-50 p-2 dark:border-purple-800 dark:bg-purple-900/20 space-y-1">
+                      <p className="text-xs font-semibold text-purple-900 dark:text-purple-100">
+                        {selectedStockpile.principal_voucher_number
+                          ? `Acopio #${selectedStockpile.principal_voucher_number}`
+                          : selectedStockpile.name}
+                      </p>
+                      <div className="space-y-0.5">
+                        <div className="flex justify-between text-[10px] text-purple-700 dark:text-purple-300">
+                          <span>Fecha acopio:</span>
+                          <span className="font-medium">
+                            {formatDisplayDate(selectedStockpile.created_at)}
+                          </span>
+                        </div>
+                        {stockpileSummary && (
+                          <div className="flex justify-between text-[10px] text-purple-700 dark:text-purple-300">
+                            <span>Precios válidos:</span>
+                            <span className="font-medium">
+                              {formatDisplayDate(stockpileSummary.prices_valid_at)}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-[10px] text-purple-700 dark:text-purple-300">
+                          <span>Importe total:</span>
+                          <span className="font-medium tabular-nums">
+                            ${formatNumber(selectedStockpile.initial_amount, 'es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[10px] text-purple-700 dark:text-purple-300">
+                          <span>Retirado:</span>
+                          <span className="font-medium tabular-nums text-red-600 dark:text-red-400">
+                            -${formatNumber(selectedStockpile.withdrawn_amount, 'es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[10px] text-purple-700 dark:text-purple-300 border-t border-purple-200 dark:border-purple-700 pt-0.5 mt-0.5">
+                          <span>Saldo disponible:</span>
+                          <span className="font-bold tabular-nums text-green-700 dark:text-green-400">
+                            ${formatNumber(selectedStockpile.remaining_amount, 'es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[10px] text-purple-700 dark:text-purple-300">
+                          <span>Retiro actual:</span>
+                          <span className="font-bold tabular-nums text-purple-900 dark:text-purple-100">
+                            ${formatNumber(totalRounded, 'es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        {selectedStockpile.due_date && (
+                          <div className="flex justify-between text-[10px] text-amber-600 dark:text-amber-400">
+                            <span>Vence:</span>
+                            <span className="font-medium">
+                              {formatDisplayDate(selectedStockpile.due_date)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleOpenStockpileSelector}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-purple-300 bg-purple-50 text-xs font-medium text-purple-700 hover:bg-purple-100 dark:border-purple-700 dark:bg-purple-900/20 dark:text-purple-300 dark:hover:bg-purple-900/40 transition-colors"
+                  >
+                    <Archive size={14} />
+                    Buscar acopio
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1.5 mt-auto">
               <Button 
                 variant="primary" 
@@ -3392,10 +3919,14 @@ export default function Sales() {
                 disabled={isGenerating}
                 data-tour-sales-generate
               >
-                {isGenerating 
+                {createAcopioMutation.isPending
+                  ? 'Generando acopio...'
+                  : isGenerating 
                   ? 'Procesando...' 
                   : editingVoucherId
                     ? 'Actualizar Cotización'
+                  : voucherType === 'acopio'
+                    ? 'Generar Acopio'
                   : voucherType === 'invoice' 
                     ? 'Emitir Factura Electrónica' 
                     : `Generar ${voucherTypes.find(v => v.value === voucherType)?.label}`
@@ -4065,6 +4596,30 @@ export default function Sales() {
                     {voucherTypes.find(v => v.value === voucherType)?.label}
                   </span>
                 </div>
+                {/* SALES-ACOPIO-FRONTEND-03: Mostrar acopio vinculado en confirmación */}
+                {voucherType === 'receipt' && selectedStockpile && (
+                  <div className="flex items-start gap-2 rounded-lg border border-purple-200 bg-purple-50 p-2 dark:border-purple-800 dark:bg-purple-900/20">
+                    <Archive size={14} className="mt-0.5 shrink-0 text-purple-600 dark:text-purple-400" />
+                    <div className="min-w-0">
+                      <p className="text-purple-900 dark:text-purple-100 font-semibold">
+                        {selectedStockpile.principal_voucher_number
+                          ? `Acopio #${selectedStockpile.principal_voucher_number}`
+                          : selectedStockpile.name || 'Acopio'}
+                      </p>
+                      <p className="text-[10px] text-purple-600 dark:text-purple-400">
+                        Saldo disponible: ${formatNumber(selectedStockpile.remaining_amount, 'es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {totalRounded > selectedStockpile.remaining_amount && (
+                          <span className="ml-1 font-bold text-red-600 dark:text-red-400">
+                            — ¡Excede saldo!
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[10px] text-purple-600 dark:text-purple-400">
+                        Retiro actual: ${formatNumber(totalRounded, 'es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Productos:</span>
                   <span className="font-medium text-gray-900 dark:text-white">{items.length}</span>
@@ -4415,6 +4970,100 @@ export default function Sales() {
                 {isCustomerCreditReturn ? 'Guardar saldo a favor' : editingVoucherId ? 'Actualizar' : 'Confirmar'}
               </Button>
             </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* SALES-ACOPIO-FRONTEND-03: Modal para seleccionar acopio abierto del cliente */}
+      <Modal
+        isOpen={showStockpileSelectorModal}
+        onClose={() => setShowStockpileSelectorModal(false)}
+        title="Seleccionar Acopio"
+        size="md"
+      >
+        <div className="space-y-4">
+          {isLoadingStockpiles ? (
+            <div className="text-center py-10 text-gray-400">
+              <div className="inline-block w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin mb-2" />
+              <p className="text-sm">Cargando acopios...</p>
+            </div>
+          ) : stockpileSelectorError ? (
+            <div className="text-center py-6">
+              <AlertCircle className="mx-auto mb-3 text-red-500" size={32} />
+              <p className="text-sm text-red-600 dark:text-red-400 mb-3">{stockpileSelectorError}</p>
+              <Button variant="outline" size="sm" onClick={() => setShowStockpileSelectorModal(false)}>
+                Cerrar
+              </Button>
+            </div>
+          ) : openStockpiles.length === 0 ? (
+            <div className="text-center py-6">
+              <Archive className="mx-auto mb-3 text-gray-300 dark:text-gray-600" size={36} />
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                No hay acopios abiertos
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Este cliente no tiene acopios con saldo disponible para vincular a un remito.
+              </p>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Seleccioná un acopio para vincular este remito. Los precios congelados del snapshot se aplicarán a los productos.
+              </p>
+              <div className="border rounded-lg dark:border-gray-700 overflow-hidden">
+                <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-900 text-[10px] font-semibold text-gray-500 border-b border-gray-200 dark:border-gray-700">
+                  <span>Acopio / Comprobante</span>
+                  <span className="text-right">Fecha</span>
+                  <span className="text-right">Saldo disponible</span>
+                </div>
+                <div className="divide-y divide-gray-100 dark:divide-gray-700/60 max-h-80 overflow-y-auto">
+                  {openStockpiles.map((stockpile) => (
+                    <button
+                      key={stockpile.id}
+                      onClick={() => {
+                        // Load summary and frozen items, then close modal
+                        setSelectedStockpile(stockpile)
+                        setShowStockpileSelectorModal(false)
+                        // Load summary asynchronously (no loading state shown, summary appears when ready)
+                        stockpileService.getSummary(stockpile.id)
+                          .then((summary) => setStockpileSummary(summary))
+                          .catch(() => setStockpileSummary(null))
+                      }}
+                      className="w-full grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-2.5 text-left hover:bg-purple-50 dark:hover:bg-purple-900/15 transition-colors group"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {stockpile.principal_voucher_number
+                            ? `Remito #${stockpile.principal_voucher_number}`
+                            : stockpile.name || 'Sin nombre'}
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {stockpile.discount_percent ? `Descuento ${stockpile.discount_percent}%` : 'Sin descuento'}
+                          {stockpile.due_date && (
+                            <span className="ml-1 text-amber-600 dark:text-amber-400">
+                              · Vence {formatDisplayDate(stockpile.due_date)}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-600 dark:text-gray-300 tabular-nums">
+                          {formatDisplayDate(stockpile.created_at, { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-green-700 dark:text-green-400 tabular-nums">
+                          ${formatNumber(stockpile.remaining_amount, 'es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-[10px] text-gray-400">
+                          de ${formatNumber(stockpile.initial_amount, 'es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </div>
       </Modal>

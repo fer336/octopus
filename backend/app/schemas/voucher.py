@@ -87,6 +87,11 @@ class VoucherCreate(BaseSchema):
         le=999,
         description="Días hábiles de plazo para pago (7, 15, 30, 60, 90). Solo para facturas en cuenta corriente.",
     )
+    # ID del acopio para remitos hijos (retiros parciales de acopio)
+    stockpile_id: UUID | None = Field(
+        default=None,
+        description="ID del acopio vinculado (para remitos hijos de retiros parciales)",
+    )
 
     items: list[VoucherItemCreate]
     payments: list[VoucherPaymentCreate] | None = Field(
@@ -410,6 +415,10 @@ class VoucherResponse(BaseResponse):
     is_paid: bool = False
     payment_date: date | None = None
     paid_amount: Decimal | None = None
+
+    # Información de acopio para remitos hijos de retiros parciales
+    stockpile_id: UUID | None = None
+    stockpile: dict[str, Any] | None = None
 
     items: list[VoucherItemResponse]
 

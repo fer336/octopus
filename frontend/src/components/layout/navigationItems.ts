@@ -1,4 +1,5 @@
 import {
+  Archive,
   BarChart3,
   ClipboardList,
   CreditCard,
@@ -44,6 +45,7 @@ export const navigationItems: NavigationItem[] = [
   { path: '/payment-methods', icon: CreditCard, label: 'Métodos de Pago', section: 'ventas' },
   { path: '/caja', icon: Wallet, label: 'Caja', section: 'ventas', badge: true },
   { path: '/current-account', icon: ClipboardList, label: 'Cuenta Corriente', section: 'ventas' },
+  { path: '/stockpiles', icon: Archive, label: 'Acopios', section: 'ventas' },
   { path: '/products', icon: Package, label: 'Productos', section: 'catalogo' },
   { path: '/price-update', icon: TrendingUp, label: 'Actualizar Precios', section: 'catalogo' },
   { path: '/inventory', icon: ClipboardList, label: 'Inventario', section: 'catalogo' },

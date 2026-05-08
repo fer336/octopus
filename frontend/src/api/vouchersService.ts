@@ -31,6 +31,8 @@ export interface VoucherCreate {
   operating_client_id?: string
   general_discount: number
   payment_days?: number // Días de plazo para facturas en cuenta corriente
+  // Vínculo remito hijo → acopio padre
+  stockpile_id?: string
   items: VoucherItemCreate[]
   payments?: VoucherPayment[]
 }

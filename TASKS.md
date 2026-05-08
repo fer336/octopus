@@ -1,6 +1,22 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
+- [ ] [SALES-ACOPIO-26] Remito principal de acopio: definir/implementar renglón sintético auditable en voucher_items o producto sistema para PDF/listado completo
+- [ ] [SALES-ACOPIO-15] Remito: mostrar botón "Buscar acopio" en resumen al seleccionar cliente para vincular retiro a acopio abierto
+- [ ] [SALES-ACOPIO-16] Backend: endpoint para listar acopios abiertos por cliente con saldo disponible, total retirado y fecha snapshot
+- [ ] [SALES-ACOPIO-17] Remito: selector de acopios abiertos y carga de datos congelados del snapshot en vez de precios vigentes
+- [ ] [SALES-ACOPIO-18] Remito vinculado a acopio: calcular retiro actual contra saldo disponible y bloquear confirmación si excede saldo
+- [ ] [SALES-ACOPIO-19] Persistir relación remito parcial hijo → acopio padre para árbol de comprobantes/acopios
+- [ ] [SALES-ACOPIO-20] Resumen Remito+Acopio: mostrar acopio Nº, fecha de acopio, precios válidos al, importe total, retirado, saldo y retiro actual
+- [ ] [SALES-ACOPIO-21] PDF Remito parcial de acopio: mostrar leyenda visible "Precios correspondientes al acopio del [fecha]"
+- [ ] [SALES-ACOPIO-07] Rediseñar creación de acopio para que siempre nazca desde un remito principal de acopio
+- [ ] [SALES-ACOPIO-08] Generar automáticamente remito de acopio al confirmar, con cliente, monto total y datos relevantes
+- [ ] [SALES-ACOPIO-09] Persistir snapshot inmutable de precios vigentes al crear acopio para aislarlo de cambios futuros de lista
+- [ ] [SALES-ACOPIO-10] Implementar facturación final de acopio al cierre consolidando remitos parciales de retiro
+- [ ] [SALES-ACOPIO-11] Implementar facturación anticipada de acopio en un único renglón descriptivo
+- [ ] [SALES-ACOPIO-12] Restaurar/agregar sidebar Acopios como panel de consulta con árbol colapsable remito principal → remitos parciales
+- [ ] [SALES-ACOPIO-13] Agregar modalidad de caducidad de acopio: con fecha límite de retiro o sin caducidad
+- [ ] [SALES-ACOPIO-14] Permitir configurar/editar caducidad desde Ventas al crear o editar un acopio
 - [ ] [SALES-RETURNS-INVOICE-ONLY-07] Restringir saldo a favor/devolución excedente exclusivamente al flujo Factura y quitar leyenda contable del PDF
 - [ ] [CC-INVOICE-01] Diseñar lógica de comprobantes CC: facturas con budget/circle budget diferente, estado impago, y generar pago desde la factura para cobrar cuenta corriente
 - [ ] [CC-PAY-01] Backend: migraciones y modelos para facturación CC con plazos de pago
@@ -60,6 +76,7 @@
 - [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
 
 ## 🟡 En progreso
+- [/] [PRICEUPDATE-MOBILE-EDIT-PARITY-08] Diseñar adaptación mobile de la lógica de edición de precios sin navegación por Enter
 - [/] [SALES-RETURNS-INVOICE-ONLY-07] Restringir saldo a favor/devolución excedente exclusivamente al flujo Factura y quitar leyenda contable del PDF
 - [/] [DEVOPS-DEPLOY-SELECTIVE-15] Implementar deploys independientes: system-v* (backend+frontend), cms-v* (solo CMS), landing-v* (solo landing)
 - [/] [CMS-LOCALHOST-CONN-06] 🐛 Diagnosticar por qué CMS no conecta en localhost (error de conexión)
@@ -74,7 +91,7 @@
 - [/] [RESP-MOBILE-SALES-STEPPER-08] Optimizar modal de productos a 90-95vh sin espacios muertos y con contraste explícito de iconos/acciones
 - [/] [RESP-MOBILE-SALES-STEPPER-07] Mejorar UX visual de modal "Configurar productos" + edición qty/desc unitario en resumen mobile
 - [/] [RESP-MOBILE-SALES-STEPPER-06] Ajustar Sales mobile para cumplir 1:1 con referencia visual (Paso 1/2/3 exactos)
-- [/] [RESP-MOBILE-SALES-STEPPER-05] Implementar stepper mobile en Sales basado en referencia HTML (solo `<lg`, desktop intacto)
+- [/] [RESP-MOBILE-SALES-STEPPER-05] Implementar stepper mobile en Sales basado en referencia HTML (solo `<lg>`, desktop intacto)
 - [/] [RESP-MOBILE-QA-03] Ejecutar Fase 3 QA responsive (375/390/768/1024) y corregir regresiones visuales
 - [/] [DEVOPS-LANDING-04] Pipeline landing: probar build solo amd64 para evitar falla QEMU arm64 y validar deploy
 
@@ -82,6 +99,44 @@
 
 
 ## 🟢 Hecho
+
+- [x] [SALES-ACOPIO-28] Implementar reglas avanzadas de acopio: anulación sin hijos, reimpresión hijos, numeración/descripción y devoluciones controladas ✅ 2026-05-07
+- [x] [SALES-ACOPIO-27] Implementar flujo end-to-end de remito hijo de acopio: persistencia, saldo, PDF especial y árbol sidebar ✅ 2026-05-07
+- [x] [SALES-ACOPIO-25] 🐛 Corregir pantalla en blanco al buscar acopios desde Remito por mismatch `{items,total}` vs array ✅ 2026-05-07
+- [x] [SALES-ACOPIO-24] 🐛 Crear remito principal confirmado al generar acopio y vincularlo con `principal_voucher_id` ✅ 2026-05-07
+- [x] [SALES-ACOPIO-23] 🐛 Corregir crash al crear acopio por serializer sin campos v2 obligatorios ✅ 2026-05-07
+- [x] [SALES-ACOPIO-22] 🐛 Corregir crash Pydantic `StockpileOpenResponse` por annotation `date_type` no definida ✅ 2026-05-07
+- [x] [SALES-ACOPIO-FOUNDATION-01] Implementar DB/models/schemas foundation: expiration_mode, due_date, principal_voucher_id en stockpiles; stockpile_id en vouchers; Alembic migration ✅ 2026-05-07
+- [x] [SALES-ACOPIO-01] Implementar Fase 1 de Acopio integrado en Ventas: creación por importe, descuento y emisión desde pestaña Acopio ✅ 2026-05-07
+- [x] [SALES-ACOPIO-02] Acopio en Ventas: ítem sintético editable con código/descripción, precio editable, y opción explícita "Generar factura Sí/No" con aviso de Fase 2 pendiente para emisión real ✅ 2026-05-07
+- [x] [SALES-ACOPIO-03] 🐛 Corregir vista desktop de Acopio para mostrar renglón sintético editable en productos seleccionados ✅ 2026-05-07
+- [x] [SALES-ACOPIO-04] 🐛 Conectar botón Generar Acopio al flujo real de creación sin validar items del carrito común ✅ 2026-05-07
+- [x] [SALES-ACOPIO-05] 🐛 Corregir 404 al crear acopio registrando router `/api/tenant/stockpiles` en FastAPI ✅ 2026-05-07
+- [x] [SALES-ACOPIO-06] 🐛 Corregir 500/Network error al crear acopio validando cliente y evitando lazy-load async en serializer ✅ 2026-05-07
+- [x] [SALES-ACOPIO-BACKEND-02] Implementar endpoints backend para buscar acopios abiertos por cliente y validar retiro desde Remito ✅ 2026-05-07
+- [x] [SALES-ACOPIO-DESIGN-01] Diseñar arquitectura técnica para acopio vía remito principal, retiros parciales, snapshot, facturación y árbol ✅ 2026-05-07
+- [x] [SALES-ACOPIO-FRONTEND-03] Remito UI: botón Buscar acopio, selector de acopios abiertos con saldo, resumen lateral y bloqueo por saldo disponible ✅ 2026-05-07
+- [x] [PRODUCTS-BULK-DELETE-MULTIBUSINESS-01] 🐛 Corregir eliminación masiva de productos cuando el usuario tiene múltiples negocios ✅ 2026-05-06
+- [x] [PRICEUPDATE-ACTIONBAR-HEIGHT-20] Corregir altura y alineación uniforme de barra de acciones en Paso 1 ✅ 2026-05-06
+- [x] [PRICEUPDATE-EXCEL-MASS-19] Agregar actualización masiva de precios por Excel con mapeo flexible, confirmación y progreso violeta ✅ 2026-05-06
+- [x] [PRICEUPDATE-DRAFT-EXPLICIT-SAVE-18] Cambiar borradores de actualización de precios a guardado explícito por usuario ✅ 2026-05-06
+- [x] [PRICEUPDATE-PRD-STATE-ARCH-17] Documentar en PRD la arquitectura de estado del modal de actualización de precios ✅ 2026-05-06
+- [x] [PRICEUPDATE-DRAFT-SAVE-LOOP-16] 🐛 Cortar bucle de autosave y evitar reversión de cambios al aplicar en Editar Productos ✅ 2026-05-06
+- [x] [PRICEUPDATE-DRAFT-VALUES-15] 🐛 Mantener productos editados del borrador al cerrar y reabrir Editar Productos ✅ 2026-05-06
+- [x] [PRICEUPDATE-DRAFT-PENDING-STATE-14] Persistir indicadores P pendientes dentro de borradores de actualización masiva ✅ 2026-05-06
+- [x] [PRICEUPDATE-SHIFT-BACK-NAV-13] Agregar navegación hacia atrás con Shift en Editar Productos ✅ 2026-05-06
+- [x] [PRICEUPDATE-DRAFT-AUTOSAVE-404-12] 🐛 Recuperar autosave de borrador cuando el draft id previo ya no existe ✅ 2026-05-06
+- [x] [PRICEUPDATE-DRAFTS-DELETE-MODAL-11] Reemplazar confirm nativo de eliminar borradores por modal violeta del sistema ✅ 2026-05-06
+- [x] [PRICEUPDATE-DRAFTS-DELETE-ALL-10] Agregar eliminación masiva de borradores con botón violeta del sistema ✅ 2026-05-06
+- [x] [PRICEUPDATE-NUMERIC-EMPTY-09] 🐛 Permitir borrar campos numéricos en Editar Productos sin que vuelvan automáticamente a 0 ✅ 2026-05-06
+- [x] [PRICEUPDATE-PROGRESS-VIOLET-07] Corregir modal de progreso para usar paleta violeta real del sistema ✅ 2026-05-06
+- [x] [PRICEUPDATE-PROGRESS-PALETTE-06] Ajustar modal de progreso a paleta corporativa azul del PRD ✅ 2026-05-06
+- [x] [PRICEUPDATE-BATCH-DRAFT-PROGRESS-05] Actualización diferida por borrador, círculo P pendiente y modal de progreso 0-100% al guardar cambios ✅ 2026-05-06
+- [x] [PRICEUPDATE-MAIN-READONLY-04] Panel principal Actualización de precios: quitar edición inline y dejar productos solo lectura ✅ 2026-05-06
+- [x] [PRICEUPDATE-422-03] 🐛 Corregir 422 al guardar fila individual de productos desde ventana Editar ✅ 2026-05-06
+- [x] [AUTH-ENUM-500-01] 🐛 Corregir 500 por enum PostgreSQL inexistente `authorizationstatus` en autorizaciones pendientes ✅ 2026-05-06
+- [x] [PRICEUPDATE-MODAL-ENTER-02] Ventana Editar Productos: navegación Enter, guardado individual por fila y badge circular verde ✅ 2026-05-06
+- [x] [PRICEUPDATE-INDIVIDUAL-01] Panel Actualización de precios: edición individual por fila con navegación Enter, guardado por producto y badge circular verde ✅ 2026-05-06
 
 - [x] [SALES-RETURNS-RECEIPT-06] Caja diaria: mantener devoluciones como actividad no monetaria sin impactar efectivo esperado ✅ 2026-05-04
 - [x] [SALES-RETURNS-RECEIPT-05] Frontend Comprobantes/Cuenta Corriente: identificar y reimprimir remitos de devolución ✅ 2026-05-04

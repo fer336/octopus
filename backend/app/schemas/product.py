@@ -101,6 +101,18 @@ class ProductUpdate(BaseSchema):
     is_active: bool | None = None
 
 
+class ProductBulkUpdateItem(ProductUpdate):
+    """Producto dentro de una actualización en lote."""
+
+    id: UUID
+
+
+class ProductBulkUpdateRequest(BaseSchema):
+    """Request para actualizar varios productos en una sola operación."""
+
+    products: list[ProductBulkUpdateItem] = Field(..., min_length=1)
+
+
 class ProductResponse(BaseResponse):
     """Schema para respuesta de producto."""
 
@@ -139,6 +151,14 @@ class ProductResponse(BaseResponse):
     unit: str
 
     is_active: bool
+
+
+class ProductBulkUpdateResponse(BaseSchema):
+    """Resultado de una actualización en lote."""
+
+    updated_count: int
+    not_found_ids: list[UUID] = Field(default_factory=list)
+    products: list[ProductResponse]
 
 
 class ProductListParams(BaseSchema):

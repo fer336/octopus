@@ -4,6 +4,9 @@ Endpoints para gestión de productos e inventario.
 """
 
 import io
+import math
+from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -20,6 +23,10 @@ from app.schemas.excel_schemas import (
     ImportPreviewResponse,
 )
 from app.schemas.price_update import (
+    ExcelPriceUpdateColumnPreviewResponse,
+    ExcelPriceUpdateMappingRequest,
+    ExcelPriceUpdatePreviewItem,
+    ExcelPriceUpdatePreviewResponse,
     FieldToUpdate,
     PriceUpdateApplyResponse,
     PriceUpdatePreviewItem,
@@ -28,6 +35,8 @@ from app.schemas.price_update import (
     UpdateType,
 )
 from app.schemas.product import (
+    ProductBulkUpdateRequest,
+    ProductBulkUpdateResponse,
     ProductCreate,
     ProductListParams,
     ProductResponse,
@@ -47,6 +56,55 @@ router = APIRouter(
     tags=["Productos"],
     dependencies=[Depends(require_module_access("products"))],
 )
+
+
+def _clean_excel_value(value: Any) -> Any:
+    """Normaliza valores de pandas para poder serializarlos como JSON."""
+    if value is None:
+        return None
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    return value
+
+
+def _parse_excel_price(value: Any) -> Decimal:
+    """Parsea precios de Excel tolerando moneda, puntos de miles y coma decimal."""
+    if value is None:
+        raise ValueError("Precio vacío")
+
+    raw = str(value).strip()
+    if not raw:
+        raise ValueError("Precio vacío")
+
+    normalized = raw.replace("$", "").replace(" ", "")
+    if "," in normalized and "." in normalized:
+        normalized = normalized.replace(".", "").replace(",", ".")
+    else:
+        normalized = normalized.replace(",", ".")
+
+    price = Decimal(normalized)
+    if price <= 0:
+        raise ValueError("El precio debe ser mayor a 0")
+    return price
+
+
+def _preview_product_sale_price(product: Product, list_price: Decimal) -> Decimal:
+    """Calcula el precio final reutilizando Product.calculate_prices sin persistir cambios."""
+    original_values = {
+        "list_price": product.list_price,
+        "net_price": product.net_price,
+        "sale_price": product.sale_price,
+        "discount_display": product.discount_display,
+    }
+
+    product.list_price = list_price
+    product.calculate_prices()
+    new_sale_price = Decimal(str(product.sale_price))
+
+    for field, value in original_values.items():
+        setattr(product, field, value)
+
+    return new_sale_price
 
 
 @router.delete("/test-delete")
@@ -80,31 +138,18 @@ async def test_delete_endpoint_2():
 @router.post("/bulk-delete-alt")
 async def bulk_delete_alt(
     current_user=Depends(get_current_user),
+    business_id: UUID = Depends(get_current_business),
     db: AsyncSession = Depends(get_db),
 ):
     """ALTERNATIVA: Usa POST en vez de DELETE para evitar problemas de CORS."""
     import logging
     from datetime import datetime
-    from uuid import UUID as PyUUID
-
-    from app.models.business import Business
 
     logger = logging.getLogger("uvicorn")
     logger.info("=== BULK DELETE ALT (POST) START ===")
 
     try:
-        # Obtener business
-        query = select(Business).where(
-            Business.owner_id == current_user.id,
-            Business.deleted_at.is_(None),
-        )
-        result = await db.execute(query)
-        business = result.scalar_one_or_none()
-
-        if not business:
-            return {"deleted_count": 0, "message": "No se encontró el negocio"}
-
-        business_id = PyUUID(str(business.id))
+        logger.info(f"User: {current_user.email} | Business ID: {business_id}")
 
         # Obtener productos
         products_query = select(Product).where(
@@ -239,6 +284,28 @@ async def get_product(
         )
 
     return ProductResponse.model_validate(product)
+
+
+@router.post("/bulk-update", response_model=ProductBulkUpdateResponse)
+async def bulk_update_products(
+    data: ProductBulkUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """Actualiza varios productos en una sola transacción."""
+    service = ProductService(db)
+    products, not_found_ids = await service.bulk_update(
+        business_id,
+        data.products,
+        current_user.id,
+    )
+
+    return ProductBulkUpdateResponse(
+        updated_count=len(products),
+        not_found_ids=not_found_ids,
+        products=[ProductResponse.model_validate(product) for product in products],
+    )
 
 
 @router.put("/{product_id}", response_model=ProductResponse)
@@ -542,6 +609,7 @@ async def import_products_sql(
 @router.delete("/bulk-delete")
 async def bulk_delete_products(
     current_user=Depends(get_current_user),
+    business_id: UUID = Depends(get_current_business),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -550,29 +618,12 @@ async def bulk_delete_products(
     """
     import logging
     from datetime import datetime
-    from uuid import UUID as PyUUID
-
-    from app.models.business import Business
 
     logger = logging.getLogger("uvicorn")
 
     try:
         logger.info("=== BULK DELETE START ===")
         logger.info(f"User: {current_user.email}")
-
-        # Obtener business directamente aquí
-        query = select(Business).where(
-            Business.owner_id == current_user.id,
-            Business.deleted_at.is_(None),
-        )
-        result = await db.execute(query)
-        business = result.scalar_one_or_none()
-
-        if not business:
-            logger.error("No business found")
-            return {"deleted_count": 0, "message": "No se encontró el negocio"}
-
-        business_id = PyUUID(str(business.id))
         logger.info(f"Business ID: {business_id}")
 
         # Obtener productos
@@ -756,6 +807,147 @@ async def apply_price_update(
 
     return PriceUpdateApplyResponse(
         updated_count=count, message=f"Se actualizaron {count} productos correctamente"
+    )
+
+
+@router.post(
+    "/price-update/excel/columns",
+    response_model=ExcelPriceUpdateColumnPreviewResponse,
+)
+async def preview_price_update_excel_columns(
+    file: UploadFile = File(...),
+):
+    """Lee un Excel de proveedor y devuelve columnas + filas crudas para mapeo manual."""
+    if not file.filename or not file.filename.endswith((".xlsx", ".xls")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El archivo debe ser un Excel (.xlsx, .xls)",
+        )
+
+    try:
+        import pandas as pd
+
+        content = await file.read()
+        df = pd.read_excel(io.BytesIO(content))
+        rows = [
+            {str(key): _clean_excel_value(value) for key, value in row.items()}
+            for row in df.to_dict(orient="records")
+        ]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error al leer el archivo Excel: {str(e)}",
+        )
+
+    return ExcelPriceUpdateColumnPreviewResponse(
+        file_name=file.filename,
+        total_rows=len(rows),
+        columns=[str(column) for column in df.columns],
+        sample_rows=rows[:5],
+        rows=rows,
+    )
+
+
+@router.post(
+    "/price-update/excel/preview",
+    response_model=ExcelPriceUpdatePreviewResponse,
+)
+async def preview_price_update_excel_mapping(
+    request: ExcelPriceUpdateMappingRequest,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """Cruza el Excel mapeado contra productos por código de proveedor o código interno."""
+    items: list[ExcelPriceUpdatePreviewItem] = []
+    matched_count = 0
+    error_count = 0
+
+    raw_codes = [
+        str(row.get(request.code_column) or "").strip()
+        for row in request.rows
+        if str(row.get(request.code_column) or "").strip()
+    ]
+    unique_codes = list(dict.fromkeys(raw_codes))
+
+    result = await db.execute(
+        select(Product).where(
+            Product.business_id == business_id,
+            Product.deleted_at.is_(None),
+            (Product.supplier_code.in_(unique_codes)) | (Product.code.in_(unique_codes)),
+        )
+    )
+    products = list(result.scalars().all())
+    products_by_supplier_code = {
+        str(product.supplier_code).strip(): product
+        for product in products
+        if product.supplier_code
+    }
+    products_by_code = {str(product.code).strip(): product for product in products}
+
+    for index, row in enumerate(request.rows, start=2):
+        supplier_code = str(row.get(request.code_column) or "").strip()
+        if not supplier_code:
+            error_count += 1
+            items.append(
+                ExcelPriceUpdatePreviewItem(
+                    row_number=index,
+                    supplier_code="",
+                    status="error",
+                    error_message="Código vacío",
+                )
+            )
+            continue
+
+        try:
+            imported_price = _parse_excel_price(row.get(request.price_column))
+        except Exception as e:
+            error_count += 1
+            items.append(
+                ExcelPriceUpdatePreviewItem(
+                    row_number=index,
+                    supplier_code=supplier_code,
+                    status="error",
+                    error_message=str(e),
+                )
+            )
+            continue
+
+        product = products_by_supplier_code.get(supplier_code) or products_by_code.get(supplier_code)
+        if not product:
+            error_count += 1
+            items.append(
+                ExcelPriceUpdatePreviewItem(
+                    row_number=index,
+                    supplier_code=supplier_code,
+                    imported_list_price=imported_price,
+                    status="not_found",
+                    error_message="No se encontró producto para ese código",
+                )
+            )
+            continue
+
+        matched_count += 1
+        items.append(
+            ExcelPriceUpdatePreviewItem(
+                row_number=index,
+                supplier_code=supplier_code,
+                imported_list_price=imported_price,
+                product_id=product.id,
+                product_code=product.code,
+                description=product.description,
+                current_list_price=product.list_price,
+                current_sale_price=product.sale_price,
+                new_sale_price=_preview_product_sale_price(product, imported_price),
+                status="matched",
+            )
+        )
+
+    return ExcelPriceUpdatePreviewResponse(
+        total_rows=len(request.rows),
+        matched_count=matched_count,
+        error_count=error_count,
+        supplier_name=request.supplier_name,
+        items=items,
     )
 
 

@@ -4,7 +4,7 @@ Se usa para operaciones que requieren aprobación de segundo usuario (4-eyes pri
 """
 import enum
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import Column, DateTime, Enum as SAEnum, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -60,7 +60,11 @@ class AuthorizationRequest(BaseModel):
 
     # Tipo de operación
     authorization_type: Mapped[AuthorizationType] = mapped_column(
-        Enum(AuthorizationType),
+        SAEnum(
+            AuthorizationType,
+            native_enum=False,
+            values_callable=lambda enum_class: [item.value for item in enum_class],
+        ),
         nullable=False,
     )
 
@@ -73,7 +77,11 @@ class AuthorizationRequest(BaseModel):
 
     # Estado de la solicitud
     status: Mapped[AuthorizationStatus] = mapped_column(
-        Enum(AuthorizationStatus),
+        SAEnum(
+            AuthorizationStatus,
+            native_enum=False,
+            values_callable=lambda enum_class: [item.value for item in enum_class],
+        ),
         nullable=False,
         default=AuthorizationStatus.PENDING,
     )
