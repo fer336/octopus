@@ -1,7 +1,6 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
-- [ ] [DEVOPS-STAGING-MIGRATIONS-02] Aplicar migraciones Alembic sobre `octopustrack_staging` antes de validar staging
 - [ ] [SALES-ACOPIO-26] Remito principal de acopio: definir/implementar renglón sintético auditable en voucher_items o producto sistema para PDF/listado completo
 - [ ] [SALES-ACOPIO-15] Remito: mostrar botón "Buscar acopio" en resumen al seleccionar cliente para vincular retiro a acopio abierto
 - [ ] [SALES-ACOPIO-16] Backend: endpoint para listar acopios abiertos por cliente con saldo disponible, total retirado y fecha snapshot
@@ -100,6 +99,9 @@
 
 ## 🟢 Hecho
 
+- [x] [DEVOPS-STAGING-MEMBERSHIP-DELETED-13] Corregir migración faltante `tenant_memberships.deleted_at` ✅ 2026-05-08
+- [x] [DEVOPS-STAGING-SUPERADMIN-12] Crear usuario superadmin `casserafernando@gmail.com` en staging ✅ 2026-05-08
+- [x] [DEVOPS-STAGING-MIGRATIONS-02] Aplicar migraciones Alembic sobre `octopustrack_staging` antes de validar staging ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-CMS-11] Agregar CMS staging manteniendo secret `octopus_backend_staging_env` al stack staging ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-URL-10] Corregir build staging para usar `staging.octopustrack.shop` y no redirigir a producción ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-WEBHOOK-09] 🐛 Corregir `PORTAINER_STAGING_WEBHOOK_URL`: GitHub Actions recibía HTTP 404 al disparar webhook staging ✅ 2026-05-08
