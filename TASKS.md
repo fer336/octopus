@@ -100,6 +100,7 @@
 
 ## 🟢 Hecho
 
+- [x] [DEVOPS-STAGING-TAG-06] Cambiar stack staging para usar imagen `staging` por defecto desde YAML ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-WORKFLOW-05] Crear workflow `develop` → imagen `staging` → webhook Portainer staging ✅ 2026-05-08
 - [x] [DEVOPS-ALEMBIC-GRAPH-01] 🐛 Corregir grafo Alembic para DB fresca: dependencia de `tenant_memberships` y duplicado `related_voucher_id` ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-STACK-04] Crear stack YAML aislado para `staging.octopustrack.shop` basado en `stack.system.yml` ✅ 2026-05-08

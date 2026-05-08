@@ -5,14 +5,14 @@
 # IMPORTANTE:
 # - Crear el secret `octopus_backend_staging_env` antes de deployar.
 # - Ese secret debe apuntar a una DB staging, nunca a producción.
-# - Para la primera prueba se puede usar IMAGE_TAG=latest.
-# - Cuando exista el workflow develop → staging, cambiar a IMAGE_TAG=staging.
+# - Este stack usa IMAGE_TAG=staging por defecto para no consumir `latest` productivo.
+# - Si necesitás probar una imagen puntual, seteá IMAGE_TAG=staging-<sha> en Portainer.
 
 version: "3.9"
 
 services:
   backend:
-    image: ghcr.io/fer336/octopustrack-backend:${IMAGE_TAG:-latest}
+    image: ghcr.io/fer336/octopustrack-backend:${IMAGE_TAG:-staging}
     networks:
       - network_public
       - octopus-staging-internal
@@ -65,7 +65,7 @@ services:
         - "traefik.http.services.octopus-staging-backend.loadbalancer.server.port=8000"
 
   frontend:
-    image: ghcr.io/fer336/octopustrack-frontend:${IMAGE_TAG:-latest}
+    image: ghcr.io/fer336/octopustrack-frontend:${IMAGE_TAG:-staging}
     networks:
       - network_public
       - octopus-staging-internal

@@ -5,6 +5,7 @@ Maneja la lógica de negocio de acopios: crear, listar, retirar.
 import logging
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any, List
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, func
@@ -416,7 +417,7 @@ class StockpileService:
 
     async def get_items(
         self, stockpile_id: UUID
-    ) -> list[StockpileItem]:
+    ) -> List[StockpileItem]:
         """Obtiene los ítems de un acopio."""
         result = await self.db.execute(
             select(StockpileItem).where(
@@ -428,8 +429,8 @@ class StockpileService:
     async def withdraw(
         self,
         stockpile: Stockpile,
-        items_data: list[dict],
-    ) -> tuple[list[StockpileItem], list[StockpileItem]]:
+        items_data: List[dict[str, Any]],
+    ) -> tuple[List[StockpileItem], List[StockpileItem]]:
         """
         Retira productos del acopio.
 
@@ -575,7 +576,7 @@ class StockpileService:
 
     async def list_open_by_client(
         self, business_id: UUID, client_id: UUID
-    ) -> list[dict]:
+    ) -> List[dict[str, Any]]:
         """
         Lista acopios abiertos para un cliente.
         Solo retorna status OPEN o PARTIAL.
@@ -739,7 +740,7 @@ class StockpileService:
 
     async def get_frozen_items(
         self, stockpile_id: UUID, business_id: UUID
-    ) -> list[StockpileItem] | None:
+    ) -> List[StockpileItem] | None:
         """
         Obtiene los ítems congelados de un acopio.
         """
