@@ -100,6 +100,8 @@
 
 ## 🟢 Hecho
 
+- [x] [DEVOPS-STAGING-WORKFLOW-05] Crear workflow `develop` → imagen `staging` → webhook Portainer staging ✅ 2026-05-08
+- [x] [DEVOPS-ALEMBIC-GRAPH-01] 🐛 Corregir grafo Alembic para DB fresca: dependencia de `tenant_memberships` y duplicado `related_voucher_id` ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-STACK-04] Crear stack YAML aislado para `staging.octopustrack.shop` basado en `stack.system.yml` ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-BRANCH-03] Crear rama `develop` desde `origin/master` para deploy automático a staging ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-DB-01] Crear base de datos `octopustrack_staging` y usuario PostgreSQL aislado `octopus_staging_user` para staging ✅ 2026-05-08

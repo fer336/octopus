@@ -1,0 +1,158 @@
+name: System Staging Deploy
+
+on:
+  push:
+    branches:
+      - develop
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: system-staging-deploy
+  cancel-in-progress: true
+
+env:
+  EFFECTIVE_TAG: staging
+
+jobs:
+  ci:
+    name: CI gate
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: Build & Push Staging — ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: ci
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend
+            context: ./backend
+            dockerfile: ./backend/Dockerfile.prod
+            image_name: octopustrack-backend
+
+          - service: frontend
+            context: ./frontend
+            dockerfile: ./frontend/Dockerfile.prod
+            image_name: octopustrack-frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute Docker tags
+        id: docker_tags
+        shell: bash
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+          echo "tag=${{ env.EFFECTIVE_TAG }}" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=staging-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "build_date=${BUILD_DATE}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image_name }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image_name }}
+          tags: |
+            type=raw,value=${{ steps.docker_tags.outputs.tag }}
+            type=raw,value=develop
+            type=raw,value=${{ steps.docker_tags.outputs.sha_tag }}
+            type=sha,prefix=sha-
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          cache-from: type=gha,scope=staging-${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=staging-${{ matrix.service }}
+          build-args: |
+            APP_VERSION=${{ steps.docker_tags.outputs.tag }}
+            BUILD_DATE=${{ steps.docker_tags.outputs.build_date }}
+            GIT_SHA=${{ github.sha }}
+
+      - name: Export image digest
+        run: |
+          echo "## Imagen staging publicada — ${{ matrix.service }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Campo | Valor |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Servicio | ${{ matrix.service }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tag | ${{ steps.docker_tags.outputs.tag }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Digest | ${{ steps.build.outputs.digest }} |" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Deploy System Staging to Swarm
+    runs-on: ubuntu-latest
+    needs: publish
+
+    steps:
+      - name: Trigger Portainer staging webhook
+        run: |
+          if [ -z "${{ secrets.PORTAINER_STAGING_WEBHOOK_URL }}" ]; then
+            echo "PORTAINER_STAGING_WEBHOOK_URL no configurado"
+            exit 1
+          fi
+
+          HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}" \
+            -X POST \
+            "${{ secrets.PORTAINER_STAGING_WEBHOOK_URL }}")
+
+          if [ "$HTTP_STATUS" -ne 204 ] && [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Error: Portainer staging webhook retornó HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          echo "Webhook staging disparado correctamente. HTTP $HTTP_STATUS"
+
+      - name: Verify staging deployment health
+        run: |
+          sleep 30
+
+          URL="${{ secrets.SYSTEM_STAGING_HEALTH_URL }}"
+
+          if [ -z "$URL" ]; then
+            echo "SYSTEM_STAGING_HEALTH_URL no configurado. Saltando verificación."
+            exit 0
+          fi
+
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 "$URL" || echo "000")
+
+          if [ "$STATUS" = "200" ]; then
+            echo "Deploy staging verificado correctamente. HTTP 200"
+          else
+            echo "Health check staging retornó HTTP $STATUS. Revisá Portainer manualmente."
+          fi
