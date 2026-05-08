@@ -18,6 +18,8 @@ concurrency:
 
 env:
   EFFECTIVE_TAG: staging
+  STAGING_BACKEND_URL: https://staging.octopustrack.shop
+  STAGING_TENANT_API_URL: https://staging.octopustrack.shop/api/tenant
 
 jobs:
   ci:
@@ -103,6 +105,8 @@ jobs:
             APP_VERSION=${{ steps.docker_tags.outputs.tag }}
             BUILD_DATE=${{ steps.docker_tags.outputs.build_date }}
             GIT_SHA=${{ github.sha }}
+            VITE_BACKEND_URL=${{ env.STAGING_BACKEND_URL }}
+            VITE_API_URL=${{ env.STAGING_TENANT_API_URL }}
 
       - name: Export image digest
         run: |

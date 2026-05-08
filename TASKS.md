@@ -100,6 +100,8 @@
 
 ## 🟢 Hecho
 
+- [x] [DEVOPS-STAGING-URL-10] Corregir build staging para usar `staging.octopustrack.shop` y no redirigir a producción ✅ 2026-05-08
+- [x] [DEVOPS-STAGING-WEBHOOK-09] 🐛 Corregir `PORTAINER_STAGING_WEBHOOK_URL`: GitHub Actions recibía HTTP 404 al disparar webhook staging ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-CI-08] Corregir mypy usando `builtins.list` para evitar colisión con métodos `list` ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-CI-07] Corregir CI staging por conflicto Ruff UP035 vs mypy usando anotaciones diferidas ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-TAG-06] Cambiar stack staging para usar imagen `staging` por defecto desde YAML ✅ 2026-05-08
