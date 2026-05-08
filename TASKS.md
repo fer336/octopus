@@ -99,6 +99,7 @@
 
 ## 🟢 Hecho
 
+- [x] [DEVOPS-STAGING-AUDIT-DELETED-14] Corregir migración faltante `audit_logs.deleted_at` ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-MEMBERSHIP-DELETED-13] Corregir migración faltante `tenant_memberships.deleted_at` ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-SUPERADMIN-12] Crear usuario superadmin `casserafernando@gmail.com` en staging ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-MIGRATIONS-02] Aplicar migraciones Alembic sobre `octopustrack_staging` antes de validar staging ✅ 2026-05-08
