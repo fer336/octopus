@@ -97,6 +97,30 @@
 			margin-bottom: 15px;
             text-align: center;
 		}
+        
+        /* Estilo especial para remitos de acopio (más discreto, sin recuadro azul) */
+        .invoice-title.acopio {
+            background: transparent;
+            border: none;
+            padding: 0;
+            font-size: 19px;
+            letter-spacing: 0.2px;
+        }
+        
+        .acopio-legend {
+            background-color: #fef7dc;
+            border: 1px solid #f4d58d;
+            padding: 8px 10px;
+            margin: 12px 16px 10px 16px;
+            font-size: 10.5px;
+            color: #8a5a00;
+            border-radius: 2px;
+        }
+        
+        .acopio-legend strong {
+            display: block;
+            margin-bottom: 3px;
+        }
 
 		.info-line {
 			margin: 3px 0;
@@ -268,7 +292,11 @@
                     {% endif %}
                 </td>
                 <td class="header-col-right">
+                    {% if voucher.is_stockpile_receipt %}
+                    <div class="invoice-title acopio">{{ voucher.type_name }}</div>
+                    {% else %}
                     <div class="invoice-title">{{ voucher.type_name }}</div>
+                    {% endif %}
                     <div class="info-line"><strong>Punto de Venta:</strong> {{ voucher.sale_point }}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>Comp. Nro:</strong> {{ voucher.comp_number }}</div>
                     <div class="info-line"><strong>Fecha de Emisión:</strong> {{ voucher.date }}</div>
                     <div class="info-line"><strong>Fecha de Vto. para el pago:</strong> {{ voucher.due_date or voucher.date }}</div>
@@ -360,6 +388,15 @@
     {% if voucher.letter == 'R' %}
     <div class="signature-section">
         <p>Recibí conforme: ....................................................................</p>
+    </div>
+    {% endif %}
+
+    {% if voucher.is_stockpile_receipt and voucher.acopio_info %}
+    <div class="acopio-legend">
+        <strong>Remito de retiro parcial de acopio</strong>
+        Acopio: {{ voucher.acopio_info.name }} · Remito principal: {{ voucher.acopio_info.number }} ·
+        Precios correspondientes al acopio del {{ voucher.acopio_info.date }}.
+        Saldo restante luego de este movimiento: $ {{ voucher.acopio_info.remaining_amount }}
     </div>
     {% endif %}
 
