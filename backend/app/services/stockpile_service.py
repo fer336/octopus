@@ -2,10 +2,12 @@
 Servicio de Acopio (Stockpile).
 Maneja la lógica de negocio de acopios: crear, listar, retirar.
 """
+from __future__ import annotations
+
 import logging
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, List
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, func
@@ -417,7 +419,7 @@ class StockpileService:
 
     async def get_items(
         self, stockpile_id: UUID
-    ) -> List[StockpileItem]:
+    ) -> list[StockpileItem]:
         """Obtiene los ítems de un acopio."""
         result = await self.db.execute(
             select(StockpileItem).where(
@@ -429,8 +431,8 @@ class StockpileService:
     async def withdraw(
         self,
         stockpile: Stockpile,
-        items_data: List[dict[str, Any]],
-    ) -> tuple[List[StockpileItem], List[StockpileItem]]:
+        items_data: list[dict[str, Any]],
+    ) -> tuple[list[StockpileItem], list[StockpileItem]]:
         """
         Retira productos del acopio.
 
@@ -576,7 +578,7 @@ class StockpileService:
 
     async def list_open_by_client(
         self, business_id: UUID, client_id: UUID
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Lista acopios abiertos para un cliente.
         Solo retorna status OPEN o PARTIAL.
@@ -740,7 +742,7 @@ class StockpileService:
 
     async def get_frozen_items(
         self, stockpile_id: UUID, business_id: UUID
-    ) -> List[StockpileItem] | None:
+    ) -> list[StockpileItem] | None:
         """
         Obtiene los ítems congelados de un acopio.
         """

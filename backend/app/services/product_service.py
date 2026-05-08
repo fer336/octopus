@@ -3,8 +3,9 @@ Servicio de Productos.
 Contiene toda la lógica de negocio para productos.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
-from typing import List
 from uuid import UUID
 
 from sqlalchemy import asc, desc, func, or_, select
@@ -207,9 +208,9 @@ class ProductService:
     async def bulk_update(
         self,
         business_id: UUID,
-        items: List[ProductBulkUpdateItem],
+        items: list[ProductBulkUpdateItem],
         user_id: UUID | None = None,
-    ) -> tuple[List[Product], List[UUID]]:
+    ) -> tuple[list[Product], list[UUID]]:
         """Actualiza varios productos en una única transacción."""
         product_ids = [item.id for item in items]
         result = await self.db.execute(
