@@ -1,0 +1,115 @@
+# stack.system.staging.yml — Sistema OctopusTrack Staging
+# URL raw recomendada para Portainer, una vez commiteado en develop:
+# https://raw.githubusercontent.com/fer336/octopus/develop/docs/devops/stack.system.staging.yml
+#
+# IMPORTANTE:
+# - Crear el secret `octopus_backend_staging_env` antes de deployar.
+# - Ese secret debe apuntar a una DB staging, nunca a producción.
+# - Para la primera prueba se puede usar IMAGE_TAG=latest.
+# - Cuando exista el workflow develop → staging, cambiar a IMAGE_TAG=staging.
+
+version: "3.9"
+
+services:
+  backend:
+    image: ghcr.io/fer336/octopustrack-backend:${IMAGE_TAG:-latest}
+    networks:
+      - network_public
+      - octopus-staging-internal
+    secrets:
+      - source: octopus_backend_staging_env
+        target: /run/secrets/backend.env
+    environment:
+      BACKEND_ENV_FILE: /run/secrets/backend.env
+      DEBUG: "false"
+      ENVIRONMENT: "staging"
+      API_TENANT_PREFIX: "/api/tenant"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      rollback_config:
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=network_public"
+
+        - "traefik.http.routers.octopus-staging-tenant-api.rule=Host(`staging.octopustrack.shop`) && PathPrefix(`/api/tenant`)"
+        - "traefik.http.routers.octopus-staging-tenant-api.entrypoints=websecure"
+        - "traefik.http.routers.octopus-staging-tenant-api.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.octopus-staging-tenant-api.priority=100"
+        - "traefik.http.routers.octopus-staging-tenant-api.service=octopus-staging-backend"
+
+        - "traefik.http.routers.octopus-staging-admin-api.rule=Host(`staging.octopustrack.shop`) && PathPrefix(`/api/admin`)"
+        - "traefik.http.routers.octopus-staging-admin-api.entrypoints=websecure"
+        - "traefik.http.routers.octopus-staging-admin-api.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.octopus-staging-admin-api.priority=100"
+        - "traefik.http.routers.octopus-staging-admin-api.service=octopus-staging-backend"
+
+        - "traefik.http.routers.octopus-staging-auth.rule=Host(`staging.octopustrack.shop`) && PathPrefix(`/auth`)"
+        - "traefik.http.routers.octopus-staging-auth.entrypoints=websecure"
+        - "traefik.http.routers.octopus-staging-auth.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.octopus-staging-auth.priority=110"
+        - "traefik.http.routers.octopus-staging-auth.service=octopus-staging-backend"
+
+        - "traefik.http.services.octopus-staging-backend.loadbalancer.server.port=8000"
+
+  frontend:
+    image: ghcr.io/fer336/octopustrack-frontend:${IMAGE_TAG:-latest}
+    networks:
+      - network_public
+      - octopus-staging-internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      rollback_config:
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=network_public"
+
+        - "traefik.http.routers.octopus-staging-erp.rule=Host(`staging.octopustrack.shop`)"
+        - "traefik.http.routers.octopus-staging-erp.entrypoints=websecure"
+        - "traefik.http.routers.octopus-staging-erp.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.octopus-staging-erp.middlewares=octopus-staging-erp-entry@swarm"
+        - "traefik.http.routers.octopus-staging-erp.priority=5"
+        - "traefik.http.routers.octopus-staging-erp.service=octopus-staging-frontend"
+
+        - "traefik.http.middlewares.octopus-staging-erp-entry.replacepathregex.regex=^/$$"
+        - "traefik.http.middlewares.octopus-staging-erp-entry.replacepathregex.replacement=/tenant.html"
+
+        - "traefik.http.services.octopus-staging-frontend.loadbalancer.server.port=80"
+
+networks:
+  network_public:
+    external: true
+    name: network_public
+
+  octopus-staging-internal:
+    driver: overlay
+    internal: true
+
+secrets:
+  octopus_backend_staging_env:
+    external: true

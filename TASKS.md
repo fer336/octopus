@@ -1,6 +1,7 @@
 # TASKS - OctopusTrack
 
 ## 🔴 Pendiente
+- [ ] [DEVOPS-STAGING-MIGRATIONS-02] Aplicar migraciones Alembic sobre `octopustrack_staging` antes de validar staging
 - [ ] [SALES-ACOPIO-26] Remito principal de acopio: definir/implementar renglón sintético auditable en voucher_items o producto sistema para PDF/listado completo
 - [ ] [SALES-ACOPIO-15] Remito: mostrar botón "Buscar acopio" en resumen al seleccionar cliente para vincular retiro a acopio abierto
 - [ ] [SALES-ACOPIO-16] Backend: endpoint para listar acopios abiertos por cliente con saldo disponible, total retirado y fecha snapshot
@@ -25,7 +26,6 @@
 - [ ] [CC-PAY-04] Frontend Vouchers: opción "Pagar Cuenta Corriente" para facturas pendientes
 - [ ] [CC-PAY-05] PDF Factura: mostrar fecha de vencimiento cuando hay payment_days
 - [ ] [CC-PAY-06] Backend: registrar movimiento en caja al pagar factura CC
-- [ ] [DEVOPS-RELEASE-TAG-09] Crear tag de release (`vX.Y.Z`) para ejecutar jobs de `Create GitHub Release` + `Deploy to Swarm via Portainer`
 - [ ] [CMS-SYS-DEPLOY-07] Publicar cambios de CMS y sistema en commit/tag selectivo (sin mezclar landing)
 - [ ] [N8N-POSTPURCHASE-08] Diseñar flujo n8n post-compra: HTML de confirmación + otorgar acceso según plan (Excel/Sistema)
 - [ ] [SEO-LEGAL-LINKS-05] Agregar enlaces visibles desde landing principal a política de privacidad y política de seguridad
@@ -100,6 +100,10 @@
 
 ## 🟢 Hecho
 
+- [x] [DEVOPS-STAGING-STACK-04] Crear stack YAML aislado para `staging.octopustrack.shop` basado en `stack.system.yml` ✅ 2026-05-08
+- [x] [DEVOPS-STAGING-BRANCH-03] Crear rama `develop` desde `origin/master` para deploy automático a staging ✅ 2026-05-08
+- [x] [DEVOPS-STAGING-DB-01] Crear base de datos `octopustrack_staging` y usuario PostgreSQL aislado `octopus_staging_user` para staging ✅ 2026-05-08
+- [x] [DEVOPS-RELEASE-TAG-09] Crear tag productivo `1.9.1` para deploy de cambios de acopio vía Portainer ✅ 2026-05-08
 - [x] [SALES-ACOPIO-28] Implementar reglas avanzadas de acopio: anulación sin hijos, reimpresión hijos, numeración/descripción y devoluciones controladas ✅ 2026-05-07
 - [x] [SALES-ACOPIO-27] Implementar flujo end-to-end de remito hijo de acopio: persistencia, saldo, PDF especial y árbol sidebar ✅ 2026-05-07
 - [x] [SALES-ACOPIO-25] 🐛 Corregir pantalla en blanco al buscar acopios desde Remito por mismatch `{items,total}` vs array ✅ 2026-05-07
