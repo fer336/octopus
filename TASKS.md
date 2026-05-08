@@ -100,6 +100,7 @@
 
 ## 🟢 Hecho
 
+- [x] [DEVOPS-STAGING-CI-08] Corregir mypy usando `builtins.list` para evitar colisión con métodos `list` ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-CI-07] Corregir CI staging por conflicto Ruff UP035 vs mypy usando anotaciones diferidas ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-TAG-06] Cambiar stack staging para usar imagen `staging` por defecto desde YAML ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-WORKFLOW-05] Crear workflow `develop` → imagen `staging` → webhook Portainer staging ✅ 2026-05-08

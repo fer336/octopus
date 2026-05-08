@@ -4,6 +4,7 @@ Maneja la lógica de negocio de acopios: crear, listar, retirar.
 """
 from __future__ import annotations
 
+import builtins
 import logging
 from datetime import date, datetime
 from decimal import Decimal
@@ -419,7 +420,7 @@ class StockpileService:
 
     async def get_items(
         self, stockpile_id: UUID
-    ) -> list[StockpileItem]:
+    ) -> builtins.list[StockpileItem]:
         """Obtiene los ítems de un acopio."""
         result = await self.db.execute(
             select(StockpileItem).where(
@@ -431,8 +432,8 @@ class StockpileService:
     async def withdraw(
         self,
         stockpile: Stockpile,
-        items_data: list[dict[str, Any]],
-    ) -> tuple[list[StockpileItem], list[StockpileItem]]:
+        items_data: builtins.list[dict[str, Any]],
+    ) -> tuple[builtins.list[StockpileItem], builtins.list[StockpileItem]]:
         """
         Retira productos del acopio.
 
@@ -578,7 +579,7 @@ class StockpileService:
 
     async def list_open_by_client(
         self, business_id: UUID, client_id: UUID
-    ) -> list[dict[str, Any]]:
+    ) -> builtins.list[dict[str, Any]]:
         """
         Lista acopios abiertos para un cliente.
         Solo retorna status OPEN o PARTIAL.
@@ -742,7 +743,7 @@ class StockpileService:
 
     async def get_frozen_items(
         self, stockpile_id: UUID, business_id: UUID
-    ) -> list[StockpileItem] | None:
+    ) -> builtins.list[StockpileItem] | None:
         """
         Obtiene los ítems congelados de un acopio.
         """

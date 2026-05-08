@@ -5,6 +5,7 @@ Contiene toda la lógica de negocio para productos.
 
 from __future__ import annotations
 
+import builtins
 from datetime import datetime
 from uuid import UUID
 
@@ -208,9 +209,9 @@ class ProductService:
     async def bulk_update(
         self,
         business_id: UUID,
-        items: list[ProductBulkUpdateItem],
+        items: builtins.list[ProductBulkUpdateItem],
         user_id: UUID | None = None,
-    ) -> tuple[list[Product], list[UUID]]:
+    ) -> tuple[builtins.list[Product], builtins.list[UUID]]:
         """Actualiza varios productos en una única transacción."""
         product_ids = [item.id for item in items]
         result = await self.db.execute(
