@@ -96,10 +96,20 @@ services:
         - "traefik.http.routers.octopus-staging-erp.priority=5"
         - "traefik.http.routers.octopus-staging-erp.service=octopus-staging-frontend"
 
+        - "traefik.http.routers.octopus-staging-cms.rule=Host(`cms-staging.octopustrack.shop`)"
+        - "traefik.http.routers.octopus-staging-cms.entrypoints=websecure"
+        - "traefik.http.routers.octopus-staging-cms.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.octopus-staging-cms.middlewares=octopus-staging-cms-entry@swarm"
+        - "traefik.http.routers.octopus-staging-cms.priority=5"
+        - "traefik.http.routers.octopus-staging-cms.service=octopus-staging-frontend-cms"
+
         - "traefik.http.middlewares.octopus-staging-erp-entry.replacepathregex.regex=^/$$"
         - "traefik.http.middlewares.octopus-staging-erp-entry.replacepathregex.replacement=/tenant.html"
+        - "traefik.http.middlewares.octopus-staging-cms-entry.replacepathregex.regex=^/$$"
+        - "traefik.http.middlewares.octopus-staging-cms-entry.replacepathregex.replacement=/admin.html"
 
         - "traefik.http.services.octopus-staging-frontend.loadbalancer.server.port=80"
+        - "traefik.http.services.octopus-staging-frontend-cms.loadbalancer.server.port=80"
 
 networks:
   network_public:
