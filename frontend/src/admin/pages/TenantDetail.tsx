@@ -23,6 +23,7 @@ const permissionModules: Array<{ key: string; label: string }> = [
   { key: 'products', label: 'Productos' },
   { key: 'price_update', label: 'Actualizar Precios' },
   { key: 'inventory', label: 'Inventario' },
+  { key: 'stockpiles', label: 'Acopios' },
   { key: 'clients', label: 'Clientes' },
   { key: 'suppliers', label: 'Proveedores' },
   { key: 'categories', label: 'Categorías' },

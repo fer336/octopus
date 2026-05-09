@@ -704,6 +704,19 @@ async def create_tenant(
         subscription_starts_at=datetime.utcnow(),
         subscription_ends_at=datetime.utcnow() + timedelta(days=30),
         subscription_status="active",
+        # Defaults de alta manual desde CMS:
+        # solo cotizaciones habilitadas hasta activación comercial.
+        ai_agent_enabled=False,
+        linear_sync_enabled=False,
+        current_account_mode="disabled",
+        invoicing_enabled=False,
+        receipts_enabled=False,
+        quotation_enabled=True,
+        inventory_enabled=False,
+        stockpile_enabled=False,
+        price_update_enabled=False,
+        reports_enabled=False,
+        sql_backup_enabled=False,
     )
     db.add(business)
     await db.flush()

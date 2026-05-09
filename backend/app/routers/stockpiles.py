@@ -43,9 +43,11 @@ from app.services.stockpile_service import StockpileService
 
 logger = logging.getLogger("uvicorn")
 
-router = APIRouter(prefix="/stockpiles", tags=["stockpiles"])
-
-requires_module_access = Depends(require_module_access("stockpiles"))
+router = APIRouter(
+    prefix="/stockpiles",
+    tags=["stockpiles"],
+    dependencies=[Depends(require_module_access("stockpiles"))],
+)
 
 
 def serialize_stockpile_item(item) -> StockpileItemResponse:

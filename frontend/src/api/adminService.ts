@@ -134,6 +134,7 @@ export interface FeatureFlagsResponse {
   receipts_enabled: boolean
   quotation_enabled: boolean
   inventory_enabled: boolean
+  stockpile_enabled: boolean
   price_update_enabled: boolean
   reports_enabled: boolean
   sql_backup_enabled?: boolean
@@ -147,6 +148,7 @@ export interface FeatureFlagsUpdate {
   receipts_enabled?: boolean
   quotation_enabled?: boolean
   inventory_enabled?: boolean
+  stockpile_enabled?: boolean
   price_update_enabled?: boolean
   reports_enabled?: boolean
   sql_backup_enabled?: boolean

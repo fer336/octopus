@@ -129,6 +129,17 @@ async def test_superadmin_can_create_tenant_without_owner_and_assign_later(
     business_result = await db.execute(select(Business).where(Business.id == UUID(tenant_id)))
     business = business_result.scalar_one()
     assert business.owner_id is None
+    assert business.ai_agent_enabled is False
+    assert business.linear_sync_enabled is False
+    assert business.current_account_mode == "disabled"
+    assert business.invoicing_enabled is False
+    assert business.receipts_enabled is False
+    assert business.quotation_enabled is True
+    assert business.inventory_enabled is False
+    assert business.stockpile_enabled is False
+    assert business.price_update_enabled is False
+    assert business.reports_enabled is False
+    assert business.sql_backup_enabled is False
 
     assign_response = await client.post(
         f"/api/admin/tenants/{tenant_id}/users",
