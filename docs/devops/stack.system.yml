@@ -13,6 +13,7 @@ services:
       BACKEND_ENV_FILE: /run/secrets/backend.env
       DEBUG: "false"
       API_TENANT_PREFIX: "/api/tenant"
+      RUN_ALEMBIC_MIGRATIONS: "true"
     deploy:
       mode: replicated
       replicas: 1

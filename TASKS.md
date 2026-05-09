@@ -131,6 +131,7 @@
 - [x] [PDF-INVOICE-PRODUCT-DESC-PADDING-41] Factura PDF: agregar padding izquierdo a descripción de productos para separarla de la línea vertical ✅ 2026-05-09
 - [x] [PDF-INVOICE-TOTALS-BOTTOM-FULLWIDTH-42] Factura PDF: forzar línea inferior de totales a full-bleed hasta el borde del recuadro ✅ 2026-05-09
 - [x] [CI-FRONTEND-TYPE-BRANDING-43] Corregir typecheck frontend restringiendo campos de BrandingTab a claves textuales ✅ 2026-05-09
+- [x] [DEPLOY-ALEMBIC-AUTO-44] Deploy backend: ejecutar Alembic automáticamente en entrypoint con flag explícito en staging/producción ✅ 2026-05-09
 - [x] [CMS-VOUCHERS-ACOPIO-HIDE-13] Comprobantes: ocultar también remitos principales de acopio (no solo remitos hijos) en listado general ✅ 2026-05-09
 - [x] [PDF-ACOPIO-PRINCIPAL-DESC-14] PDF remito principal de acopio: mostrar descripción sintética cuando no existan items persistidos ✅ 2026-05-09
 - [x] [BACKEND-MINIO-IMPORT-10] Evitar caída total del backend por dependencia `minio` ausente usando import lazy y error guiado ✅ 2026-05-09

@@ -213,10 +213,10 @@ jobs:
             IMAGE_TAG=${{ steps.release_tags.outputs.version }}
             ```
 
-            Si hay cambios de schema, corré:
+            Si hay cambios de schema, el backend corre migraciones automáticamente al iniciar:
 
             ```bash
-            alembic upgrade head
+            alembic upgrade heads
             ```
 
   deploy:

@@ -24,6 +24,7 @@ services:
       DEBUG: "false"
       ENVIRONMENT: "staging"
       API_TENANT_PREFIX: "/api/tenant"
+      RUN_ALEMBIC_MIGRATIONS: "true"
     deploy:
       mode: replicated
       replicas: 1

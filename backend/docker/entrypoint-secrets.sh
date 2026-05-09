@@ -51,4 +51,12 @@ file_env GOOGLE_CLIENT_SECRET
 file_env APP_ENCRYPTION_KEY
 file_env OPENAI_API_KEY
 
+if [ "${RUN_ALEMBIC_MIGRATIONS:-true}" = "true" ]; then
+  echo "Running Alembic migrations..."
+  alembic upgrade heads
+  echo "Alembic migrations completed."
+else
+  echo "Skipping Alembic migrations because RUN_ALEMBIC_MIGRATIONS=${RUN_ALEMBIC_MIGRATIONS:-}"
+fi
+
 exec "$@"
