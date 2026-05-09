@@ -10,8 +10,8 @@ COPY . .
 # Variables de build para producción
 ARG VITE_API_URL
 ARG VITE_BACKEND_URL
-ENV VITE_API_URL=${VITE_API_URL:-https://octopus.qeva.xyz/api/tenant}
-ENV VITE_BACKEND_URL=${VITE_BACKEND_URL:-https://octopus.qeva.xyz}
+ENV VITE_API_URL=${VITE_API_URL:-https://app.octopustrack.shop/api/tenant}
+ENV VITE_BACKEND_URL=${VITE_BACKEND_URL:-https://app.octopustrack.shop}
 
 RUN npm run build
 

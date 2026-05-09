@@ -138,6 +138,8 @@ jobs:
             APP_VERSION=${{ steps.docker_tags.outputs.version }}
             BUILD_DATE=${{ steps.docker_tags.outputs.build_date }}
             GIT_SHA=${{ github.sha }}
+            VITE_BACKEND_URL=https://app.octopustrack.shop
+            VITE_API_URL=https://app.octopustrack.shop/api/tenant
 
       - name: Export image digest
         run: |
