@@ -100,6 +100,7 @@
 
 ## 🟢 Hecho
 
+- [x] [CI-FRONTEND-TYPE-BUSINESS-06] Corregir typecheck frontend agregando `stockpile_enabled` al tipo `Business` de `businessService` ✅ 2026-05-09
 - [x] [CMS-ACOPIO-UX-05] Ventas/Comprobantes: ocultar "Buscar acopio" cuando `stockpile_enabled=false` y excluir comprobantes de acopio del listado general ✅ 2026-05-09
 - [x] [CMS-ACOPIO-VISIBILITY-04] Corregir visibilidad de Acopios: ocultar en Sidebar/Ventas cuando `stockpile_enabled=false` y bloquear ruta `/stockpiles` en frontend ✅ 2026-05-09
 - [x] [CMS-TENANT-DEFAULTS-03] Alta de comercio desde CMS: dejar habilitada solo Cotizaciones por defecto (resto de features OFF) ✅ 2026-05-09
