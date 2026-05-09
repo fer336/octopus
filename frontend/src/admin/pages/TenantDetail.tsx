@@ -229,6 +229,9 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
       if (typeof payload.inventory_enabled === 'boolean') {
         toast.success(payload.inventory_enabled ? 'Inventario habilitado' : 'Inventario deshabilitado')
       }
+      if (typeof payload.stockpile_enabled === 'boolean') {
+        toast.success(payload.stockpile_enabled ? 'Acopio habilitado' : 'Acopio deshabilitado')
+      }
       if (typeof payload.price_update_enabled === 'boolean') {
         toast.success(
           payload.price_update_enabled
@@ -274,6 +277,7 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
   const receiptsEnabled = flagsQuery.data?.receipts_enabled ?? true
   const quotationEnabled = flagsQuery.data?.quotation_enabled ?? true
   const inventoryEnabled = flagsQuery.data?.inventory_enabled ?? true
+  const stockpileEnabled = flagsQuery.data?.stockpile_enabled ?? true
   const priceUpdateEnabled = flagsQuery.data?.price_update_enabled ?? true
   const reportsEnabled = flagsQuery.data?.reports_enabled ?? true
   const sqlBackupEnabled = flagsQuery.data?.sql_backup_enabled ?? false
@@ -402,6 +406,33 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
               <span
                 className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
                   inventoryEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Acopio</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Habilita el módulo de acopios/cuentas prepaid.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={stockpileEnabled}
+              onClick={() => updateMutation.mutate({ stockpile_enabled: !stockpileEnabled })}
+              disabled={updateMutation.isPending}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                stockpileEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                  stockpileEnabled ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>
