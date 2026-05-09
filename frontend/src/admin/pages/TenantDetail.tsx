@@ -97,6 +97,20 @@ function BrandingTab({ tenantId }: { tenantId: string }) {
   })
 
   const [form, setForm] = useState<BrandingUpdate>({})
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+
+  const uploadLogoMutation = useMutation({
+    mutationFn: (file: File) => adminAPI.uploadBrandingLogo(tenantId, file),
+    onSuccess: () => {
+      toast.success('Logo subido correctamente')
+      setLogoFile(null)
+      queryClient.invalidateQueries({ queryKey: ['admin-branding', tenantId] })
+    },
+    onError: (error: any) => {
+      const detail = error?.response?.data?.detail
+      toast.error(typeof detail === 'string' ? detail : 'No se pudo subir el logo')
+    },
+  })
 
   const updateMutation = useMutation({
     mutationFn: (data: BrandingUpdate) => adminAPI.updateBranding(tenantId, data),
@@ -111,6 +125,10 @@ function BrandingTab({ tenantId }: { tenantId: string }) {
   })
 
   const handleChange = (field: keyof BrandingUpdate, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleBooleanChange = (field: keyof BrandingUpdate, value: boolean) => {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
@@ -137,7 +155,6 @@ function BrandingTab({ tenantId }: { tenantId: string }) {
     { key: 'postal_code', label: 'Código Postal' },
     { key: 'phone', label: 'Teléfono' },
     { key: 'email', label: 'Email' },
-    { key: 'logo_url', label: 'URL del Logo' },
     { key: 'header_text', label: 'Texto de Encabezado' },
     { key: 'sale_point', label: 'Punto de Venta' },
   ]
@@ -159,6 +176,109 @@ function BrandingTab({ tenantId }: { tenantId: string }) {
             />
           </div>
         ))}
+      </div>
+
+      <div className="space-y-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <div>
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Logo para PDFs</h4>
+          <p className="text-xs text-gray-600 dark:text-gray-300">
+            Subí un PNG/JPG/WebP para usar en facturas, cotizaciones, remitos y reportes.
+          </p>
+        </div>
+
+        {branding?.logo_url ? (
+          <div className="flex items-center gap-3">
+            <img src={branding.logo_url} alt="Logo negocio" className="h-12 w-auto rounded border border-gray-200 dark:border-gray-700" />
+            <a
+              href={branding.logo_url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-primary-600 hover:underline"
+            >
+              Ver logo actual
+            </a>
+          </div>
+        ) : (
+          <p className="text-xs text-amber-600 dark:text-amber-300">No hay logo configurado.</p>
+        )}
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+            className="block w-full text-sm text-gray-700 dark:text-gray-200 file:mr-3 file:rounded-md file:border-0 file:bg-primary-100 file:px-3 file:py-2 file:text-primary-700 hover:file:bg-primary-200"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (!logoFile) {
+                toast.error('Seleccioná un archivo de logo')
+                return
+              }
+              uploadLogoMutation.mutate(logoFile)
+            }}
+            disabled={uploadLogoMutation.isPending}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+          >
+            {uploadLogoMutation.isPending ? 'Subiendo...' : 'Subir logo'}
+          </button>
+        </div>
+
+        <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <input
+            type="checkbox"
+            checked={(form.hide_business_name_in_pdf ?? branding?.hide_business_name_in_pdf) ?? false}
+            onChange={(e) => handleBooleanChange('hide_business_name_in_pdf', e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+          Ocultar nombre de empresa en PDFs cuando el logo ya lo incluye
+        </label>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Posición del logo en PDF
+            </label>
+            <select
+              value={(form.logo_position ?? branding?.logo_position ?? 'left') as 'left' | 'center' | 'right'}
+              onChange={(e) =>
+                handleChange(
+                  'logo_position',
+                  e.target.value as 'left' | 'center' | 'right',
+                )
+              }
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="left">Izquierda</option>
+              <option value="center">Centro</option>
+              <option value="right">Derecha</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Relación logo / nombre
+            </label>
+            <select
+              value={
+                (form.logo_display_mode ?? branding?.logo_display_mode ?? 'alongside_text') as
+                  | 'alongside_text'
+                  | 'replace_text'
+              }
+              onChange={(e) =>
+                handleChange(
+                  'logo_display_mode',
+                  e.target.value as 'alongside_text' | 'replace_text',
+                )
+              }
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="alongside_text">Mostrar logo junto al nombre</option>
+              <option value="replace_text">Logo reemplaza al nombre</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <div className="flex gap-3">
@@ -425,7 +545,14 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
               type="button"
               role="switch"
               aria-checked={stockpileEnabled}
-              onClick={() => updateMutation.mutate({ stockpile_enabled: !stockpileEnabled })}
+              onClick={() => {
+                const nextValue = !stockpileEnabled
+                updateMutation.mutate(
+                  nextValue
+                    ? { stockpile_enabled: true, receipts_enabled: true }
+                    : { stockpile_enabled: false },
+                )
+              }}
               disabled={updateMutation.isPending}
               className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
                 stockpileEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
@@ -447,12 +574,27 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
               <p className="text-sm text-gray-600 dark:text-gray-300">
                 Permite generar y operar remitos desde Ventas.
               </p>
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                Acopio y Cuenta Corriente dependen de Remitos. Si desactivás Remitos,
+                ambos módulos se deshabilitan automáticamente.
+              </p>
             </div>
             <button
               type="button"
               role="switch"
               aria-checked={receiptsEnabled}
-              onClick={() => updateMutation.mutate({ receipts_enabled: !receiptsEnabled })}
+              onClick={() => {
+                const nextValue = !receiptsEnabled
+                updateMutation.mutate(
+                  nextValue
+                    ? { receipts_enabled: true }
+                    : {
+                        receipts_enabled: false,
+                        stockpile_enabled: false,
+                        current_account_mode: 'disabled',
+                      },
+                )
+              }}
               disabled={updateMutation.isPending}
               className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
                 receiptsEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
@@ -577,6 +719,7 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
               onClick={() =>
                 updateMutation.mutate({
                   current_account_mode: currentAccountEnabled ? 'disabled' : 'automatic',
+                  ...(currentAccountEnabled ? {} : { receipts_enabled: true }),
                 })
               }
               disabled={updateMutation.isPending}
@@ -608,7 +751,7 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
             <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
               <button
                 type="button"
-                onClick={() => updateMutation.mutate({ current_account_mode: 'automatic' })}
+                onClick={() => updateMutation.mutate({ current_account_mode: 'automatic', receipts_enabled: true })}
                 disabled={updateMutation.isPending}
                 className={`px-3 py-1.5 text-sm transition-colors ${
                   currentAccountMode === 'automatic'
@@ -620,7 +763,7 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
               </button>
               <button
                 type="button"
-                onClick={() => updateMutation.mutate({ current_account_mode: 'manual' })}
+                onClick={() => updateMutation.mutate({ current_account_mode: 'manual', receipts_enabled: true })}
                 disabled={updateMutation.isPending}
                 className={`px-3 py-1.5 text-sm transition-colors border-l border-gray-200 dark:border-gray-700 ${
                   currentAccountMode === 'manual'

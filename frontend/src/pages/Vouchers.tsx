@@ -331,9 +331,11 @@ export default function Vouchers() {
     retry: false,
   })
 
-  // Los comprobantes vinculados a acopio (remitos hijos) se muestran
+  // Los comprobantes de acopio (remitos hijos y remitos principales) se muestran
   // exclusivamente en el módulo Acopios, no en Comprobantes generales.
-  const vouchers = (vouchersData?.items || []).filter((voucher) => !voucher.stockpile_id)
+  const vouchers = (vouchersData?.items || []).filter(
+    (voucher) => !voucher.stockpile_id && !voucher.is_stockpile_principal_receipt,
+  )
   const allClients = Array.isArray(clientsData?.items) ? clientsData.items : []
   const paymentMethods = usePaymentMethods(false).data || []
   const sourceParentInvoiceIds = new Set(

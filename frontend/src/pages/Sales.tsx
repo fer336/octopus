@@ -2612,7 +2612,27 @@ export default function Sales() {
     <div className="-m-6 h-[calc(100%+3rem)] max-h-[calc(100%+3rem)] overflow-hidden flex flex-col p-1" data-tour-sales-root data-tour-sales-mode={voucherType}>
       {/* Header compacto desktop */}
       <div className="hidden lg:block flex-shrink-0 bg-white dark:bg-gray-800 rounded-md p-1 shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-col gap-2">
+            {voucherType === 'current_account' && (
+              <div className="w-full max-w-[420px]">
+                <select
+                  value={selectedOperatingClientId}
+                  onChange={(e) => setSelectedOperatingClientId(e.target.value)}
+                  className="w-full rounded-lg border px-3 py-1.5 text-sm dark:bg-gray-700 dark:border-gray-600"
+                >
+                  <option value="">Seleccionar retirador (titular o subcliente)</option>
+                  {authorizedOperatingClients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.id === selectedClient?.id
+                        ? `Titular (retira): ${client.name}`
+                        : `${client.name} · ${client.document_number}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-1.5">
             <Button variant="outline" size="sm" onClick={() => setShowClientModal(true)} title="Nuevo cliente" className="px-2 py-1" data-tour-sales-new-client>
               <Plus size={18} />
             </Button>
@@ -2662,34 +2682,6 @@ export default function Sales() {
             >
               <Search size={18} />
             </Button>
-
-            {voucherType === 'current_account' && (
-              <div className="w-[280px]">
-                <select
-                  value={selectedOperatingClientId}
-                  onChange={(e) => setSelectedOperatingClientId(e.target.value)}
-                  className="w-full rounded-lg border px-3 py-1.5 text-sm dark:bg-gray-700 dark:border-gray-600"
-                >
-                  <option value="">Seleccionar retirador (titular o subcliente)</option>
-                  {authorizedOperatingClients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.id === selectedClient?.id
-                        ? `Titular (retira): ${client.name}`
-                        : `${client.name} · ${client.document_number}`}
-                    </option>
-                  ))}
-                </select>
-                {selectedClient && authorizationsLoadError ? (
-                  <p className="mt-1 text-[11px] text-red-700 dark:text-red-300">
-                    No pudimos cargar autorizaciones de subclientes para este titular. Se usará retiro por titular hasta resolverlo. {formatErrorMessage(authorizationsError)}
-                  </p>
-                ) : selectedClient && !hasAuthorizedSubclient ? (
-                  <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
-                    No hay subclientes autorizados para este titular. El remito saldrá como retiro por titular. Para habilitar terceros: asigná un Tipo de Cliente con retiro por terceros y creá la autorización en Cuenta Corriente.
-                  </p>
-                ) : null}
-              </div>
-            )}
 
             <div className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
               <Button
@@ -2858,6 +2850,28 @@ export default function Sales() {
               </button>
             )}
 
+            </div>
+
+            {voucherType === 'current_account' && selectedClient && authorizationsLoadError ? (
+              <div className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 dark:border-red-800/50 dark:bg-red-900/20">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0 text-red-700 dark:text-red-300" />
+                  <p className="text-[13px] leading-relaxed text-red-800 dark:text-red-200">
+                    No pudimos cargar autorizaciones de subclientes para este titular. Se usará retiro por titular hasta resolverlo. {formatErrorMessage(authorizationsError)}
+                  </p>
+                </div>
+              </div>
+            ) : voucherType === 'current_account' && selectedClient && !hasAuthorizedSubclient ? (
+              <div className="w-full rounded-md border border-amber-200 border-l-4 border-l-amber-500 bg-amber-50 px-3 py-2 dark:border-amber-800/50 dark:border-l-amber-400 dark:bg-amber-900/20">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-700 dark:text-amber-300" />
+                  <p className="text-[13px] leading-relaxed text-amber-800 dark:text-amber-200">
+                    No hay subclientes autorizados para este titular. El remito saldrá como retiro por titular. Para habilitar terceros: asigná un Tipo de Cliente con retiro por terceros y creá la autorización en Cuenta Corriente.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
         </div>
       </div>
 
@@ -2929,6 +2943,48 @@ export default function Sales() {
                 })}
               </div>
             </div>
+
+            {voucherType === 'current_account' && (
+              <div className="space-y-2">
+                <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                  Titular / Retirador
+                </label>
+                <select
+                  value={selectedOperatingClientId}
+                  onChange={(e) => setSelectedOperatingClientId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+                >
+                  <option value="">Seleccionar retirador (titular o subcliente)</option>
+                  {authorizedOperatingClients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.id === selectedClient?.id
+                        ? `Titular (retira): ${client.name}`
+                        : `${client.name} · ${client.document_number}`}
+                    </option>
+                  ))}
+                </select>
+
+                {selectedClient && authorizationsLoadError ? (
+                  <div className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 dark:border-red-800/50 dark:bg-red-900/20">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle size={16} className="mt-0.5 shrink-0 text-red-700 dark:text-red-300" />
+                      <p className="text-[13px] leading-relaxed text-red-800 dark:text-red-200">
+                        No pudimos cargar autorizaciones de subclientes para este titular. Se usará retiro por titular hasta resolverlo. {formatErrorMessage(authorizationsError)}
+                      </p>
+                    </div>
+                  </div>
+                ) : selectedClient && !hasAuthorizedSubclient ? (
+                  <div className="w-full rounded-md border border-amber-200 border-l-4 border-l-amber-500 bg-amber-50 px-3 py-2 dark:border-amber-800/50 dark:border-l-amber-400 dark:bg-amber-900/20">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-700 dark:text-amber-300" />
+                      <p className="text-[13px] leading-relaxed text-amber-800 dark:text-amber-200">
+                        No hay subclientes autorizados para este titular. El remito saldrá como retiro por titular. Para habilitar terceros: asigná un Tipo de Cliente con retiro por terceros y creá la autorización en Cuenta Corriente.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
 
             {voucherType === 'receipt' && (
               <div>
@@ -3227,7 +3283,7 @@ export default function Sales() {
                   >
                     <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">{product.code}</span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-medium text-gray-800 dark:text-gray-100">{product.description}</p>
+                      <p className="truncate text-xs font-semibold text-gray-800 dark:text-gray-100">{product.description}</p>
                       <p className="text-[11px] text-gray-500 dark:text-gray-400">${formatNumber(product.sale_price)}</p>
                     </div>
                     <span className={`flex h-6 w-6 items-center justify-center rounded-md text-sm font-semibold ${isSelected ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-primary-600 text-white'}`}>
@@ -3251,7 +3307,7 @@ export default function Sales() {
                   <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-600 dark:bg-gray-800">
                     <div className="mb-2 flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate text-xs font-medium text-gray-800 dark:text-gray-100">{item.description}</p>
+                        <p className="truncate text-xs font-semibold text-gray-800 dark:text-gray-100">{item.description}</p>
                         <p className="text-[11px] text-gray-500 dark:text-gray-400">{item.code} · ${formatNumber(item.sale_price)}</p>
                       </div>
                       <button
@@ -3579,7 +3635,7 @@ export default function Sales() {
                           )}
                           <span className="font-medium text-gray-800 dark:text-gray-100">{item.code}</span>
                         </td>
-                        <td className="px-3 py-[3px] text-gray-700 dark:text-gray-200">{item.description}</td>
+                        <td className="px-3 py-[3px] font-semibold text-gray-700 dark:text-gray-200">{item.description}</td>
                         <td className="px-3 py-[3px] text-right">
                           <input
                             type="number"
@@ -3726,7 +3782,7 @@ export default function Sales() {
                             {isInTemp && <span className="text-green-600 dark:text-green-400 mr-1 text-base">✓</span>}
                             {product.code}
                           </td>
-                          <td className="px-3 py-2">{product.description}</td>
+                          <td className="px-3 py-2 font-semibold">{product.description}</td>
                           <td className="px-3 py-2 text-right">${formatNumber(product.sale_price)}</td>
                         </tr>
                       )

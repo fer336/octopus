@@ -75,6 +75,12 @@ async def get_my_business(
         phone=business.phone,
         email=business.email,
         logo_url=business.logo_url,
+        hide_business_name_in_pdf=bool(
+            getattr(business, "hide_business_name_in_pdf", False)
+        ),
+        logo_position=getattr(business, "logo_position", "left") or "left",
+        logo_display_mode=getattr(business, "logo_display_mode", "alongside_text")
+        or "alongside_text",
         header_text=business.header_text,
         sale_point=business.sale_point,
         ai_agent_enabled=bool(business.ai_agent_enabled),
@@ -146,6 +152,12 @@ async def update_my_business(
         phone=business.phone,
         email=business.email,
         logo_url=business.logo_url,
+        hide_business_name_in_pdf=bool(
+            getattr(business, "hide_business_name_in_pdf", False)
+        ),
+        logo_position=getattr(business, "logo_position", "left") or "left",
+        logo_display_mode=getattr(business, "logo_display_mode", "alongside_text")
+        or "alongside_text",
         header_text=business.header_text,
         sale_point=business.sale_point,
         ai_agent_enabled=bool(business.ai_agent_enabled),

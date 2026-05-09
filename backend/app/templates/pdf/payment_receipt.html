@@ -32,7 +32,7 @@
 <body>
   <div class="header">
     <div class="business">
-      <h1>{{ business.name }}</h1>
+      {% if not business.hide_business_name_in_pdf %}<h1>{{ business.name }}</h1>{% endif %}
       <p>{{ business.address or '' }}</p>
       <p>CUIT: {{ business.cuit or '—' }}</p>
       <p>{{ business.phone or '' }} {{ business.email or '' }}</p>

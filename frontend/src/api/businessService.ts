@@ -15,6 +15,9 @@ export interface Business {
   phone?: string
   email?: string
   logo_url?: string
+  hide_business_name_in_pdf?: boolean
+  logo_position?: 'left' | 'center' | 'right'
+  logo_display_mode?: 'alongside_text' | 'replace_text'
   header_text?: string
   sale_point: string
   ai_agent_enabled: boolean
@@ -41,6 +44,9 @@ export interface BusinessUpdate {
   phone?: string
   email?: string
   logo_url?: string
+  hide_business_name_in_pdf?: boolean
+  logo_position?: 'left' | 'center' | 'right'
+  logo_display_mode?: 'alongside_text' | 'replace_text'
   header_text?: string
   sale_point?: string
 }

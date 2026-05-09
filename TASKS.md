@@ -55,8 +55,10 @@
 - [x] [SEO-SITEMAP-02] Landing: actualizar robots.txt para referenciar sitemap.xml ✅ 2026-04-27
 - [x] [SEO-SITEMAP-03] Landing: agregar meta tags SEO (description, og:*) en landing.html para indexación ✅ 2026-04-27
 - [ ] [BRAND-HEADER-01] Branding/PDF: definir para qué sirve `header_text` y hacerlo visible realmente en los comprobantes o pantallas donde corresponda
+- [x] [CMS-BRANDING-PDF-LOGO-11] 🐛 Diagnosticar por qué `logo_url` subida en MinIO no renderiza en PDF (URL firmada/permiso público/base URL) ✅ 2026-05-09
+- [x] [CMS-BRANDING-LOGO-LAYOUT-12] Permitir configurar posición del logo en PDF (izquierda/centro/derecha) y modo (junto al nombre o reemplazo) ✅ 2026-05-09
 - [x] [IVA-DUPLICADO-01] 🐛 Facturación: corregir duplicación de IVA al seleccionar método de pago — el código calculaba IVA 2 veces porque sale_price ya incluye IVA pero se recalculaba ✅ 2026-04-27
-- [ ] [OPS-01] Replicar migraciones pendientes en entorno de deploy (`f1a2b3c4d5e6`, `a9b8c7d6e5f4`)
+- [/] [OPS-01] Replicar migraciones pendientes en entorno de deploy (`f1a2b3c4d5e6`, `a9b8c7d6e5f4`)
 - [ ] [FB-07] Validar flujo E2E feedback + sync a Linear con API key real (crear ticket tenant y verificar issue)
 - [ ] [CC-14-QA] Testing: cubrir cierre preview/final + bloqueo CC-05 + visibilidad CC-04 en pendientes de facturar
 - [ ] [CC-15-QA] Cuenta Corriente: validar E2E que un titular pueda tener múltiples subclientes autorizados (alta/edición/baja + uso en Ventas) y ajustar UX si detectamos fricción
@@ -100,6 +102,17 @@
 
 ## 🟢 Hecho
 
+- [x] [CMS-FEATURE-DEPENDENCY-15] Acopio depende de Remitos: al activar Acopio se activa Remitos, y al desactivar Remitos se apaga Acopio ✅ 2026-05-09
+- [x] [CMS-FEATURE-DEPENDENCY-16] Cuenta Corriente depende de Remitos: al activar CC se activa Remitos, y al apagar Remitos se desactiva CC ✅ 2026-05-09
+- [x] [CMS-FEATURE-DEPENDENCY-17] CMS: mostrar aclaración visual de dependencia Remitos ↔ Acopio/Cta Cte en tarjeta de Remitos ✅ 2026-05-09
+- [x] [SALES-CC-ALERT-18] Ventas/Cta Cte: reemplazar mensaje flotante de subclientes por bloque Alert warning debajo del selector de titular ✅ 2026-05-09
+- [x] [SALES-CC-LAYOUT-FLOW-19] Ventas/Cta Cte: reordenar header en 3 filas (titular, buscador+acciones, alert in-flow) sin popover absoluto ✅ 2026-05-09
+- [x] [SALES-CC-MOBILE-SUBCLIENT-20] Mobile Ventas/Cta Cte: agregar selector de titular/subcliente y alert in-flow debajo del selector ✅ 2026-05-09
+- [x] [SALES-PRODUCTS-BOLD-21] Ventas: mostrar descripciones de productos en negrita en listas desktop/mobile ✅ 2026-05-09
+- [x] [CMS-VOUCHERS-ACOPIO-HIDE-13] Comprobantes: ocultar también remitos principales de acopio (no solo remitos hijos) en listado general ✅ 2026-05-09
+- [x] [PDF-ACOPIO-PRINCIPAL-DESC-14] PDF remito principal de acopio: mostrar descripción sintética cuando no existan items persistidos ✅ 2026-05-09
+- [x] [BACKEND-MINIO-IMPORT-10] Evitar caída total del backend por dependencia `minio` ausente usando import lazy y error guiado ✅ 2026-05-09
+- [x] [CMS-BRANDING-LOGO-UPLOAD-09] CMS Branding: subir logo a MinIO y agregar opción para ocultar nombre de empresa en PDFs ✅ 2026-05-09
 - [x] [CMS-FEATURES-LAYOUT-08] Reubicar "Sincronización con Linear" dentro de la grilla principal de funcionalidades del CMS ✅ 2026-05-09
 - [x] [CMS-FEATURES-LAYOUT-07] Reubicar "Backup SQL" y "Cuenta Corriente" dentro de la grilla principal de funcionalidades del CMS ✅ 2026-05-09
 - [x] [CI-FRONTEND-TYPE-BUSINESS-06] Corregir typecheck frontend agregando `stockpile_enabled` al tipo `Business` de `businessService` ✅ 2026-05-09

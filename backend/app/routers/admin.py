@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +31,7 @@ from app.models.tenant_secret import TenantSecret
 from app.models.user import PlatformRole, User
 from app.models.voucher import Voucher
 from app.services.afip_sdk_service import AfipSdkService
+from app.services.logo_storage_service import upload_logo_to_storage
 from app.utils.acl import (
     MODULE_KEYS,
     default_module_permissions,
@@ -122,6 +123,9 @@ class BrandingResponse(BaseModel):
     phone: str | None = None
     email: str | None = None
     logo_url: str | None = None
+    hide_business_name_in_pdf: bool = False
+    logo_position: Literal["left", "center", "right"] = "left"
+    logo_display_mode: Literal["alongside_text", "replace_text"] = "alongside_text"
     header_text: str | None = None
     sale_point: str | None = None
     arca_environment: str | None = None
@@ -140,6 +144,9 @@ class BrandingUpdate(BaseModel):
     phone: str | None = None
     email: str | None = None
     logo_url: str | None = None
+    hide_business_name_in_pdf: bool | None = None
+    logo_position: Literal["left", "center", "right"] | None = None
+    logo_display_mode: Literal["alongside_text", "replace_text"] | None = None
     header_text: str | None = None
     sale_point: str | None = None
     arca_environment: str | None = None
@@ -1510,6 +1517,91 @@ async def get_branding(
         phone=business.phone,
         email=business.email,
         logo_url=business.logo_url,
+        hide_business_name_in_pdf=bool(
+            getattr(business, "hide_business_name_in_pdf", False)
+        ),
+        logo_position=getattr(business, "logo_position", "left") or "left",
+        logo_display_mode=getattr(business, "logo_display_mode", "alongside_text")
+        or "alongside_text",
+        header_text=business.header_text,
+        sale_point=business.sale_point,
+        arca_environment=business.arca_environment,
+    )
+
+
+@router.post("/tenants/{tenant_id}/branding/logo", response_model=BrandingResponse)
+async def upload_branding_logo(
+    tenant_id: UUID,
+    logo: UploadFile = File(...),
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sube logo de branding (PNG/JPG/WebP) a MinIO y guarda URL en business.logo_url."""
+    business = await get_business_or_404(tenant_id, db)
+
+    allowed_types = {"image/png", "image/jpeg", "image/webp"}
+    if logo.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato inválido. Permitidos: PNG, JPG o WebP.",
+        )
+
+    file_bytes = await logo.read()
+    if not file_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El archivo está vacío.",
+        )
+    if len(file_bytes) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El logo supera el máximo de 5MB.",
+        )
+
+    try:
+        public_url = upload_logo_to_storage(
+            tenant_id=str(tenant_id),
+            file_bytes=file_bytes,
+            original_name=logo.filename or "logo.png",
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"No se pudo subir el logo: {exc}",
+        ) from exc
+
+    business.logo_url = public_url
+    await db.commit()
+    await db.refresh(business)
+
+    await log_audit(
+        db=db,
+        user_id=admin.user_id,
+        business_id=tenant_id,
+        action="update",
+        resource_type="branding_logo",
+        resource_id=tenant_id,
+        details={"logo_url": public_url},
+    )
+
+    return BrandingResponse(
+        id=str(business.id),
+        name=business.name,
+        cuit=business.cuit,
+        tax_condition=business.tax_condition,
+        address=business.address,
+        city=business.city,
+        province=business.province,
+        postal_code=business.postal_code,
+        phone=business.phone,
+        email=business.email,
+        logo_url=business.logo_url,
+        hide_business_name_in_pdf=bool(
+            getattr(business, "hide_business_name_in_pdf", False)
+        ),
+        logo_position=getattr(business, "logo_position", "left") or "left",
+        logo_display_mode=getattr(business, "logo_display_mode", "alongside_text")
+        or "alongside_text",
         header_text=business.header_text,
         sale_point=business.sale_point,
         arca_environment=business.arca_environment,
@@ -1557,6 +1649,20 @@ async def update_feature_flags(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No se enviaron cambios de funcionalidades",
         )
+
+    # Reglas de negocio: Acopios y Cuenta Corriente dependen de Remitos.
+    # - Si se activa Acopio, Remitos queda forzado a true.
+    # - Si se activa Cuenta Corriente (modo != disabled), Remitos queda forzado a true.
+    # - Si se desactiva Remitos, Acopio se desactiva y Cuenta Corriente pasa a disabled.
+    if update_data.get("stockpile_enabled") is True and update_data.get("receipts_enabled") is not False:
+        update_data["receipts_enabled"] = True
+
+    if update_data.get("current_account_mode") in {"automatic", "manual"} and update_data.get("receipts_enabled") is not False:
+        update_data["receipts_enabled"] = True
+
+    if update_data.get("receipts_enabled") is False:
+        update_data["stockpile_enabled"] = False
+        update_data["current_account_mode"] = "disabled"
 
     for field, value in update_data.items():
         setattr(business, field, value)
@@ -1634,6 +1740,12 @@ async def update_branding(
         phone=business.phone,
         email=business.email,
         logo_url=business.logo_url,
+        hide_business_name_in_pdf=bool(
+            getattr(business, "hide_business_name_in_pdf", False)
+        ),
+        logo_position=getattr(business, "logo_position", "left") or "left",
+        logo_display_mode=getattr(business, "logo_display_mode", "alongside_text")
+        or "alongside_text",
         header_text=business.header_text,
         sale_point=business.sale_point,
         arca_environment=business.arca_environment,

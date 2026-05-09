@@ -68,6 +68,15 @@ class Settings(BaseSettings):
     # Seguridad webhook billing (n8n -> backend)
     BILLING_WEBHOOK_SECRET: str = ""
 
+    # MinIO / S3 compatible (logos branding)
+    MINIO_ENDPOINT: str = ""
+    MINIO_ACCESS_KEY: str = ""
+    MINIO_SECRET_KEY: str = ""
+    MINIO_BUCKET_NAME: str = "logos"
+    MINIO_SECURE: bool = True
+    MINIO_REGION: str = "us-east-1"
+    MINIO_PUBLIC_BASE_URL: str = ""
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):

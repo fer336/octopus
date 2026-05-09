@@ -66,6 +66,11 @@ from app.utils.security import (
 def serialize_voucher(voucher: Voucher) -> dict:
     """Serializa un comprobante a dict con información del vendedor."""
     data = VoucherResponse.model_validate(voucher).model_dump()
+    data["is_stockpile_principal_receipt"] = bool(
+        voucher.voucher_type == VoucherType.RECEIPT
+        and not getattr(voucher, "stockpile_id", None)
+        and len(getattr(voucher, "child_stockpiles", []) or []) > 0
+    )
     # Agregar info del vendedor
     if voucher.created_by_user:
         data["created_by"] = voucher.created_by_user.id

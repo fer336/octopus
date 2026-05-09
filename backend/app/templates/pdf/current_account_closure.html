@@ -165,7 +165,9 @@
         <table class="header-table">
             <tr>
                 <td>
+                    {% if not business.hide_business_name_in_pdf %}
                     <div class="business-name">{{ business.name }}</div>
+                    {% endif %}
                     {% if business.address %}<div class="business-info">{{ business.address }}</div>{% endif %}
                     {% if business.city %}<div class="business-info">{{ business.city }} {% if business.province %}, {{ business.province }}{% endif %}</div>{% endif %}
                     {% if business.phone %}<div class="business-info">Tel: {{ business.phone }}</div>{% endif %}

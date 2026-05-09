@@ -329,9 +329,22 @@ export default function Stockpiles() {
                         {item.stockpile_number || 'Sin número'}
                       </span>
                       {item.principal_voucher_number && (
-                        <span className="rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                        Remito {item.principal_voucher_number}
-                      </span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                          Remito {item.principal_voucher_number}
+                          {item.principal_voucher_id && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleViewVoucher(item.principal_voucher_id as string)
+                              }}
+                              className="inline-flex items-center gap-1 rounded bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 hover:bg-white dark:bg-gray-900/60 dark:text-blue-300"
+                              title="Ver detalle del remito principal"
+                            >
+                              <Eye size={12} />
+                              Ver detalle
+                            </button>
+                          )}
+                        </span>
                       )}
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusStyle.color} ${statusStyle.bg}`}>
                         {STATUS_LABELS[item.status]?.label || item.status}
@@ -391,6 +404,53 @@ export default function Stockpiles() {
                 {/* Sección expandida */}
                 {isExpanded && (
                   <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                    {item.principal_voucher_number && item.principal_voucher_id && (
+                      <div className="mb-3">
+                        <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Remito principal</h4>
+                        <div className="bg-white dark:bg-gray-800 rounded-lg border overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-100 dark:bg-gray-700">
+                              <tr>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Remito</th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Fecha</th>
+                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Total</th>
+                                <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">Estado</th>
+                                <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">Acciones</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr>
+                                <td className="px-3 py-2 font-medium">{item.principal_voucher_number}</td>
+                                <td className="px-3 py-2">{new Date(item.created_at).toLocaleDateString('es-AR')}</td>
+                                <td className="px-3 py-2 text-right">${item.initial_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                                <td className="px-3 py-2 text-center">
+                                  <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Confirmado</span>
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      onClick={() => handleViewVoucher(item.principal_voucher_id as string)}
+                                      className="p-1 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+                                      title="Ver remito principal"
+                                    >
+                                      <Eye size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDownloadVoucher(item.principal_voucher_id as string)}
+                                      className="p-1 text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded"
+                                      title="Descargar PDF"
+                                    >
+                                      <Download size={16} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
                     {item.child_vouchers && item.child_vouchers.length > 0 ? (
                       <div>
                         <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Remitos Parciales</h4>

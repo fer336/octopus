@@ -19,7 +19,7 @@
 <body>
   <h1>{{ report.title }}</h1>
   <div class="meta">
-    {{ business.name }} · CUIT {{ business.cuit }} · Generado: {{ report.generated_at }}
+    {% if not business.hide_business_name_in_pdf %}{{ business.name }} · {% endif %}CUIT {{ business.cuit }} · Generado: {{ report.generated_at }}
   </div>
 
   <div class="summary">

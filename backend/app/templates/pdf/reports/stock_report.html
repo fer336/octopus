@@ -18,7 +18,7 @@
 <body>
   <h1>{{ report.title }}</h1>
   <div class="meta">
-    {{ business.name }} · CUIT {{ business.cuit }} · Generado: {{ report.generated_at }} · Usuario: {{ report.generated_by }}
+    {% if not business.hide_business_name_in_pdf %}{{ business.name }} · {% endif %}CUIT {{ business.cuit }} · Generado: {{ report.generated_at }} · Usuario: {{ report.generated_by }}
   </div>
 
   <div class="summary">

@@ -419,6 +419,7 @@ class VoucherResponse(BaseResponse):
     # Información de acopio para remitos hijos de retiros parciales
     stockpile_id: UUID | None = None
     stockpile: dict[str, Any] | None = None
+    is_stockpile_principal_receipt: bool = False
 
     items: list[VoucherItemResponse]
 

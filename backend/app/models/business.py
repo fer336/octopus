@@ -41,6 +41,9 @@ class Business(BaseModel):
     # Membrete PDF
     logo_url = Column(String(500), nullable=True)
     header_text = Column(Text, nullable=True)  # Texto adicional para el membrete
+    hide_business_name_in_pdf = Column(Boolean, nullable=False, default=False)
+    logo_position = Column(String(20), nullable=False, default="left")
+    logo_display_mode = Column(String(30), nullable=False, default="alongside_text")
 
     # Configuración de facturación
     sale_point = Column(String(5), default="0001")  # Punto de venta ARCA

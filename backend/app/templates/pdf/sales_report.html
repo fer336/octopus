@@ -187,7 +187,9 @@
     <table class="header-table">
       <tr>
         <td style="width: 55%;">
+          {% if not business.hide_business_name_in_pdf %}
           <div class="business-name">{{ business.name }}</div>
+          {% endif %}
           <div class="business-info">
             CUIT: {{ business.cuit }}<br>
             {% if business.address %}{{ business.address }}{% if business.city %}, {{ business.city }}{% endif %}<br>{% endif %}

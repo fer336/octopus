@@ -25,6 +25,18 @@ class BusinessBase(BaseModel):
     phone: str | None = Field(None, max_length=50, description="Teléfono")
     email: str | None = Field(None, max_length=255, description="Email")
     logo_url: str | None = Field(None, max_length=500, description="URL del logo")
+    hide_business_name_in_pdf: bool = Field(
+        False,
+        description="Si true y hay logo, oculta razón social en PDFs",
+    )
+    logo_position: Literal["left", "center", "right"] = Field(
+        "left",
+        description="Posición horizontal del logo en el header PDF",
+    )
+    logo_display_mode: Literal["alongside_text", "replace_text"] = Field(
+        "alongside_text",
+        description="Si el logo acompaña al nombre o lo reemplaza",
+    )
     header_text: str | None = Field(
         None, description="Texto adicional para membrete"
     )
@@ -44,6 +56,9 @@ class BusinessUpdate(BaseModel):
     phone: str | None = Field(None, max_length=50)
     email: str | None = Field(None, max_length=255)
     logo_url: str | None = Field(None, max_length=500)
+    hide_business_name_in_pdf: bool | None = Field(None)
+    logo_position: Literal["left", "center", "right"] | None = Field(None)
+    logo_display_mode: Literal["alongside_text", "replace_text"] | None = Field(None)
     header_text: str | None = Field(None)
     sale_point: str | None = Field(None, max_length=5)
 
@@ -62,6 +77,9 @@ class BusinessResponse(BaseModel):
     phone: str | None
     email: str | None
     logo_url: str | None
+    hide_business_name_in_pdf: bool
+    logo_position: Literal["left", "center", "right"]
+    logo_display_mode: Literal["alongside_text", "replace_text"]
     header_text: str | None
     sale_point: str
     ai_agent_enabled: bool

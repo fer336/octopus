@@ -133,8 +133,24 @@
         .logo-img {
             max-height: 50px;
             max-width: 180px;
-            margin-bottom: 8px;
             display: block;
+        }
+
+        .branding-block {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .branding-block.logo-pos-center {
+            justify-content: center;
+            text-align: center;
+        }
+
+        .branding-block.logo-pos-right {
+            justify-content: flex-end;
+            text-align: right;
         }
 
 		/* === CLIENTE === */
@@ -278,10 +294,19 @@
         <table class="header-table">
             <tr>
                 <td class="header-col-left">
-                    {% if business.logo_url %}
-                    <img class="logo-img" src="{{ business.logo_url }}" alt="Logo">
+                    {% set logo_position = business.logo_position or 'left' %}
+                    {% set logo_mode = business.logo_display_mode or 'alongside_text' %}
+                    {% set show_business_name = (not business.hide_business_name_in_pdf) and logo_mode != 'replace_text' %}
+                    {% if business.logo_url or show_business_name %}
+                    <div class="branding-block logo-pos-{{ logo_position }}">
+                        {% if business.logo_url %}
+                        <img class="logo-img" src="{{ business.logo_url }}" alt="Logo">
+                        {% endif %}
+                        {% if show_business_name %}
+                        <div class="business-name">{{ business.name }}</div>
+                        {% endif %}
+                    </div>
                     {% endif %}
-                    <div class="business-name">{{ business.name }}</div>
                     <div class="info-line"><strong>Domicilio Comercial:</strong> {{ business.address or 'Sin domicilio' }}</div>
                     <div class="info-line"><strong>Condición Frente al IVA:</strong> {{ business.tax_condition }}</div>
                     <br>

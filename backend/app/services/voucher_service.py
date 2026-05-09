@@ -985,6 +985,7 @@ class VoucherService:
                 selectinload(Voucher.billing_client),
                 selectinload(Voucher.operating_client),
                 selectinload(Voucher.created_by_user),
+                selectinload(Voucher.child_stockpiles),
                 selectinload(Voucher.principal_stockpile).selectinload(
                     Stockpile.principal_voucher
                 ),
@@ -1122,6 +1123,7 @@ class VoucherService:
                 selectinload(Voucher.billing_client),
                 selectinload(Voucher.operating_client),
                 selectinload(Voucher.items),
+                selectinload(Voucher.child_stockpiles),
                 selectinload(Voucher.credit_notes),  # Requerido por has_credit_note
                 selectinload(Voucher.created_by_user),
             )
@@ -1732,6 +1734,56 @@ class VoucherService:
         # Para remitos de acopio, siempre mostrar precios
         show_prices = True if is_stockpile_receipt else (voucher.show_prices == "S")
 
+        is_stockpile_principal_receipt = bool(
+            voucher.voucher_type == VoucherType.RECEIPT
+            and not voucher.stockpile_id
+            and len(getattr(voucher, "child_stockpiles", []) or []) > 0
+        )
+
+        items_context = [
+            {
+                "code": item.code,
+                "description": item.description,
+                "quantity": f"{item.quantity:g}",
+                "unit_price": f"{item.unit_price:,.2f}",
+                "discount": f"{item.discount_percent:g}"
+                if hasattr(item, "discount_percent") and item.discount_percent
+                else "0",
+                "subtotal": f"{item.subtotal:,.2f}",
+                "is_return_item": Decimal(str(item.quantity)) < Decimal("0"),
+            }
+            for item in voucher.items
+        ]
+
+        if is_stockpile_principal_receipt and not items_context:
+            linked_stockpile = (voucher.child_stockpiles or [None])[0]
+            stockpile_code = (
+                linked_stockpile.stockpile_number
+                if linked_stockpile and linked_stockpile.stockpile_number
+                else f"ACOP-{voucher.id.hex[:8].upper()}"
+            )
+            stockpile_description = (
+                linked_stockpile.description
+                if linked_stockpile and linked_stockpile.description
+                else (linked_stockpile.name if linked_stockpile else None)
+            )
+            if not stockpile_description:
+                stockpile_description = (
+                    voucher.notes or "Remito principal de acopio"
+                )
+
+            items_context = [
+                {
+                    "code": stockpile_code,
+                    "description": stockpile_description,
+                    "quantity": "1",
+                    "unit_price": f"{Decimal(str(voucher.total or 0)):,.2f}",
+                    "discount": "0",
+                    "subtotal": f"{Decimal(str(voucher.total or 0)):,.2f}",
+                    "is_return_item": False,
+                }
+            ]
+
         context = {
             "business": {
                 "name": voucher.business.name,
@@ -1786,20 +1838,7 @@ class VoucherService:
                 "seller": voucher.created_by_user.name if voucher.created_by_user else None,
                 "seller_email": voucher.created_by_user.email if voucher.created_by_user else None,
             },
-            "items": [
-                {
-                    "code": item.code,
-                    "description": item.description,
-                    "quantity": f"{item.quantity:g}",
-                    "unit_price": f"{item.unit_price:,.2f}",
-                    "discount": f"{item.discount_percent:g}"
-                    if hasattr(item, "discount_percent") and item.discount_percent
-                    else "0",
-                    "subtotal": f"{item.subtotal:,.2f}",
-                    "is_return_item": Decimal(str(item.quantity)) < Decimal("0"),
-                }
-                for item in voucher.items
-            ],
+            "items": items_context,
             "totals": {
                 "subtotal": f"{abs(Decimal(str(voucher.subtotal or 0))):,.2f}"
                 if voucher.is_return_receipt

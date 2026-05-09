@@ -1,15 +1,17 @@
-"""Add stockpile_enabled to businesses.
+"""Add hide_business_name_in_pdf flag to businesses.
 
-Revision ID: x1y2z3w4v5u6
-Revises: 
-Create Date: 2026-05-08
+Revision ID: m1n2o3p4q5r6
+Revises: x1y2z3w4v5u6
+Create Date: 2026-05-09
 """
+
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import inspect
 
-revision = "x1y2z3w4v5u6"
-down_revision = "a9b8c7d6e5f4"
+
+revision = "m1n2o3p4q5r6"
+down_revision = "x1y2z3w4v5u6"
 
 
 def upgrade() -> None:
@@ -17,14 +19,14 @@ def upgrade() -> None:
     inspector = inspect(bind)
     columns = {column["name"] for column in inspector.get_columns("businesses")}
 
-    if "stockpile_enabled" not in columns:
+    if "hide_business_name_in_pdf" not in columns:
         op.add_column(
             "businesses",
             sa.Column(
-                "stockpile_enabled",
+                "hide_business_name_in_pdf",
                 sa.Boolean(),
                 nullable=False,
-                server_default=sa.text("true"),
+                server_default=sa.false(),
             ),
         )
 
@@ -34,5 +36,5 @@ def downgrade() -> None:
     inspector = inspect(bind)
     columns = {column["name"] for column in inspector.get_columns("businesses")}
 
-    if "stockpile_enabled" in columns:
-        op.drop_column("businesses", "stockpile_enabled")
+    if "hide_business_name_in_pdf" in columns:
+        op.drop_column("businesses", "hide_business_name_in_pdf")

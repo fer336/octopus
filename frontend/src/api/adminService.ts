@@ -104,6 +104,9 @@ export interface BrandingResponse {
   phone: string | null
   email: string | null
   logo_url: string | null
+  hide_business_name_in_pdf: boolean
+  logo_position: 'left' | 'center' | 'right'
+  logo_display_mode: 'alongside_text' | 'replace_text'
   header_text: string | null
   sale_point: string | null
   arca_environment: string | null
@@ -120,6 +123,9 @@ export interface BrandingUpdate {
   phone?: string
   email?: string
   logo_url?: string
+  hide_business_name_in_pdf?: boolean
+  logo_position?: 'left' | 'center' | 'right'
+  logo_display_mode?: 'alongside_text' | 'replace_text'
   header_text?: string
   sale_point?: string
   arca_environment?: string
@@ -323,6 +329,15 @@ const adminAPI = {
 
   async updateBranding(businessId: string, data: BrandingUpdate): Promise<BrandingResponse> {
     const response = await adminHttpClient.put(`/tenants/${businessId}/branding`, data)
+    return response.data
+  },
+
+  async uploadBrandingLogo(businessId: string, file: File): Promise<BrandingResponse> {
+    const formData = new FormData()
+    formData.append('logo', file)
+    const response = await adminHttpClient.post(`/tenants/${businessId}/branding/logo`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
     return response.data
   },
 

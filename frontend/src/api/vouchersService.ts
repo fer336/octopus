@@ -140,6 +140,7 @@ export interface Voucher {
   payment_date?: string | null
   paid_amount?: number | null
   stockpile_id?: string | null
+  is_stockpile_principal_receipt?: boolean
   items: VoucherItem[]
 }
 
