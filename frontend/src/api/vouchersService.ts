@@ -139,6 +139,7 @@ export interface Voucher {
   is_paid?: boolean
   payment_date?: string | null
   paid_amount?: number | null
+  stockpile_id?: string | null
   items: VoucherItem[]
 }
 

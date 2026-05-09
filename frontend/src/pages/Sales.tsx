@@ -302,6 +302,7 @@ export default function Sales() {
   const invoicingEnabled = business?.invoicing_enabled ?? true
   const receiptsEnabled = business?.receipts_enabled ?? true
   const quotationEnabled = business?.quotation_enabled ?? true
+  const stockpileEnabled = (business?.stockpile_enabled ?? true) && hasModuleAccess(user, 'stockpiles')
   const currentAccountEnabled =
     (business?.current_account_mode ?? 'disabled') !== 'disabled' &&
     hasModuleAccess(user, 'current_account')
@@ -312,10 +313,11 @@ export default function Sales() {
         if (item.value === 'invoice') return invoicingEnabled
         if (item.value === 'receipt') return receiptsEnabled
         if (item.value === 'quotation') return quotationEnabled
+        if (item.value === 'acopio') return stockpileEnabled
         if (item.value === 'current_account') return currentAccountEnabled
         return true
       }),
-    [invoicingEnabled, receiptsEnabled, quotationEnabled, currentAccountEnabled],
+    [invoicingEnabled, receiptsEnabled, quotationEnabled, stockpileEnabled, currentAccountEnabled],
   )
 
   const salesMenuModes = useMemo(
@@ -324,10 +326,11 @@ export default function Sales() {
         if (item.value === 'invoice') return invoicingEnabled
         if (item.value === 'receipt') return receiptsEnabled
         if (item.value === 'quotation') return quotationEnabled
+        if (item.value === 'acopio') return stockpileEnabled
         if (item.value === 'current_account') return currentAccountEnabled
         return true
       }),
-    [invoicingEnabled, receiptsEnabled, quotationEnabled, currentAccountEnabled],
+    [invoicingEnabled, receiptsEnabled, quotationEnabled, stockpileEnabled, currentAccountEnabled],
   )
 
   // React Query para productos
@@ -1147,7 +1150,12 @@ export default function Sales() {
       setVoucherType('quotation')
       setShowPrices(true)
     }
-  }, [voucherType, invoicingEnabled, receiptsEnabled])
+
+    if (voucherType === 'acopio' && !stockpileEnabled) {
+      setVoucherType('quotation')
+      setShowPrices(true)
+    }
+  }, [voucherType, invoicingEnabled, receiptsEnabled, stockpileEnabled])
 
   useEffect(() => {
     if (voucherType !== 'current_account') {
@@ -3822,7 +3830,7 @@ export default function Sales() {
             </div>
 
             {/* SALES-ACOPIO-FRONTEND-03: Acopio summary panel — solo para remito */}
-            {voucherType === 'receipt' && selectedClient && (
+            {voucherType === 'receipt' && selectedClient && stockpileEnabled && (
               <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
                 {selectedStockpile ? (
                   <div className="space-y-1.5">

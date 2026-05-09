@@ -100,6 +100,8 @@
 
 ## 🟢 Hecho
 
+- [x] [CMS-ACOPIO-UX-05] Ventas/Comprobantes: ocultar "Buscar acopio" cuando `stockpile_enabled=false` y excluir comprobantes de acopio del listado general ✅ 2026-05-09
+- [x] [CMS-ACOPIO-VISIBILITY-04] Corregir visibilidad de Acopios: ocultar en Sidebar/Ventas cuando `stockpile_enabled=false` y bloquear ruta `/stockpiles` en frontend ✅ 2026-05-09
 - [x] [CMS-TENANT-DEFAULTS-03] Alta de comercio desde CMS: dejar habilitada solo Cotizaciones por defecto (resto de features OFF) ✅ 2026-05-09
 - [x] [SEC-ACL-STOCKPILES-02] Enforce ACL backend para Acopios: agregar `stockpiles` a MODULE_KEYS y aplicar `require_module_access("stockpiles")` en router ✅ 2026-05-09
 - [x] [SEC-ACL-AUDIT-01] Auditar enforcement ACL backend para features de CMS y detectar bypass en módulo Acopios ✅ 2026-05-09

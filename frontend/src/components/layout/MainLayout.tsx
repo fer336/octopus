@@ -42,6 +42,7 @@ export default function MainLayout() {
   const priceUpdateEnabled = business?.price_update_enabled ?? true
   const reportsEnabled = business?.reports_enabled ?? true
   const inventoryEnabled = business?.inventory_enabled ?? true
+  const stockpileEnabled = business?.stockpile_enabled ?? true
 
   useEffect(() => {
     if (!aiEnabled) {
@@ -70,11 +71,16 @@ export default function MainLayout() {
       return
     }
 
+    if (location.pathname.startsWith('/stockpiles') && !stockpileEnabled) {
+      navigate('/', { replace: true })
+      return
+    }
+
     if (!hasPathAccess(user, location.pathname)) {
       const fallbackPath = navigationItems.find((item) => hasPathAccess(user, item.path))?.path ?? '/'
       navigate(fallbackPath, { replace: true })
     }
-  }, [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, inventoryEnabled, location.pathname, navigate, user])
+  }, [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, location.pathname, navigate, user])
 
   const toggleSidebar = () => {
     if (window.innerWidth < 1024) {
@@ -122,6 +128,7 @@ export default function MainLayout() {
           priceUpdateEnabled={priceUpdateEnabled}
           reportsEnabled={reportsEnabled}
           inventoryEnabled={inventoryEnabled}
+          stockpileEnabled={stockpileEnabled}
         />
 
       {/* Main content */}

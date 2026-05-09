@@ -46,6 +46,7 @@ interface SidebarProps {
   priceUpdateEnabled?: boolean
   reportsEnabled?: boolean
   inventoryEnabled?: boolean
+  stockpileEnabled?: boolean
 }
 
 export default function Sidebar({
@@ -56,6 +57,7 @@ export default function Sidebar({
   priceUpdateEnabled = true,
   reportsEnabled = true,
   inventoryEnabled = true,
+  stockpileEnabled = true,
 }: SidebarProps) {
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
@@ -76,9 +78,12 @@ export default function Sidebar({
         if (item.path === '/inventory' && !inventoryEnabled) {
           return false
         }
+        if (item.path === '/stockpiles' && !stockpileEnabled) {
+          return false
+        }
         return hasPathAccess(user, item.path)
       }),
-    [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, inventoryEnabled, user],
+    [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, user],
   )
 
   const getActiveSection = (pathname: string) =>
