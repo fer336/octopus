@@ -145,7 +145,20 @@ function BrandingTab({ tenantId }: { tenantId: string }) {
     return <div className="h-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
   }
 
-  const fields: { key: keyof BrandingUpdate; label: string; type?: string; placeholder?: string }[] = [
+  type BrandingTextFieldKey =
+    | 'name'
+    | 'cuit'
+    | 'tax_condition'
+    | 'address'
+    | 'city'
+    | 'province'
+    | 'postal_code'
+    | 'phone'
+    | 'email'
+    | 'header_text'
+    | 'sale_point'
+
+  const fields: { key: BrandingTextFieldKey; label: string; type?: string; placeholder?: string }[] = [
     { key: 'name', label: 'Nombre del negocio' },
     { key: 'cuit', label: 'CUIT' },
     { key: 'tax_condition', label: 'Condición Fiscal' },
