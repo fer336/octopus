@@ -521,197 +521,185 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
           </div>
         </div>
 
-        <div className="mt-3">
-          <span
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-              sqlBackupEnabled
-                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-            }`}
-          >
-            {sqlBackupEnabled ? 'Habilitado' : 'Deshabilitado'}
-          </span>
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Backup SQL</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              Permite exportar e importar la base de datos completa del tenant en formato SQL.
-              Funcionalidad premium.
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={sqlBackupEnabled}
-            onClick={() => updateMutation.mutate({ sql_backup_enabled: !sqlBackupEnabled })}
-            disabled={updateMutation.isPending}
-            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-              sqlBackupEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                sqlBackupEnabled ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
-
-        <div className="mt-3">
-          <span
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-              sqlBackupEnabled
-                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-            }`}
-          >
-            {sqlBackupEnabled ? 'Habilitado (Premium)' : 'Deshabilitado'}
-          </span>
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Cuenta Corriente</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              Define si el tenant puede usar el módulo y en qué modalidad opera.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            role="switch"
-            aria-checked={currentAccountEnabled}
-            onClick={() =>
-              updateMutation.mutate({
-                current_account_mode: currentAccountEnabled ? 'disabled' : 'automatic',
-              })
-            }
-            disabled={updateMutation.isPending}
-            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-              currentAccountEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                currentAccountEnabled ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span
-            className={`inline-flex px-2 py-1 text-xs rounded-full ${
-              currentAccountEnabled
-                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-            }`}
-          >
-            {currentAccountEnabled ? `Habilitada (${currentAccountMode === 'automatic' ? 'Automático' : 'Manual'})` : 'Deshabilitada'}
-          </span>
-        </div>
-
-        {currentAccountEnabled && (
-          <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Backup SQL</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Permite exportar e importar la base de datos completa del tenant en formato SQL.
+                Funcionalidad premium.
+              </p>
+            </div>
             <button
               type="button"
-              onClick={() => updateMutation.mutate({ current_account_mode: 'automatic' })}
+              role="switch"
+              aria-checked={sqlBackupEnabled}
+              onClick={() => updateMutation.mutate({ sql_backup_enabled: !sqlBackupEnabled })}
               disabled={updateMutation.isPending}
-              className={`px-3 py-1.5 text-sm transition-colors ${
-                currentAccountMode === 'automatic'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-primary-900/20'
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                sqlBackupEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
               }`}
             >
-              Modo automático
-            </button>
-            <button
-              type="button"
-              onClick={() => updateMutation.mutate({ current_account_mode: 'manual' })}
-              disabled={updateMutation.isPending}
-              className={`px-3 py-1.5 text-sm transition-colors border-l border-gray-200 dark:border-gray-700 ${
-                currentAccountMode === 'manual'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-primary-900/20'
-              }`}
-            >
-              Modo manual
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                  sqlBackupEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
             </button>
           </div>
-        )}
-      </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Sincronización con Linear</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              Cuando está activa, cada feedback nuevo intenta crearse también como issue en Linear.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            role="switch"
-            aria-checked={linearSyncEnabled}
-            onClick={() => updateMutation.mutate({ linear_sync_enabled: !linearSyncEnabled })}
-            disabled={updateMutation.isPending}
-            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-              linearSyncEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
-            }`}
-          >
+          <div className="mt-3">
             <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                linearSyncEnabled ? 'translate-x-6' : 'translate-x-1'
+              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                sqlBackupEnabled
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                  : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
               }`}
-            />
-          </button>
+            >
+              {sqlBackupEnabled ? 'Habilitado (Premium)' : 'Deshabilitado'}
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span
-            className={`inline-flex px-2 py-1 text-xs rounded-full ${
-              linearConfigured
-                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-            }`}
-          >
-            {linearConfigured ? `API Key configurada (${linearLast4 ?? '****'})` : 'API Key no configurada'}
-          </span>
-        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Cuenta Corriente</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Define si el tenant puede usar el módulo y en qué modalidad opera.
+              </p>
+            </div>
 
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Linear API Key
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="password"
-              value={linearApiKey}
-              onChange={(e) => setLinearApiKey(e.target.value)}
-              placeholder="lin_api_xxxxx..."
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            />
             <button
               type="button"
-              onClick={() => {
-                if (!linearApiKey.trim()) {
-                  toast.error('Ingresá una API Key válida')
-                  return
-                }
-                saveLinearKeyMutation.mutate(linearApiKey.trim())
-              }}
-              disabled={saveLinearKeyMutation.isPending}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              role="switch"
+              aria-checked={currentAccountEnabled}
+              onClick={() =>
+                updateMutation.mutate({
+                  current_account_mode: currentAccountEnabled ? 'disabled' : 'automatic',
+                })
+              }
+              disabled={updateMutation.isPending}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                currentAccountEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
             >
-              {saveLinearKeyMutation.isPending ? 'Guardando...' : 'Guardar key'}
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                  currentAccountEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
             </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-flex px-2 py-1 text-xs rounded-full ${
+                currentAccountEnabled
+                  ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                  : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+              }`}
+            >
+              {currentAccountEnabled ? `Habilitada (${currentAccountMode === 'automatic' ? 'Automático' : 'Manual'})` : 'Deshabilitada'}
+            </span>
+          </div>
+
+          {currentAccountEnabled && (
+            <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => updateMutation.mutate({ current_account_mode: 'automatic' })}
+                disabled={updateMutation.isPending}
+                className={`px-3 py-1.5 text-sm transition-colors ${
+                  currentAccountMode === 'automatic'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-primary-900/20'
+                }`}
+              >
+                Modo automático
+              </button>
+              <button
+                type="button"
+                onClick={() => updateMutation.mutate({ current_account_mode: 'manual' })}
+                disabled={updateMutation.isPending}
+                className={`px-3 py-1.5 text-sm transition-colors border-l border-gray-200 dark:border-gray-700 ${
+                  currentAccountMode === 'manual'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-primary-900/20'
+                }`}
+              >
+                Modo manual
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Sincronización con Linear</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Cuando está activa, cada feedback nuevo intenta crearse también como issue en Linear.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={linearSyncEnabled}
+              onClick={() => updateMutation.mutate({ linear_sync_enabled: !linearSyncEnabled })}
+              disabled={updateMutation.isPending}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                linearSyncEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                  linearSyncEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-flex px-2 py-1 text-xs rounded-full ${
+                linearConfigured
+                  ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+              }`}
+            >
+              {linearConfigured ? `API Key configurada (${linearLast4 ?? '****'})` : 'API Key no configurada'}
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Linear API Key
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={linearApiKey}
+                onChange={(e) => setLinearApiKey(e.target.value)}
+                placeholder="lin_api_xxxxx..."
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!linearApiKey.trim()) {
+                    toast.error('Ingresá una API Key válida')
+                    return
+                  }
+                  saveLinearKeyMutation.mutate(linearApiKey.trim())
+                }}
+                disabled={saveLinearKeyMutation.isPending}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              >
+                {saveLinearKeyMutation.isPending ? 'Guardando...' : 'Guardar key'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

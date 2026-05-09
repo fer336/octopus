@@ -100,6 +100,8 @@
 
 ## 🟢 Hecho
 
+- [x] [CMS-FEATURES-LAYOUT-08] Reubicar "Sincronización con Linear" dentro de la grilla principal de funcionalidades del CMS ✅ 2026-05-09
+- [x] [CMS-FEATURES-LAYOUT-07] Reubicar "Backup SQL" y "Cuenta Corriente" dentro de la grilla principal de funcionalidades del CMS ✅ 2026-05-09
 - [x] [CI-FRONTEND-TYPE-BUSINESS-06] Corregir typecheck frontend agregando `stockpile_enabled` al tipo `Business` de `businessService` ✅ 2026-05-09
 - [x] [CMS-ACOPIO-UX-05] Ventas/Comprobantes: ocultar "Buscar acopio" cuando `stockpile_enabled=false` y excluir comprobantes de acopio del listado general ✅ 2026-05-09
 - [x] [CMS-ACOPIO-VISIBILITY-04] Corregir visibilidad de Acopios: ocultar en Sidebar/Ventas cuando `stockpile_enabled=false` y bloquear ruta `/stockpiles` en frontend ✅ 2026-05-09
