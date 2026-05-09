@@ -31,7 +31,7 @@ services:
         order: stop-first
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.octopus-backend.rule=Host(`api.octopus.qeva.xyz`)"
+        - "traefik.http.routers.octopus-backend.rule=Host(`app.octopustrack.shop`) || Host(`cms.octopustrack.shop`)"
         - "traefik.http.routers.octopus-backend.entrypoints=websecure"
         - "traefik.http.routers.octopus-backend.tls.certresolver=letsencrypt"
         - "traefik.http.services.octopus-backend.loadbalancer.server.port=8000"
@@ -43,8 +43,8 @@ services:
     environment:
       - ENVIRONMENT=production
       - APP_VERSION=${IMAGE_TAG:-unknown}
-      - VITE_API_URL=${VITE_API_URL:-https://octopus.qeva.xyz/api/tenant}
-      - VITE_BACKEND_URL=${VITE_BACKEND_URL:-https://octopus.qeva.xyz}
+      - VITE_API_URL=${VITE_API_URL:-https://app.octopustrack.shop/api/tenant}
+      - VITE_BACKEND_URL=${VITE_BACKEND_URL:-https://app.octopustrack.shop}
     deploy:
       replicas: 1
       restart_policy:
@@ -59,7 +59,7 @@ services:
         order: stop-first
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.octopus-frontend.rule=Host(`octopus.qeva.xyz`)"
+        - "traefik.http.routers.octopus-frontend.rule=Host(`app.octopustrack.shop`)"
         - "traefik.http.routers.octopus-frontend.entrypoints=websecure"
         - "traefik.http.routers.octopus-frontend.tls.certresolver=letsencrypt"
         - "traefik.http.services.octopus-frontend.loadbalancer.server.port=80"

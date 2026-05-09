@@ -31,17 +31,17 @@ services:
         order: stop-first
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.octopus-tenant-api.rule=Host(`cms-octopus.qeva.xyz`) && PathPrefix(`/api/tenant`)"
+        - "traefik.http.routers.octopus-tenant-api.rule=Host(`cms.octopustrack.shop`) && PathPrefix(`/api/tenant`)"
         - "traefik.http.routers.octopus-tenant-api.entrypoints=websecure"
         - "traefik.http.routers.octopus-tenant-api.tls.certresolver=letsencrypt"
         - "traefik.http.routers.octopus-tenant-api.priority=100"
         - "traefik.http.routers.octopus-tenant-api.service=octopus-backend"
-        - "traefik.http.routers.octopus-admin-api.rule=Host(`cms-octopus.qeva.xyz`) && PathPrefix(`/api/admin`)"
+        - "traefik.http.routers.octopus-admin-api.rule=Host(`cms.octopustrack.shop`) && PathPrefix(`/api/admin`)"
         - "traefik.http.routers.octopus-admin-api.entrypoints=websecure"
         - "traefik.http.routers.octopus-admin-api.tls.certresolver=letsencrypt"
         - "traefik.http.routers.octopus-admin-api.priority=100"
         - "traefik.http.routers.octopus-admin-api.service=octopus-backend"
-        - "traefik.http.routers.octopus-auth.rule=Host(`cms-octopus.qeva.xyz`) && PathPrefix(`/auth`)"
+        - "traefik.http.routers.octopus-auth.rule=Host(`cms.octopustrack.shop`) && PathPrefix(`/auth`)"
         - "traefik.http.routers.octopus-auth.entrypoints=websecure"
         - "traefik.http.routers.octopus-auth.tls.certresolver=letsencrypt"
         - "traefik.http.routers.octopus-auth.priority=110"
@@ -62,8 +62,8 @@ services:
     environment:
       - ENVIRONMENT=production
       - APP_VERSION=${IMAGE_TAG:-unknown}
-      - VITE_API_URL=https://octopus.qeva.xyz/api/tenant
-      - VITE_BACKEND_URL=https://octopus.qeva.xyz
+      - VITE_API_URL=https://cms.octopustrack.shop/api/tenant
+      - VITE_BACKEND_URL=https://cms.octopustrack.shop
     deploy:
       replicas: 1
       restart_policy:
@@ -73,7 +73,7 @@ services:
         failure_action: rollback
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.octopus-cms.rule=Host(`cms-octopus.qeva.xyz`)"
+        - "traefik.http.routers.octopus-cms.rule=Host(`cms.octopustrack.shop`)"
         - "traefik.http.routers.octopus-cms.entrypoints=websecure"
         - "traefik.http.routers.octopus-cms.tls.certresolver=letsencrypt"
         - "traefik.http.services.octopus-cms.loadbalancer.server.port=80"

@@ -25,7 +25,6 @@
 - [ ] [CC-PAY-04] Frontend Vouchers: opción "Pagar Cuenta Corriente" para facturas pendientes
 - [ ] [CC-PAY-05] PDF Factura: mostrar fecha de vencimiento cuando hay payment_days
 - [ ] [CC-PAY-06] Backend: registrar movimiento en caja al pagar factura CC
-- [ ] [CMS-SYS-DEPLOY-07] Publicar cambios de CMS y sistema en commit/tag selectivo (sin mezclar landing)
 - [ ] [N8N-POSTPURCHASE-08] Diseñar flujo n8n post-compra: HTML de confirmación + otorgar acceso según plan (Excel/Sistema)
 - [ ] [SEO-LEGAL-LINKS-05] Agregar enlaces visibles desde landing principal a política de privacidad y política de seguridad
 - [ ] [SEO-SITEMAP-04] Agregar URLs de páginas legales al sitemap (`politicas-privacidad.html` y `politicas-seguridad.html`)
@@ -101,6 +100,11 @@
 
 ## 🟢 Hecho
 
+- [x] [CMS-TENANT-DEFAULTS-03] Alta de comercio desde CMS: dejar habilitada solo Cotizaciones por defecto (resto de features OFF) ✅ 2026-05-09
+- [x] [SEC-ACL-STOCKPILES-02] Enforce ACL backend para Acopios: agregar `stockpiles` a MODULE_KEYS y aplicar `require_module_access("stockpiles")` en router ✅ 2026-05-09
+- [x] [SEC-ACL-AUDIT-01] Auditar enforcement ACL backend para features de CMS y detectar bypass en módulo Acopios ✅ 2026-05-09
+- [x] [CMS-ACOPIO-FLAG-01] CMS: agregar `stockpile_enabled` en tipos API y toggle visual para habilitar/deshabilitar Acopio ✅ 2026-05-09
+- [x] [CMS-SYS-DEPLOY-07] Publicar cambios de CMS y sistema en commit/tag selectivo (sin mezclar landing) ✅ 2026-05-09
 - [x] [DEVOPS-STAGING-AUDIT-DELETED-14] Corregir migración faltante `audit_logs.deleted_at` ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-MEMBERSHIP-DELETED-13] Corregir migración faltante `tenant_memberships.deleted_at` ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-SUPERADMIN-12] Crear usuario superadmin `casserafernando@gmail.com` en staging ✅ 2026-05-08
