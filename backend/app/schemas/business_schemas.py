@@ -70,6 +70,7 @@ class BusinessResponse(BaseModel):
     receipts_enabled: bool
     quotation_enabled: bool
     inventory_enabled: bool
+    stockpile_enabled: bool
     price_update_enabled: bool
     reports_enabled: bool
     sql_backup_enabled: bool

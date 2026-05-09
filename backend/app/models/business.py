@@ -59,6 +59,7 @@ class Business(BaseModel):
     receipts_enabled = Column(Boolean, nullable=False, default=True)
     quotation_enabled = Column(Boolean, nullable=False, default=True)
     inventory_enabled = Column(Boolean, nullable=False, default=True)
+    stockpile_enabled = Column(Boolean, nullable=False, default=True)
     price_update_enabled = Column(Boolean, nullable=False, default=True)
     reports_enabled = Column(Boolean, nullable=False, default=True)
     sql_backup_enabled = Column(Boolean, nullable=False, default=False)

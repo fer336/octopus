@@ -75,6 +75,8 @@
 - [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
 
 ## 🟡 En progreso
+- [/] [DEVOPS-STAGING-TENANT-OWNER-16] Asignar superadmin como owner del tenant staging de prueba
+- [/] [DEVOPS-STAGING-CMS-DB-15] Verificar si CMS staging escribe en DB staging o producción
 - [/] [PRICEUPDATE-MOBILE-EDIT-PARITY-08] Diseñar adaptación mobile de la lógica de edición de precios sin navegación por Enter
 - [/] [SALES-RETURNS-INVOICE-ONLY-07] Restringir saldo a favor/devolución excedente exclusivamente al flujo Factura y quitar leyenda contable del PDF
 - [/] [DEVOPS-DEPLOY-SELECTIVE-15] Implementar deploys independientes: system-v* (backend+frontend), cms-v* (solo CMS), landing-v* (solo landing)
