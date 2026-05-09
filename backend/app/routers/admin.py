@@ -1310,6 +1310,16 @@ async def update_arca_secrets(
             await _upsert_secret(db, tenant_id, secret_type, plain_value)
             updated_types.append(secret_type)
 
+    # Mantener sincronizados los campos de Business usados por AfipSdkService.
+    if updates.get('afipsdk_access_token') and updates['afipsdk_access_token'].strip():
+        business.afipsdk_access_token = updates['afipsdk_access_token'].strip()
+
+    if updates.get('afip_cert') and updates['afip_cert'].strip():
+        business.afip_cert = updates['afip_cert'].strip()
+
+    if updates.get('afip_key') and updates['afip_key'].strip():
+        business.afip_key = updates['afip_key'].strip()
+
     # Actualizar arca_environment en la tabla business (campo real que usa AfipSdkService)
     if arca_env and arca_env.strip():
         business.arca_environment = arca_env.strip()
@@ -1365,6 +1375,12 @@ async def delete_arca_secrets(
         secret.last4 = None
         secret.is_configured = False
         invalidated_types.append(secret.secret_type)
+
+    # Limpiar también columnas legacy consumidas por AfipSdkService
+    business = await get_business_or_404(tenant_id, db)
+    business.afipsdk_access_token = None
+    business.afip_cert = None
+    business.afip_key = None
 
     await db.commit()
 

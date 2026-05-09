@@ -96,6 +96,8 @@
 - [/] [RESP-MOBILE-SALES-STEPPER-05] Implementar stepper mobile en Sales basado en referencia HTML (solo `<lg>`, desktop intacto)
 - [/] [RESP-MOBILE-QA-03] Ejecutar Fase 3 QA responsive (375/390/768/1024) y corregir regresiones visuales
 - [/] [DEVOPS-LANDING-04] Pipeline landing: probar build solo amd64 para evitar falla QEMU arm64 y validar deploy
+- [x] [PDF-INVOICE-AFIP-BORDER-24] Factura PDF: agregar recuadro fiscal negro completo con padding interno y letra sobre borde superior ✅ 2026-05-09
+- [x] [PDF-INVOICE-A4-HEIGHT-23] Factura PDF: ocupar altura completa A4 con spacer flexible y bloque CAE/QR anclado al fondo ✅ 2026-05-09
 
 
 
@@ -109,6 +111,25 @@
 - [x] [SALES-CC-LAYOUT-FLOW-19] Ventas/Cta Cte: reordenar header en 3 filas (titular, buscador+acciones, alert in-flow) sin popover absoluto ✅ 2026-05-09
 - [x] [SALES-CC-MOBILE-SUBCLIENT-20] Mobile Ventas/Cta Cte: agregar selector de titular/subcliente y alert in-flow debajo del selector ✅ 2026-05-09
 - [x] [SALES-PRODUCTS-BOLD-21] Ventas: mostrar descripciones de productos en negrita en listas desktop/mobile ✅ 2026-05-09
+- [x] [CMS-ARCA-TOKEN-SYNC-22] Corregir prueba ARCA CMS: sincronizar `afipsdk_access_token`/cert/key de TenantSecret a Business para que AfipSdkService los lea ✅ 2026-05-09
+- [x] [PDF-INVOICE-MARGINS-25] Factura PDF: reducir márgenes a 8mm y padding interno a 6mm para marco AFIP más ajustado ✅ 2026-05-09
+- [x] [PDF-INVOICE-FOOTER-ANCHOR-26] Factura PDF: fijar altura del recuadro a área útil A4 y anclar totales+QR/CAE al pie con flex column ✅ 2026-05-09
+- [x] [PDF-INVOICE-HMARGIN-27] Factura PDF: reducir márgenes laterales de papel a 5mm manteniendo 8mm verticales ✅ 2026-05-09
+- [x] [PDF-INVOICE-INNER-PADDING-28] Factura PDF: reducir padding interno a 4mm y eliminar paddings laterales extra en header/cliente/items/CAE ✅ 2026-05-09
+- [x] [PDF-INVOICE-TABLE-BLEED-29] Factura PDF: estirar solo tabla de productos con márgenes negativos para tocar recuadro negro ✅ 2026-05-09
+- [x] [PDF-INVOICE-HEADER-RIGHT-PADDING-30] Factura PDF: agregar padding izquierdo en bloque derecho bajo “FACTURA” para separarlo de la línea central ✅ 2026-05-09
+- [x] [PDF-INVOICE-TABLE-HEADER-GAP-31] Factura PDF: eliminar gap superior del header de items y colapsar bordes para que fondo arranque sin espacio ✅ 2026-05-09
+- [x] [PDF-INVOICE-THEAD-TOP-GAP-32] Factura PDF: remover gap superior real de thead (sin border/margin/padding top), fondo header oscuro continuo y sin espacios intercelda ✅ 2026-05-09
+- [x] [PDF-INVOICE-THEAD-FULL-WIDTH-33] Factura PDF: asegurar header oscuro de items de borde a borde, sin gap en esquina superior derecha ✅ 2026-05-09
+- [x] [PDF-INVOICE-FULL-BLEED-LINES-34] Factura PDF: extender líneas horizontales estructurales y tabla hasta el recuadro sin mover textos ✅ 2026-05-09
+- [x] [PDF-INVOICE-BOTTOM-BLEED-35] Factura PDF: extender líneas de totales al recuadro, quitar línea inferior extra del CAE y alinear bloque fiscal del cliente ✅ 2026-05-09
+- [x] [PDF-INVOICE-CLIENT-TAX-OFFSET-36] Factura PDF: mover 2px al centro el bloque fiscal derecho del cliente ✅ 2026-05-09
+- [x] [PDF-INVOICE-CLIENT-TAX-OFFSET-37] Factura PDF: ajustar 3px adicionales hacia el centro el bloque fiscal derecho del cliente ✅ 2026-05-09
+- [x] [PDF-INVOICE-HEADER-TAX-OFFSET-38] Factura PDF: mover hacia el centro el bloque fiscal derecho del header para alinearlo con cliente ✅ 2026-05-09
+- [x] [PDF-INVOICE-LETTER-B-POSITION-39] Factura PDF: posicionar la letra B dentro del header centrada sobre la línea vertical, estilo factura AFIP ✅ 2026-05-09
+- [x] [PDF-INVOICE-HEADER-CENTER-LINE-40] Factura PDF: extender línea vertical central hasta borde superior y centrar más el bloque Punto de Venta ✅ 2026-05-09
+- [x] [PDF-INVOICE-PRODUCT-DESC-PADDING-41] Factura PDF: agregar padding izquierdo a descripción de productos para separarla de la línea vertical ✅ 2026-05-09
+- [x] [PDF-INVOICE-TOTALS-BOTTOM-FULLWIDTH-42] Factura PDF: forzar línea inferior de totales a full-bleed hasta el borde del recuadro ✅ 2026-05-09
 - [x] [CMS-VOUCHERS-ACOPIO-HIDE-13] Comprobantes: ocultar también remitos principales de acopio (no solo remitos hijos) en listado general ✅ 2026-05-09
 - [x] [PDF-ACOPIO-PRINCIPAL-DESC-14] PDF remito principal de acopio: mostrar descripción sintética cuando no existan items persistidos ✅ 2026-05-09
 - [x] [BACKEND-MINIO-IMPORT-10] Evitar caída total del backend por dependencia `minio` ausente usando import lazy y error guiado ✅ 2026-05-09

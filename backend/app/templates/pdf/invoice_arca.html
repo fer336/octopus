@@ -6,7 +6,7 @@
 	<style type="text/css">
 		@page {
 			size: A4;
-			margin: 10mm;
+			margin: 8mm 5mm;
 		}
 		* {
 			box-sizing: border-box;
@@ -17,27 +17,55 @@
 			font-family: sans-serif;
 			font-size: 11px;
 			color: #000;
+			padding: 0;
 		}
 
 		/* Contenedor principal */
 		.invoice {
 			width: 100%;
-			border: 1px solid #000;
+			height: calc(297mm - 16mm);
+			margin: 0;
+			border: 1.5pt solid #000;
+			padding: 4mm;
+			box-sizing: border-box;
+			display: flex;
+			flex-direction: column;
+			page-break-inside: avoid;
+			overflow: hidden;
+		}
+
+		.invoice-top {
+			width: 100%;
+			flex-grow: 0;
+		}
+
+		.invoice-bottom {
+			width: 100%;
+			flex-grow: 0;
+			margin-top: auto;
 		}
 
 		/* === ENCABEZADO === */
 		.header-container {
 			width: 100%;
-			border-bottom: 1px solid #000;
+			border-bottom: 0;
 			position: relative;
             min-height: 160px;
+		}
+		.header-container::after {
+			content: "";
+			position: absolute;
+			left: -4mm;
+			right: -4mm;
+			bottom: 0;
+			border-bottom: 1px solid #000;
 		}
         
         /* Línea vertical central absoluta */
         .header-vertical-line {
             position: absolute;
             left: 50%;
-            top: 0;
+            top: -4mm;
             bottom: 0;
             width: 1px;
             background-color: #000;
@@ -55,31 +83,31 @@
         .header-col-left {
             width: 50%;
             vertical-align: top;
-            padding: 15px 15px 10px 15px;
+            padding: 15px 0 10px 0;
         }
         
         .header-col-right {
             width: 50%;
             vertical-align: top;
-            padding: 15px 15px 10px 30px;
+            padding: 15px 0 10px 17px;
         }
 
 		/* Letra del comprobante */
 		.letter-box-container {
 			position: absolute;
-			top: 0;
+			top: 26px;
 			left: 50%;
-			transform: translate(-50%, -50%);
+			transform: translateX(-50%);
             background-color: white;
-            padding: 0 5px;
+            padding: 0 4px;
             z-index: 10;
 		}
 		.letter-box {
 			border: 1px solid #000;
-			width: 40px;
-			height: 40px;
-			line-height: 38px;
-			font-size: 24px;
+			width: 34px;
+			height: 34px;
+			line-height: 32px;
+			font-size: 22px;
 			font-weight: bold;
 			text-align: center;
 			background: #fff;
@@ -97,6 +125,10 @@
 			margin-bottom: 15px;
             text-align: center;
 		}
+
+        .header-meta {
+            margin-left: 28px;
+        }
 
 		.info-line {
 			margin: 3px 0;
@@ -132,8 +164,18 @@
 
 		/* === CLIENTE === */
         .client-container {
-            border-bottom: 1px solid #000;
+            border-bottom: 0;
             position: relative;
+            margin: 0;
+            padding: 0;
+        }
+        .client-container::after {
+            content: "";
+            position: absolute;
+            left: -4mm;
+            right: -4mm;
+            bottom: 0;
+            border-bottom: 1px solid #000;
         }
         
         .client-table {
@@ -145,38 +187,57 @@
         .client-col-left {
             width: 50%;
             vertical-align: top;
-            padding: 10px 15px;
+            padding: 10px 0;
         }
         .client-col-right {
             width: 50%;
             vertical-align: top;
-            padding: 10px 15px 10px 30px;
+            padding: 10px 0 10px 17px;
         }
 
 		/* === TABLA DE ITEMS === */
 		.items-table {
-			width: 100%;
+			width: calc(100% + 8mm);
+			box-sizing: content-box;
+			margin-left: -4mm;
+			margin-right: 0;
+			margin-top: 0;
+			padding-top: 0;
+			border-top: 0;
+			border-right: 0;
+			border-left: 0;
+			border-bottom: 0;
 			border-collapse: collapse;
+			border-spacing: 0;
 			table-layout: fixed;
 		}
+		.items-table thead,
+		.items-table thead tr {
+			margin: 0;
+			padding: 0;
+			border-top: 0;
+			background: #333;
+		}
 		.items-table th {
-			background: #c0c0c0;
+			background: #333;
+			color: #fff;
 			border: 1px solid #000;
-            border-top: none;
-            border-left: none;
-            border-right: 1px solid #000;
-			padding: 5px 4px;
+	            border-top: 0;
+	            border-left: none;
+	            border-right: 1px solid #000;
+			padding: 0 4px 5px 4px;
 			font-size: 10px;
 			text-align: center;
 			font-weight: bold;
 		}
         .items-table th:last-child {
-            border-right: none;
+            border-right: 0;
+            background: #333;
         }
 		.items-table td {
 			border-right: 1px solid #000;
             border-bottom: 1px solid #000;
-			padding: 5px 4px;
+			padding: 5px 0;
 			font-size: 10px;
 			text-align: center;
 		}
@@ -185,22 +246,29 @@
         }
 		.items-table td:nth-child(3) {
 			text-align: left;
+			padding-left: 6px;
 			word-break: break-word;
 		}
 		.items-table th:nth-child(1),
 		.items-table th:nth-child(2),
 		.items-table td:nth-child(1),
 		.items-table td:nth-child(2) {
-			padding-left: 2px;
-			padding-right: 2px;
+			padding-left: 0;
+			padding-right: 0;
 			white-space: nowrap;
 		}
 
 		/* === TOTALES === */
 		.totals-section {
-			width: 100%;
-			border-top: 2px solid #000;
-			border-bottom: 2px solid #000;
+			width: calc(100% + 8mm) !important;
+			box-sizing: content-box;
+			margin-left: -4mm;
+			margin-right: 0;
+			border-collapse: collapse;
+			border-spacing: 0;
+			border-top: 1px solid #000;
+			border-bottom: 1px solid #000;
+			page-break-inside: avoid;
 		}
 		.totals-section td {
 			padding: 6px 4px;
@@ -225,10 +293,11 @@
 		/* === CAE y QR === */
 		.cae-section {
 			width: 100%;
-			border-bottom: 1px solid #000;
+			border-bottom: 0;
+			page-break-inside: avoid;
 		}
 		.cae-section td {
-			padding: 10px 15px;
+			padding: 10px 0;
 			vertical-align: top;
 		}
 		.cae-qr {
@@ -265,11 +334,18 @@
             text-align: center;
             padding: 10px;
         }
+
+        .invoice-spacer {
+            flex-grow: 1;
+            min-height: 0;
+            width: 100%;
+        }
 	</style>
 </head>
 <body>
 
 <div class="invoice">
+    <div class="invoice-top">
     <!-- Header -->
     <div class="header-container">
         <!-- Línea vertical central absoluta -->
@@ -305,11 +381,13 @@
                 </td>
                 <td class="header-col-right">
                     <div class="invoice-title">{{ voucher.type_name }}</div>
+                    <div class="header-meta">
                     <div class="info-line"><strong>Punto de Venta:</strong> {{ voucher.sale_point }}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>Comp. Nro:</strong> {{ voucher.comp_number }}</div>
                     <div class="info-line"><strong>Fecha de Emisión:</strong> {{ voucher.date }}</div>
                     <div class="info-line"><strong>CUIT:</strong> {{ business.cuit }}</div>
                     <div class="info-line"><strong>Ingresos Brutos:</strong> {{ business.iibb or '-' }}</div>
                     <div class="info-line"><strong>Fecha de Inicio de Actividades:</strong> {{ business.start_date or '-' }}</div>
+                    </div>
                 </td>
             </tr>
         </table>
@@ -369,7 +447,11 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
 
+    <div class="invoice-spacer"></div>
+
+    <div class="invoice-bottom">
     <!-- Totals -->
     <table class="totals-section" cellspacing="0" cellpadding="0" style="width: 100%; table-layout: auto;">
         <tr>
@@ -401,6 +483,7 @@
             </td>
         </tr>
     </table>
+    </div>
 
 </div>
 
