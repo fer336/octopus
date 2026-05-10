@@ -27,6 +27,146 @@ router = APIRouter(prefix="/auth", tags=["Autenticación"])
 logger = logging.getLogger("uvicorn")
 
 
+async def _get_user_business_name(db: AsyncSession, user_id) -> str | None:
+    """
+    Obtiene el nombre del primer negocio activo del usuario.
+    """
+    try:
+        from sqlalchemy.orm import joinedload
+
+        from app.models.tenant_membership import TenantMembership
+
+        stmt = (
+            select(TenantMembership)
+            .options(joinedload(TenantMembership.business))
+            .where(
+                TenantMembership.user_id == user_id,
+                TenantMembership.access_status == "active",
+            )
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        membership = result.unique().scalar_one_or_none()
+        if membership and membership.business:
+            return membership.business.name
+    except Exception as e:
+        logger.warning(f"[Audit Webhook] Falló al obtener negocio del usuario: {e}")
+
+    return None
+
+
+async def _send_login_audit_webhook(
+    user_name: str,
+    user_email: str,
+    business_name: str | None,
+    ip_address: str,
+    device_type: str,
+    browser: str,
+    os: str,
+    success: bool = True,
+):
+    """
+    Envía un POST al webhook de n8n para auditar el login/intento.
+    n8n se encarga de la inteligencia de IP (ipquery.io) y notificaciones.
+    Solo se ejecuta si N8N_LOGIN_AUDIT_WEBHOOK_URL está configurado.
+    Nunca bloquea el login si falla el webhook.
+    """
+    if not settings.N8N_LOGIN_AUDIT_WEBHOOK_URL:
+        return
+
+    try:
+        import httpx
+
+        payload = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "event_type": "login_success" if success else "login_failed",
+            "user_name": user_name,
+            "user_email": user_email,
+            "business_name": business_name or "Sin negocio",
+            "ip": ip_address,
+            "device_type": device_type,
+            "browser": browser,
+            "os": os,
+        }
+
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(
+                settings.N8N_LOGIN_AUDIT_WEBHOOK_URL,
+                json=payload,
+            )
+            logger.info(
+                f"[Audit Webhook] Enviado ({user_email}) -> {resp.status_code}"
+            )
+    except Exception as e:
+        logger.warning(f"[Audit Webhook] Falló el envío al webhook de login: {e}")
+
+
+def _get_client_info(request: Request) -> tuple[str, str, str, str]:
+    """Extrae IP, device type y user agent del request."""
+    # Debug: loguear TODOS los headers para diagnosticar
+    all_headers = dict(request.headers.items())
+    logger.info(f"[Client Info] TODOS los headers: {all_headers}")
+    logger.info(f"[Client Info] request.client={request.client}")
+
+    # Intentar extraer IP real desde headers del proxy
+    ip = request.headers.get("x-real-ip")
+    if not ip:
+        ip = request.headers.get("x-forwarded-for")
+        if ip:
+            ip = ip.split(",")[0].strip()
+    if not ip:
+        ip = request.headers.get("cf-connecting-ip")  # Cloudflare
+    if not ip:
+        ip = request.headers.get("true-client-ip")  # Akamai
+    if not ip:
+        ip = request.client.host if request.client else "unknown"
+
+    logger.info(
+        f"[Client Info] x-real-ip={request.headers.get('x-real-ip')} "
+        f"x-forwarded-for={request.headers.get('x-forwarded-for')} "
+        f"request.client={request.client.host if request.client else None} "
+        f"=> IP={ip}"
+    )
+
+    # User agent
+    ua = request.headers.get("user-agent", "")
+    os = "Unknown"
+    browser = "Unknown"
+
+    # Detectar SO
+    if "Windows" in ua:
+        os = "Windows"
+    elif "Mac OS" in ua or "Macintosh" in ua:
+        os = "macOS"
+    elif "Linux" in ua and "Android" not in ua:
+        os = "Linux"
+    elif "Android" in ua:
+        os = "Android"
+    elif "iPhone" in ua or "iPad" in ua:
+        os = "iOS"
+
+    # Detectar navegador
+    if "Chrome" in ua and "Edg" not in ua:
+        browser = "Chrome"
+    elif "Firefox" in ua:
+        browser = "Firefox"
+    elif "Safari" in ua and "Chrome" not in ua:
+        browser = "Safari"
+    elif "Edg" in ua:
+        browser = "Edge"
+    elif "OPR" in ua or "Opera" in ua:
+        browser = "Opera"
+
+    # Detectar dispositivo
+    device_type = "web"
+    if any(d in ua for d in ["Mobile", "Android", "iPhone", "iPad"]):
+        device_type = "mobile"
+    elif "Tablet" in ua or "iPad" in ua:
+        device_type = "tablet"
+
+    return ip, device_type, browser, os
+
+
 async def _log_audit(
     db: AsyncSession,
     user_id,
@@ -197,6 +337,18 @@ async def google_callback(
 
     if not result:
         logger.error("[OAuth] login_with_google_code retornó None")
+        # Registrar intento fallido
+        ip, device_type, browser, os = _get_client_info(request)
+        await _send_login_audit_webhook(
+            user_name="",
+            user_email="",
+            business_name=None,
+            ip_address=ip,
+            device_type=device_type,
+            browser=browser,
+            os=os,
+            success=False,
+        )
         frontend_url = (
             settings.FRONTEND_ADMIN_URL
             if next_target == "admin"
@@ -225,6 +377,8 @@ async def google_callback(
 
     # Log audit for successful login
     user_id = result.get("user", {}).get("id") if result.get("user") else None
+    user_name = result.get("user", {}).get("name", "Unknown") if result.get("user") else "Unknown"
+    user_email = result.get("user", {}).get("email", "") if result.get("user") else ""
     if user_id:
         await _log_audit(
             db=db,
@@ -238,6 +392,21 @@ async def google_callback(
             },
         )
 
+        # Obtener nombre del negocio para el webhook
+        business_name = await _get_user_business_name(db, user_id)
+
+        # Enviar webhook de auditoría (no bloquea el login)
+        ip, device_type, browser, os = _get_client_info(request)
+        await _send_login_audit_webhook(
+            user_name=user_name,
+            user_email=user_email,
+            business_name=business_name,
+            ip_address=ip,
+            device_type=device_type,
+            browser=browser,
+            os=os,
+        )
+
     redirect_url = f"{frontend_url}{callback_path}?access_token={access_token}&refresh_token={refresh_token}"
     logger.info(f"[OAuth] Redirigiendo a frontend: {frontend_url}{callback_path}")
     return RedirectResponse(url=redirect_url, status_code=303)
@@ -245,7 +414,8 @@ async def google_callback(
 
 @router.post("/google", response_model=TokenResponse)
 async def login_with_google(
-    request: GoogleLoginRequest,
+    request: Request,
+    google_request: GoogleLoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -254,9 +424,21 @@ async def login_with_google(
     Si el usuario no existe, lo crea automáticamente sin asignarle negocio.
     """
     service = AuthService(db)
-    result = await service.login_with_google(request.token)
+    result = await service.login_with_google(google_request.token)
 
     if not result:
+        # Registrar intento fallido
+        ip, device_type, browser, os = _get_client_info(request)
+        await _send_login_audit_webhook(
+            user_name=google_request.token[:20] + "...",  # token truncado como referencia
+            user_email="",
+            business_name=None,
+            ip_address=ip,
+            device_type=device_type,
+            browser=browser,
+            os=os,
+            success=False,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token de Google inválido",
@@ -264,6 +446,8 @@ async def login_with_google(
 
     # Log audit for successful login
     user_id = result.get("user", {}).get("id") if result.get("user") else None
+    user_name = result.get("user", {}).get("name", "Unknown") if result.get("user") else "Unknown"
+    user_email = result.get("user", {}).get("email", "") if result.get("user") else ""
     if user_id:
         await _log_audit(
             db=db,
@@ -277,25 +461,56 @@ async def login_with_google(
             },
         )
 
+        # Obtener nombre del negocio para el webhook
+        business_name = await _get_user_business_name(db, user_id)
+
+        # Enviar webhook de auditoría (no bloquea el login)
+        ip, device_type, browser, os = _get_client_info(request)
+        await _send_login_audit_webhook(
+            user_name=user_name,
+            user_email=user_email,
+            business_name=business_name,
+            ip_address=ip,
+            device_type=device_type,
+            browser=browser,
+            os=os,
+            success=True,
+        )
+
     return result
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login_with_credentials(
-    request: CredentialsLoginRequest,
+    request: Request,
+    credentials_request: CredentialsLoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """Login con usuario y contraseña (credenciales locales)."""
     service = AuthService(db)
-    result = await service.login_with_password(request.email, request.password)
+    result = await service.login_with_password(credentials_request.email, credentials_request.password)
 
     if not result:
+        # Registrar intento fallido
+        ip, device_type, browser, os = _get_client_info(request)
+        await _send_login_audit_webhook(
+            user_name="",
+            user_email=credentials_request.email,
+            business_name=None,
+            ip_address=ip,
+            device_type=device_type,
+            browser=browser,
+            os=os,
+            success=False,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña inválidos",
         )
 
     user_id = result.get("user", {}).get("id") if result.get("user") else None
+    user_name = result.get("user", {}).get("name", "Unknown") if result.get("user") else "Unknown"
+    user_email = result.get("user", {}).get("email", "") if result.get("user") else ""
     if user_id:
         await _log_audit(
             db=db,
@@ -307,6 +522,22 @@ async def login_with_credentials(
                 "description": "Login exitoso con usuario y contraseña",
                 "method": "credentials",
             },
+        )
+
+        # Obtener nombre del negocio para el webhook
+        business_name = await _get_user_business_name(db, user_id)
+
+        # Enviar webhook de auditoría (no bloquea el login)
+        ip, device_type, browser, os = _get_client_info(request)
+        await _send_login_audit_webhook(
+            user_name=user_name,
+            user_email=user_email,
+            business_name=business_name,
+            ip_address=ip,
+            device_type=device_type,
+            browser=browser,
+            os=os,
+            success=True,
         )
 
     return result
@@ -331,6 +562,38 @@ async def refresh_token(
         )
 
     return result
+
+
+class LoginAttemptRequest(BaseModel):
+    """Request para registrar intento de login fallido desde el frontend."""
+    email: str | None = None
+
+
+@router.post("/track-login-attempt")
+async def track_login_attempt(
+    request: Request,
+    attempt_request: LoginAttemptRequest | None = None,
+):
+    """
+    Registra un intento de login fallido desde el frontend.
+    Esto permite auditar intentos de personas que ni siquiera
+    tienen una cuenta en el sistema.
+    """
+    ip, device_type, browser, os = _get_client_info(request)
+    email = attempt_request.email if attempt_request else None
+
+    await _send_login_audit_webhook(
+        user_name="",
+        user_email=email or "",
+        business_name=None,
+        ip_address=ip,
+        device_type=device_type,
+        browser=browser,
+        os=os,
+        success=False,
+    )
+
+    return {"ok": True}
 
 
 @router.get("/me", response_model=UserResponse)
@@ -384,6 +647,7 @@ async def logout():
 
 @router.post("/dev-login", response_model=TokenResponse)
 async def dev_login(
+    request: Request,
     email: str | None = Query(
         None,
         description="Usuario para login de desarrollo.",
@@ -503,6 +767,22 @@ async def dev_login(
             "description": "Login de desarrollo (dev-login)",
             "method": "dev_login",
         },
+    )
+
+    # Obtener nombre del negocio para el webhook
+    business_name = await _get_user_business_name(db, user.id)
+
+    # Enviar webhook de auditoría (no bloquea el login)
+    ip, device_type, browser, os = _get_client_info(request)
+    await _send_login_audit_webhook(
+        user_name=user_name,
+        user_email=user_email,
+        business_name=business_name,
+        ip_address=ip,
+        device_type=device_type,
+        browser=browser,
+        os=os,
+        success=True,
     )
 
     return {

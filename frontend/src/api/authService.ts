@@ -92,14 +92,27 @@ export const authService = {
     return response.data
   },
 
-  /**
-   * Cierra la sesión del usuario.
-   */
+/**
+    * Cierra la sesión del usuario.
+    */
   logout: async (accessToken: string): Promise<void> => {
     await authClient.post('/auth/logout', {}, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
+    })
+  },
+
+  /**
+   * Registra un intento de login fallido para auditoría.
+   * Fire-and-forget: no bloquea la UI, no espera respuesta.
+   */
+  trackLoginAttempt: (email?: string): void => {
+    // Fire-and-forget: no bloquea la UI
+    authClient.post('/auth/track-login-attempt', email ? { email } : {}, {
+      headers: { 'Content-Type': 'application/json' },
+    }).catch(() => {
+      // Silencioso: nunca falla visiblemente
     })
   },
 }

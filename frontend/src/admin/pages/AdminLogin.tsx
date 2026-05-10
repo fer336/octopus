@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { KeyRound, ShieldCheck, UsersRound } from 'lucide-react'
 import Button from '../../components/ui/Button'
@@ -10,10 +10,17 @@ export default function AdminLogin() {
   const [searchParams] = useSearchParams()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
+  const hasTracked = useRef(false)
 
   useEffect(() => {
     if (isAuthenticated && user?.platform_role === 'superadmin') {
       navigate('/', { replace: true })
+    }
+
+    // Registrar intento de acceso cuando alguien llega a la página de admin login
+    if (!hasTracked.current) {
+      hasTracked.current = true
+      authService.trackLoginAttempt()
     }
   }, [isAuthenticated, navigate, user?.platform_role])
 

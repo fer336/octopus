@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     # Seguridad webhook billing (n8n -> backend)
     BILLING_WEBHOOK_SECRET: str = ""
 
+    # n8n webhook para auditoría de logins (Google OAuth)
+    N8N_LOGIN_AUDIT_WEBHOOK_URL: str = ""
+
     # MinIO / S3 compatible (logos branding)
     MINIO_ENDPOINT: str = ""
     MINIO_ACCESS_KEY: str = ""

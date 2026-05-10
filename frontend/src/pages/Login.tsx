@@ -2,7 +2,7 @@
  * Página de Login.
  * Permite iniciar sesión con Google OAuth o con credenciales.
  */
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
@@ -13,6 +13,7 @@ import { useAuthStore } from '../stores/authStore'
 export default function Login() {
   const navigate = useNavigate()
   const setAuth = useAuthStore((s) => s.setAuth)
+  const hasTracked = useRef(false)
 
   const demoEmail = import.meta.env.VITE_DEMO_LOGIN_EMAIL || ''
   const demoPassword = import.meta.env.VITE_DEMO_LOGIN_PASSWORD || ''
@@ -20,6 +21,14 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+
+  // Registrar intento de acceso cuando alguien llega a la página de login
+  useEffect(() => {
+    if (!hasTracked.current) {
+      hasTracked.current = true
+      authService.trackLoginAttempt()
+    }
+  }, [])
 
   const handleGoogleLogin = () => {
     authService.loginWithGoogle()
@@ -41,8 +50,10 @@ export default function Login() {
       setAuth(response)
       toast.success('Ingreso exitoso')
       navigate('/', { replace: true })
-    } catch (error) {
-      console.error('Credentials login error:', error)
+    } catch {
+      // Registrar intento fallido con el email ingresado
+      authService.trackLoginAttempt(userEmail)
+      console.error('Credentials login error')
       toast.error('No se pudo iniciar sesión. Revisá usuario y contraseña.')
     } finally {
       setIsLoading(false)
