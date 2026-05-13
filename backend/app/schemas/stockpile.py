@@ -147,7 +147,7 @@ class StockpileResponse(BaseModel):
     created_by: UUID | None
     created_by_name: str | None
     name: str
-    stockpile_number: str | None  # Número de acopio (ACOPIO-0001)
+    stockpile_number: str | None  # Número de acopio (AC-0001)
     description: str | None  # Descripción editable
     status: str
     currency: str
