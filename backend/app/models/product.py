@@ -92,7 +92,8 @@ class Product(BaseModel):
     minimum_stock = Column(Integer, default=0, nullable=False)  # Alerta de stock bajo
     unit = Column(
         String(20), default="unidad", nullable=False
-    )  # unidad, metro, kg, litro
+    )  # unidad, metro, kg, litro, pack
+    units_per_pack = Column(Integer, nullable=True)  # Cantidad por pack
     expiration_date = Column(Date, nullable=True)  # Fecha de vencimiento
 
     is_active = Column(Boolean, default=True, nullable=False)

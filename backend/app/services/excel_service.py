@@ -146,8 +146,14 @@ class ExcelService:
                 iva_rate = Decimal(str(row.get('iva', 21))) if pd.notna(row.get('iva')) else Decimal(21)
                 current_stock = int(row.get('stock', 0)) if pd.notna(row.get('stock')) else 0
 
-                # Leer unidad y vencimiento
+                # Leer unidad, pack qty y vencimiento
                 unit = str(row.get('unidad', 'unidad')).strip().lower() if pd.notna(row.get('unidad')) else 'unidad'
+                units_per_pack = None
+                if pd.notna(row.get('unidades_x_pack')):
+                    try:
+                        units_per_pack = int(row.get('unidades_x_pack'))
+                    except (ValueError, TypeError):
+                        pass
                 expiration_date = None
                 if pd.notna(row.get('vencimiento')):
                     try:
@@ -216,6 +222,7 @@ class ExcelService:
                     iva_rate=iva_rate,
                     current_stock=current_stock,
                     unit=unit,
+                    units_per_pack=units_per_pack,
                     expiration_date=expiration_date,
                     net_price=net_price,
                     sale_price=sale_price,
@@ -279,6 +286,7 @@ class ExcelService:
                         iva_rate=row.iva_rate,
                         current_stock=row.current_stock,
                         unit=row.unit,
+                        units_per_pack=row.units_per_pack,
                         expiration_date=row.expiration_date,
                         cost_price=Decimal(0),  # Se puede calcular después
                     )
@@ -307,6 +315,7 @@ class ExcelService:
                             existing_product.iva_rate = row.iva_rate
                             existing_product.current_stock = row.current_stock
                             existing_product.unit = row.unit
+                            existing_product.units_per_pack = row.units_per_pack
                             existing_product.expiration_date = row.expiration_date
                             existing_product.calculate_prices()
                             updated += 1
@@ -395,6 +404,7 @@ class ExcelService:
                     "profit_margin": Decimal(str(row.get('ganancia', 0))) if pd.notna(row.get('ganancia')) else Decimal(0),
                     "iva_rate": Decimal("21.00"), # Default
                     "unit": str(row.get('unidad', 'unidad')).strip().lower() if pd.notna(row.get('unidad')) else 'unidad',
+                    "units_per_pack": int(row.get('unidades_x_pack')) if pd.notna(row.get('unidades_x_pack')) else None,
                     "expiration_date": None,
                     "business_id": business_id
                 }
@@ -472,7 +482,7 @@ class ExcelService:
         headers = [
             'codigo', 'codigo_proveedor', 'nombre_proveedor', 'categoria',
             'nombre', 'unidad', 'stock', 'precio_lista', 'bonificaciones',
-            'cargo_extra', 'ganancia', 'vencimiento', 'precio_venta'
+            'cargo_extra', 'ganancia', 'vencimiento', 'unidades_x_pack', 'precio_venta'
         ]
 
         # Escribir headers con estilo
@@ -511,6 +521,7 @@ class ExcelService:
                 float(p.extra_cost) if p.extra_cost else 0.0,
                 float(p.profit_margin) if p.profit_margin else 0.0,
                 p.expiration_date.strftime('%Y-%m-%d') if p.expiration_date else '',
+                int(p.units_per_pack) if p.units_per_pack else '',
                 float(p.sale_price) if p.sale_price else 0.0,
             ]
 
@@ -520,13 +531,13 @@ class ExcelService:
                 # Alineación según tipo
                 if col_idx in [3, 4, 5]:  # nombre_proveedor, categoria, nombre
                     cell.alignment = Alignment(horizontal="left", vertical="center")
-                elif col_idx in [1, 2, 6, 9, 12]:  # códigos, unidad, bonificaciones, vencimiento
+                elif col_idx in [1, 2, 6, 9, 12, 13]:  # códigos, unidad, bonificaciones, vencimiento, unidades_x_pack
                     cell.alignment = Alignment(horizontal="center", vertical="center")
                 else:  # números
                     cell.alignment = Alignment(horizontal="right", vertical="center")
 
                 # Formato de números
-                if col_idx in [8, 10, 11, 13]:  # precio_lista, cargo_extra, ganancia, precio_venta
+                if col_idx in [8, 10, 11, 14]:  # precio_lista, cargo_extra, ganancia, precio_venta
                     cell.number_format = '#,##0.00'
                 elif col_idx == 7:  # stock
                     cell.number_format = '0'
@@ -557,7 +568,8 @@ class ExcelService:
             'J': 14,  # cargo_extra
             'K': 14,  # ganancia
             'L': 15,  # vencimiento
-            'M': 15,  # precio_venta
+            'M': 16,  # unidades_x_pack
+            'N': 15,  # precio_venta
         }
 
         for col, width in column_widths.items():
@@ -671,6 +683,7 @@ class ExcelService:
                 'stock_actual': p.current_stock,
                 'stock_minimo': p.minimum_stock,
                 'unidad': p.unit,
+                'unidades_x_pack': p.units_per_pack,
                 'vencimiento': p.expiration_date.strftime('%Y-%m-%d') if p.expiration_date else '',
                 'activo': p.is_active,
                 'fecha_creacion': p.created_at.isoformat() if p.created_at else '',

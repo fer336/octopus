@@ -399,6 +399,7 @@ export default function Products() {
     current_stock: 0,
     minimum_stock: 0,
     unit: 'unidad',
+    units_per_pack: null as number | null,
     expiration_date: null as string | null,
     is_active: true,
   })
@@ -439,6 +440,7 @@ export default function Products() {
       current_stock: 0,
       minimum_stock: 0,
       unit: 'unidad',
+      units_per_pack: null as number | null,
       expiration_date: null as string | null,
       is_active: true,
     })
@@ -577,6 +579,7 @@ export default function Products() {
       current_stock: formData.current_stock || 0,
       minimum_stock: formData.minimum_stock || 0,
       unit: formData.unit || 'unidad',
+      units_per_pack: formData.units_per_pack || null,
       expiration_date: formData.expiration_date || null,
       cost_price: 0, // Se calcula en el backend
     }
@@ -609,9 +612,13 @@ export default function Products() {
     {
       key: 'unit',
       header: 'Unidad',
-      width: 80,
+      width: 100,
       render: (item: Product) => (
-        <span className="text-xs text-gray-600 dark:text-gray-400">{item.unit}</span>
+        <span className="text-xs text-gray-600 dark:text-gray-400">
+          {item.unit === 'pack' && item.units_per_pack
+            ? `Pack x${item.units_per_pack}`
+            : item.unit}
+        </span>
       ),
     },
     {
@@ -1038,7 +1045,7 @@ export default function Products() {
                 />
               </div>
             </div>
-            {/* Unit type + Expiration - nueva fila */}
+            {/* Unit type + Pack qty + Expiration */}
             <div className="grid grid-cols-2 gap-3 mt-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1069,6 +1076,21 @@ export default function Products() {
                 />
               </div>
             </div>
+            {formData.unit === 'pack' && (
+              <div className="mt-3">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Unidades por Pack
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={formData.units_per_pack ?? ''}
+                  onChange={(e) => setFormData({ ...formData, units_per_pack: parseInt(e.target.value) || null })}
+                  placeholder="Ej: 12"
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            )}
             <div className="mt-3">
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Descripción *

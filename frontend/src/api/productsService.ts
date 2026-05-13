@@ -34,6 +34,7 @@ export interface Product {
   current_stock: number
   minimum_stock: number
   unit: string
+  units_per_pack?: number | null
   expiration_date?: string | null
   is_active: boolean
   created_at: string
@@ -63,6 +64,7 @@ export interface ProductCreate {
   current_stock?: number
   minimum_stock?: number
   unit?: string
+  units_per_pack?: number | null
   expiration_date?: string | null
   cost_price?: number
 }
@@ -90,6 +92,7 @@ export interface ProductUpdate {
   current_stock?: number
   minimum_stock?: number
   unit?: string
+  units_per_pack?: number | null
   expiration_date?: string | null
   cost_price?: number
   is_active?: boolean
@@ -132,6 +135,7 @@ export interface ProductImportRow {
   current_stock: number
   minimum_stock: number
   unit: string
+  units_per_pack?: number | null
   expiration_date?: string | null
   net_price?: number
   sale_price?: number
