@@ -399,6 +399,7 @@ export default function Products() {
     current_stock: 0,
     minimum_stock: 0,
     unit: 'unidad',
+    expiration_date: null as string | null,
     is_active: true,
   })
 
@@ -438,6 +439,7 @@ export default function Products() {
       current_stock: 0,
       minimum_stock: 0,
       unit: 'unidad',
+      expiration_date: null as string | null,
       is_active: true,
     })
     setDiscountsInput('')
@@ -575,6 +577,7 @@ export default function Products() {
       current_stock: formData.current_stock || 0,
       minimum_stock: formData.minimum_stock || 0,
       unit: formData.unit || 'unidad',
+      expiration_date: formData.expiration_date || null,
       cost_price: 0, // Se calcula en el backend
     }
 
@@ -600,6 +603,34 @@ export default function Products() {
           </span>
         ) : (
           <span className="text-gray-400 text-xs">-</span>
+        )
+      },
+    },
+    {
+      key: 'unit',
+      header: 'Unidad',
+      width: 80,
+      render: (item: Product) => (
+        <span className="text-xs text-gray-600 dark:text-gray-400">{item.unit}</span>
+      ),
+    },
+    {
+      key: 'expiration_date',
+      header: 'Vence',
+      width: 100,
+      render: (item: Product) => {
+        if (!item.expiration_date) return <span className="text-xs text-gray-400">-</span>
+        const expDate = new Date(item.expiration_date)
+        const today = new Date()
+        const daysUntilExp = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        const isExpired = daysUntilExp < 0
+        const isNear = daysUntilExp >= 0 && daysUntilExp <= 30
+        return (
+          <span className={`text-xs ${isExpired ? 'text-red-600 font-medium' : isNear ? 'text-amber-600 font-medium' : 'text-gray-600 dark:text-gray-400'}`}>
+            {item.expiration_date}
+            {isExpired && ' (Vencido)'}
+            {isNear && ` (${daysUntilExp}d)`}
+          </span>
         )
       },
     },
@@ -1003,6 +1034,37 @@ export default function Products() {
                   onFocus={handleNumericFocus}
                   onKeyDown={(e) => handleNumericKeyDown(e, 'current_stock', submitBtnRef)}
                   placeholder="0"
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            </div>
+            {/* Unit type + Expiration - nueva fila */}
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Unidad
+                </label>
+                <select
+                  value={formData.unit}
+                  onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="unidad">Unidad</option>
+                  <option value="m">Metro (m)</option>
+                  <option value="m2">Metro² (m²)</option>
+                  <option value="kg">Kilogramo (kg)</option>
+                  <option value="litro">Litro</option>
+                  <option value="pack">Pack</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Vencimiento
+                </label>
+                <input
+                  type="date"
+                  value={formData.expiration_date || ''}
+                  onChange={(e) => setFormData({ ...formData, expiration_date: e.target.value || null })}
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 />
               </div>

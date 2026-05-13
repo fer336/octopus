@@ -5,7 +5,7 @@ Incluye precios, bonificaciones, stock y cálculo automático de precio final.
 
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Column, Date, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -93,6 +93,7 @@ class Product(BaseModel):
     unit = Column(
         String(20), default="unidad", nullable=False
     )  # unidad, metro, kg, litro
+    expiration_date = Column(Date, nullable=True)  # Fecha de vencimiento
 
     is_active = Column(Boolean, default=True, nullable=False)
 
