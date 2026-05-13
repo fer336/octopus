@@ -2,16 +2,18 @@
 Servicio de reporte de stock en PDF.
 """
 
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.business import Business
 from app.models.product import Product
+from app.models.voucher import Voucher, VoucherStatus
+from app.models.voucher_item import VoucherItem
 from app.schemas.report_schemas import StockReportFilters
 from app.services.reporting.report_pdf_service import report_pdf_service
 
@@ -31,10 +33,15 @@ class StockReportService:
         business = await self._get_business(business_id)
         products = await self._get_products(business_id, filters)
 
+        # Obtener última fecha de venta por producto
+        last_sales = await self._get_last_sale_dates(business_id, [p.id for p in products])
+        today = date.today()
+
         rows: list[dict] = []
         total_stock_units = 0
         total_stock_value = Decimal("0")
         low_stock_items = 0
+        stagnant_items = 0  # +90 días sin vender
 
         for product in products:
             current_stock = int(product.current_stock or 0)
@@ -47,6 +54,11 @@ class StockReportService:
 
             total_stock_units += current_stock
             total_stock_value += row_stock_value
+
+            last_sale_date = last_sales.get(product.id)
+            days_without_sale = (today - last_sale_date).days if last_sale_date else None
+            if days_without_sale is not None and days_without_sale > 90:
+                stagnant_items += 1
 
             rows.append(
                 {
@@ -61,10 +73,56 @@ class StockReportService:
                     "stock_value": float(row_stock_value),
                     "is_low_stock": is_low_stock,
                     "is_active": bool(product.is_active),
+                    "last_sale_date": last_sale_date.strftime("%d/%m/%Y") if last_sale_date else "—",
+                    "days_without_sale": days_without_sale if last_sale_date else None,
                 }
             )
 
-        context = {
+        # Actualizar summary con items estancados
+        context = await self._build_context(
+            business, rows, filters, generated_by,
+            total_stock_units, total_stock_value, low_stock_items, stagnant_items,
+        )
+
+        return report_pdf_service.render("stock_report.html", context)
+
+    async def _get_last_sale_dates(
+        self, business_id: UUID, product_ids: list[UUID]
+    ) -> dict[UUID, date]:
+        """Retorna {product_id: última_fecha_venta} para productos vendidos."""
+        if not product_ids:
+            return {}
+
+        subq = (
+            select(
+                VoucherItem.product_id,
+                func.max(Voucher.created_at).label("last_sale"),
+            )
+            .join(Voucher, Voucher.id == VoucherItem.voucher_id)
+            .where(
+                VoucherItem.product_id.in_(product_ids),
+                Voucher.business_id == business_id,
+                Voucher.status == VoucherStatus.CONFIRMED,
+                Voucher.deleted_at.is_(None),
+            )
+            .group_by(VoucherItem.product_id)
+        )
+
+        result = await self.db.execute(subq)
+        return {row.product_id: row.last_sale.date() for row in result}
+
+    async def _build_context(
+        self,
+        business,
+        rows,
+        filters,
+        generated_by,
+        total_stock_units,
+        total_stock_value,
+        low_stock_items,
+        stagnant_items,
+    ):
+        return {
             "business": {
                 "name": business.name,
                 "cuit": business.cuit,
@@ -87,13 +145,12 @@ class StockReportService:
             "summary": {
                 "total_items": len(rows),
                 "low_stock_items": low_stock_items,
+                "stagnant_items": stagnant_items,
                 "total_stock_units": total_stock_units,
                 "total_stock_value": float(total_stock_value),
             },
             "rows": rows,
         }
-
-        return report_pdf_service.render("stock_report.html", context)
 
     async def _get_business(self, business_id: UUID) -> Business:
         result = await self.db.execute(
