@@ -644,12 +644,12 @@ function FeaturesZigZag() {
             <article
               key={feature.image}
               style={{ ['--reveal-delay' as string]: `${index * 90}ms` }}
-              className={`reveal-on-scroll mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-2 ${
+              className={`reveal-on-scroll mx-auto grid w-full max-w-6xl items-center gap-8 lg:gap-12 lg:grid-cols-5 ${
                 index % 2 === 1 ? 'lg:[&>*:first-child]:order-2' : ''
               }`}
             >
               {/* Image */}
-              <div className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-1 shadow-xl">
+              <div className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-1 shadow-xl lg:col-span-3">
                 <div className="absolute inset-0 bg-gradient-to-br from-primary-500/5 to-violet-500/5 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                 <img
                   src={feature.image}
@@ -659,13 +659,13 @@ function FeaturesZigZag() {
               </div>
 
               {/* Content - sin título */}
-              <div className="flex flex-col justify-center">
-                <p className="text-xl font-medium text-white/80">{feature.description}</p>
+              <div className="flex flex-col justify-center lg:col-span-2">
+                <p className="text-lg font-medium text-white/80">{feature.description}</p>
 
                 {feature.lines.length > 0 && (
-                  <ul className="mt-6 space-y-3">
+                  <ul className="mt-4 space-y-2">
                     {feature.lines.map((line) => (
-                      <li key={line} className="flex items-start gap-3 text-lg text-white/70">
+                      <li key={line} className="flex items-start gap-3 text-base text-white/70">
                         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary-400" />
                         {line}
                       </li>

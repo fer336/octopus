@@ -3,11 +3,12 @@
  * Lista, búsqueda y gestión de productos con cálculo de precio final.
  */
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Edit, Trash2, Calculator, Upload, Download, Search, AlertTriangle, FileCode, RotateCcw } from 'lucide-react'
+import { Plus, Edit, Trash2, Calculator, Upload, Download, Search, AlertTriangle, FileCode, RotateCcw, Loader2 } from 'lucide-react'
 import { Button, Table, Pagination, Modal, Select } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import toast from 'react-hot-toast'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useDebounce } from '../hooks/useDebounce'
 import productsService, { ProductCreate, ProductUpdate, Product, ProductImportRow, ImportPreviewResponse } from '../api/productsService'
 import categoriesService from '../api/categoriesService'
 import suppliersService from '../api/suppliersService'
@@ -19,6 +20,7 @@ import ImportProgressModal from '../components/products/ImportProgressModal'
 export default function Products() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedSupplier, setSelectedSupplier] = useState('')
   const [page, setPage] = useState(1)
@@ -38,15 +40,16 @@ export default function Products() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // React Query para productos con filtros
-  const { data: productsData, isLoading, error } = useQuery({
-    queryKey: ['products', page, search, selectedCategory, selectedSupplier],
+  const { data: productsData, isLoading, isFetching, error } = useQuery({
+    queryKey: ['products', page, debouncedSearch, selectedCategory, selectedSupplier],
     queryFn: () => productsService.getAll({ 
       page, 
       per_page: 20, 
-      search,
+      search: debouncedSearch,
       category_id: selectedCategory || undefined,
       supplier_id: selectedSupplier || undefined
     }),
+    placeholderData: keepPreviousData,
     retry: false,
   })
 
@@ -717,8 +720,19 @@ export default function Products() {
     return suppliers.find((s) => s.id === supplierId)?.name || null
   }
 
+  // Indicator inline cuando se está buscando (evita full-page spinner)
+  const showInlineLoader = isFetching && !isLoading
+
   return (
     <div className="space-y-3">
+      {/* Indicador de búsqueda/carga inline */}
+      {showInlineLoader && (
+        <div className="flex items-center gap-2 text-xs text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 px-3 py-1.5 rounded-lg border border-primary-200 dark:border-primary-800 animate-pulse">
+          <Loader2 size={14} className="animate-spin" />
+          <span>Buscando...</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex justify-end -mt-1">
         <div className="flex items-center gap-1.5" data-tour-products-actions>
@@ -786,7 +800,10 @@ export default function Products() {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
             placeholder="Buscar por código o descripción..."
             className="w-full pl-9 pr-4 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
             data-tour-products-search

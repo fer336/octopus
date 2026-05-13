@@ -3,18 +3,20 @@
  * Lista y gestión de clientes con base de datos.
  */
 import { useMemo, useState } from 'react'
-import { Plus, Edit, Trash2, Users, Search, Phone, Mail, MapPin, FileText, Settings2, UserRoundCheck, Inbox } from 'lucide-react'
+import { Plus, Edit, Trash2, Users, Search, Phone, Mail, MapPin, FileText, Settings2, UserRoundCheck, Inbox, Loader2 } from 'lucide-react'
 import { Button, Table, Pagination, Modal, Input, Select, ConfirmModal, ResponsiveTable } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { TAX_CONDITIONS, DOCUMENT_TYPES, normalizeTaxCondition, getTaxConditionLabel } from '../types'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import clientsService, { ClientCreate, ClientUpdate, Client } from '../api/clientsService'
 import clientTypesService, { ClientType } from '../api/clientTypesService'
 import toast from 'react-hot-toast'
+import { useDebounce } from '../hooks/useDebounce'
 
 export default function Clients() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -29,9 +31,10 @@ export default function Clients() {
   const [typeToDelete, setTypeToDelete] = useState<ClientType | null>(null)
 
   // Query para clientes
-  const { data: clientsData, isLoading, error } = useQuery({
-    queryKey: ['clients', page, search],
-    queryFn: () => clientsService.getAll({ page, per_page: 20, search }),
+  const { data: clientsData, isLoading, isFetching, error } = useQuery({
+    queryKey: ['clients', page, debouncedSearch],
+    queryFn: () => clientsService.getAll({ page, per_page: 20, search: debouncedSearch }),
+    placeholderData: keepPreviousData,
     retry: false,
   })
 
@@ -486,8 +489,19 @@ const data = await clientsService.lookupCuit(cuit)
 
   const clients = clientsData?.items || []
 
+  // Indicator inline cuando se está buscando (evita full-page spinner)
+  const showInlineLoader = isFetching && !isLoading
+
   return (
     <div className="h-full min-h-0 w-full flex flex-col gap-3">
+      {/* Indicador de búsqueda/carga inline */}
+      {showInlineLoader && (
+        <div className="flex items-center gap-2 text-xs text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 px-3 py-1.5 rounded-lg border border-primary-200 dark:border-primary-800 animate-pulse">
+          <Loader2 size={14} className="animate-spin" />
+          <span>Buscando...</span>
+        </div>
+      )}
+
       {/* Header estilo Categorías */}
       <div className="flex items-center justify-between gap-2 lg:gap-3 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 px-2.5 lg:px-3 py-2 lg:py-2.5 rounded-lg border border-primary-200 dark:border-primary-800">
         <div className="min-w-0">
@@ -531,7 +545,10 @@ const data = await clientsService.lookupCuit(cuit)
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
             placeholder="Buscar por nombre, documento..."
             className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
             data-tour-clients-search

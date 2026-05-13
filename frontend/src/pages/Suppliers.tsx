@@ -3,18 +3,20 @@
  * Gestión de proveedores con base de datos.
  */
 import { useState } from 'react'
-import { Plus, Edit, Trash2, Truck, Phone, Mail, MapPin, Search, Inbox } from 'lucide-react'
+import { Plus, Edit, Trash2, Truck, Phone, Mail, MapPin, Search, Inbox, Loader2 } from 'lucide-react'
 import { Button, Table, Pagination, Modal, Input, ResponsiveTable } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import suppliersService, { SupplierCreate, SupplierUpdate, Supplier } from '../api/suppliersService'
 import categoriesService from '../api/categoriesService'
 import toast from 'react-hot-toast'
 import DeleteSupplierModal from '../components/suppliers/DeleteSupplierModal'
+import { useDebounce } from '../hooks/useDebounce'
 
 export default function Suppliers() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -24,9 +26,10 @@ export default function Suppliers() {
   const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null)
 
   // Query para proveedores
-  const { data: suppliersData, isLoading, error } = useQuery({
-    queryKey: ['suppliers', page, search],
-    queryFn: () => suppliersService.getAll({ page, per_page: 20, search }),
+  const { data: suppliersData, isLoading, isFetching, error } = useQuery({
+    queryKey: ['suppliers', page, debouncedSearch],
+    queryFn: () => suppliersService.getAll({ page, per_page: 20, search: debouncedSearch }),
+    placeholderData: keepPreviousData,
     retry: false,
   })
 
@@ -198,113 +201,19 @@ export default function Suppliers() {
   const totalSuppliers = suppliersData?.total || 0
   const totalPages = Math.max(1, Math.ceil(totalSuppliers / 20))
 
-  const columns = [
-    {
-      key: 'name',
-      header: 'Proveedor',
-      render: (item: Supplier) => (
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="h-7 w-7 shrink-0 rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 flex items-center justify-center">
-            <Truck size={13} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-white group text-sm">
-              <span className="truncate">{item.name}</span>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(item.name)
-                toast.success('Nombre copiado para importación', { duration: 1500, icon: '📋' })
-              }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity bg-primary-500 hover:bg-primary-600 text-white text-[10px] px-2 py-0.5 rounded shadow-sm"
-              title="Copiar nombre para Excel"
-            >
-              📋 Copiar
-            </button>
-            </div>
-            <div className="text-xs text-gray-500 space-y-0.5">
-              {item.cuit && <div>CUIT: {item.cuit}</div>}
-              {item.contact_name && <div>Contacto: {item.contact_name}</div>}
-            </div>
-          </div>
-        </div>
-      ),
-    },
-    { 
-      key: 'contact', 
-      header: 'Contacto',
-      render: (item: Supplier) => (
-        <div className="space-y-1 text-xs">
-          {item.phone && (
-            <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-              <Phone size={12} /> {item.phone}
-            </div>
-          )}
-          {item.email && (
-            <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-              <Mail size={12} /> {item.email}
-            </div>
-          )}
-          {!item.phone && !item.email && (
-            <span className="text-gray-400">Sin datos</span>
-          )}
-        </div>
-      )
-    },
-    {
-      key: 'categories',
-      header: 'Categorías',
-      render: (item: Supplier) => {
-        const supplierCategories = categories.filter(cat => 
-          item.category_ids?.includes(cat.id)
-        )
-        if (supplierCategories.length === 0) return <span className="text-gray-400 text-xs">-</span>
-        
-        const displayCats = supplierCategories.slice(0, 2)
-        const remaining = supplierCategories.length - 2
-        
-        return (
-          <div className="flex flex-wrap gap-1">
-            {displayCats.map(cat => (
-              <span key={cat.id} className="text-xs bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded-full border border-primary-100 dark:border-primary-800">
-                {cat.name}
-              </span>
-            ))}
-            {remaining > 0 && (
-              <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-700">
-                +{remaining}
-              </span>
-            )}
-          </div>
-        )
-      },
-    },
-    {
-      key: 'actions',
-      header: '',
-      render: (item: Supplier) => (
-        <div className="flex gap-2 justify-end">
-          <button
-            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
-            onClick={() => handleOpenModal(item)}
-            title="Editar"
-          >
-            <Edit size={18} />
-          </button>
-          <button 
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-            onClick={() => handleDelete(item)}
-            disabled={deleteMutation.isPending}
-            title="Eliminar"
-          >
-            <Trash2 size={18} />
-          </button>
-        </div>
-      ),
-    },
-  ]
+  // Indicator inline cuando se está buscando (evita full-page spinner)
+  const showInlineLoader = isFetching && !isLoading
 
   return (
     <div className="h-full min-h-0 w-full flex flex-col gap-3">
+      {/* Indicador de búsqueda/carga inline */}
+      {showInlineLoader && (
+        <div className="flex items-center gap-2 text-xs text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 px-3 py-1.5 rounded-lg border border-primary-200 dark:border-primary-800 animate-pulse">
+          <Loader2 size={14} className="animate-spin" />
+          <span>Buscando...</span>
+        </div>
+      )}
+
       {/* Header estilo Categorías */}
       <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 px-3 py-2.5 rounded-lg border border-primary-200 dark:border-primary-800">
         <div className="min-w-0">

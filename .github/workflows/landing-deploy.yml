@@ -51,18 +51,18 @@ jobs:
       - name: Build and push landing image
         uses: docker/build-push-action@v6
         with:
-          context: ./frontend
-          file: ./frontend/Dockerfile.landing.prod
+          context: ./frontend/next-landing
+          file: ./frontend/next-landing/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
           no-cache: true
           build-args: |
-            VITE_TENANT_LOGIN_URL=${{ vars.VITE_TENANT_LOGIN_URL }}
-            VITE_OCTOPUS_TRACK_LOGIN_URL=${{ vars.VITE_OCTOPUS_TRACK_LOGIN_URL }}
-            VITE_OCTOPUS_FLOW_LOGIN_URL=${{ vars.VITE_OCTOPUS_FLOW_LOGIN_URL }}
-            APP_VERSION=${{ env.EFFECTIVE_TAG }}
+            NEXT_PUBLIC_OCTOPUS_TRACK_LOGIN_URL=${{ vars.NEXT_PUBLIC_OCTOPUS_TRACK_LOGIN_URL }}
+            NEXT_PUBLIC_OCTOPUS_FLOW_LOGIN_URL=${{ vars.NEXT_PUBLIC_OCTOPUS_FLOW_LOGIN_URL }}
+            NEXT_PUBLIC_MP_CHECKOUT_WEBHOOK_URL=${{ vars.NEXT_PUBLIC_MP_CHECKOUT_WEBHOOK_URL }}
+            NEXT_PUBLIC_WHATSAPP_URL=${{ vars.NEXT_PUBLIC_WHATSAPP_URL }}
 
   github-release:
     name: Create Landing Release

@@ -5,7 +5,7 @@
  */
 import { useState, type MouseEvent } from 'react'
 import { TrendingUp, Search, Filter, DollarSign, FolderOpen, Trash2, ChevronUp, Clock, Package, RefreshCw } from 'lucide-react'
-import { Button, ConfirmModal } from '../components/ui'
+import { Button, ConfirmModal, Pagination } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import productsService, { Product, ProductBulkUpdateItem, ProductUpdate } from '../api/productsService'
 import categoriesService from '../api/categoriesService'
@@ -69,7 +69,7 @@ export default function PriceUpdate() {
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedSupplier, setSelectedSupplier] = useState('')
-  const [page] = useState(1)
+  const [page, setPage] = useState(1)
 
   // Selección de productos
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
@@ -89,7 +89,7 @@ export default function PriceUpdate() {
     queryKey: ['products', page, search, selectedCategory, selectedSupplier],
     queryFn: () => productsService.getAll({
       page,
-      per_page: 100,
+      per_page: 20,
       search,
       category_id: selectedCategory || undefined,
       supplier_id: selectedSupplier || undefined,
@@ -149,6 +149,7 @@ export default function PriceUpdate() {
     setSelectedCategory('')
     setSelectedSupplier('')
     setSearch('')
+    setPage(1)
   }
 
   // ─── Cargar borrador desde BD ────────────────────────────────────────────────
@@ -420,7 +421,7 @@ export default function PriceUpdate() {
             </label>
             <select
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={(e) => { setPage(1); setSelectedCategory(e.target.value) }}
               className="w-full px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm text-gray-900 dark:text-white"
             >
               <option value="">Todas las categorías</option>
@@ -437,7 +438,7 @@ export default function PriceUpdate() {
             </label>
             <select
               value={selectedSupplier}
-              onChange={(e) => setSelectedSupplier(e.target.value)}
+              onChange={(e) => { setPage(1); setSelectedSupplier(e.target.value) }}
               className="w-full px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm text-gray-900 dark:text-white"
             >
               <option value="">Todos los proveedores</option>
@@ -457,7 +458,7 @@ export default function PriceUpdate() {
               <input
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setPage(1); setSearch(e.target.value) }}
                 placeholder="Código o nombre..."
                 className="w-full pl-9 pr-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm text-gray-900 dark:text-white"
                 data-tour-price-search
@@ -506,7 +507,7 @@ export default function PriceUpdate() {
             </h2>
           </div>
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            {products.length} productos encontrados
+            {productsData?.total ?? products.length} productos encontrados
           </span>
         </div>
         <div className="hidden lg:block max-h-[58vh] overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700" data-tour-price-table>
@@ -685,6 +686,17 @@ export default function PriceUpdate() {
           )}
         </div>
       </div>
+
+      {/* Paginación */}
+      {productsData && (
+        <Pagination
+          currentPage={page}
+          totalPages={productsData.pages}
+          onPageChange={setPage}
+          totalItems={productsData.total}
+          itemsPerPage={20}
+        />
+      )}
 
       {/* Botón flotante — aparece cuando hay selección */}
       {selectedProducts.size > 0 && (

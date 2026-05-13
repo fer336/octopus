@@ -103,6 +103,11 @@
 
 
 ## 🟢 Hecho
+- [x] [SEO-SSR-CONTENT-01] Landing: agregar contenido HTML estático visible a crawlers dentro de `<div id="root">` — Hero, Excel Offer, Features, Plans, Footer — para que ChatGPT/Claude/Gemini/Googlebot lean el contenido sin ejecutar JS ✅ 2026-05-11
+- [x] [SEO-SSR-CONTENT-02] Landing: separar Structured Data en dos bloques SoftwareApplication (Sistema Web ERP + Cotizador Excel) con offers, precios y descripciones específicas ✅ 2026-05-11
+- [x] [SEO-SSR-03] Landing: mejorar title y meta description con keywords ("ERP para Ferreterías", "Gestión de Stock, Ventas y Facturación ARCA") ✅ 2026-05-11
+- [x] [SEO-SSR-04] Landing: agregar BreadcrumbList JSON-LD + `lang="es-AR"` + limpiar SearchAction inválido del WebSite schema ✅ 2026-05-11
+- [x] [LANDING-COPY-FINAL-POLISH-07] Pulir secciones finales de landing Next.js: CTA final, testimonios/placeholders y coherencia de precio/copy ✅ 2026-05-11
 - [x] [LANDING-FIX-LOGO-GIGANTE] 🐛 Corregir bug del menú hamburguesa: SVG del logo con width/height=2829px inline causaba logo gigante al re-renderizar, y el hamburguesa estaba siempre visible incluso en desktop ✅ 2026-05-10
 - [x] [LANDING-FIX-MANIFEST-404] Crear /manifest.json faltante (referenciado en layout.tsx pero inexistente en public/) ✅ 2026-05-10
 - [x] [NEXT-LANDING-03] Reemplazar carruseles por HeroCarousel con GSAP (Ken Burns + crossfade + responsive desktop/mobile 9:16) y CrossfadeCarousel para Excel ✅ 2026-05-10
