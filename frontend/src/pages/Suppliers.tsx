@@ -201,6 +201,112 @@ export default function Suppliers() {
   const totalSuppliers = suppliersData?.total || 0
   const totalPages = Math.max(1, Math.ceil(totalSuppliers / 20))
 
+  // Columnas para tabla desktop
+  const columns = [
+    {
+      key: 'name',
+      header: 'Proveedor',
+      render: (item: Supplier) => (
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="h-7 w-7 shrink-0 rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 flex items-center justify-center">
+            <Truck size={13} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-white group text-sm">
+              <span className="truncate">{item.name}</span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(item.name)
+                  toast.success('Nombre copiado para importación', { duration: 1500, icon: '📋' })
+                }}
+                className="opacity-0 group-hover:opacity-100 transition-opacity bg-primary-500 hover:bg-primary-600 text-white text-[10px] px-2 py-0.5 rounded shadow-sm"
+                title="Copiar nombre para Excel"
+              >
+                📋 Copiar
+              </button>
+            </div>
+            <div className="text-xs text-gray-500 space-y-0.5">
+              {item.cuit && <div>CUIT: {item.cuit}</div>}
+              {item.contact_name && <div>Contacto: {item.contact_name}</div>}
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'contact',
+      header: 'Contacto',
+      render: (item: Supplier) => (
+        <div className="space-y-1 text-xs">
+          {item.phone && (
+            <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
+              <Phone size={12} /> {item.phone}
+            </div>
+          )}
+          {item.email && (
+            <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
+              <Mail size={12} /> {item.email}
+            </div>
+          )}
+          {!item.phone && !item.email && (
+            <span className="text-gray-400">Sin datos</span>
+          )}
+        </div>
+      )
+    },
+    {
+      key: 'categories',
+      header: 'Categorías',
+      render: (item: Supplier) => {
+        const supplierCategories = categories.filter(cat =>
+          item.category_ids?.includes(cat.id)
+        )
+        if (supplierCategories.length === 0) return <span className="text-gray-400 text-xs">-</span>
+
+        const displayCats = supplierCategories.slice(0, 2)
+        const remaining = supplierCategories.length - 2
+
+        return (
+          <div className="flex flex-wrap gap-1">
+            {displayCats.map(cat => (
+              <span key={cat.id} className="text-xs bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded-full border border-primary-100 dark:border-primary-800">
+                {cat.name}
+              </span>
+            ))}
+            {remaining > 0 && (
+              <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-700">
+                +{remaining}
+              </span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      key: 'actions',
+      header: '',
+      render: (item: Supplier) => (
+        <div className="flex gap-2 justify-end">
+          <button
+            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
+            onClick={() => handleOpenModal(item)}
+            title="Editar"
+          >
+            <Edit size={18} />
+          </button>
+          <button
+            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+            onClick={() => handleDelete(item)}
+            disabled={deleteMutation.isPending}
+            title="Eliminar"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   // Indicator inline cuando se está buscando (evita full-page spinner)
   const showInlineLoader = isFetching && !isLoading
 
