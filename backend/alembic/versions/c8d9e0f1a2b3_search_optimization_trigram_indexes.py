@@ -11,7 +11,7 @@ from alembic import op
 from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
-revision: str = "search_optimization_trigram_indexes"
+revision: str = "c8d9e0f1a2b3"
 down_revision: str | Sequence[str] | None = "b_logo_layout_20260509"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

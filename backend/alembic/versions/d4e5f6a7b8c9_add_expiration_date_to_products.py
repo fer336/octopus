@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "add_expiration_date_to_products"
-down_revision: str | Sequence[str] | None = "search_optimization_trigram_indexes"
+revision: str = "d4e5f6a7b8c9"
+down_revision: str | Sequence[str] | None = "c8d9e0f1a2b3"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
