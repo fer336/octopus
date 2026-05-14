@@ -45,6 +45,7 @@ from app.models.user import User
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
 from app.models.voucher_payment import VoucherPayment
+from app.models.product_lot import ProductLot
 from app.models.stockpile import Stockpile, StockpileItem, StockpileStatus
 
 __all__ = [
@@ -102,6 +103,8 @@ __all__ = [
     "Stockpile",
     "StockpileItem",
     "StockpileStatus",
+    # Lotes
+    "ProductLot",
     # IA
     "AIProviderConfig",
     "AIProvider",
