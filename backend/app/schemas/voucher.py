@@ -225,8 +225,10 @@ class VoucherItemResponse(BaseResponse):
     unit_price: Decimal
     discount_percent: Decimal
     iva_rate: Decimal
+    iva_amount: Decimal | None = None
     subtotal: Decimal
     total: Decimal
+    product_lot_id: UUID | None = None
 
 
 class VoucherPartySummary(BaseSchema):

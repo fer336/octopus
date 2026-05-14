@@ -96,6 +96,7 @@ class ProductLotService:
             consumptions.append({"lot_id": lot.id, "taken": taken})
             last_lot_id = lot.id
 
+        await self.db.flush()
         return (last_lot_id, consumptions)
 
     async def list_by_product(
