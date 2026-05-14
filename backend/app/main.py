@@ -29,6 +29,7 @@ from app.routers import (
     payment_methods,
     pdf_test,
     price_update_drafts,
+    product_lots,
     products,
     purchase_orders,
     reports,
@@ -90,6 +91,8 @@ app.add_middleware(
 # Auth router se monta sin prefijo para coincidir con Google OAuth callback
 app.include_router(auth.router)
 app.include_router(products.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(product_lots.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(product_lots.lot_router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(clients.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(client_authorizations.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(client_types.router, prefix=settings.API_TENANT_PREFIX)

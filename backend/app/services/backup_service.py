@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid as uuid_mod
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
@@ -25,6 +26,7 @@ from app.models.payment import Payment
 from app.models.payment_method import PaymentMethodCatalog
 from app.models.price_history import PriceHistory
 from app.models.product import Product
+from app.models.product_lot import ProductLot
 from app.models.purchase_order import PurchaseOrder, PurchaseOrderItem
 from app.models.supplier import Supplier
 from app.models.tenant_membership import TenantMembership
@@ -32,6 +34,7 @@ from app.models.tenant_secret import TenantSecret
 from app.models.user import User
 from app.models.voucher import Voucher
 from app.models.voucher_item import VoucherItem
+from app.services.product_lot_service import ProductLotService
 
 
 class BackupService:
@@ -725,7 +728,32 @@ class BackupService:
                     existing_product.extra_cost = self._sql_to_decimal(data.get("extra_cost"), existing_product.extra_cost)
                     existing_product.profit_margin = self._sql_to_decimal(data.get("profit_margin"), existing_product.profit_margin)
                     existing_product.iva_rate = self._sql_to_decimal(data.get("iva_rate"), existing_product.iva_rate)
-                    existing_product.current_stock = stock_val
+                    # Ajustar stock via lotes (current_stock es @property)
+                    current_stock_val = int(existing_product.current_stock)
+                    stock_diff = stock_val - current_stock_val
+                    if stock_diff > 0:
+                        lot = ProductLot(
+                            product_id=existing_product.id,
+                            business_id=business_id,
+                            code=f"BKUP-{uuid_mod.uuid4().hex[:8]}",
+                            quantity=stock_diff,
+                            initial_quantity=stock_diff,
+                            received_date=datetime.utcnow().date(),
+                        )
+                        self.db.add(lot)
+                    elif stock_diff < 0:
+                        lot_service = ProductLotService(self.db)
+                        try:
+                            await lot_service.fifo_consume(
+                                product_id=existing_product.id,
+                                business_id=business_id,
+                                quantity=abs(stock_diff),
+                            )
+                        except ValueError:
+                            logger.warning(
+                                f"Stock insuficiente al restaurar backup para producto {product_code}: "
+                                f"deseado={stock_val}, actual={current_stock_val}"
+                            )
                     existing_product.minimum_stock = min_stock_val
                     existing_product.unit = self._sql_to_text(data.get("unit")) or existing_product.unit
                     existing_product.is_active = self._sql_to_bool(data.get("is_active"), existing_product.is_active)

@@ -2,7 +2,7 @@
 Servicio de reporte de stock en PDF.
 """
 
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -36,12 +36,15 @@ class StockReportService:
         # Obtener última fecha de venta por producto
         last_sales = await self._get_last_sale_dates(business_id, [p.id for p in products])
         today = date.today()
+        expiring_soon_threshold = today + timedelta(days=30)
 
         rows: list[dict] = []
         total_stock_units = 0
         total_stock_value = Decimal("0")
         low_stock_items = 0
         stagnant_items = 0  # +90 días sin vender
+        total_expired_lots = 0
+        total_expiring_soon_lots = 0
 
         for product in products:
             current_stock = int(product.current_stock or 0)
@@ -60,6 +63,24 @@ class StockReportService:
             if days_without_sale is not None and days_without_sale > 90:
                 stagnant_items += 1
 
+            # Información de lotes
+            next_expiration = product.next_expiration
+            active_lots = [
+                lot for lot in product.lots
+                if not lot.deleted_at and lot.quantity > 0
+            ]
+            expired_lots_count = sum(
+                1 for lot in active_lots
+                if lot.expiration_date and lot.expiration_date < today
+            )
+            lots_expiring_soon_count = sum(
+                1 for lot in active_lots
+                if lot.expiration_date
+                and today <= lot.expiration_date <= expiring_soon_threshold
+            )
+            total_expired_lots += expired_lots_count
+            total_expiring_soon_lots += lots_expiring_soon_count
+
             rows.append(
                 {
                     "code": product.code,
@@ -75,13 +96,17 @@ class StockReportService:
                     "is_active": bool(product.is_active),
                     "last_sale_date": last_sale_date.strftime("%d/%m/%Y") if last_sale_date else "—",
                     "days_without_sale": days_without_sale if last_sale_date else None,
+                    "next_expiration": next_expiration.strftime("%d/%m/%Y") if next_expiration else None,
+                    "expired_lots_count": expired_lots_count,
+                    "lots_expiring_soon_count": lots_expiring_soon_count,
                 }
             )
 
-        # Actualizar summary con items estancados
+        # Actualizar summary con items estancados e info de lotes
         context = await self._build_context(
             business, rows, filters, generated_by,
             total_stock_units, total_stock_value, low_stock_items, stagnant_items,
+            total_expired_lots, total_expiring_soon_lots,
         )
 
         return report_pdf_service.render("stock_report.html", context)
@@ -121,6 +146,8 @@ class StockReportService:
         total_stock_value,
         low_stock_items,
         stagnant_items,
+        total_expired_lots=0,
+        total_expiring_soon_lots=0,
     ):
         return {
             "business": {
@@ -148,6 +175,8 @@ class StockReportService:
                 "stagnant_items": stagnant_items,
                 "total_stock_units": total_stock_units,
                 "total_stock_value": float(total_stock_value),
+                "total_expired_lots": total_expired_lots,
+                "total_expiring_soon_lots": total_expiring_soon_lots,
             },
             "rows": rows,
         }
@@ -172,6 +201,7 @@ class StockReportService:
             .options(
                 selectinload(Product.category),
                 selectinload(Product.supplier),
+                selectinload(Product.lots),
             )
             .where(
                 Product.business_id == business_id,

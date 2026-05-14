@@ -2,6 +2,7 @@
 Schemas para Productos.
 """
 
+from datetime import date
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -54,11 +55,10 @@ class ProductCreate(BaseSchema):
 
     iva_rate: Decimal = Field(default=Decimal("21.00"), description="Alícuota IVA")
 
-    current_stock: int = Field(default=0, ge=0)
+    current_stock: int = Field(default=0, ge=0, description="Stock inicial (crea lote si > 0)")
     minimum_stock: int = Field(default=0, ge=0)
     unit: str = Field(default="unidad", max_length=20)
     units_per_pack: int | None = Field(None, ge=1, description="Cantidad por pack")
-    expiration_date: str | None = Field(None, description="Fecha de vencimiento (YYYY-MM-DD)")
 
 
 class ProductUpdate(BaseSchema):
@@ -96,11 +96,9 @@ class ProductUpdate(BaseSchema):
 
     iva_rate: Decimal | None = None
 
-    current_stock: int | None = Field(None, ge=0)
     minimum_stock: int | None = Field(None, ge=0)
     unit: str | None = Field(None, max_length=20)
     units_per_pack: int | None = Field(None, ge=1, description="Cantidad por pack")
-    expiration_date: str | None = Field(None, description="Fecha de vencimiento (YYYY-MM-DD)")
 
     is_active: bool | None = None
 
@@ -154,9 +152,12 @@ class ProductResponse(BaseResponse):
     minimum_stock: int
     unit: str
     units_per_pack: int | None
-    expiration_date: str | None
 
     is_active: bool
+
+    # Campos de lotes (reemplazan expiration_date del producto)
+    next_expiration: date | None = None
+    lots_count: int = 0
 
 
 class ProductBulkUpdateResponse(BaseSchema):

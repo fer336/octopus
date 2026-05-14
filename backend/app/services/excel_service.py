@@ -12,7 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.category import Category
 from app.models.product import Product
+from app.models.product_lot import ProductLot
 from app.models.supplier import Supplier
+from app.services.product_lot_service import ProductLotService
 from app.schemas.excel_schemas import (
     ImportConfirmRequest,
     ImportConfirmResponse,
@@ -270,6 +272,7 @@ class ExcelService:
             try:
                 if row.is_new:
                     # Crear nuevo producto
+                    initial_stock = row.current_stock
                     new_product = Product(
                         business_id=business_id,
                         code=row.code,
@@ -284,14 +287,27 @@ class ExcelService:
                         extra_cost=row.extra_cost,
                         profit_margin=row.profit_margin,
                         iva_rate=row.iva_rate,
-                        current_stock=row.current_stock,
                         unit=row.unit,
                         units_per_pack=row.units_per_pack,
-                        expiration_date=row.expiration_date,
                         cost_price=Decimal(0),  # Se puede calcular después
                     )
                     new_product.calculate_prices()
                     self.db.add(new_product)
+
+                    # Crear lote inicial si hay stock
+                    if initial_stock > 0:
+                        await self.db.flush()
+                        from datetime import date
+                        lot = ProductLot(
+                            product_id=new_product.id,
+                            business_id=business_id,
+                            code=f"IMP-{str(new_product.id)[:8]}",
+                            quantity=initial_stock,
+                            initial_quantity=initial_stock,
+                            received_date=date.today(),
+                        )
+                        self.db.add(lot)
+
                     created += 1
                 else:
                     # Actualizar producto existente
@@ -313,10 +329,35 @@ class ExcelService:
                             existing_product.extra_cost = row.extra_cost
                             existing_product.profit_margin = row.profit_margin
                             existing_product.iva_rate = row.iva_rate
-                            existing_product.current_stock = row.current_stock
                             existing_product.unit = row.unit
                             existing_product.units_per_pack = row.units_per_pack
-                            existing_product.expiration_date = row.expiration_date
+
+                            # Ajustar stock via lotes (current_stock es @property)
+                            new_stock_val = row.current_stock
+                            current_stock_val = int(existing_product.current_stock)
+                            stock_diff = new_stock_val - current_stock_val
+                            if stock_diff > 0:
+                                lot = ProductLot(
+                                    product_id=existing_product.id,
+                                    business_id=business_id,
+                                    quantity=stock_diff,
+                                    initial_quantity=stock_diff,
+                                    received_date=date.today(),
+                                )
+                                self.db.add(lot)
+                            elif stock_diff < 0:
+                                lot_service = ProductLotService(self.db)
+                                try:
+                                    await lot_service.fifo_consume(
+                                        product_id=existing_product.id,
+                                        business_id=business_id,
+                                        quantity=abs(stock_diff),
+                                    )
+                                except ValueError:
+                                    errors.append(
+                                        f"Fila {row.row_number}: Stock insuficiente para aplicar reducción"
+                                    )
+
                             existing_product.calculate_prices()
                             updated += 1
                         else:

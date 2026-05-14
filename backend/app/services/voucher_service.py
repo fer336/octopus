@@ -22,6 +22,7 @@ from app.models.client_account import ClientAccount, MovementType
 from app.models.client_authorization import ClientAuthorization
 from app.models.payment_method import PaymentMethodCatalog
 from app.models.product import Product
+from app.models.product_lot import ProductLot
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
 from app.models.voucher_payment import VoucherPayment
@@ -36,6 +37,7 @@ from app.schemas.voucher import (
     VoucherUpdate,
 )
 from app.services.pdf_service import pdf_service
+from app.services.product_lot_service import ProductLotService
 
 
 class VoucherService:
@@ -359,7 +361,28 @@ class VoucherService:
 
             # Las cotizaciones no modifican stock
             if voucher_type != VoucherType.QUOTATION:
-                product.current_stock -= int(item_data.quantity)
+                lot_service = ProductLotService(self.db)
+                qty = int(item_data.quantity)
+                if qty > 0:
+                    last_lot_id, consumptions = await lot_service.fifo_consume(
+                        product_id=product.id,
+                        business_id=business_id,
+                        quantity=qty,
+                    )
+                    voucher_item.product_lot_id = last_lot_id
+                elif qty < 0:
+                    # Devolución: crear nuevo lote con la mercadería devuelta
+                    from datetime import date as date_type
+                    return_lot = ProductLot(
+                        product_id=product.id,
+                        business_id=business_id,
+                        quantity=abs(qty),
+                        initial_quantity=abs(qty),
+                        received_date=date_type.today(),
+                    )
+                    self.db.add(return_lot)
+                    await self.db.flush()
+                    voucher_item.product_lot_id = return_lot.id
 
         return items_db, total_subtotal, total_iva, total_final
 
@@ -673,7 +696,29 @@ class VoucherService:
                 line_number += 1
 
                 # Las facturas descuentan stock
-                product.current_stock -= int(source_item.quantity)
+                lot_service = ProductLotService(self.db)
+                qty = int(source_item.quantity)
+                if qty > 0:
+                    last_lot_id, consumptions = await lot_service.fifo_consume(
+                        product_id=product.id,
+                        business_id=business_id,
+                        quantity=qty,
+                    )
+                    if items_db:
+                        items_db[-1].product_lot_id = last_lot_id
+                elif qty < 0:
+                    from datetime import date as date_type
+                    return_lot = ProductLot(
+                        product_id=product.id,
+                        business_id=business_id,
+                        quantity=abs(qty),
+                        initial_quantity=abs(qty),
+                        received_date=date_type.today(),
+                    )
+                    self.db.add(return_lot)
+                    await self.db.flush()
+                    if items_db:
+                        items_db[-1].product_lot_id = return_lot.id
 
         return (
             items_db,
@@ -1206,7 +1251,7 @@ class VoucherService:
 
             for rev_voucher in vouchers_to_revert:
                 # Revertir stock
-                self._revert_stock_from_voucher(rev_voucher)
+                await self._revert_stock_from_voucher(rev_voucher)
 
                 # Revertir saldo en cuenta corriente
                 await self._revert_client_account_from_voucher(rev_voucher)
@@ -1221,26 +1266,64 @@ class VoucherService:
         await self.db.commit()
         return True
 
-    def _revert_stock_from_voucher(self, voucher: Voucher) -> None:
-        """Revierte el stock de lositems de un voucher de devolución."""
-        # Por cada item: si quantity < 0 (era devolución),sumar al stock
-        # si quantity > 0, restar del stock (porque en creación se hizo al revés)
+    async def _revert_stock_from_voucher(self, voucher: Voucher) -> None:
+        """Revierte el stock de los items de un voucher usando lotes.
+
+        Si VoucherItem.product_lot_id está seteado → restaura a ESE lote específico.
+        Si no está seteado (legacy) → restaura al lote más reciente por received_date.
+        Usa with_for_update() para row-level locking.
+        """
+        lot_service = ProductLotService(self.db)
         for item in voucher.items:
-            if item.product:
-                if item.quantity < 0:
-                    # Era un item de devolución (quantity negativo)
-                    # Al crear: product.stock -= quantity (negativo = sumar)
-                    # Al revertir: product.stock -= quantity (negativo = sumar de nuevo, restaura)
-                    # Pero espera - en la creación hicimos:
-                    # product.current_stock -= int(quantity) donde quantity es negativo
-                    # Entonces: current_stock -= (-5) = current_stock + 5 (suma stock)
-                    # Al revertir: current_stock -= (-5) = current_stock + 5 (devuelve al origen)
-                    item.product.current_stock -= int(item.quantity)
+            if not item.product:
+                continue
+
+            qty = int(item.quantity)
+            quantity_change = abs(qty)
+
+            if item.product_lot_id:
+                # Restaurar al lote específico que se consumió
+                query = (
+                    select(ProductLot)
+                    .where(ProductLot.id == item.product_lot_id)
+                    .with_for_update()
+                )
+                result = await self.db.execute(query)
+                lot = result.scalar_one_or_none()
+                if not lot:
+                    continue
+
+                if qty > 0:
+                    # Item normal: devolver stock al lote
+                    lot.quantity += quantity_change
                 else:
-                    # Era un item normal (no devolución)
-                    # Al crear: product.stock -= quantity (restó)
-                    # Al revertir: product.stock += quantity (devuelve)
-                    item.product.current_stock += int(item.quantity)
+                    # Item de devolución: remover el stock agregado
+                    lot.quantity -= quantity_change
+                    if lot.quantity < 0:
+                        lot.quantity = 0
+            else:
+                # Legacy: restaurar al lote más reciente
+                query = (
+                    select(ProductLot)
+                    .where(
+                        ProductLot.product_id == item.product_id,
+                        ProductLot.business_id == voucher.business_id,
+                        ProductLot.deleted_at.is_(None),
+                    )
+                    .order_by(ProductLot.received_date.desc())
+                    .with_for_update()
+                )
+                result = await self.db.execute(query)
+                lot = result.scalar_one_or_none()
+                if not lot:
+                    continue
+
+                if qty > 0:
+                    lot.quantity += quantity_change
+                else:
+                    lot.quantity -= quantity_change
+                    if lot.quantity < 0:
+                        lot.quantity = 0
 
     async def _revert_client_account_from_voucher(self, voucher: Voucher) -> None:
         """Revierte el movimiento de cuenta corriente creado por una devolución."""

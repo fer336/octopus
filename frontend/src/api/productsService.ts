@@ -35,7 +35,8 @@ export interface Product {
   minimum_stock: number
   unit: string
   units_per_pack?: number | null
-  expiration_date?: string | null
+  next_expiration?: string | null
+  lots_count: number
   is_active: boolean
   created_at: string
   updated_at: string
@@ -65,7 +66,6 @@ export interface ProductCreate {
   minimum_stock?: number
   unit?: string
   units_per_pack?: number | null
-  expiration_date?: string | null
   cost_price?: number
 }
 
@@ -89,11 +89,9 @@ export interface ProductUpdate {
   extra_cost?: number
   profit_margin?: number
   iva_rate?: number
-  current_stock?: number
   minimum_stock?: number
   unit?: string
   units_per_pack?: number | null
-  expiration_date?: string | null
   cost_price?: number
   is_active?: boolean
 }
@@ -136,7 +134,6 @@ export interface ProductImportRow {
   minimum_stock: number
   unit: string
   units_per_pack?: number | null
-  expiration_date?: string | null
   net_price?: number
   sale_price?: number
   discount_display?: string
@@ -157,6 +154,20 @@ export interface ImportPreviewResponse {
 
 export interface ImportConfirmRequest {
   rows: ProductImportRow[]
+}
+
+export interface ProductLot {
+  id: string
+  product_id: string
+  business_id: string
+  code: string | null
+  quantity: number
+  initial_quantity: number
+  expiration_date: string | null
+  cost_price: number | null
+  received_date: string
+  created_at: string
+  updated_at: string
 }
 
 export interface ImportConfirmResponse {
@@ -310,6 +321,32 @@ export const productsService = {
   bulkDelete: async (): Promise<{ deleted_count: number; message: string }> => {
     // Usar POST en vez de DELETE para evitar problemas
     const response = await httpClient.post('/products/bulk-delete-alt')
+    return response.data
+  },
+
+  // ── Lotes ─────────────────────────────────────────────────────
+
+  /**
+   * Obtiene la lista de lotes de un producto.
+   */
+  getLots: async (productId: string): Promise<ProductLot[]> => {
+    const response = await httpClient.get(`/products/${productId}/lots`)
+    return response.data
+  },
+
+  /**
+   * Crea un nuevo lote (ingreso de stock) para un producto.
+   */
+  createLot: async (
+    productId: string,
+    data: {
+      quantity: number
+      expiration_date?: string | null
+      cost_price?: number | null
+      code?: string | null
+    },
+  ): Promise<ProductLot> => {
+    const response = await httpClient.post(`/products/${productId}/lots`, data)
     return response.data
   },
 }
