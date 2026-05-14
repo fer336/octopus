@@ -59,7 +59,6 @@ class ProductCreate(BaseSchema):
     minimum_stock: int = Field(default=0, ge=0)
     unit: str = Field(default="unidad", max_length=20)
     units_per_pack: int | None = Field(None, ge=1, description="Cantidad por pack")
-    expiration_date: str | None = Field(None, description="Fecha de vencimiento (YYYY-MM-DD)")
 
 
 class ProductUpdate(BaseSchema):
@@ -97,11 +96,9 @@ class ProductUpdate(BaseSchema):
 
     iva_rate: Decimal | None = None
 
-    current_stock: int | None = Field(None, ge=0, description="DEPRECATED: usar lotes")
     minimum_stock: int | None = Field(None, ge=0)
     unit: str | None = Field(None, max_length=20)
     units_per_pack: int | None = Field(None, ge=1, description="Cantidad por pack")
-    expiration_date: str | None = Field(None, description="DEPRECATED: usar lotes")
 
     is_active: bool | None = None
 

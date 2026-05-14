@@ -52,6 +52,9 @@ export interface Product extends BaseEntity {
   current_stock: number
   minimum_stock: number
   unit: string
+  units_per_pack?: number | null
+  next_expiration?: string | null
+  lots_count: number
   is_active: boolean
 }
 
