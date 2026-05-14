@@ -23,10 +23,6 @@ const toNonNegativeNumber = (value: unknown, fallback = 0) => {
   return Math.max(0, parsed)
 }
 
-const toNonNegativeInteger = (value: unknown, fallback = 0) => {
-  return Math.trunc(toNonNegativeNumber(value, fallback))
-}
-
 const buildPriceUpdatePayload = (product: {
   list_price?: unknown
   discount_1?: unknown
@@ -34,7 +30,6 @@ const buildPriceUpdatePayload = (product: {
   discount_3?: unknown
   extra_cost?: unknown
   profit_margin?: unknown
-  current_stock?: unknown
 }): ProductUpdate => ({
   list_price: toNonNegativeNumber(product.list_price),
   discount_1: Math.min(100, toNonNegativeNumber(product.discount_1)),
@@ -42,7 +37,6 @@ const buildPriceUpdatePayload = (product: {
   discount_3: Math.min(100, toNonNegativeNumber(product.discount_3)),
   extra_cost: toNonNegativeNumber(product.extra_cost),
   profit_margin: toNonNegativeNumber(product.profit_margin),
-  current_stock: toNonNegativeInteger(product.current_stock),
 })
 
 const formatMoney = (value: unknown) => `$${toNonNegativeNumber(value).toFixed(2)}`

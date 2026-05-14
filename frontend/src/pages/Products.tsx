@@ -3,7 +3,7 @@
  * Lista, búsqueda y gestión de productos con cálculo de precio final.
  */
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Edit, Trash2, Calculator, Upload, Download, Search, AlertTriangle, FileCode, RotateCcw, Loader2 } from 'lucide-react'
+import { Plus, Edit, Trash2, Calculator, Upload, Download, Search, AlertTriangle, FileCode, RotateCcw, Loader2, Package } from 'lucide-react'
 import { Button, Table, Pagination, Modal, Select } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import toast from 'react-hot-toast'
@@ -38,6 +38,19 @@ export default function Products() {
   const [importMessage, setImportMessage] = useState('')
   const [isSqlImporting, setIsSqlImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Estado del modal de lotes
+  const [showLotModal, setShowLotModal] = useState(false)
+  const [lotModalProduct, setLotModalProduct] = useState<Product | null>(null)
+  const [lots, setLots] = useState<any[]>([])
+  const [lotsLoading, setLotsLoading] = useState(false)
+  const [showNewLotForm, setShowNewLotForm] = useState(false)
+  const [lotFormData, setLotFormData] = useState({
+    quantity: 0,
+    expiration_date: '',
+    cost_price: '',
+    code: '',
+  })
 
   // React Query para productos con filtros
   const { data: productsData, isLoading, isFetching, error } = useQuery({
@@ -363,7 +376,61 @@ export default function Products() {
     input.click()
   }
 
-  // Manejo de borrado total
+  // ── Lotes ─────────────────────────────────────────────────────
+
+  const handleOpenLotModal = async (product: Product) => {
+    setLotModalProduct(product)
+    setShowLotModal(true)
+    setShowNewLotForm(false)
+    setLotFormData({ quantity: 0, expiration_date: '', cost_price: '', code: '' })
+    setLotsLoading(true)
+    try {
+      const lotList = await productsService.getLots(product.id)
+      setLots(lotList)
+    } catch (error: any) {
+      toast.error('Error al cargar lotes: ' + (error.response?.data?.detail || error.message))
+    } finally {
+      setLotsLoading(false)
+    }
+  }
+
+  const handleCloseLotModal = () => {
+    setShowLotModal(false)
+    setLotModalProduct(null)
+    setLots([])
+    setShowNewLotForm(false)
+  }
+
+  const handleCreateLot = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!lotModalProduct) return
+    if (lotFormData.quantity <= 0) {
+      toast.error('La cantidad debe ser mayor a 0')
+      return
+    }
+
+    try {
+      await productsService.createLot(lotModalProduct.id, {
+        quantity: lotFormData.quantity,
+        expiration_date: lotFormData.expiration_date || null,
+        cost_price: lotFormData.cost_price ? parseFloat(lotFormData.cost_price) : null,
+        code: lotFormData.code || null,
+      })
+      toast.success('Stock ingresado correctamente', { icon: '✅' })
+
+      // Refetch lotes y producto
+      const lotList = await productsService.getLots(lotModalProduct.id)
+      setLots(lotList)
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+
+      setShowNewLotForm(false)
+      setLotFormData({ quantity: 0, expiration_date: '', cost_price: '', code: '' })
+    } catch (error: any) {
+      toast.error(formatErrorMessage(error))
+    }
+  }
+
+  // ── Fin Lotes ──────────────────────────────────────────────
   const handleBulkDeleteConfirm = async () => {
     try {
       const result = await productsService.bulkDelete()
@@ -400,7 +467,6 @@ export default function Products() {
     minimum_stock: 0,
     unit: 'unidad',
     units_per_pack: null as number | null,
-    expiration_date: null as string | null,
     is_active: true,
   })
 
@@ -441,7 +507,6 @@ export default function Products() {
       minimum_stock: 0,
       unit: 'unidad',
       units_per_pack: null as number | null,
-      expiration_date: null as string | null,
       is_active: true,
     })
     setDiscountsInput('')
@@ -562,33 +627,49 @@ export default function Products() {
     }
 
     // Preparar datos para enviar al backend
-    const dataToSend: ProductCreate | ProductUpdate = {
-      code: formData.code!.trim(),
-      supplier_code: formData.supplier_code?.trim() || undefined,
-      description: formData.description!.trim(),
-      customer_terms: formData.customer_terms?.trim() || undefined,
-      category_id: formData.category_id || undefined,
-      supplier_id: formData.supplier_id || undefined,
-      list_price: formData.list_price!,
-      discount_1: formData.discount_1 || 0,
-      discount_2: formData.discount_2 || 0,
-      discount_3: formData.discount_3 || 0,
-      extra_cost: formData.extra_cost || 0,
-      profit_margin: formData.profit_margin || 0,
-      iva_rate: formData.iva_rate || 21,
-      current_stock: formData.current_stock || 0,
-      minimum_stock: formData.minimum_stock || 0,
-      unit: formData.unit || 'unidad',
-      units_per_pack: formData.units_per_pack || null,
-      expiration_date: formData.expiration_date || null,
-      cost_price: 0, // Se calcula en el backend
-    }
-
-    // Ejecutar mutation correspondiente
     if (isEditing && editingId) {
+      // En edición NO se envía current_stock (se gestiona por lotes)
+      const dataToSend: ProductUpdate = {
+        code: formData.code!.trim(),
+        supplier_code: formData.supplier_code?.trim() || undefined,
+        description: formData.description!.trim(),
+        customer_terms: formData.customer_terms?.trim() || undefined,
+        category_id: formData.category_id || undefined,
+        supplier_id: formData.supplier_id || undefined,
+        list_price: formData.list_price!,
+        discount_1: formData.discount_1 || 0,
+        discount_2: formData.discount_2 || 0,
+        discount_3: formData.discount_3 || 0,
+        extra_cost: formData.extra_cost || 0,
+        profit_margin: formData.profit_margin || 0,
+        iva_rate: formData.iva_rate || 21,
+        minimum_stock: formData.minimum_stock || 0,
+        unit: formData.unit || 'unidad',
+        units_per_pack: formData.units_per_pack || null,
+      }
       updateMutation.mutate({ id: editingId, data: dataToSend })
     } else {
-      createMutation.mutate(dataToSend as ProductCreate)
+      // En creación se envía current_stock para crear lote inicial
+      const dataToSend: ProductCreate = {
+        code: formData.code!.trim(),
+        supplier_code: formData.supplier_code?.trim() || undefined,
+        description: formData.description!.trim(),
+        customer_terms: formData.customer_terms?.trim() || undefined,
+        category_id: formData.category_id || undefined,
+        supplier_id: formData.supplier_id || undefined,
+        list_price: formData.list_price!,
+        discount_1: formData.discount_1 || 0,
+        discount_2: formData.discount_2 || 0,
+        discount_3: formData.discount_3 || 0,
+        extra_cost: formData.extra_cost || 0,
+        profit_margin: formData.profit_margin || 0,
+        iva_rate: formData.iva_rate || 21,
+        current_stock: formData.current_stock || 0,
+        minimum_stock: formData.minimum_stock || 0,
+        unit: formData.unit || 'unidad',
+        units_per_pack: formData.units_per_pack || null,
+      }
+      createMutation.mutate(dataToSend)
     }
   }
 
@@ -622,21 +703,35 @@ export default function Products() {
       ),
     },
     {
-      key: 'expiration_date',
+      key: 'next_expiration',
       header: 'Vence',
-      width: 100,
+      width: 120,
       render: (item: Product) => {
-        if (!item.expiration_date) return <span className="text-xs text-gray-400">-</span>
-        const expDate = new Date(item.expiration_date)
+        if (!item.next_expiration) return <span className="text-xs text-gray-400">—</span>
+        const expDate = new Date(item.next_expiration)
         const today = new Date()
+        today.setHours(0, 0, 0, 0)
         const daysUntilExp = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-        const isExpired = daysUntilExp < 0
-        const isNear = daysUntilExp >= 0 && daysUntilExp <= 30
+        if (daysUntilExp < 0) {
+          return (
+            <span className="inline-flex items-center gap-1 text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 px-2 py-0.5 rounded-full font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+              Vencido
+            </span>
+          )
+        }
+        if (daysUntilExp <= 30) {
+          return (
+            <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 px-2 py-0.5 rounded-full font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              Próximo a vencer ({item.next_expiration})
+            </span>
+          )
+        }
         return (
-          <span className={`text-xs ${isExpired ? 'text-red-600 font-medium' : isNear ? 'text-amber-600 font-medium' : 'text-gray-600 dark:text-gray-400'}`}>
-            {item.expiration_date}
-            {isExpired && ' (Vencido)'}
-            {isNear && ` (${daysUntilExp}d)`}
+          <span className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-2 py-0.5 rounded-full font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+            {item.next_expiration}
           </span>
         )
       },
@@ -694,14 +789,21 @@ export default function Products() {
       key: 'actions',
       header: '',
       render: (item: Product) => (
-        <div className="flex gap-2">
+        <div className="flex gap-1">
           <button
-            className="text-gray-400 hover:text-primary-600"
+            className="text-gray-400 hover:text-amber-600 p-1 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20"
+            title="Ver lotes"
+            onClick={() => handleOpenLotModal(item)}
+          >
+            <Package size={18} />
+          </button>
+          <button
+            className="text-gray-400 hover:text-primary-600 p-1 rounded hover:bg-primary-50 dark:hover:bg-primary-900/20"
             onClick={() => handleOpenModal(item)}
           >
             <Edit size={18} />
           </button>
-          <button className="text-gray-400 hover:text-red-600">
+          <button className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20">
             <Trash2 size={18} />
           </button>
         </div>
@@ -913,6 +1015,13 @@ export default function Products() {
 
                   <div className="flex items-center gap-1">
                     <button
+                      className="rounded-md p-1.5 text-gray-500 hover:bg-amber-50 hover:text-amber-600 dark:text-gray-300 dark:hover:bg-amber-900/30 dark:hover:text-amber-300"
+                      onClick={() => handleOpenLotModal(item)}
+                      aria-label="Ver lotes"
+                    >
+                      <Package size={16} />
+                    </button>
+                    <button
                       className="rounded-md p-1.5 text-gray-500 hover:bg-primary-50 hover:text-primary-600 dark:text-gray-300 dark:hover:bg-primary-900/30 dark:hover:text-primary-300"
                       onClick={() => handleOpenModal(item)}
                       aria-label="Editar producto"
@@ -999,7 +1108,7 @@ export default function Products() {
         <form onSubmit={handleSubmit} className="space-y-3">
           {/* Sección 1: Identificación - 2 columnas */}
           <div className="bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/10 dark:to-primary-900/10 p-3 rounded-lg">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Código *
@@ -1029,23 +1138,8 @@ export default function Products() {
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Stock
-                </label>
-                <input
-                  ref={stockRef}
-                  type="number"
-                  value={formData.current_stock}
-                  onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })}
-                  onFocus={handleNumericFocus}
-                  onKeyDown={(e) => handleNumericKeyDown(e, 'current_stock', submitBtnRef)}
-                  placeholder="0"
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
             </div>
-            {/* Unit type + Pack qty + Expiration */}
+            {/* Unit type + Pack qty */}
             <div className="grid grid-cols-2 gap-3 mt-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1053,6 +1147,7 @@ export default function Products() {
                 </label>
                 <select
                   value={formData.unit}
+                  name="unit-select"
                   onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 >
@@ -1066,14 +1161,25 @@ export default function Products() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Vencimiento
+                  {isEditing ? 'Stock total' : 'Stock inicial'}
                 </label>
-                <input
-                  type="date"
-                  value={formData.expiration_date || ''}
-                  onChange={(e) => setFormData({ ...formData, expiration_date: e.target.value || null })}
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-                />
+                {isEditing ? (
+                  <div className="w-full px-2 py-1.5 text-sm border rounded-lg bg-gray-100 dark:bg-gray-700 dark:border-gray-600 text-gray-500 dark:text-gray-400 flex items-center">
+                    <span>{formData.current_stock} unidades</span>
+                    <span className="ml-1 text-[10px] text-gray-400">(gestionado por lotes)</span>
+                  </div>
+                ) : (
+                  <input
+                    ref={stockRef}
+                    type="number"
+                    value={formData.current_stock}
+                    onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })}
+                    onFocus={handleNumericFocus}
+                    onKeyDown={(e) => handleNumericKeyDown(e, 'current_stock', submitBtnRef)}
+                    placeholder="0"
+                    className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                  />
+                )}
               </div>
             </div>
             {formData.unit === 'pack' && (
@@ -1288,7 +1394,17 @@ export default function Products() {
                   ref={categoryRef}
                   value={formData.category_id || ''}
                   onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                  onKeyDown={(e) => handleEnterKey(e, supplierRef)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      // En create mode va a stock, en edit va a unit
+                      if (!isEditing && stockRef.current) {
+                        stockRef.current.focus()
+                      } else {
+                        (document.querySelector('select[name="unit-select"]') as HTMLElement)?.focus()
+                      }
+                    }
+                  }}
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="">Seleccionar...</option>
@@ -1307,7 +1423,16 @@ export default function Products() {
                   ref={supplierRef}
                   value={formData.supplier_id || ''}
                   onChange={(e) => handleSupplierChange(e.target.value)}
-                  onKeyDown={(e) => handleEnterKey(e, stockRef)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      if (!isEditing && stockRef.current) {
+                        stockRef.current?.focus()
+                      } else {
+                        descriptionRef.current?.focus()
+                      }
+                    }
+                  }}
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="">Seleccionar...</option>
@@ -1374,6 +1499,158 @@ export default function Products() {
         message={importMessage}
         errorMessage="Error al importar productos. Revisa los datos e intenta nuevamente."
       />
+
+      {/* Modal de Lotes */}
+      <Modal
+        isOpen={showLotModal}
+        onClose={handleCloseLotModal}
+        title={lotModalProduct ? `Lotes de ${lotModalProduct.description}` : 'Lotes'}
+        size="lg"
+      >
+        <div className="space-y-4">
+          {lotsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+            </div>
+          ) : lots.length === 0 && !showNewLotForm ? (
+            <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
+              <Package size={40} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
+              <p>Este producto no tiene lotes registrados.</p>
+              <p className="text-xs mt-1">Ingresá stock para crear el primer lote.</p>
+            </div>
+          ) : (
+            <>
+              {/* Tabla de lotes */}
+              <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left px-3 py-2 font-medium text-gray-600 dark:text-gray-400">Código</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-600 dark:text-gray-400">Cantidad</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-600 dark:text-gray-400">Vence</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-600 dark:text-gray-400">Costo</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-600 dark:text-gray-400">Recibido</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {lots.map((lot: any) => (
+                      <tr key={lot.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                        <td className="px-3 py-2 font-mono text-gray-800 dark:text-gray-200">{lot.code || '—'}</td>
+                        <td className="px-3 py-2 text-right font-medium">{lot.quantity}</td>
+                        <td className="px-3 py-2 text-center">
+                          {lot.expiration_date ? (
+                            (() => {
+                              const exp = new Date(lot.expiration_date)
+                              const today = new Date()
+                              today.setHours(0, 0, 0, 0)
+                              const days = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                              if (days < 0) return <span className="text-red-600 font-medium">{lot.expiration_date}</span>
+                              if (days <= 30) return <span className="text-amber-600 font-medium">{lot.expiration_date}</span>
+                              return <span>{lot.expiration_date}</span>
+                            })()
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {lot.cost_price != null ? `$${Number(lot.cost_price).toLocaleString()}` : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-center text-gray-500">{lot.received_date}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {/* Formulario de ingreso de stock */}
+          {showNewLotForm && (
+            <form onSubmit={handleCreateLot} className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg p-4 space-y-3">
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Ingresar stock</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Cantidad *
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={lotFormData.quantity || ''}
+                    onChange={(e) => setLotFormData({ ...lotFormData, quantity: parseInt(e.target.value) || 0 })}
+                    className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Código de lote
+                  </label>
+                  <input
+                    type="text"
+                    value={lotFormData.code}
+                    onChange={(e) => setLotFormData({ ...lotFormData, code: e.target.value })}
+                    placeholder="Opcional — autogenerado si se omite"
+                    className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Vencimiento
+                  </label>
+                  <input
+                    type="date"
+                    value={lotFormData.expiration_date}
+                    onChange={(e) => setLotFormData({ ...lotFormData, expiration_date: e.target.value })}
+                    className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Costo unitario
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={lotFormData.cost_price}
+                    onChange={(e) => setLotFormData({ ...lotFormData, cost_price: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setShowNewLotForm(false)} type="button">
+                  Cancelar
+                </Button>
+                <Button size="sm" type="submit" className="bg-amber-600 hover:bg-amber-700 text-white">
+                  ✓ Ingresar stock
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {/* Botones inferiores */}
+          <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-700">
+            {!showNewLotForm ? (
+              <Button
+                size="sm"
+                onClick={() => setShowNewLotForm(true)}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                + Ingresar stock
+              </Button>
+            ) : (
+              <div /> /* Empty div to keep spacing */
+            )}
+            <Button variant="outline" size="sm" onClick={handleCloseLotModal}>
+              Cerrar
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
