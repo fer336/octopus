@@ -1,7 +1,7 @@
 """
 Servicio de Lotes de Producto (Product Lot).
-Contiene la lógica CRUD básica para la gestión de lotes.
-La lógica FIFO se implementará en PR 2.
+Contiene la lógica CRUD básica para la gestión de lotes
+y el consumo FIFO por fecha de vencimiento.
 """
 
 from datetime import date, datetime
@@ -41,6 +41,62 @@ class ProductLotService:
         await self.db.commit()
         await self.db.refresh(lot)
         return lot
+
+    async def fifo_consume(
+        self,
+        product_id: UUID,
+        business_id: UUID,
+        quantity: int,
+    ) -> tuple[UUID | None, list[dict]]:
+        """
+        Consume stock usando FIFO por expiration_date.
+        Retorna (last_lot_id, lista_de_consumos_por_lote).
+        Usa SELECT ... FOR UPDATE para row-level locking.
+        Lanza ValueError si stock insuficiente.
+        """
+        if quantity <= 0:
+            raise ValueError("La cantidad a consumir debe ser positiva")
+
+        # Buscar lotes activos del producto, ordenados por expiration_date ASC NULLS LAST
+        query = (
+            select(ProductLot)
+            .where(
+                ProductLot.product_id == product_id,
+                ProductLot.business_id == business_id,
+                ProductLot.deleted_at.is_(None),
+                ProductLot.quantity > 0,
+            )
+            .order_by(
+                ProductLot.expiration_date.asc().nulls_last(),
+                ProductLot.received_date.asc(),
+            )
+            .with_for_update()
+        )
+        result = await self.db.execute(query)
+        lots = list(result.scalars().all())
+
+        total_available = sum(lot.quantity for lot in lots)
+        if total_available < quantity:
+            raise ValueError(
+                f"Stock insuficiente. Disponible: {total_available}, "
+                f"requerido: {quantity}"
+            )
+
+        remaining = quantity
+        consumptions: list[dict] = []
+        last_lot_id: UUID | None = None
+
+        for lot in lots:
+            if remaining <= 0:
+                break
+
+            taken = min(lot.quantity, remaining)
+            lot.quantity -= taken
+            remaining -= taken
+            consumptions.append({"lot_id": lot.id, "taken": taken})
+            last_lot_id = lot.id
+
+        return (last_lot_id, consumptions)
 
     async def list_by_product(
         self,

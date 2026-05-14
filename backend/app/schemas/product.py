@@ -155,11 +155,10 @@ class ProductResponse(BaseResponse):
     minimum_stock: int
     unit: str
     units_per_pack: int | None
-    expiration_date: str | None
 
     is_active: bool
 
-    # Campos de lotes
+    # Campos de lotes (reemplazan expiration_date del producto)
     next_expiration: date | None = None
     lots_count: int = 0
 

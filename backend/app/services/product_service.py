@@ -14,7 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.price_history import PriceHistory
 from app.models.product import Product
+from app.models.product_lot import ProductLot
 from app.schemas.product import ProductBulkUpdateItem, ProductCreate, ProductListParams, ProductUpdate
+from app.schemas.product_lot import ProductLotCreate
+from app.services.product_lot_service import ProductLotService
 
 
 class ProductService:
@@ -24,14 +27,41 @@ class ProductService:
         self.db = db
 
     async def create(self, business_id: UUID, data: ProductCreate) -> Product:
-        """Crea un nuevo producto con cálculo automático de precios."""
+        """Crea un nuevo producto con cálculo automático de precios.
+
+        Si se especifica current_stock > 0, crea un lote inicial.
+        expiration_date se usa en el lote inicial (no en el producto).
+        """
+        # Separar campos de lote de los del producto
+        initial_stock = data.current_stock
+        exp_date = None
+        if data.expiration_date:
+            from datetime import date
+            exp_date = date.fromisoformat(data.expiration_date)
+
+        create_data = data.model_dump(exclude={"current_stock", "expiration_date"})
         product = Product(
             business_id=business_id,
-            **data.model_dump(),
+            **create_data,
         )
         product.calculate_prices()
 
         self.db.add(product)
+
+        # Crear lote inicial si hay stock
+        if initial_stock > 0:
+            await self.db.flush()  # Obtener ID del producto
+            lot = ProductLot(
+                product_id=product.id,
+                business_id=business_id,
+                code=f"INIT-{str(product.id)[:8]}",
+                quantity=initial_stock,
+                initial_quantity=initial_stock,
+                expiration_date=exp_date,
+                received_date=date.today(),
+            )
+            self.db.add(lot)
+
         await self.db.commit()
         await self.db.refresh(product)
         return product
@@ -292,15 +322,28 @@ class ProductService:
         business_id: UUID,
         quantity_change: int,
     ) -> Product | None:
-        """Actualiza el stock de un producto."""
+        """Actualiza el stock de un producto usando lotes.
+
+        quantity_change > 0 → crea nuevo lote con esa cantidad.
+        quantity_change < 0 → consume via FIFO desde lotes activos.
+        quantity_change == 0 → no-op.
+        """
         product = await self.get_by_id(product_id, business_id)
         if not product:
             return None
 
-        product.current_stock += quantity_change
-        if product.current_stock < 0:
-            product.current_stock = 0
+        lot_service = ProductLotService(self.db)
 
-        await self.db.commit()
+        if quantity_change > 0:
+            lot_data = ProductLotCreate(quantity=quantity_change)
+            await lot_service.create(product_id, business_id, lot_data)
+        elif quantity_change < 0:
+            await lot_service.fifo_consume(
+                product_id=product_id,
+                business_id=business_id,
+                quantity=abs(quantity_change),
+            )
+        # quantity_change == 0: no-op
+
         await self.db.refresh(product)
         return product
