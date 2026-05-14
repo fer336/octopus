@@ -44,6 +44,7 @@ from app.schemas.product import (
 )
 from app.services.backup_service import BackupService
 from app.services.excel_service import ExcelService
+from app.services.product_lot_service import ProductLotService
 from app.services.product_service import ProductService
 from app.utils.security import (
     get_current_business,
@@ -757,6 +758,8 @@ async def apply_price_update(
     """Aplica actualización masiva de precios."""
     from decimal import Decimal as D
 
+    from app.schemas.product_lot import ProductLotCreate
+
     query = select(Product).where(
         Product.id.in_(request.product_ids),
         Product.business_id == business_id,
@@ -766,13 +769,58 @@ async def apply_price_update(
     result = await db.execute(query)
     products = result.scalars().all()
 
+    is_stock_field = request.field == FieldToUpdate.CURRENT_STOCK
+    is_price_field = not is_stock_field
+
+    if is_stock_field:
+        # current_stock ahora es @property → redirigir a lotes
+        lot_service = ProductLotService(db)
+        count = 0
+        for product in products:
+            current_stock = int(product.current_stock)
+            new_stock = max(0, round(D(str(request.value))))
+
+            if request.update_type == UpdateType.INCREASE:
+                diff = new_stock
+            elif request.update_type == UpdateType.DECREASE:
+                diff = -min(current_stock, new_stock)
+            elif request.update_type == UpdateType.SET_VALUE:
+                diff = new_stock - current_stock
+            else:
+                diff = 0
+
+            if diff > 0:
+                await lot_service.create(
+                    product_id=product.id,
+                    business_id=business_id,
+                    data=ProductLotCreate(quantity=diff),
+                )
+                count += 1
+            elif diff < 0:
+                try:
+                    await lot_service.fifo_consume(
+                        product_id=product.id,
+                        business_id=business_id,
+                        quantity=abs(diff),
+                    )
+                    count += 1
+                except ValueError:
+                    continue  # Sin stock suficiente, se saltea
+            else:
+                count += 1  # Sin cambio, igual se cuenta
+
+        return PriceUpdateApplyResponse(
+            updated_count=count,
+            message=f"Se actualizaron {count} productos correctamente",
+        )
+
+    # Campos de precio: lógica normal
     field_attr = {
         FieldToUpdate.LIST_PRICE: "list_price",
         FieldToUpdate.DISCOUNT_1: "discount_1",
         FieldToUpdate.DISCOUNT_2: "discount_2",
         FieldToUpdate.DISCOUNT_3: "discount_3",
         FieldToUpdate.EXTRA_COST: "extra_cost",
-        FieldToUpdate.CURRENT_STOCK: "current_stock",
     }[request.field]
 
     count = 0
@@ -791,16 +839,7 @@ async def apply_price_update(
             new_value = current_value
 
         setattr(product, field_attr, round(new_value, 2))
-
-        if request.field in [
-            FieldToUpdate.LIST_PRICE,
-            FieldToUpdate.DISCOUNT_1,
-            FieldToUpdate.DISCOUNT_2,
-            FieldToUpdate.DISCOUNT_3,
-            FieldToUpdate.EXTRA_COST,
-        ]:
-            product.calculate_prices()
-
+        product.calculate_prices()
         count += 1
 
     await db.commit()
