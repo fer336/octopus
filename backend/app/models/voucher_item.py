@@ -61,6 +61,15 @@ class VoucherItem(BaseModel):
     )
     product_lot = relationship("ProductLot")
 
+    # Consumos FIFO persistentes (1:N)
+    # cascade="all, delete-orphan" asegura que al eliminar VoucherItem
+    # se eliminen también los registros de consumo asociados
+    lot_consumptions = relationship(
+        "LotConsumption",
+        back_populates="voucher_item",
+        cascade="all, delete-orphan",
+    )
+
     # Relaciones
     voucher = relationship("Voucher", back_populates="items")
     product = relationship("Product")

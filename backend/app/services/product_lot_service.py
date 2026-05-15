@@ -1,15 +1,19 @@
 """
 Servicio de Lotes de Producto (Product Lot).
-Contiene la lógica CRUD básica para la gestión de lotes
-y el consumo FIFO por fecha de vencimiento.
+Contiene la lógica CRUD básica para la gestión de lotes,
+el consumo FIFO por fecha de vencimiento,
+y la trazabilidad auditada (LotConsumption + AuditLog).
 """
 
+import json
 from datetime import date, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.audit_log import AuditLog
+from app.models.lot_consumption import LotConsumption
 from app.models.product_lot import ProductLot
 from app.schemas.product_lot import ProductLotCreate, ProductLotUpdate
 
@@ -25,8 +29,12 @@ class ProductLotService:
         product_id: UUID,
         business_id: UUID,
         data: ProductLotCreate,
+        user_id: UUID | None = None,
     ) -> ProductLot:
-        """Crea un nuevo lote de producto (ingreso de stock)."""
+        """Crea un nuevo lote de producto (ingreso de stock).
+
+        Si se provee user_id, asigna created_by y registra AuditLog.
+        """
         lot = ProductLot(
             product_id=product_id,
             business_id=business_id,
@@ -36,8 +44,30 @@ class ProductLotService:
             cost_price=data.cost_price,
             code=data.code,
             received_date=data.received_date or date.today(),
+            created_by=user_id,
         )
         self.db.add(lot)
+
+        # Flushear para obtener lot.id antes de crear AuditLog
+        await self.db.flush()
+
+        # Registrar auditoría si hay user_id
+        if user_id:
+            audit = AuditLog(
+                user_id=user_id,
+                business_id=business_id,
+                action="create",
+                resource_type="lot_operation",
+                resource_id=lot.id,
+                details={
+                    "product_id": str(product_id),
+                    "quantity": data.quantity,
+                    "code": data.code,
+                    "delta": data.quantity,
+                },
+            )
+            self.db.add(audit)
+
         await self.db.commit()
         await self.db.refresh(lot)
         return lot
@@ -47,9 +77,16 @@ class ProductLotService:
         product_id: UUID,
         business_id: UUID,
         quantity: int,
+        voucher_item_id: UUID | None = None,
+        user_id: UUID | None = None,
+        reason: str | None = None,
     ) -> tuple[UUID | None, list[dict]]:
         """
         Consume stock usando FIFO por expiration_date.
+
+        Si se provee voucher_item_id, persiste LotConsumption rows.
+        Si se provee user_id, registra AuditLog entries.
+
         Retorna (last_lot_id, lista_de_consumos_por_lote).
         Usa SELECT ... FOR UPDATE para row-level locking.
         Lanza ValueError si stock insuficiente.
@@ -93,6 +130,35 @@ class ProductLotService:
             taken = min(lot.quantity, remaining)
             lot.quantity -= taken
             remaining -= taken
+
+            # Persistir LotConsumption si hay voucher_item_id
+            if voucher_item_id is not None:
+                lc = LotConsumption(
+                    voucher_item_id=voucher_item_id,
+                    lot_id=lot.id,
+                    quantity_taken=taken,
+                )
+                self.db.add(lc)
+
+            # Registrar AuditLog si hay user_id
+            if user_id is not None:
+                audit = AuditLog(
+                    user_id=user_id,
+                    business_id=business_id,
+                    action="consume",
+                    resource_type="lot_operation",
+                    resource_id=lot.id,
+                    details={
+                        "product_id": str(product_id),
+                        "lot_id": str(lot.id),
+                        "quantity_taken": taken,
+                        "delta": -taken,
+                        "reason": reason or "consumo FIFO",
+                        "voucher_item_id": str(voucher_item_id) if voucher_item_id else None,
+                    },
+                )
+                self.db.add(audit)
+
             consumptions.append({"lot_id": lot.id, "taken": taken})
             last_lot_id = lot.id
 
