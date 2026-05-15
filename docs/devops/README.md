@@ -92,7 +92,7 @@ O ejecutar manualmente: **Actions > Landing Deploy > Run workflow**
 | Backend | `ghcr.io/fer336/octopustrack-backend:system-v1.2.19` | `fer336/octopustrack-backend:system-v1.2.19` |
 | Frontend | `ghcr.io/fer336/octopustrack-frontend:system-v1.2.19` | `fer336/octopustrack-frontend:system-v1.2.19` |
 | CMS | `ghcr.io/fer336/octopustrack-cms:cms-v1.2.19` | `fer336/octopustrack-cms:cms-v1.2.19` |
-| Landing | `ghcr.io/fer336/octopustrack-landing:landing-v1.2.19` | `fer336/octopustrack-landing:landing-v1.2.19` |
+| Landing | `ghcr.io/fer336/octopustrack-landing:1.2.19` | `fer336/octopustrack-landing:1.2.19` |
 
 ## Secrets配置
 
