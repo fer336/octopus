@@ -6,7 +6,7 @@ Incluye precios, bonificaciones, stock y cálculo automático de precio final.
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Column, Date, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -89,13 +89,11 @@ class Product(BaseModel):
     iva_rate = Column(Numeric(5, 2), default=21.00, nullable=False)  # 10.5, 21, 27, 0
 
     # Stock
-    current_stock = Column(Integer, default=0, nullable=False)
     minimum_stock = Column(Integer, default=0, nullable=False)  # Alerta de stock bajo
     unit = Column(
         String(20), default="unidad", nullable=False
     )  # unidad, metro, kg, litro, pack
     units_per_pack = Column(Integer, nullable=True)  # Cantidad por pack
-    expiration_date = Column(Date, nullable=True)  # Fecha de vencimiento
 
     is_active = Column(Boolean, default=True, nullable=False)
 

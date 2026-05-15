@@ -63,6 +63,7 @@ export interface ProductCreate {
   profit_margin?: number
   iva_rate?: number
   current_stock?: number
+  expiration_date?: string | null
   minimum_stock?: number
   unit?: string
   units_per_pack?: number | null
@@ -89,6 +90,7 @@ export interface ProductUpdate {
   extra_cost?: number
   profit_margin?: number
   iva_rate?: number
+  current_stock?: number
   minimum_stock?: number
   unit?: string
   units_per_pack?: number | null

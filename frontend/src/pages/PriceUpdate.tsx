@@ -30,6 +30,7 @@ const buildPriceUpdatePayload = (product: {
   discount_3?: unknown
   extra_cost?: unknown
   profit_margin?: unknown
+  current_stock?: unknown
 }): ProductUpdate => ({
   list_price: toNonNegativeNumber(product.list_price),
   discount_1: Math.min(100, toNonNegativeNumber(product.discount_1)),
@@ -37,6 +38,7 @@ const buildPriceUpdatePayload = (product: {
   discount_3: Math.min(100, toNonNegativeNumber(product.discount_3)),
   extra_cost: toNonNegativeNumber(product.extra_cost),
   profit_margin: toNonNegativeNumber(product.profit_margin),
+  current_stock: Math.floor(toNonNegativeNumber(product.current_stock)),
 })
 
 const formatMoney = (value: unknown) => `$${toNonNegativeNumber(value).toFixed(2)}`
@@ -44,6 +46,22 @@ const formatMoney = (value: unknown) => `$${toNonNegativeNumber(value).toFixed(2
 const formatNumber = (value: unknown) => toNonNegativeNumber(value).toLocaleString('es-AR', {
   maximumFractionDigits: 2,
 })
+
+const mergeUpdatedProductsIntoCache = (cachedData: unknown, updatedProducts: Product[]) => {
+  if (!cachedData || typeof cachedData !== 'object' || !('items' in cachedData)) {
+    return cachedData
+  }
+
+  const paginatedData = cachedData as { items?: Product[] }
+  if (!Array.isArray(paginatedData.items)) return cachedData
+
+  const updatedById = new Map(updatedProducts.map((product) => [product.id, product]))
+
+  return {
+    ...cachedData,
+    items: paginatedData.items.map((product) => updatedById.get(product.id) ?? product),
+  }
+}
 
 const getDiscountDisplay = (product: Product) => {
   if (product.discount_display) return product.discount_display
@@ -243,7 +261,12 @@ export default function PriceUpdate() {
         duration: 5000,
         icon: '✅'
       })
-      queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.setQueriesData(
+        { queryKey: ['products'] },
+        (cachedData) => mergeUpdatedProductsIntoCache(cachedData, result.products),
+      )
+      await queryClient.invalidateQueries({ queryKey: ['products'] })
+      await queryClient.refetchQueries({ queryKey: ['products'], type: 'active' })
       setSelectedProducts(new Set())
     } catch (error: any) {
       toast.error('Error al guardar cambios: ' + (error.response?.data?.detail || error.message))

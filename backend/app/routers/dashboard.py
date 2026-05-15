@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.client import Client
 from app.models.product import Product
+from app.models.product_lot import ProductLot
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.schemas.base import BaseSchema
 from app.utils.security import get_current_business, require_module_access
@@ -69,17 +70,41 @@ async def get_dashboard_summary(
     )
     total_clients = (await db.execute(clients_query)).scalar() or 0
 
+    stock_by_product = (
+        select(
+            ProductLot.product_id.label("product_id"),
+            func.coalesce(func.sum(ProductLot.quantity), 0).label("stock"),
+        )
+        .where(
+            ProductLot.business_id == business_id,
+            ProductLot.deleted_at.is_(None),
+        )
+        .group_by(ProductLot.product_id)
+        .subquery()
+    )
+
     # Productos con stock bajo
     low_stock_query = select(func.count(Product.id)).where(
         Product.business_id == business_id,
         Product.deleted_at.is_(None),
-        Product.current_stock <= Product.minimum_stock,
+        func.coalesce(stock_by_product.c.stock, 0) <= Product.minimum_stock,
+    ).outerjoin(
+        stock_by_product,
+        stock_by_product.c.product_id == Product.id,
     )
     low_stock_products = (await db.execute(low_stock_query)).scalar() or 0
 
     # Valor total del inventario (precio de costo * stock)
-    value_query = select(func.sum(Product.cost_price * Product.current_stock)).where(
-        Product.business_id == business_id, Product.deleted_at.is_(None)
+    value_query = (
+        select(func.sum(Product.cost_price * func.coalesce(stock_by_product.c.stock, 0)))
+        .where(
+            Product.business_id == business_id,
+            Product.deleted_at.is_(None),
+        )
+        .outerjoin(
+            stock_by_product,
+            stock_by_product.c.product_id == Product.id,
+        )
     )
     total_value = (await db.execute(value_query)).scalar() or 0.0
 

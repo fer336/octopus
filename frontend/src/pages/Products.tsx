@@ -17,6 +17,10 @@ import ImportPreviewModal from '../components/products/ImportPreviewModal'
 import BulkDeleteModal from '../components/products/BulkDeleteModal'
 import ImportProgressModal from '../components/products/ImportProgressModal'
 
+type ProductFormData = Partial<Product> & {
+  expiration_date?: string
+}
+
 export default function Products() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
@@ -449,7 +453,7 @@ export default function Products() {
   }
 
   // Formulario de producto
-  const [formData, setFormData] = useState<Partial<Product>>({
+  const [formData, setFormData] = useState<ProductFormData>({
     code: '',
     description: '',
     customer_terms: '',
@@ -464,6 +468,7 @@ export default function Products() {
     profit_margin: 0,
     iva_rate: 21,
     current_stock: 0,
+    expiration_date: '',
     minimum_stock: 0,
     unit: 'unidad',
     units_per_pack: null as number | null,
@@ -504,6 +509,7 @@ export default function Products() {
       profit_margin: 0,
       iva_rate: 21,
       current_stock: 0,
+      expiration_date: '',
       minimum_stock: 0,
       unit: 'unidad',
       units_per_pack: null as number | null,
@@ -665,6 +671,7 @@ export default function Products() {
         profit_margin: formData.profit_margin || 0,
         iva_rate: formData.iva_rate || 21,
         current_stock: formData.current_stock || 0,
+        expiration_date: formData.expiration_date || null,
         minimum_stock: formData.minimum_stock || 0,
         unit: formData.unit || 'unidad',
         units_per_pack: formData.units_per_pack || null,
@@ -1193,6 +1200,19 @@ export default function Products() {
                   value={formData.units_per_pack ?? ''}
                   onChange={(e) => setFormData({ ...formData, units_per_pack: parseInt(e.target.value) || null })}
                   placeholder="Ej: 12"
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            )}
+            {!isEditing && (formData.current_stock || 0) > 0 && (
+              <div className="mt-3">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Vencimiento del lote inicial
+                </label>
+                <input
+                  type="date"
+                  value={formData.expiration_date || ''}
+                  onChange={(e) => setFormData({ ...formData, expiration_date: e.target.value })}
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 />
               </div>

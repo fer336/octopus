@@ -2,11 +2,14 @@
 Tests de integración para exportación de reportes PDF.
 """
 
+from datetime import date
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.product import Product
+from app.models.product_lot import ProductLot
 from app.models.user import User
 from app.tests.conftest import make_auth_header
 
@@ -25,7 +28,6 @@ async def test_export_stock_report_pdf_success(
         code="PRD-001",
         supplier_code="SUP-001",
         description="Producto test reporte",
-        current_stock=5,
         minimum_stock=10,
         cost_price=100,
         list_price=120,
@@ -35,6 +37,18 @@ async def test_export_stock_report_pdf_success(
         is_active=True,
     )
     db.add(product)
+    await db.commit()
+    await db.refresh(product)
+
+    # Crear un lote para darle stock (current_stock es @property que suma lotes)
+    lot = ProductLot(
+        product_id=product.id,
+        business_id=business_a.id,
+        quantity=5,
+        initial_quantity=5,
+        received_date=date.today(),
+    )
+    db.add(lot)
     await db.commit()
 
     response = await client.get(

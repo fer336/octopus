@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.business import Business
 from app.models.product import Product
+from app.models.product_lot import ProductLot
 from app.models.voucher import Voucher, VoucherStatus
 from app.models.voucher_item import VoucherItem
 from app.schemas.report_schemas import StockReportFilters
@@ -229,7 +230,24 @@ class StockReportService:
             query = query.where(Product.supplier_id == filters.supplier_id)
 
         if filters.low_stock_only:
-            query = query.where(Product.current_stock <= Product.minimum_stock)
+            stock_subq = (
+                select(
+                    ProductLot.product_id.label("product_id"),
+                    func.coalesce(func.sum(ProductLot.quantity), 0).label("stock"),
+                )
+                .where(
+                    ProductLot.business_id == business_id,
+                    ProductLot.deleted_at.is_(None),
+                )
+                .group_by(ProductLot.product_id)
+                .subquery()
+            )
+            current_stock_expr = func.coalesce(stock_subq.c.stock, 0)
+            query = query.outerjoin(
+                stock_subq,
+                stock_subq.c.product_id == Product.id,
+            )
+            query = query.where(current_stock_expr <= Product.minimum_stock)
 
         query = query.order_by(Product.description.asc())
         result = await self.db.execute(query)

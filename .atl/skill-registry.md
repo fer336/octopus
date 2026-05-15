@@ -1,6 +1,6 @@
 # Skill Registry
 
-**Generated**: 2026-05-13
+**Generated**: 2026-05-14
 **Project**: OctopusTrack (octopus)
 **Source**: `~/.config/opencode/skills/` + `~/.agents/skills/`
 
@@ -15,6 +15,10 @@
 | **skill-creator** | `~/.config/opencode/skills/skill-creator` | Creating new AI skills, agent instructions, documenting patterns for AI |
 | **skill-registry** | `~/.config/opencode/skills/skill-registry` | Updating skill registry, scanning skills, "update skills" |
 | **find-skills** | `~/.agents/skills/find-skills` | Discovering skills, "how do I do X", extending capabilities |
+| **chained-pr** | `~/.config/opencode/skills/chained-pr` | PRs over 400 lines, stacked PRs, review slices, reviewer-load control |
+| **cognitive-doc-design** | `~/.config/opencode/skills/cognitive-doc-design` | Writing guides, READMEs, RFCs, onboarding, architecture, review-facing docs |
+| **comment-writer** | `~/.config/opencode/skills/comment-writer` | PR feedback, issue replies, reviews, Slack messages, GitHub comments |
+| **work-unit-commits** | `~/.claude/skills/work-unit-commits` | Implementation, commit splitting, chained PRs, keeping tests and docs with code |
 | **judgment-day** | `~/.config/opencode/skills/judgment-day` | "judgment day", adversarial review, dual review, "doble review", "que lo juzguen" |
 | **issue-creation** | `~/.config/opencode/skills/issue-creation` | Creating GitHub issues, bug reports, feature requests |
 | **branch-pr** | `~/.config/opencode/skills/branch-pr` | Creating pull requests, opening PRs, preparing changes for review |
@@ -139,3 +143,40 @@
 - FastAPI `Depends()` for dependency injection
 - Frontend: Zustand for state, TanStack Query for server data
 - No business logic in routers — only receive, validate, delegate
+
+## Compact Rules
+
+Pre-digested rules per skill. Delegators copy matching blocks into sub-agent prompts as `## Project Standards (auto-resolved)`.
+
+### chained-pr
+- Split PRs over 400 changed lines unless maintainer explicitly accepts size:exception
+- Keep each PR reviewable in about ≤60 minutes
+- Use one deliverable work unit per PR; keep tests/docs with the unit they verify
+- State start, end, prior dependencies, follow-up work, and out-of-scope items in every chained PR
+- Every child PR must include a dependency diagram marking the current PR with 📍
+- In Feature Branch Chain, create a draft/no-merge tracker PR; child PR #1 targets the tracker branch, later children target the immediate parent
+- Do not mix chain strategies after the user chooses one
+- Treat polluted diffs as base bugs: retarget or rebase until only the current work unit appears
+
+### cognitive-doc-design
+- Lead with the answer — put decision, action, or outcome first; context comes after
+- Progressive disclosure: start with happy path, then details, edge cases, references
+- Chunking: group related info into small sections, keep flat lists short
+- Signposting: use headings, labels, callouts, summaries so readers know where they are
+- Recognition over recall: prefer tables, checklists, examples, templates over prose
+- Design for review empathy — docs so reviewers can verify intent without reconstructing the whole story
+
+### comment-writer
+- Be useful fast — start with the actionable point, do not recap the whole PR before feedback
+- Be warm and direct — sound like a thoughtful teammate, not a corporate bot
+- Keep it short — prefer 1-3 short paragraphs or a tight bullet list
+- Explain why — give the technical reason when asking for a change
+- Avoid pile-ons — comment on the highest-value issue, not every tiny preference
+- Match thread language — write in the thread/user language
+
+### work-unit-commits
+- Commit by work unit — a commit represents a deliverable behavior, fix, migration, or docs unit
+- Do NOT commit by file type — avoid `models`, then `services`, then `tests` if none works alone
+- Keep tests with code — tests belong in the same commit as the behavior they verify
+- Keep docs with the user-visible change — docs belong with the feature or workflow they explain
+- Tell a story — a reviewer should understand why each commit exists from its diff and message

@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# SDD artifacts
+.atl/
+
 # Python
 __pycache__/
 *.py[cod]

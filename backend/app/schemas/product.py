@@ -107,6 +107,11 @@ class ProductBulkUpdateItem(ProductUpdate):
     """Producto dentro de una actualización en lote."""
 
     id: UUID
+    current_stock: int | None = Field(
+        None,
+        ge=0,
+        description="Stock final deseado; ajusta lotes por diferencia si se envía",
+    )
 
 
 class ProductBulkUpdateRequest(BaseSchema):
