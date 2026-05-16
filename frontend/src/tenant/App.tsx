@@ -14,8 +14,6 @@ import MainLayout from '../components/layout/MainLayout'
 // Páginas públicas (carga inmediata — necesarias antes de auth)
 import Login from '../pages/Login'
 import AuthCallback from '../pages/AuthCallback'
-import Landing from '../pages/Landing'
-import ProductAccess from '../pages/ProductAccess'
 
 // Páginas protegidas con lazy load — cada una genera su propio chunk
 // El browser solo descarga el código cuando el usuario navega a esa ruta
@@ -113,8 +111,6 @@ export default function App() {
         <HashRouter>
           <Routes>
             {/* Rutas públicas */}
-            <Route path="/landing" element={<Landing loginUrl="#/acceder" />} />
-            <Route path="/acceder" element={<ProductAccess />} />
             <Route path="/login" element={<Login />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
 
