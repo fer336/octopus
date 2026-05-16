@@ -178,6 +178,17 @@ export interface ImportConfirmResponse {
   errors: string[]
 }
 
+export interface SyncPriceFromLotResponse {
+  lot_id: string
+  reference_price: number
+  preview_list_price: number
+  preview_net_price: number
+  preview_sale_price: number
+  confirmed: boolean
+  price_history_id: string | null
+  message: string
+}
+
 export const productsService = {
   /**
    * Obtiene la lista de productos con paginación y filtros.
@@ -346,9 +357,30 @@ export const productsService = {
       expiration_date?: string | null
       cost_price?: number | null
       code?: string | null
+      received_date?: string | null
     },
   ): Promise<ProductLot> => {
     const response = await httpClient.post(`/products/${productId}/lots`, data)
+    return response.data
+  },
+
+  /**
+   * Sincroniza el precio de lista del producto desde el costo de un lote.
+   * Si confirm=false, devuelve preview sin persistir.
+   * Si confirm=true, actualiza el precio y crea PriceHistory.
+   */
+  syncPriceFromLot: async (
+    productId: string,
+    data: {
+      lot_id: string
+      reference_price?: number | null
+      confirm?: boolean
+    },
+  ): Promise<SyncPriceFromLotResponse> => {
+    const response = await httpClient.post(
+      `/products/${productId}/sync-price-from-lot`,
+      data,
+    )
     return response.data
   },
 }

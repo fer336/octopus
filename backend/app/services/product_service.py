@@ -377,6 +377,122 @@ class ProductService:
             if product_id in refreshed_by_id
         ], not_found_ids
 
+    async def get_price_history(
+        self,
+        product_id: UUID,
+        business_id: UUID,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[PriceHistory], int]:
+        """Retorna el historial de precios de un producto."""
+        query = select(PriceHistory).where(
+            PriceHistory.product_id == product_id,
+        )
+        # Verificar que el producto existe y pertenece al negocio
+        product = await self.get_by_id(product_id, business_id)
+        if not product:
+            return [], 0
+
+        count_result = await self.db.execute(
+            select(func.count(PriceHistory.id)).where(
+                PriceHistory.product_id == product_id,
+            )
+        )
+        total = count_result.scalar() or 0
+
+        result = await self.db.execute(
+            query.order_by(PriceHistory.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        entries = list(result.scalars().all())
+        return entries, total
+
+    async def restore_price(
+        self,
+        product_id: UUID,
+        business_id: UUID,
+        entry_id: UUID,
+        user_id: UUID | None = None,
+        reason: str | None = None,
+    ) -> tuple[Product | None, PriceHistory | None]:
+        """Restaura el precio de un producto desde un entry de PriceHistory.
+
+        Retorna (producto_actualizado, nuevo_entry_de_historial) o (None, None) si no se encuentra.
+        """
+        # Verificar producto
+        product = await self.get_by_id(product_id, business_id)
+        if not product:
+            return None, None
+
+        # Buscar el entry del historial
+        result = await self.db.execute(
+            select(PriceHistory).where(PriceHistory.id == entry_id)
+        )
+        history_entry = result.scalar_one_or_none()
+        if not history_entry:
+            return None, None
+
+        # Guardar precios actuales antes de restaurar
+        old_list_price = product.list_price
+        old_net_price = product.net_price
+        old_sale_price = product.sale_price
+
+        # Restaurar precios
+        product.list_price = history_entry.old_list_price
+        product.net_price = history_entry.old_net_price
+        product.sale_price = history_entry.old_sale_price
+
+        # Registrar la restauración como un nuevo entry en el historial
+        new_entry = PriceHistory(
+            product_id=product.id,
+            changed_by=user_id,
+            old_list_price=old_list_price,
+            old_net_price=old_net_price,
+            old_sale_price=old_sale_price,
+            new_list_price=product.list_price,
+            new_net_price=product.net_price,
+            new_sale_price=product.sale_price,
+            change_reason=reason or "Restauración desde historial",
+        )
+        self.db.add(new_entry)
+
+        await self.db.commit()
+        await self.db.refresh(product)
+
+        return product, new_entry
+
+    async def bulk_stock_delta(
+        self,
+        business_id: UUID,
+        items: builtins.list["tuple[UUID, int, str | None]"],
+        user_id: UUID | None = None,
+    ) -> builtins.list["tuple[UUID, bool, str | None]"]:
+        """Ajusta stock de múltiples productos por delta.
+
+        Cada item es (product_id, delta, reason).
+        Retorna lista de (product_id, success, error_message).
+        """
+        results: list[tuple[UUID, bool, str | None]] = []
+        for product_id, delta, reason in items:
+            try:
+                product = await self.update_stock(
+                    product_id=product_id,
+                    business_id=business_id,
+                    quantity_change=delta,
+                    user_id=user_id,
+                    reason=reason,
+                )
+                if product:
+                    results.append((product_id, True, None))
+                else:
+                    results.append((product_id, False, "Producto no encontrado"))
+            except ValueError as e:
+                results.append((product_id, False, str(e)))
+            except Exception as e:
+                results.append((product_id, False, f"Error interno: {str(e)}"))
+        return results
+
     async def soft_delete(self, product_id: UUID, business_id: UUID) -> bool:
         """Elimina un producto (soft delete)."""
         product = await self.get_by_id(product_id, business_id)
@@ -392,29 +508,61 @@ class ProductService:
         product_id: UUID,
         business_id: UUID,
         quantity_change: int,
+        user_id: UUID | None = None,
+        reason: str | None = None,
     ) -> Product | None:
         """Actualiza el stock de un producto usando lotes.
 
         quantity_change > 0 → crea nuevo lote con esa cantidad.
         quantity_change < 0 → consume via FIFO desde lotes activos.
         quantity_change == 0 → no-op.
+
+        Si se provee user_id, registra Auditoría de ajuste de stock
+        y pasa la atribución a las operaciones de lote internas.
         """
         product = await self.get_by_id(product_id, business_id)
         if not product:
             return None
 
         lot_service = ProductLotService(self.db)
+        before_stock = product.current_stock
 
         if quantity_change > 0:
             lot_data = ProductLotCreate(quantity=quantity_change)
-            await lot_service.create(product_id, business_id, lot_data)
+            await lot_service.create(
+                product_id, business_id, lot_data, user_id=user_id,
+            )
         elif quantity_change < 0:
             await lot_service.fifo_consume(
                 product_id=product_id,
                 business_id=business_id,
                 quantity=abs(quantity_change),
+                user_id=user_id,
+                reason=reason or "Ajuste de stock",
             )
         # quantity_change == 0: no-op
+
+        # Registrar auditoría de ajuste de stock
+        if user_id and quantity_change != 0:
+            from app.models.audit_log import AuditLog
+
+            after_stock = before_stock + quantity_change
+            audit = AuditLog(
+                user_id=user_id,
+                business_id=business_id,
+                action="adjust",
+                resource_type="stock_adjustment",
+                resource_id=product_id,
+                details={
+                    "delta": quantity_change,
+                    "reason": reason,
+                    "before_stock": before_stock,
+                    "after_stock": after_stock,
+                },
+            )
+            self.db.add(audit)
+            await self.db.flush()
+            await self.db.commit()
 
         refreshed = await self.get_by_id(product.id, business_id)
         return refreshed if refreshed else product

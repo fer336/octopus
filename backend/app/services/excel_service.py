@@ -3,6 +3,7 @@ Servicio de Importación/Exportación Excel.
 Maneja la carga masiva de productos.
 """
 import io
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
@@ -10,6 +11,7 @@ import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.audit_log import AuditLog
 from app.models.category import Category
 from app.models.product import Product
 from app.models.product_lot import ProductLot
@@ -254,10 +256,18 @@ class ExcelService:
             rows=rows
         )
 
-    async def confirm_import(self, business_id: UUID, request: ImportConfirmRequest) -> ImportConfirmResponse:
+    async def confirm_import(
+        self,
+        business_id: UUID,
+        request: ImportConfirmRequest,
+        user_id: UUID | None = None,
+    ) -> ImportConfirmResponse:
         """
         Confirma la importación de productos después del preview.
         Crea/actualiza productos en la base de datos.
+
+        Si se provee user_id, los lotes creados se atribuyen al usuario
+        y se registra Auditoría (lot_operation:create).
         """
         created = 0
         updated = 0
@@ -297,7 +307,6 @@ class ExcelService:
                     # Crear lote inicial si hay stock
                     if initial_stock > 0:
                         await self.db.flush()
-                        from datetime import date
                         lot = ProductLot(
                             product_id=new_product.id,
                             business_id=business_id,
@@ -305,14 +314,40 @@ class ExcelService:
                             quantity=initial_stock,
                             initial_quantity=initial_stock,
                             received_date=date.today(),
+                            created_by=user_id,
                         )
                         self.db.add(lot)
+
+                        # Flushear para obtener lot.id antes de auditoría
+                        await self.db.flush()
+
+                        # Registrar auditoría de creación de lote
+                        if user_id:
+                            audit = AuditLog(
+                                user_id=user_id,
+                                business_id=business_id,
+                                action="create",
+                                resource_type="lot_operation",
+                                resource_id=lot.id,
+                                details={
+                                    "product_id": str(new_product.id),
+                                    "quantity": initial_stock,
+                                    "code": lot.code,
+                                    "delta": initial_stock,
+                                    "source": "excel_import",
+                                },
+                            )
+                            self.db.add(audit)
 
                     created += 1
                 else:
                     # Actualizar producto existente
                     if row.existing_id:
-                        query = select(Product).where(Product.id == row.existing_id)
+                        from sqlalchemy.orm import selectinload
+
+                        query = select(Product).options(
+                            selectinload(Product.lots)
+                        ).where(Product.id == row.existing_id)
                         result = await self.db.execute(query)
                         existing_product = result.scalar_one_or_none()
 
@@ -343,8 +378,30 @@ class ExcelService:
                                     quantity=stock_diff,
                                     initial_quantity=stock_diff,
                                     received_date=date.today(),
+                                    created_by=user_id,
                                 )
                                 self.db.add(lot)
+
+                                # Flushear para obtener lot.id antes de auditoría
+                                await self.db.flush()
+
+                                # Registrar auditoría de creación de lote
+                                if user_id:
+                                    audit = AuditLog(
+                                        user_id=user_id,
+                                        business_id=business_id,
+                                        action="create",
+                                        resource_type="lot_operation",
+                                        resource_id=lot.id,
+                                        details={
+                                            "product_id": str(existing_product.id),
+                                            "quantity": stock_diff,
+                                            "code": lot.code,
+                                            "delta": stock_diff,
+                                            "source": "excel_import",
+                                        },
+                                    )
+                                    self.db.add(audit)
                             elif stock_diff < 0:
                                 lot_service = ProductLotService(self.db)
                                 try:
@@ -352,6 +409,8 @@ class ExcelService:
                                         product_id=existing_product.id,
                                         business_id=business_id,
                                         quantity=abs(stock_diff),
+                                        user_id=user_id,
+                                        reason="Ajuste por importación Excel",
                                     )
                                 except ValueError:
                                     errors.append(

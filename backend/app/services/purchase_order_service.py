@@ -359,6 +359,7 @@ class PurchaseOrderService:
             .options(
                 selectinload(Product.category),
                 selectinload(Product.supplier),
+                selectinload(Product.lots),
             )
             .where(
                 Product.business_id == business_id,
