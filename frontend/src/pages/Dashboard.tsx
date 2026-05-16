@@ -24,6 +24,9 @@ const MONTH_NAMES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
 
+const formatCurrency = (value: number) =>
+  `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
 export default function Dashboard() {
   const today = new Date()
   const [filterMonth, setFilterMonth] = useState(today.getMonth() + 1) // 1-12
@@ -97,14 +100,64 @@ export default function Dashboard() {
 
   const stats = [
     {
-      title: 'Ventas del Mes',
-      value: `$${(summary?.total_sales || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      change: summary?.total_invoices
-        ? `${summary.total_invoices} factura${summary.total_invoices !== 1 ? 's' : ''} emitida${summary.total_invoices !== 1 ? 's' : ''}`
-        : 'Sin facturas',
-      trend: (summary?.total_sales || 0) > 0 ? 'up' : 'neutral',
+      title: 'Ingresado en Caja',
+      value: formatCurrency(summary?.cash_income || 0),
+      change: 'Basado en movimientos reales de caja',
+      trend: (summary?.cash_income || 0) > 0 ? 'up' : 'neutral',
       icon: TrendingUp,
       iconClasses: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400',
+    },
+    {
+      title: 'Facturas Cobradas',
+      value: formatCurrency(summary?.paid_invoices || 0),
+      change: 'Ventas cobradas en el período',
+      trend: (summary?.paid_invoices || 0) > 0 ? 'up' : 'neutral',
+      icon: DollarSign,
+      iconClasses: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400',
+    },
+    {
+      title: 'Acopios Cobrados',
+      value: formatCurrency(summary?.paid_stockpiles || 0),
+      change: 'Cobros vinculados a acopios',
+      trend: (summary?.paid_stockpiles || 0) > 0 ? 'up' : 'neutral',
+      icon: Package,
+      iconClasses: 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400',
+    },
+    {
+      title: 'Ctas. Ctes. Cobradas',
+      value: formatCurrency(summary?.current_account_collected || 0),
+      change: 'Pagos recibidos de clientes',
+      trend: (summary?.current_account_collected || 0) > 0 ? 'up' : 'neutral',
+      icon: Users,
+      iconClasses: 'bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400',
+    },
+    {
+      title: 'Saldo Pendiente',
+      value: formatCurrency(summary?.pending_customer_balance || 0),
+      change: 'Deuda pendiente de clientes',
+      trend: (summary?.pending_customer_balance || 0) > 0 ? 'down' : 'neutral',
+      icon: AlertTriangle,
+      iconClasses: (summary?.pending_customer_balance || 0) > 0
+        ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
+        : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400',
+    },
+    {
+      title: 'Otros Ingresos',
+      value: formatCurrency(summary?.other_income || 0),
+      change: 'Ingresos manuales registrados',
+      trend: (summary?.other_income || 0) > 0 ? 'up' : 'neutral',
+      icon: ArrowUpRight,
+      iconClasses: 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400',
+    },
+    {
+      title: 'Facturado del Mes',
+      value: formatCurrency(summary?.total_sales || 0),
+      change: summary?.total_invoices
+        ? `${summary.total_invoices} factura${summary.total_invoices !== 1 ? 's' : ''} emitida${summary.total_invoices !== 1 ? 's' : ''}`
+        : 'Sin facturas emitidas',
+      trend: 'neutral',
+      icon: ShoppingCart,
+      iconClasses: 'bg-slate-50 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300',
     },
     {
       title: 'Productos',
@@ -128,7 +181,7 @@ export default function Dashboard() {
     },
     {
       title: 'Valor Inventario',
-      value: `$${(summary?.total_value || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      value: formatCurrency(summary?.total_value || 0),
       change: 'Costo total',
       trend: 'neutral',
       icon: DollarSign,

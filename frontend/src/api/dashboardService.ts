@@ -11,6 +11,12 @@ export interface DashboardSummary {
   total_value: number
   total_sales: number
   total_invoices: number
+  cash_income: number
+  paid_invoices: number
+  paid_stockpiles: number
+  current_account_collected: number
+  pending_customer_balance: number
+  other_income: number
   filter_month: number
   filter_year: number
 }
