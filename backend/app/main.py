@@ -15,6 +15,7 @@ from app.routers import (
     ai,
     ai_config,
     arca,
+    audit_logs,
     auth,
     billing,
     business,
@@ -113,6 +114,7 @@ app.include_router(ai_config.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(feedback.tenant_router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(reports.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(stockpiles.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(audit_logs.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(admin.router)  # /api/admin/* (prefijo interno)
 app.include_router(feedback.admin_router)
 app.include_router(billing.router)

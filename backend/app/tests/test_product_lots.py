@@ -564,3 +564,242 @@ async def test_voucher_insufficient_stock_returns_error(
         f"Debería devolver 400 por stock insuficiente. "
         f"Status: {response.status_code}, Body: {response.text}"
     )
+
+
+# ── Tests de Sincronización de Precio desde Lote ─────────────────
+
+@pytest.mark.asyncio
+async def test_sync_price_preview_returns_prices_without_persisting(
+    db: AsyncSession, client: AsyncClient,
+    product: Product, business_a: Business,
+    lot_a: ProductLot,
+    user_a: User, membership_a,
+):
+    """Preview (confirm=false) retorna precios calculados pero NO persiste cambios."""
+    headers = make_auth_header(user_a)
+
+    response = await client.post(
+        f"/api/tenant/products/{product.id}/sync-price-from-lot",
+        headers=headers,
+        json={
+            "lot_id": str(lot_a.id),
+            "confirm": False,
+        },
+    )
+
+    assert response.status_code == 200, f"Error: {response.text}"
+    data = response.json()
+
+    # Debe incluir preview de precios
+    assert data["lot_id"] == str(lot_a.id)
+    assert Decimal(str(data["reference_price"])) == lot_a.cost_price  # usa cost_price como list_price
+    assert Decimal(str(data["preview_list_price"])) == lot_a.cost_price
+    assert float(data["preview_net_price"]) > 0
+    assert float(data["preview_sale_price"]) > 0
+    assert data["confirmed"] is False
+    assert data["price_history_id"] is None
+
+    # Verificar que NO se persiste — el producto mantiene su precio original
+    await db.refresh(product)
+    assert product.list_price == 100  # original del fixture
+    assert product.sale_price == 121  # original del fixture
+
+
+@pytest.mark.asyncio
+async def test_sync_price_confirm_uses_cost_price_and_creates_history(
+    db: AsyncSession, client: AsyncClient,
+    product: Product, business_a: Business,
+    lot_a: ProductLot,
+    user_a: User, membership_a,
+):
+    """Confirm=true usa cost_price del lote, actualiza producto y crea PriceHistory."""
+    from app.models.price_history import PriceHistory
+    from sqlalchemy import select
+
+    headers = make_auth_header(user_a)
+    original_list = product.list_price
+    original_net = product.net_price
+    original_sale = product.sale_price
+
+    response = await client.post(
+        f"/api/tenant/products/{product.id}/sync-price-from-lot",
+        headers=headers,
+        json={
+            "lot_id": str(lot_a.id),
+            "confirm": True,
+        },
+    )
+
+    assert response.status_code == 200, f"Error: {response.text}"
+    data = response.json()
+
+    assert data["confirmed"] is True
+    assert Decimal(str(data["reference_price"])) == lot_a.cost_price
+    assert Decimal(str(data["preview_list_price"])) == lot_a.cost_price
+    assert data["price_history_id"] is not None
+
+    # Verificar que el producto se actualizó
+    await db.refresh(product)
+    assert product.list_price == lot_a.cost_price  # 50.00
+
+    # Verificar que se creó PriceHistory
+    result = await db.execute(
+        select(PriceHistory).where(PriceHistory.product_id == product.id)
+    )
+    entries = result.scalars().all()
+    assert len(entries) >= 1
+
+    # Buscar la entry más reciente con la razón de sincronización
+    ph = entries[-1]
+    assert ph.old_list_price == original_list
+    assert ph.new_list_price == lot_a.cost_price
+    assert ph.change_reason == "Sincronizado desde lote"
+
+
+@pytest.mark.asyncio
+async def test_sync_price_confirm_with_reference_price(
+    db: AsyncSession, client: AsyncClient,
+    product: Product, business_a: Business,
+    lot_a: ProductLot,
+    user_a: User, membership_a,
+):
+    """Confirm=true con reference_price explícito usa ese valor en vez de cost_price."""
+    headers = make_auth_header(user_a)
+    reference = 75.00
+
+    response = await client.post(
+        f"/api/tenant/products/{product.id}/sync-price-from-lot",
+        headers=headers,
+        json={
+            "lot_id": str(lot_a.id),
+            "reference_price": reference,
+            "confirm": True,
+        },
+    )
+
+    assert response.status_code == 200, f"Error: {response.text}"
+    data = response.json()
+
+    assert data["confirmed"] is True
+    assert Decimal(str(data["reference_price"])) == Decimal(str(reference))
+    assert Decimal(str(data["preview_list_price"])) == Decimal(str(reference))
+
+    # Verificar que el producto se actualizó con el reference_price (no con cost_price)
+    await db.refresh(product)
+    assert product.list_price == Decimal(str(reference))  # 75.00, no 50.00
+
+
+@pytest.mark.asyncio
+async def test_sync_price_no_cost_and_no_reference_returns_400(
+    db: AsyncSession, client: AsyncClient,
+    product: Product, business_a: Business,
+    user_a: User, membership_a,
+):
+    """Lote sin cost_price y sin reference_price devuelve 400."""
+    from decimal import Decimal
+
+    # Crear un lote sin cost_price
+    lot = ProductLot(
+        product_id=product.id,
+        business_id=business_a.id,
+        code="NO-COST",
+        quantity=10,
+        initial_quantity=10,
+        cost_price=None,  # Sin costo
+        expiration_date=date.today() + timedelta(days=60),
+    )
+    db.add(lot)
+    await db.commit()
+    await db.refresh(lot)
+
+    headers = make_auth_header(user_a)
+
+    response = await client.post(
+        f"/api/tenant/products/{product.id}/sync-price-from-lot",
+        headers=headers,
+        json={
+            "lot_id": str(lot.id),
+            "confirm": False,
+        },
+    )
+
+    assert response.status_code == 400, (
+        f"Debería devolver 400 cuando no hay precio disponible. "
+        f"Status: {response.status_code}, Body: {response.text}"
+    )
+    assert "precio" in response.text.lower() or "costo" in response.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_sync_price_lot_from_wrong_product_returns_400(
+    db: AsyncSession, client: AsyncClient,
+    product: Product, business_a: Business,
+    user_a: User, membership_a,
+):
+    """Lote que no pertenece al producto especificado devuelve 400."""
+    # Crear otro producto
+    other = Product(
+        business_id=business_a.id,
+        code="OTHER-PROD",
+        description="Otro producto",
+        list_price=200,
+        sale_price=242,
+    )
+    db.add(other)
+    await db.commit()
+    await db.refresh(other)
+
+    # Crear lote para el otro producto
+    other_lot = ProductLot(
+        product_id=other.id,
+        business_id=business_a.id,
+        code="OTHER-LOT",
+        quantity=10,
+        initial_quantity=10,
+        cost_price=30,
+    )
+    db.add(other_lot)
+    await db.commit()
+
+    headers = make_auth_header(user_a)
+
+    # Intentar sincronizar product con un lote de otro producto
+    response = await client.post(
+        f"/api/tenant/products/{product.id}/sync-price-from-lot",
+        headers=headers,
+        json={
+            "lot_id": str(other_lot.id),
+            "confirm": False,
+        },
+    )
+
+    assert response.status_code == 400, (
+        f"Debería devolver 400 por lote de otro producto. "
+        f"Status: {response.status_code}, Body: {response.text}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_sync_price_nonexistent_lot_returns_404(
+    db: AsyncSession, client: AsyncClient,
+    product: Product, business_a: Business,
+    user_a: User, membership_a,
+):
+    """Lote inexistente devuelve 404."""
+    from uuid import uuid4
+
+    headers = make_auth_header(user_a)
+
+    response = await client.post(
+        f"/api/tenant/products/{product.id}/sync-price-from-lot",
+        headers=headers,
+        json={
+            "lot_id": str(uuid4()),
+            "confirm": False,
+        },
+    )
+
+    assert response.status_code == 404, (
+        f"Debería devolver 404 para lote inexistente. "
+        f"Status: {response.status_code}, Body: {response.text}"
+    )

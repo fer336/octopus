@@ -173,6 +173,36 @@ class ProductBulkUpdateResponse(BaseSchema):
     products: list[ProductResponse]
 
 
+class StockDeltaItem(BaseSchema):
+    """Ítem individual para ajuste de stock por delta."""
+
+    product_id: UUID
+    delta: int = Field(..., description="Cantidad a sumar (positivo) o restar (negativo)")
+    reason: str | None = Field(None, max_length=200, description="Motivo del ajuste")
+
+
+class StockDeltaRequest(BaseSchema):
+    """Request para ajuste masivo de stock por delta."""
+
+    items: list[StockDeltaItem] = Field(..., min_length=1, max_length=500)
+
+
+class StockDeltaResult(BaseSchema):
+    """Resultado individual de un ajuste delta."""
+
+    product_id: UUID
+    success: bool
+    error: str | None = None
+
+
+class StockDeltaResponse(BaseSchema):
+    """Respuesta del ajuste masivo de stock por delta."""
+
+    results: list[StockDeltaResult]
+    total_success: int
+    total_failures: int
+
+
 class ProductListParams(BaseSchema):
     """Parámetros para listar productos."""
 

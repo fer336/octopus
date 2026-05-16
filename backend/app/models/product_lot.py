@@ -51,9 +51,17 @@ class ProductLot(BaseModel):
     # Costo
     cost_price = Column(Numeric(12, 2), nullable=True)  # Precio de costo del lote
 
+    # Atribución de usuario
+    created_by = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=True,
+    )
+
     # Relaciones
     product = relationship("Product", back_populates="lots")
     business = relationship("Business", back_populates="product_lots")
+    creator = relationship("User", foreign_keys=[created_by])
 
     def __repr__(self) -> str:
         return (
