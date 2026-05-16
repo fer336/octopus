@@ -26,17 +26,9 @@
 - [ ] [CC-PAY-05] PDF Factura: mostrar fecha de vencimiento cuando hay payment_days
 - [ ] [CC-PAY-06] Backend: registrar movimiento en caja al pagar factura CC
 - [ ] [N8N-POSTPURCHASE-08] Diseñar flujo n8n post-compra: HTML de confirmación + otorgar acceso según plan (Excel/Sistema)
-- [ ] [SEO-LEGAL-LINKS-05] Agregar enlaces visibles desde landing principal a política de privacidad y política de seguridad
 - [ ] [SEO-SITEMAP-04] Agregar URLs de páginas legales al sitemap (`politicas-privacidad.html` y `politicas-seguridad.html`)
-- [b] [DEVOPS-LANDING-05] 🐛 Diagnosticar por qué `landing-deploy` queda en 4/6 y no ejecuta deploy
 - [ ] [BILLING-N8N-CREATE-WF-12] Crear workflow nuevo n8n para post-pago (webhook + activación backend + email)
 - [ ] [BILLING-N8N-WF-FORM-10] Definir si reutilizar `octopus-formulario` o crear webhook nuevo para post-pago y emails transaccionales
-- [ ] [LANDING-LOGIN-BTN-ENABLE-06] Revisar y re-habilitar botones "Iniciar sesión" en /acceder (OctopusTrack/OctopusFlow)
-- [ ] [LANDING-PLANS-REWORK-05] Actualizar estructura/copy/precios de planes OctopusTrack (Básico/Negocio/Completo/Premium)
-- [ ] [LANDING-PRICE-DISCOUNT-04] Landing: mostrar precio actual 5.99 con precio anterior 20.99 tachado (oferta visual)
-- [ ] [LANDING-MP-PRICE-SYNC-03] Unificar precio visible y precio enviado a MercadoPago en landing (fuente única)
-- [ ] [LANDING-FORM-TRACK-02] Enriquecer webhook de formulario con UTM + entry_point + page_url para atribución de origen
-- [ ] [LANDING-FORM-PRICE-01] Landing: cambiar precio de Excel a USD 5.99, mover captura de email a modal al click en CTAs y enviar formulario a webhook `octopus-formulario`
 - [ ] [VOUCHER-PDF-500-01] 🐛 Diagnosticar y corregir 500 en `GET /api/tenant/vouchers/{id}/pdf` desde Ventas
 - [ ] [DEVOPS-DOCKER-ARM64-05] Diagnosticar cancelación de build multi-arch en GitHub Actions y re-ejecutar deploy
 - [ ] [BILLING-MP-04] Implementar endpoint backend único de activación de plan (`POST /billing/mp/activate`) con idempotencia por `payment_id`
@@ -48,12 +40,6 @@
 - [ ] [SEO-TECH-05] Habilitar compresión Brotli/Gzip en Nginx para HTML/CSS/JS (actualmente respuestas sin `content-encoding`)
 - [ ] [SEO-TECH-06] Reducir peso de branding images (`favicon.ico` y `logo-tenculo-final.png` ~320KB) y generar variantes optimizadas
 - [ ] [SEO-ONPAGE-07] Ajustar Schema.org: revisar `AggregateRating` (evitar rich snippets inválidos si no hay evidencia pública verificable)
-- [ ] [SEO-ONPAGE-08] Definir estrategia de indexación para `/acceder` (noindex/follow o canonical específico) para evitar canibalización con landing principal
-- [ ] [SEO-CONTENT-09] Crear 3 landings SEO por intención (`cotizador ferretería`, `cotizador sanitarios`, `software corralón`) con títulos/H1/meta específicos
-- [ ] [MKT-LANDING-MOTION-01] Landing/UI: incorporar animaciones de entrada, scroll reveal, hover interactivo y transición en /acceder
-- [x] [SEO-SITEMAP-01] Landing: crear sitemap.xml para octopustrack.shop con URLs canonicales y priority correctos ✅ 2026-04-27
-- [x] [SEO-SITEMAP-02] Landing: actualizar robots.txt para referenciar sitemap.xml ✅ 2026-04-27
-- [x] [SEO-SITEMAP-03] Landing: agregar meta tags SEO (description, og:*) en landing.html para indexación ✅ 2026-04-27
 - [ ] [BRAND-HEADER-01] Branding/PDF: definir para qué sirve `header_text` y hacerlo visible realmente en los comprobantes o pantallas donde corresponda
 - [x] [CMS-BRANDING-PDF-LOGO-11] 🐛 Diagnosticar por qué `logo_url` subida en MinIO no renderiza en PDF (URL firmada/permiso público/base URL) ✅ 2026-05-09
 - [x] [CMS-BRANDING-LOGO-LAYOUT-12] Permitir configurar posición del logo en PDF (izquierda/centro/derecha) y modo (junto al nombre o reemplazo) ✅ 2026-05-09
@@ -73,17 +59,14 @@
 - [ ] [CMS-BILL-01] CMS: agregar módulo de pagos/cobranzas por cliente con historial y estado mensual
 - [ ] [BILLING-MP-01] Billing: integrar MercadoPago (botón de pago por plan) usando API provista y flujo por negocio/tenant
 - [ ] [BILLING-MP-02] Billing: contador mensual por tenant (1/0 días restantes) + recordatorios automáticos de pago al vencer
-- [ ] [PLANS-CMS-01] CMS/Landing/Billing: definir modelo de planes por usuario/negocio y conectar compra de landing (plan + email + negocio) con asignación automática en CMS
 
 ## 🟡 En progreso
 - [/] [DEVOPS-STAGING-TENANT-OWNER-16] Asignar superadmin como owner del tenant staging de prueba
 - [/] [DEVOPS-STAGING-CMS-DB-15] Verificar si CMS staging escribe en DB staging o producción
 - [/] [PRICEUPDATE-MOBILE-EDIT-PARITY-08] Diseñar adaptación mobile de la lógica de edición de precios sin navegación por Enter
 - [/] [SALES-RETURNS-INVOICE-ONLY-07] Restringir saldo a favor/devolución excedente exclusivamente al flujo Factura y quitar leyenda contable del PDF
-- [/] [DEVOPS-DEPLOY-SELECTIVE-15] Implementar deploys independientes: system-v* (backend+frontend), cms-v* (solo CMS), landing-v* (solo landing)
 - [/] [CMS-LOCALHOST-CONN-06] 🐛 Diagnosticar por qué CMS no conecta en localhost (error de conexión)
 - [/] [N8N-POSTPURCHASE-08] Diseñar flujo n8n post-compra: HTML de confirmación + otorgar acceso según plan (Excel/Sistema)
-- [/] [DEVOPS-LANDING-05] 🐛 Diagnosticar por qué `landing-deploy` queda en 4/6 y no ejecuta deploy
 - [/] [BILLING-N8N-WF-FORM-10] Definir si reutilizar `octopus-formulario` o crear webhook nuevo para post-pago y emails transaccionales
 - [/] [VOUCHER-PDF-500-01] 🐛 Diagnosticar y corregir 500 en `GET /api/tenant/vouchers/{id}/pdf` desde Ventas
 - [/] [DEVOPS-DOCKER-ARM64-05] Diagnosticar cancelación de build multi-arch en GitHub Actions y re-ejecutar deploy
@@ -95,7 +78,6 @@
 - [/] [RESP-MOBILE-SALES-STEPPER-06] Ajustar Sales mobile para cumplir 1:1 con referencia visual (Paso 1/2/3 exactos)
 - [/] [RESP-MOBILE-SALES-STEPPER-05] Implementar stepper mobile en Sales basado en referencia HTML (solo `<lg>`, desktop intacto)
 - [/] [RESP-MOBILE-QA-03] Ejecutar Fase 3 QA responsive (375/390/768/1024) y corregir regresiones visuales
-- [/] [DEVOPS-LANDING-04] Pipeline landing: probar build solo amd64 para evitar falla QEMU arm64 y validar deploy
 - [x] [PDF-INVOICE-AFIP-BORDER-24] Factura PDF: agregar recuadro fiscal negro completo con padding interno y letra sobre borde superior ✅ 2026-05-09
 - [x] [PDF-INVOICE-A4-HEIGHT-23] Factura PDF: ocupar altura completa A4 con spacer flexible y bloque CAE/QR anclado al fondo ✅ 2026-05-09
 
@@ -146,7 +128,6 @@
 - [x] [SEC-ACL-STOCKPILES-02] Enforce ACL backend para Acopios: agregar `stockpiles` a MODULE_KEYS y aplicar `require_module_access("stockpiles")` en router ✅ 2026-05-09
 - [x] [SEC-ACL-AUDIT-01] Auditar enforcement ACL backend para features de CMS y detectar bypass en módulo Acopios ✅ 2026-05-09
 - [x] [CMS-ACOPIO-FLAG-01] CMS: agregar `stockpile_enabled` en tipos API y toggle visual para habilitar/deshabilitar Acopio ✅ 2026-05-09
-- [x] [CMS-SYS-DEPLOY-07] Publicar cambios de CMS y sistema en commit/tag selectivo (sin mezclar landing) ✅ 2026-05-09
 - [x] [DEVOPS-STAGING-AUDIT-DELETED-14] Corregir migración faltante `audit_logs.deleted_at` ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-MEMBERSHIP-DELETED-13] Corregir migración faltante `tenant_memberships.deleted_at` ✅ 2026-05-08
 - [x] [DEVOPS-STAGING-SUPERADMIN-12] Crear usuario superadmin `casserafernando@gmail.com` en staging ✅ 2026-05-08
@@ -245,17 +226,13 @@
 
 - [x] [DEVOPS-RELEASE-TAG-09] Crear tag de release (`vX.Y.Z`) para ejecutar jobs de `Create GitHub Release` + `Deploy to Swarm via Portainer` ✅ 2026-05-02
 
-- [x] [DEVOPS-GHA-RETRY-08] Re-ejecutar workflow `landing-deploy` en GitHub Actions y validar que build pase tras fix de tipos ✅ 2026-05-02
 
 - [x] [DEVOPS-BUILD-TS-07] 🐛 Corregir fallo de build TypeScript en `src/admin/pages/TenantDetail.tsx` por propiedades faltantes en `TenantFeaturesUpdate` ✅ 2026-05-02
 
-- [x] [CMS-SYS-DEPLOY-07] Publicar cambios de CMS y sistema en commit/tag selectivo (sin mezclar landing) ✅ 2026-05-02
 
-- [x] [SEO-LEGAL-LINKS-05] Agregar enlaces visibles desde landing principal a política de privacidad y política de seguridad ✅ 2026-05-02
 
 - [x] [SEO-SITEMAP-04] Agregar URLs de páginas legales al sitemap (`politicas-privacidad.html` y `politicas-seguridad.html`) ✅ 2026-05-02
 
-- [x] [LANDING-LEGAL-PAGES-13] Diseñar y crear `politicas-privacidad.html` y `politicas-seguridad.html` para la landing ✅ 2026-05-02
 
 - [x] [DEVOPS-MCP-N8N-12] Verificar capacidad MCP n8n para crear/editar workflows: creación y edición confirmadas sobre flujo nuevo `NxUzDAwBIWoEE5QW` ✅ 2026-05-02
 
@@ -265,17 +242,11 @@
 
 - [x] [CMS-TENANT-FEATURES-04] Revisar y corregir feature flags por plan en tenant (Cta Cte/Remitos/Cotizaciones/Inventario/Backup SQL/ARCA crt-key) ✅ 2026-05-01
 
-- [x] [LANDING-LOGIN-BTN-ENABLE-06] Revisar y re-habilitar botones "Iniciar sesión" en /acceder (OctopusTrack/OctopusFlow) ✅ 2026-05-01
 
-- [x] [LANDING-PLANS-REWORK-05] Actualizar estructura/copy/precios de planes OctopusTrack (Básico/Negocio/Completo/Premium) ✅ 2026-05-01
 
-- [x] [LANDING-PRICE-DISCOUNT-04] Landing: mostrar precio actual 5.99 con precio anterior 20.99 tachado (oferta visual) ✅ 2026-05-01
 
-- [x] [LANDING-MP-PRICE-SYNC-03] Unificar precio visible y precio enviado a MercadoPago en landing (fuente única) ✅ 2026-05-01
 
-- [x] [LANDING-FORM-TRACK-02] Enriquecer webhook de formulario con UTM + entry_point + page_url para atribución de origen ✅ 2026-05-01
 
-- [x] [LANDING-FORM-PRICE-01] Landing: cambiar precio de Excel a USD 5.99, mover captura de email a modal al click en CTAs y enviar formulario a webhook `octopus-formulario` ✅ 2026-05-01
 
 - [x] [BILLING-MP-03] Definir arquitectura robusta MercadoPago→n8n→FastAPI (webhook, idempotencia, seguridad, retries) ✅ 2026-05-01
 
@@ -334,23 +305,17 @@
 
 - [x] [RESP-MOBILE-PLAN-01] Definir plan integral de responsividad mobile para Octopus (tenant) y CMS (admin) ✅ 2026-04-29
 
-- [x] [MKT-DEPLOY-LOGIN-URL-01] Deploy landing a producción y verificación de bundle en `/acceder` para login de OctopusFlow en `login-flow.octopustrack.shop` ✅ 2026-04-29
 
-- [x] [MKT-LOGIN-ENV-VALIDATION-01] Landing acceso: validar en runtime env de URLs de login y deshabilitar CTA si faltan ✅ 2026-04-29
 
-- [x] [MKT-CONFIG-URL-01] Landing acceso: mover URLs de login a variables de entorno (sin hardcode) ✅ 2026-04-29
 
-- [x] [MKT-LOGIN-URL-01] Landing acceso: cambiar URL de login de Presupuestos a `login-flow.octopustrack.shop` ✅ 2026-04-29
 
 - [x] [MKT-OG-WHATSAPP-01] Ajustar preview de compartido (OG/Twitter) para mostrar solo "OctopusTrack-ERP -- Sistema Integral" ✅ 2026-04-28
 
-- [x] [MKT-ANCHOR-VER-SISTEMA-01] Landing: bajar un poco más el anclaje del botón "Ver sistema completo" para alinear inicio visual de sección ✅ 2026-04-28
 
 - [x] [SEO-INDEX-13] SEO: excluir rutas de acceso (`/acceder`, `admin`, `tenant`) de indexación y actualizar `sitemap.xml`/`robots.txt` para reindexado limpio ✅ 2026-04-28
 
 - [x] [SEO-ARCH-12] Definir mapa SEO de indexación (rutas indexables/noindex/canonical) para separar adquisición vs acceso ✅ 2026-04-28
 
-- [x] [SEO-ASSETS-11] Actualizar referencias en `landing.html`, `index.html`, `admin.html`, `tenant.html`, `manifest.json` y componentes React a nuevas rutas en `/images/*` ✅ 2026-04-28
 - [x] [SEO-ASSETS-10] 🐛 Estructura nueva de imágenes normalizada (`images/og` + `logo-header@2x.png`) y referenciada correctamente ✅ 2026-04-28
 
 - [x] [SEO-ASSETS-12] Verificar estructura final de imágenes SEO (`favicon`, `logos`, `og`) y detectar referencias legacy activas ✅ 2026-04-28
@@ -359,59 +324,32 @@
 
 - [x] [SKILL-SEO-01] Instalar skill `mysticaltech/marketingskills` para habilitar auditoría SEO ✅ 2026-04-28
 
-- [x] [MKT-CARD-LABEL-02] Landing: aumentar tamaño de "OctopusTool" en card slider (+5/+6px) ✅ 2026-04-28
 
-- [x] [MKT-CARD-LABEL-01] Landing: agregar texto centrado "OctopusTool" dentro del card del slider ✅ 2026-04-28
 
-- [x] [MKT-COPY-EMPHASIS-02] Landing: aumentar 2px extra y pasar "OctopusTrack" a blanco ✅ 2026-04-28
 
-- [x] [MKT-COPY-EMPHASIS-01] Landing: destacar "OctopusTrack" en copy de migración (+2px y negrita) ✅ 2026-04-28
 
-- [x] [MKT-LOGO-SIZE-01] Landing/UI: aumentar apenas tamaño del logo tentáculo animado ✅ 2026-04-28
 
-- [x] [MKT-LOGO-MOTION-04] Landing/UI: dejar logo solo flotante, sin enrosque/desenrosque ✅ 2026-04-28
 
-- [x] [MKT-LOGO-MOTION-03] Landing/UI: revertir tentáculo a animación anterior y aumentar tamaño +2px ✅ 2026-04-28
 
-- [x] [MKT-LOGO-MOTION-02] Landing/UI: intensificar animación GSAP del tentáculo (enrosque/desenrosque más orgánico) ✅ 2026-04-28
 
-- [x] [MKT-LOGO-MOTION-01] Landing/UI: animar tentáculo SVG con GSAP (enrollar/desenrollar + movimiento suave) usando `logo-tenculo-final.svg` ✅ 2026-04-28
 
-- [x] [MKT-LOGIN-BTN-05] Landing header: igualar estilo de "Iniciar sesión" al botón "Cotizá con Excel" ✅ 2026-04-28
 
-- [x] [MKT-LOGIN-BTN-04] Landing header: quitar halo/borde blanco residual del botón "Iniciar sesión" ✅ 2026-04-28
 
-- [x] [MKT-LOGIN-BTN-03] Landing header: refinar botón "Iniciar sesión" a estilo sobrio monocromático violeta ✅ 2026-04-28
 
-- [x] [MKT-LOGIN-BTN-02] Landing header: aplicar estilo morado con gradiente luminoso tenue al botón "Iniciar sesión" ✅ 2026-04-28
 
-- [x] [MKT-LANDING-PRICEFX-01] Landing: modernizar card de precio (glass/gradient) y animar valor USD con efecto numérico progresivo al entrar en viewport ✅ 2026-04-28
 
-- [x] [MKT-LANDING-CARD-CTA-01] Landing: achicar/centrar tipografía en card de precio Excel y simplificar CTA de contacto a botón flotante único (sin modal) ✅ 2026-04-28
 
-- [x] [MKT-TYPO-02] Landing/UI: actualizar tipografía global a `Ubuntu, Segoe UI, sans-serif` por preferencia de marca ✅ 2026-04-28
 
-- [x] [MKT-TYPO-01] Landing/UI: cambiar tipografía global a stack estilo macOS (`-apple-system`) para look más nativo ✅ 2026-04-28
 
-- [x] [MKT-LANDING-MOTION-02-BUG] 🐛 Landing: corregir pantalla en blanco por íconos `Shield/Users` usados en Footer pero no importados tras refactor de hero ✅ 2026-04-28
 
-- [x] [MKT-LANDING-MOTION-01] Landing/UI: incorporar animaciones de entrada, scroll reveal, hover interactivo y transición en /acceder ✅ 2026-04-28
 
-- [x] [MKT-LANDING-TRUST-01] Landing: quitar claims de social proof "Garantía de por vida" y "+500 negocios" del hero ✅ 2026-04-28
 
-- [x] [MKT-LOGIN-SELECT-06] Landing acceso: simplificar CTA de retorno del header a botón ícono flecha sin texto ✅ 2026-04-28
 
-- [x] [MKT-LOGIN-SELECT-05] Landing acceso: agregar header con navegación de regreso a la web principal ✅ 2026-04-28
 
-- [x] [MKT-LOGIN-SELECT-04] Landing acceso: aplicar botón azul en card de OctopusFlow para consistencia de marca ✅ 2026-04-28
 
-- [x] [MKT-LOGIN-BTN-01] Landing header: corregir estilo del botón "Iniciar sesión" para evitar fondo blanco y mejorar contraste en dark ✅ 2026-04-28
 
-- [x] [MKT-LOGIN-SELECT-03] Landing acceso: agrandar contenedor visual de cards para mejorar proporción de imágenes ✅ 2026-04-28
 
-- [x] [MKT-LOGIN-SELECT-02] Landing acceso: ajustar tamaño/encuadre de imágenes en cards de selección para que se vean completas ✅ 2026-04-28
 
-- [x] [MKT-LOGIN-SELECT-01] Landing: crear página de selección de producto (OctopusTrack/OctopusFlow) y redirigir botón "Iniciar Sesión" a esa ruta ✅ 2026-04-28
 
 - [x] [UI-LISTAS-01] Rediseñar vistas Clientes/Proveedores/Categorías con estilo compacto moderno y mejor aprovechamiento vertical ✅ 2026-04-28
 
@@ -439,59 +377,33 @@
 
 - [x] [CMS-TENANT-USER-01] CMS/Auth: evitar creación automática de comercios al registrar usuarios; permitir crear comercio manualmente desde Tenant y asignar usuarios ✅ 2026-04-28
 
-- [x] [MKT-WHATSAPP-HARDCODE-01] Landing: hardcodear WhatsApp comercial en código y remover override del pipeline de deploy ✅ 2026-04-24
 
-- [x] [MKT-WHATSAPP-CTA-01] Landing: configurar botón "Probar sistema" con WhatsApp real y mensaje directo ✅ 2026-04-24
 
-- [x] [MKT-LANDING-CTA-02] Landing: quitar CTAs redundantes "Ver demo del sistema completo" y "Comprar y recibir ahora" del bloque del cotizador ✅ 2026-04-24
 
-- [x] [MKT-BUYER-EMAIL-ANCHOR-04] Landing: bajar 4px el aterrizaje de "Comprar cotizador" para ajuste fino ✅ 2026-04-24
 
-- [x] [MKT-PLANS-OFFSET-07] Landing: subir un poco más el scroll de planes para ajuste fino final ✅ 2026-04-24
 
-- [x] [MKT-PLANS-OFFSET-06] Landing: subir al máximo razonable el scroll de planes para pegarlo al header ✅ 2026-04-24
 
-- [x] [MKT-PLANS-OFFSET-05] Landing: subir todavía más el scroll de planes hasta pegarlo visualmente al header ✅ 2026-04-24
 
-- [x] [MKT-PLANS-OFFSET-04] Landing: subir aún más el scroll de planes para que quede más pegado al header ✅ 2026-04-24
 
-- [x] [MKT-PLANS-OFFSET-03] Landing: subir un poco más la navegación de planes para alinearla al borde del header ✅ 2026-04-24
 
-- [x] [MKT-BUYER-EMAIL-ANCHOR-03] Landing: corregir target de compra para anclar a la card del cotizador y no a la sección completa ✅ 2026-04-24
 
-- [x] [MKT-BUYER-EMAIL-ANCHOR-02] Landing: corregir scroll de compra para mostrar completa la card del cotizador y enfocar email sin cortar encabezado ✅ 2026-04-24
 
-- [x] [MKT-PLANS-ANCHOR-04] Landing: corregir navegación de planes para aterrizar en el top real de la sección como referencia visual aprobada ✅ 2026-04-24
 
-- [x] [MKT-PLANS-ANCHOR-03] Landing: mover anchor de navegación de planes a un punto interno más estable para evitar cortes visuales ✅ 2026-04-24
 
-- [x] [MKT-BUYER-EMAIL-ANCHOR-01] Landing: hacer que "Comprar cotizador" aterrice sobre el campo de email y le dé foco ✅ 2026-04-24
 
-- [x] [MKT-PLANS-OFFSET-02] Landing: afinar posición final del anchor de planes para alinearlo con el header ✅ 2026-04-24
 
-- [x] [MKT-PLANS-OFFSET-01] Landing: ajustar offset del anchor de planes para subir la sección un poco más ✅ 2026-04-24
 
-- [x] [MKT-LANDING-CTA-01] Landing: corregir targets visuales de "Ver demo" y unificar CTAs de Excel con checkout MP ✅ 2026-04-24
 
-- [x] [MKT-DEPLOY-01] Landing: corregir build roto por variables sin uso en `Landing.tsx` y reintentar deploy ✅ 2026-04-24
 
-- [x] [MKT-LANDING-REMOVE-DELIVERY-01] Landing: quitar bloque "Recibilo por email o WhatsApp" ✅ 2026-04-24
 
-- [x] [MKT-PLANS-CHECKOUT-01] Landing: conectar planes 33/49/119 al mismo checkout MP de n8n y capturar email para onboarding ✅ 2026-04-24
 
-- [x] [MKT-MOBILE-PLANS-01] Landing mobile: centrar bloque de planes y CTA "Ver planes" ✅ 2026-04-24
 
-- [x] [MKT-MOBILE-HEADER-01] Landing mobile: centrar logo del header en mobile ✅ 2026-04-24
 
-- [x] [MKT-HERO-01] Landing: quitar logo/visual del hero y centrar copy principal + CTAs en desktop ✅ 2026-04-24
 
 - [x] [MKT-16-SETUP-01] N8N: generar workflows importables (`octopus-notification`, `octopus-return`) + payload listo de checkout MP en `docs/` para aplicación manual en n8n ✅ 2026-04-24
 
-- [x] [DEVOPS-LANDING-02] Configurar secrets/vars de GitHub y webhook de Portainer para activar deploy automático real de la landing en el dominio público ✅ 2026-04-24
 
-- [x] [DEVOPS-LANDING-03] Crear stack compose dedicado para landing pública con Traefik y dominio separado ✅ 2026-04-24
 
-- [x] [DEVOPS-LANDING-01] Landing: separar build/entrypoint y crear CI/CD dedicado para deploy automático en dominio público ✅ 2026-04-24
 
 - [x] [AI-ARCH-02] IA Cotizaciones: validar implementación real de Luci (router/chat/history/store/ventas) y aterrizar propuesta multiagente sobre el codebase actual ✅ 2026-04-23
 
@@ -546,22 +458,7 @@
 - [x] [VOU-02-FLOW-01] Facturación mixta: permitir facturar 1 o más comprobantes seleccionados (cotización y/o remito) con validación por cliente ✅ 2026-04-21
 
 ### Marketing (Abril 2026)
-- [x] [MKT-14-BUG-02] Landing: actualizar fallback de checkout al nuevo webhook `https://n8nw.qeva.xyz/webhook/octopus-mp` ✅ 2026-04-24
-- [x] [MKT-15] Landing: exigir email antes de comprar y agregar botón para ver imagen demo del Excel ✅ 2026-04-24
-- [x] [MKT-14-BUG-01] Landing: evitar fallback a WhatsApp cuando falta env de checkout, usando webhook MP activo por defecto ✅ 2026-04-24
-- [x] [MKT-14] Landing: conectar botón de compra a webhook de checkout MP (POST) y redirección automática a `init_point` ✅ 2026-04-24
-- [x] [MKT-12] Landing: eliminar CTA "Escribi COTIZADOR" y usar botones "Obtener Excel"/"Obtener Google Sheets" redirigidos a webhook ✅ 2026-04-24
-- [x] [MKT-11] Landing: unificar logo de footer con header y mejorar version mobile responsive (look moderno) ✅ 2026-04-24
-- [x] [MKT-10] Landing: actualizar branding de logos (header con `logo-tentaculo1.png` y footer con logo institucional) ✅ 2026-04-24
-- [x] [MKT-09] Landing: eliminar configurador modular y simplificar oferta SaaS a 3 planes claros (33/45/119) con alcance comercial definido ✅ 2026-04-24
-- [x] [MKT-08] Landing: quitar bloque "Demo visual: cotizacion en 10 segundos" del hero y reemplazarlo por visual mas limpio ✅ 2026-04-24
-- [x] [MKT-07] Landing: usar logo1/logo1-dark en light/dark mode (header) para consistencia visual con nueva identidad ✅ 2026-04-24
-- [x] [MKT-06] Rediseñar visual de la landing para acercarla al look&feel histórico (web-octopus) manteniendo la lógica nueva de compra/entrega automática ✅ 2026-04-24
 - [x] [MKT-05] Implementar flujo de compra y entrega automatica del Cotizador (checkout + pagina de gracias + entrega de Excel/Google Sheets + captura de contacto) ✅ 2026-04-24
-- [x] [MKT-04] Rediseñar landing de OctopusTrack con foco CRO (dual: Excel USD 11.99 + sistema SaaS modular), copy directo y configurador con precio dinámico ✅ 2026-04-24
-- [x] [MKT-03] Optimizar pricing/copy de landing (combo Excel + reposicionamiento plan IA USD 600) ✅ 2026-04-21
-- [x] [MKT-02] Definir oferta comercial híbrida (Excel + Sistema), posicionamiento y estructura de planes para la landing ✅ 2026-04-21
-- [x] [MKT-01] Landing comercial para vender productos digitales de Excel (cotizadores) con copy orientado a conversión ✅ 2026-04-20
 
 ### Excels de Producto (Abril 2026)
 - [x] [XLS-CC-01] Diseñar `CuentaCorriente_OctopusTrack.xlsx` (Config, Clientes, Movimientos, Estado_Cuenta, Dashboard, Impresion_Extracto, Ayuda) con branding OctopusTrack, fórmulas de saldo acumulado Debe/Haber, pivots, validaciones, formato condicional por riesgo y extracto A4 imprimible ✅ 2026-04-21
@@ -680,13 +577,11 @@
 - [!] [BILLING-N8N-CREATE-WF-12] Crear workflow nuevo n8n por MCP 🚧 Conexión actual expone lectura/detalle pero falla en operaciones de listado/gestión (schema mismatch -32602)
 - [!] [BILLING-N8N-EMAIL-ACTIVATION-08] Edición directa de nodos n8n desde MCP no disponible 🚧 Se dejó especificación completa en `docs/n8n-payment-approved-email-and-activation.md` para aplicar en UI n8n
 
-- [x] [MKT-LOTTIE-01] Landing: falta asset `tentaculo.json` (Lottie) o fuente final de animación; se cambia estrategia a GSAP sobre SVG existente ✅ 2026-04-28
 - [!] [MKT-20] N8N: definir e implementar workflow de retorno HTML (GET) + completar workflow de notificación (POST) para envío automático por Gmail 🚧 Definición técnica lista en `docs/n8n-octopus-mp-flujos.md`; pendiente aplicar cambios manuales en n8n UI (MCP no permite editar nodos)
 - [!] [MKT-19] N8N: mostrar página HTML post-pago con botones Excel/Sheets 🚧 Debe implementarse en endpoint de retorno GET (back_urls), no en webhook de notificación POST de MercadoPago
 - [!] [MKT-18] N8N/MP: usar mismo endpoint `octopus-notification` para `notification_url` y `back_urls` 🚧 El webhook actual acepta solo POST; `back_urls` de MercadoPago redirigen por GET y hoy devuelve 404
 - [!] [MKT-17] N8N: alinear `notification_url` del checkout a `/webhook/octopus-notification` 🚧 Requiere edición manual en n8n UI (MCP actual no permite editar nodos)
 - [!] [MKT-16] N8N: completar flujo post-pago (notificacion MP -> envio email con links/adjunto) y definir pruebas en sandbox antes de produccion 🚧 MCP no expone edición de nodos/workflow; requiere ajuste manual en n8n UI y luego validación
-- [!] [MKT-13] N8N: duplicar workflow base para checkout de Mercadopago y conectar botón de compra de landing al webhook nuevo 🚧 MCP actual expone búsqueda/detalle/ejecución pero no endpoint de clonación; falta ID del workflow duplicado para continuar con ajustes
 - [!] [DATA-03] Definir semántica "borrar base de datos completa" 🚧 El sistema es multitenant en una sola DB; no corresponde `DROP DATABASE`, sino purga transaccional por `business_id`.
 - [!] [DATA-04] Definir formato final de backup "SQL completo del usuario" 🚧 En entorno compartido no se puede exponer dump global; hay que generar dump lógico por tenant.
 - [!] [INT-03] Clientes: razón social AFIP por CUIT no confiable en algunos casos 🚧 Constancia devuelve errores regulatorios para ciertos CUITs.

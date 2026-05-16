@@ -52,7 +52,6 @@ octopus/
 │   └── workflows/
 │       ├── ci.yml              ← push(main/develop), PR(main) y reusable por workflow_call
 │       ├── docker-release.yml ← release/deploy por tags v*.*.* (y dispatch manual)
-│       └── landing-deploy.yml ← pipeline aislado de landing
 ├── backend/
 │   ├── Dockerfile.prod
 │   ├── requirements.txt
