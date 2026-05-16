@@ -1,6 +1,7 @@
 # stack.landing.yml — Landing Page Octopus
 # URL raw para Portainer: https://raw.githubusercontent.com/fer336/octopus/master/docs/devops/stack.landing.yml
-# En Portainer: Stack > Editor > pegar este contenido
+# Fuente activa del stack landing en Portainer.
+# En Portainer: Stack > Git repository o Web editor usando esta URL raw.
 # Para versionar deploys, configurar IMAGE_TAG con solo el número: 1.2.3
 
 version: "3.9"
