@@ -246,3 +246,116 @@ async def get_dashboard_summary(
         filter_month=filter_month,
         filter_year=filter_year,
     )
+
+
+class MonthlyTrend(BaseSchema):
+    """Un mes en la tendencia del dashboard."""
+
+    month: int
+    year: int
+    label: str  # "Ene 2026", "Feb 2026", etc.
+    cash_income: float
+    total_sales: float
+    pending_customer_balance: float
+
+
+MONTH_LABELS = [
+    "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+    "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+]
+
+income_types = [
+    CashMovementType.SALE,
+    CashMovementType.PAYMENT_RECEIVED,
+    CashMovementType.INCOME,
+]
+
+
+async def _monthly_cash_income(
+    db: AsyncSession, business_id: UUID, year: int, month: int
+) -> float:
+    """Suma de ingresos reales de caja para un mes específico."""
+    first_day = date(year, month, 1)
+    last_day = date(year, month, monthrange(year, month)[1])
+    period_start = datetime.combine(first_day, time.min)
+    period_end = datetime.combine(last_day, time.max)
+
+    q = (
+        select(func.sum(CashMovement.amount))
+        .join(CashMovement.cash_register)
+        .where(
+            CashMovement.deleted_at.is_(None),
+            CashMovement.type.in_(income_types),
+            CashMovement.created_at >= period_start,
+            CashMovement.created_at <= period_end,
+            CashMovement.cash_register.has(business_id=business_id),
+        )
+    )
+    return float((await db.execute(q)).scalar() or 0.0)
+
+
+async def _monthly_total_sales(
+    db: AsyncSession, business_id: UUID, year: int, month: int
+) -> float:
+    """Suma de facturas emitidas para un mes específico."""
+    q = select(func.sum(Voucher.total)).where(
+        Voucher.business_id == business_id,
+        Voucher.deleted_at.is_(None),
+        Voucher.status == VoucherStatus.CONFIRMED,
+        Voucher.voucher_type.in_(INVOICE_TYPES),
+        extract("month", Voucher.date) == month,
+        extract("year", Voucher.date) == year,
+    )
+    return float((await db.execute(q)).scalar() or 0.0)
+
+
+async def _monthly_pending_balance(
+    db: AsyncSession, business_id: UUID
+) -> float:
+    """Saldo pendiente total de clientes (no varía por mes)."""
+    q = (
+        select(func.sum(ClientAccount.debit - ClientAccount.credit))
+        .join(Client, ClientAccount.client_id == Client.id)
+        .where(
+            Client.business_id == business_id,
+            Client.deleted_at.is_(None),
+            ClientAccount.deleted_at.is_(None),
+        )
+    )
+    return max(float((await db.execute(q)).scalar() or 0.0), 0.0)
+
+
+@router.get("/trend", response_model=list[MonthlyTrend])
+async def get_dashboard_trend(
+    months: int = Query(default=6, ge=1, le=24, description="Cantidad de meses hacia atrás"),
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """Tendencia mensual de ingresos vs facturado para los últimos N meses."""
+    today = date.today()
+    pending = await _monthly_pending_balance(db, business_id)
+    result: list[MonthlyTrend] = []
+
+    for i in range(months - 1, -1, -1):
+        m = today.month - i
+        y = today.year
+        while m < 1:
+            m += 12
+            y -= 1
+        while m > 12:
+            m -= 12
+            y += 1
+
+        cash = await _monthly_cash_income(db, business_id, y, m)
+        sales = await _monthly_total_sales(db, business_id, y, m)
+
+        result.append(MonthlyTrend(
+            month=m,
+            year=y,
+            label=f"{MONTH_LABELS[m-1]} {y}",
+            cash_income=cash,
+            total_sales=sales,
+            pending_customer_balance=pending,
+        ))
+
+    return result

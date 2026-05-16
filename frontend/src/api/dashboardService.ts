@@ -26,12 +26,29 @@ export interface DashboardSummaryParams {
   year?: number
 }
 
+export interface MonthlyTrend {
+  month: number
+  year: number
+  label: string
+  cash_income: number
+  total_sales: number
+  pending_customer_balance: number
+}
+
 export const dashboardService = {
   /**
    * Obtiene el resumen del dashboard, opcionalmente filtrado por mes/año.
    */
   getSummary: async (params?: DashboardSummaryParams): Promise<DashboardSummary> => {
     const response = await httpClient.get('/dashboard/summary', { params })
+    return response.data
+  },
+
+  /**
+   * Tendencia mensual de ingresos vs facturado.
+   */
+  getTrend: async (months: number = 6): Promise<MonthlyTrend[]> => {
+    const response = await httpClient.get('/dashboard/trend', { params: { months } })
     return response.data
   },
 }
