@@ -10,7 +10,6 @@ import {
   Users,
   Package,
   AlertTriangle,
-  DollarSign,
   ArrowUpRight,
   ChevronLeft,
   ChevronRight,
@@ -460,28 +459,12 @@ export default function Dashboard() {
               bg: hasLowStock ? 'bg-orange-50 dark:bg-orange-900/20' : 'bg-primary-50 dark:bg-primary-900/20',
             },
             {
-              label: 'Clientes',
-              value: summary?.total_clients.toString() || '0',
-              sub: 'Activos',
-              icon: Users,
-              color: 'text-primary-600',
-              bg: 'bg-primary-50 dark:bg-primary-900/20',
-            },
-            {
               label: 'Facturado del Mes',
               value: formatCurrency(summary?.total_sales || 0),
               sub: summary?.total_invoices ? `${summary.total_invoices} factura${summary.total_invoices !== 1 ? 's' : ''}` : 'Sin facturas',
               icon: ShoppingCart,
               color: 'text-slate-600 dark:text-slate-300',
               bg: 'bg-slate-50 dark:bg-slate-700/60',
-            },
-            {
-              label: 'Valor Inventario',
-              value: formatCurrency(summary?.total_value || 0),
-              sub: 'Costo total',
-              icon: DollarSign,
-              color: 'text-primary-600',
-              bg: 'bg-primary-50 dark:bg-primary-900/20',
             },
           ].map((item, i) => (
             <div
