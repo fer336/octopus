@@ -178,6 +178,22 @@ const purchaseOrdersService = {
     window.URL.revokeObjectURL(url)
   },
 
+  async importCountSheetExcel(
+    file: File,
+    supplierId?: string,
+    categoryId?: string,
+  ): Promise<{ order_id: string; order_number: string; imported_count: number; skipped_codes: string[] }> {
+    const form = new FormData()
+    form.append('file', file)
+    if (supplierId) form.append('supplier_id', supplierId)
+    if (categoryId) form.append('category_id', categoryId)
+
+    const response = await httpClient.post('/purchase-orders/inventory-count/import-excel', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data
+  },
+
   async downloadCountSheetExcel(
     supplierId?: string,
     categoryId?: string,

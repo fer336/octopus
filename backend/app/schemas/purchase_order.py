@@ -163,3 +163,12 @@ class InventoryCountFilter(BaseSchema):
         if not self.supplier_id and not self.category_id:
             raise ValueError("Debe especificar al menos un proveedor o una categoría")
         return self
+
+
+class PurchaseOrderImportResponse(BaseSchema):
+    """Resultado de importar una planilla de conteo desde Excel."""
+
+    order_id: UUID
+    order_number: str
+    imported_count: int
+    skipped_codes: list[str] = []

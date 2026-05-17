@@ -376,3 +376,129 @@ class PurchaseOrderService:
         query = query.order_by(Product.description)
         result = await self.db.execute(query)
         return result.scalars().all()
+
+    async def import_from_excel(
+        self,
+        business_id: UUID,
+        user_id: UUID,
+        file_bytes: bytes,
+        supplier_id: UUID | None,
+        category_id: UUID | None,
+    ) -> tuple["PurchaseOrder", list[str]]:
+        """
+        Parsea una planilla de conteo (.xlsx) e crea una orden de pedido.
+
+        Devuelve (orden_creada, codigos_no_encontrados).
+        """
+        import io
+
+        import openpyxl
+
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+        ws = wb.active
+
+        # Localizar fila de encabezados buscando "Código" en la primera columna
+        header_row = None
+        for row in ws.iter_rows():
+            val = str(row[0].value or "").strip()
+            if val.lower() in ("código", "codigo"):
+                header_row = row[0].row
+                break
+
+        if header_row is None:
+            raise ValueError("No se encontró la fila de encabezados en el archivo Excel.")
+
+        # Mapear columnas por nombre (tolerante a cambios de orden)
+        col_map: dict[str, int] = {}
+        for cell in ws[header_row]:
+            name = str(cell.value or "").strip().lower()
+            if name in ("código", "codigo"):
+                col_map["code"] = cell.column
+            elif name == "stock sistema":
+                col_map["system_stock"] = cell.column
+            elif name == "conteo físico" or name == "conteo fisico":
+                col_map["counted"] = cell.column
+            elif name == "a pedir":
+                col_map["to_order"] = cell.column
+
+        if "code" not in col_map:
+            raise ValueError("Columna 'Código' no encontrada en el archivo.")
+        if "to_order" not in col_map:
+            raise ValueError("Columna 'A Pedir' no encontrada en el archivo.")
+
+        # Leer filas de datos
+        skipped_codes: list[str] = []
+        items_data: list[dict] = []
+
+        for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
+            code_val = row[col_map["code"] - 1]
+            if not code_val:
+                continue
+            code = str(code_val).strip()
+
+            to_order_val = row[col_map["to_order"] - 1]
+            counted_val = row[col_map.get("counted", 0) - 1] if col_map.get("counted") else None
+            system_stock_val = row[col_map.get("system_stock", 0) - 1] if col_map.get("system_stock") else None
+
+            try:
+                quantity_to_order = int(to_order_val or 0)
+            except (ValueError, TypeError):
+                quantity_to_order = 0
+
+            try:
+                counted_stock = int(counted_val) if counted_val not in (None, "") else None
+            except (ValueError, TypeError):
+                counted_stock = None
+
+            # Buscar producto en la base de datos
+            result = await self.db.execute(
+                select(Product).where(
+                    Product.code == code,
+                    Product.business_id == business_id,
+                    Product.deleted_at.is_(None),
+                )
+            )
+            product = result.scalar_one_or_none()
+
+            if product is None:
+                skipped_codes.append(code)
+                continue
+
+            # Usar system_stock del Excel si está disponible, si no del producto actual
+            try:
+                sys_stock = int(system_stock_val) if system_stock_val not in (None, "") else product.current_stock
+            except (ValueError, TypeError):
+                sys_stock = product.current_stock
+
+            items_data.append(
+                {
+                    "product_id": product.id,
+                    "system_stock": sys_stock,
+                    "counted_stock": counted_stock,
+                    "quantity_to_order": quantity_to_order,
+                    "unit_cost": product.cost_price or Decimal("0"),
+                    "iva_rate": product.iva_rate or Decimal("21.00"),
+                }
+            )
+
+        if not items_data:
+            raise ValueError(
+                "No se encontraron productos válidos en el archivo. "
+                f"Códigos no encontrados: {', '.join(skipped_codes) if skipped_codes else 'ninguno'}"
+            )
+
+        from app.schemas.purchase_order import PurchaseOrderCreate, PurchaseOrderItemCreate
+
+        payload = PurchaseOrderCreate(
+            supplier_id=supplier_id,
+            category_id=category_id,
+            items=[PurchaseOrderItemCreate(**item) for item in items_data],
+        )
+
+        order = await self.create(
+            business_id=business_id,
+            user_id=user_id,
+            data=payload,
+        )
+
+        return order, skipped_codes
