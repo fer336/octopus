@@ -264,7 +264,7 @@ class ConvertQuotationToInvoice(BaseSchema):
         description=(
             "Estrategia de precios para facturar desde comprobante: "
             "'historical' usa unit_price + iva_rate del comprobante origen; "
-            "'current' usa sale_price + iva_rate actuales del producto."
+            "'current' usa net_price + iva_rate actuales del producto."
         ),
     )
 
@@ -315,7 +315,7 @@ class CompileToInvoiceRequest(BaseSchema):
         description=(
             "Estrategia de precios para facturar desde comprobantes: "
             "'historical' usa unit_price + iva_rate del comprobante origen; "
-            "'current' usa sale_price + iva_rate actuales del producto."
+            "'current' usa net_price + iva_rate actuales del producto."
         ),
     )
 
@@ -358,6 +358,10 @@ class CompilePreviewRequest(BaseSchema):
         default="historical",
         description="Estrategia de precios",
     )
+    fiscal_client_id: UUID | None = Field(
+        default=None,
+        description="Cliente fiscal final de la factura (opcional). Si no se envía, se usa el cliente origen.",
+    )
 
 
 class CompilePreviewResponse(BaseSchema):
@@ -369,6 +373,14 @@ class CompilePreviewResponse(BaseSchema):
     discount_amount: Decimal
     voucher_count: int
     item_count: int
+    invoice_variant: str = Field(
+        default="B",
+        description="Variante de factura según condición fiscal del cliente: 'A' (Responsable Inscripto) o 'B' (Monotributista/CF)",
+    )
+    fiscal_client_id: UUID | None = Field(
+        default=None,
+        description="ID del cliente fiscal final (si se overrideó)",
+    )
 
 
 class VoucherResponse(BaseResponse):

@@ -412,6 +412,7 @@ const vouchersService = {
     quotationIds: string[],
     generalDiscount?: number,
     priceStrategy?: PriceStrategy,
+    fiscalClientId?: string,
   ): Promise<{
     subtotal: number
     iva_amount: number
@@ -419,11 +420,14 @@ const vouchersService = {
     discount_amount: number
     voucher_count: number
     item_count: number
+    invoice_variant: string
+    fiscal_client_id: string | null
   }> => {
     const response = await httpClient.post('/vouchers/compile-to-invoice/preview', {
       quotation_ids: quotationIds,
       general_discount: generalDiscount ?? 0,
       price_strategy: priceStrategy ?? 'historical',
+      fiscal_client_id: fiscalClientId || null,
     })
     return response.data
   },

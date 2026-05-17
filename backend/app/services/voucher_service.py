@@ -10,7 +10,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import Integer, cast, desc, func, or_, select
+from sqlalchemy import Integer, and_, cast, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -80,8 +80,17 @@ class VoucherService:
         conditions = [
             Voucher.business_id == business_id,
             Voucher.voucher_type == VoucherType.RECEIPT,
-            Voucher.is_current_account.is_(True),
-            Voucher.billing_client_id == billing_client_id,
+            or_(
+                Voucher.is_current_account.is_(True),
+                Voucher.billing_client_id.is_not(None),
+            ),
+            or_(
+                Voucher.billing_client_id == billing_client_id,
+                and_(
+                    Voucher.billing_client_id.is_(None),
+                    Voucher.client_id == billing_client_id,
+                ),
+            ),
             Voucher.deleted_at.is_(None),
             Voucher.invoiced_voucher_id.is_(None),
         ]
@@ -889,6 +898,13 @@ class VoucherService:
             raise ValueError(
                 "El total de la factura debe ser mayor a $0. Si la devolución supera la venta, registre el saldo a favor del cliente."
             )
+
+        if (
+            data.voucher_type == VoucherType.RECEIPT
+            and data.billing_client_id
+            and not data.is_current_account
+        ):
+            data.is_current_account = True
 
         cc_context = await self._validate_current_account_for_receipt(
             business_id=business_id,
@@ -2107,12 +2123,23 @@ class VoucherService:
         base_conditions = [
             Voucher.business_id == business_id,
             Voucher.voucher_type == VoucherType.RECEIPT,
-            Voucher.is_current_account.is_(True),
+            or_(
+                Voucher.is_current_account.is_(True),
+                Voucher.billing_client_id.is_not(None),
+            ),
             Voucher.deleted_at.is_(None),
         ]
 
         if billing_client_id:
-            base_conditions.append(Voucher.billing_client_id == billing_client_id)
+            base_conditions.append(
+                or_(
+                    Voucher.billing_client_id == billing_client_id,
+                    and_(
+                        Voucher.billing_client_id.is_(None),
+                        Voucher.client_id == billing_client_id,
+                    ),
+                )
+            )
 
         if pending_only is True:
             base_conditions.append(Voucher.invoiced_voucher_id.is_(None))
@@ -2170,8 +2197,17 @@ class VoucherService:
         base_conditions = [
             Voucher.business_id == business_id,
             Voucher.voucher_type == VoucherType.RECEIPT,
-            Voucher.is_current_account.is_(True),
-            Voucher.billing_client_id == billing_client_id,
+            or_(
+                Voucher.is_current_account.is_(True),
+                Voucher.billing_client_id.is_not(None),
+            ),
+            or_(
+                Voucher.billing_client_id == billing_client_id,
+                and_(
+                    Voucher.billing_client_id.is_(None),
+                    Voucher.client_id == billing_client_id,
+                ),
+            ),
             Voucher.invoiced_voucher_id.is_(None),
             Voucher.deleted_at.is_(None),
         ]
@@ -2263,8 +2299,17 @@ general_discount=general_discount,
         base_conditions = [
             Voucher.business_id == business_id,
             Voucher.voucher_type == VoucherType.RECEIPT,
-            Voucher.is_current_account.is_(True),
-            Voucher.billing_client_id == billing_client_id,
+            or_(
+                Voucher.is_current_account.is_(True),
+                Voucher.billing_client_id.is_not(None),
+            ),
+            or_(
+                Voucher.billing_client_id == billing_client_id,
+                and_(
+                    Voucher.billing_client_id.is_(None),
+                    Voucher.client_id == billing_client_id,
+                ),
+            ),
             Voucher.invoiced_voucher_id.is_(None),
             Voucher.deleted_at.is_(None),
         ]

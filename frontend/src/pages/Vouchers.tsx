@@ -2,8 +2,8 @@
  * Página de Comprobantes.
  * Visualiza cotizaciones, remitos y facturas generadas.
  */
-import { useState, useEffect, useRef } from 'react'
-import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle, RotateCcw, FileMinus, ExternalLink, Pencil, Menu, Info, CircleDollarSign, CalendarDays, X } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { FileText, Truck, Receipt, Search, Eye, Download, Trash2, AlertTriangle, RotateCcw, FileMinus, ExternalLink, Pencil, Menu, Info, CircleDollarSign, CalendarDays, X, ClipboardList } from 'lucide-react'
 import gsap from 'gsap'
 import { Button, Table, Pagination, Select, Modal, Input, ResponsiveTable } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -18,6 +18,7 @@ import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { useAuthStore } from '../stores/authStore'
 import { hasModuleAccess } from '../utils/acl'
+import ClientSelectorModal, { type ClientSelectorClient } from '../components/shared/ClientSelectorModal'
 
 type VoucherListItem = Voucher
 
@@ -73,6 +74,30 @@ const statusLabels: Record<string, { label: string; className: string }> = {
 }
 
 const isInvoiceVoucher = (voucher: VoucherListItem): boolean => voucher.voucher_type?.startsWith('invoice_')
+
+const isCurrentAccountReceipt = (voucher: VoucherListItem): boolean =>
+  voucher.voucher_type === 'receipt' &&
+  !voucher.is_current_account_closure &&
+  (voucher.is_current_account === true || !!voucher.billing_client_id)
+
+const isCurrentAccountClosureVoucher = (voucher: VoucherListItem): boolean =>
+  voucher.voucher_type === 'quotation' && !!voucher.is_current_account_closure
+
+const getVoucherTypeInfo = (voucher: VoucherListItem) => {
+  if (isCurrentAccountClosureVoucher(voucher)) {
+    return {
+      label: 'Resumen Cta Cte',
+      textClass: 'text-violet-600 dark:text-violet-400',
+      icon: ClipboardList,
+    }
+  }
+
+  return voucherTypeLabels[voucher.voucher_type] || {
+    label: voucher.voucher_type,
+    textClass: 'text-gray-600 dark:text-gray-400',
+    icon: FileText,
+  }
+}
 
 const parseLocalDate = (value?: string | null): Date | null => {
   if (!value) return null
@@ -140,7 +165,7 @@ const priceStrategyOptions: Array<{ value: PriceStrategy; label: string; help: s
   {
     value: 'current',
     label: 'Actualizar a precios vigentes',
-    help: 'Usa precio de venta + IVA actuales del producto.',
+    help: 'Usa el precio vigente final del producto.',
   },
 ]
 
@@ -179,6 +204,7 @@ export default function Vouchers() {
   const [compileGeneralDiscount, setCompileGeneralDiscount] = useState<string>('0')
   const [compilePaymentError, setCompilePaymentError] = useState<string>('')
   const [compileFiscalClientId, setCompileFiscalClientId] = useState<string>('')
+  const [compileSelectedFiscalClient, setCompileSelectedFiscalClient] = useState<ClientSelectorClient | null>(null)
   const [compilePriceStrategy, setCompilePriceStrategy] = useState<PriceStrategy>('historical')
   const [compilePreviewTotals, setCompilePreviewTotals] = useState<{
     subtotal: number
@@ -197,6 +223,7 @@ export default function Vouchers() {
   const [payError, setPayError] = useState('')
   const [compilePayInCurrentAccount, setCompilePayInCurrentAccount] = useState(false)
   const [compileCurrentAccountDays, setCompileCurrentAccountDays] = useState(30)
+  const [showFiscalClientModal, setShowFiscalClientModal] = useState(false)
   const hasActiveFilters = Boolean(
     search ||
     filterType ||
@@ -293,6 +320,7 @@ export default function Vouchers() {
           selectedQuotationIds,
           Number(compileGeneralDiscount) || 0,
           compilePriceStrategy,
+          compileFiscalClientId || undefined,
         )
         setCompilePreviewTotals({
           subtotal: preview.subtotal,
@@ -319,7 +347,7 @@ export default function Vouchers() {
     }
 
     fetchPreview()
-  }, [showCompileModal, selectedQuotationIds, compilePriceStrategy, compileGeneralDiscount, vouchersData])
+  }, [showCompileModal, selectedQuotationIds, compilePriceStrategy, compileGeneralDiscount, compileFiscalClientId, vouchersData])
 
   const {
     data: clientsData,
@@ -338,6 +366,36 @@ export default function Vouchers() {
   )
   const allClients = Array.isArray(clientsData?.items) ? clientsData.items : []
   const paymentMethods = usePaymentMethods(false).data || []
+
+  // Build compile client options (fiscal client selector)
+  const compileClientOptions = useMemo(() => {
+    const options = new Map<string, { id: string; name: string; document_number: string; document_type: string; tax_condition: string }>()
+    allClients.forEach((client: any) => {
+      if (client?.id) {
+        options.set(client.id, client)
+      }
+    })
+    const selectedVouchers = (vouchersData?.items || []).filter(
+      (v) => selectedQuotationIds.includes(v.id),
+    )
+    selectedVouchers.forEach((voucher: any) => {
+      const fallbackClientId = voucher.client?.id || voucher.client_id
+      if (fallbackClientId) {
+        options.set(fallbackClientId, {
+          id: fallbackClientId,
+          name: voucher.client?.name || `Cliente #${(voucher.client_id || '').substring(0, 8)}...`,
+          document_number: voucher.client?.document_number || '',
+          document_type: voucher.client?.document_type || '',
+          tax_condition: voucher.client?.tax_condition || '',
+        })
+      }
+    })
+    return Array.from(options.values())
+  }, [allClients, vouchersData?.items, selectedQuotationIds])
+
+  const selectedFiscalClient = compileSelectedFiscalClient || compileClientOptions.find(
+    (client) => client.id === compileFiscalClientId,
+  )
   const sourceParentInvoiceIds = new Set(
     vouchers
       .filter(
@@ -377,7 +435,7 @@ export default function Vouchers() {
   }
 
   const hasCompiledSources = (voucher: VoucherListItem) => {
-    return isCompiledInvoice(voucher)
+    return isCompiledInvoice(voucher) || isCurrentAccountClosureVoucher(voucher)
   }
 
   // Query para cotizaciones origen de una factura expandida
@@ -430,6 +488,7 @@ export default function Vouchers() {
       setCompileGeneralDiscount('0')
       setCompilePaymentError('')
       setCompileFiscalClientId('')
+      setCompileSelectedFiscalClient(null)
       setCompilePriceStrategy('historical')
       setCompilePayInCurrentAccount(false)
       setCompileCurrentAccountDays(30)
@@ -619,9 +678,25 @@ export default function Vouchers() {
     navigate('/sales')
   }
 
+  const handleGoToCurrentAccount = (voucher: VoucherListItem) => {
+    const billingClientId = voucher.billing_client_id || voucher.client_id
+
+    if (!billingClientId) {
+      toast.error('No se pudo identificar el titular de la Cuenta Corriente')
+      return
+    }
+
+    const params = new URLSearchParams({
+      billing_client_id: billingClientId,
+      receipt_id: voucher.id,
+      receipt_status: voucher.invoiced_voucher_id ? 'closed' : 'pending',
+    })
+
+    navigate(`/current-account?${params.toString()}`)
+  }
+
   const getExpandedSourceRows = (invoice: VoucherListItem): VoucherListItem[] => {
-    const isExpandedInvoice =
-      invoice.voucher_type?.startsWith('invoice_') && expandedInvoiceId === invoice.id
+    const isExpandedInvoice = hasCompiledSources(invoice) && expandedInvoiceId === invoice.id
 
     if (!isExpandedInvoice || !sourceQuotations || sourceQuotations.length === 0) {
       return []
@@ -650,7 +725,7 @@ export default function Vouchers() {
         has_credit_note: false,
         items: [],
         deleted_at: null,
-        is_current_account: false,
+        is_current_account: sq.voucher_type === 'receipt' && isCurrentAccountClosureVoucher(invoice),
         is_current_account_closure: false,
         billing_client: null,
         operating_client: null,
@@ -665,8 +740,7 @@ export default function Vouchers() {
     parentNode: any,
     renderChildNode: (child: VoucherListItem) => any,
   ) => {
-    const isExpandedInvoice =
-      item.voucher_type?.startsWith('invoice_') && expandedInvoiceId === item.id
+    const isExpandedInvoice = hasCompiledSources(item) && expandedInvoiceId === item.id
 
     if (!isExpandedInvoice) {
       return <>{parentNode}</>
@@ -717,9 +791,10 @@ export default function Vouchers() {
             (() => {
               const selectableIds = vouchers
                 .filter(
-                  (v) =>
-                    (v.voucher_type === 'quotation' || v.voucher_type === 'receipt') &&
-                    !v.invoiced_voucher_id,
+                    (v) =>
+                      (v.voucher_type === 'quotation' || v.voucher_type === 'receipt') &&
+                    !isCurrentAccountReceipt(v) &&
+                     !v.invoiced_voucher_id,
                 )
                 .map((v) => v.id)
               return (
@@ -732,9 +807,10 @@ export default function Vouchers() {
             if (e.target.checked) {
               const selectables = vouchers
                 .filter(
-                  (v) =>
-                    (v.voucher_type === 'quotation' || v.voucher_type === 'receipt') &&
-                    !v.invoiced_voucher_id,
+                    (v) =>
+                      (v.voucher_type === 'quotation' || v.voucher_type === 'receipt') &&
+                    !isCurrentAccountReceipt(v) &&
+                     !v.invoiced_voucher_id,
                 )
                 .map((v) => v.id)
               setSelectedQuotationIds(selectables)
@@ -748,6 +824,7 @@ export default function Vouchers() {
       render: (item: VoucherListItem) => {
         const isSelectable =
           (item.voucher_type === 'quotation' || item.voucher_type === 'receipt') &&
+          !isCurrentAccountReceipt(item) &&
           !item.invoiced_voucher_id &&
           !item.is_return_receipt
         if (!isSelectable) return null
@@ -771,9 +848,9 @@ export default function Vouchers() {
       key: 'type',
       header: 'Tipo',
        render: (item: VoucherListItem) => {
-        const typeInfo = item.is_return_receipt
+          const typeInfo = item.is_return_receipt
           ? { label: 'Remito de devolución', textClass: 'text-red-600 dark:text-red-400', icon: RotateCcw }
-          : voucherTypeLabels[item.voucher_type] || { label: item.voucher_type, textClass: 'text-gray-600 dark:text-gray-400', icon: FileText }
+          : getVoucherTypeInfo(item)
         const Icon = typeInfo.icon
         const isInvoiced = (item.voucher_type === 'quotation' || item.voucher_type === 'receipt') && item.invoiced_voucher_id && !item.is_return_receipt
         const isCCClosure = !!item.is_current_account_closure
@@ -793,6 +870,14 @@ export default function Vouchers() {
                 className="inline-flex items-center justify-center w-5 h-5 rounded-full shadow-sm border border-red-300 bg-gradient-to-br from-red-200 to-red-100 text-red-700 dark:from-red-900/40 dark:to-red-800 dark:border-red-700 dark:text-red-300 text-[10px] font-bold leading-none shrink-0"
               >
                 D
+              </span>
+            )}
+            {item.voucher_type === 'receipt' && (item.is_current_account || item.billing_client_id) && !item.is_current_account_closure && (
+              <span
+                title="Cuenta Corriente"
+                className="inline-flex items-center px-1.5 h-5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700 text-[9px] font-bold leading-none shrink-0"
+              >
+                Cta Cte
               </span>
             )}
             {isInvoiced && (
@@ -1041,7 +1126,7 @@ export default function Vouchers() {
           <div className="mx-auto flex w-[128px] -translate-x-px flex-nowrap items-center justify-center gap-1 overflow-x-auto whitespace-nowrap">
             {!isDeleted && (
               <>
-                {item.voucher_type === 'quotation' && !item.invoiced_voucher_id && (
+                {item.voucher_type === 'quotation' && !item.invoiced_voucher_id && !item.is_current_account_closure && (
                   <button
                     onClick={(e) => { animateButton(e); handleEditQuotation(item) }}
                     className="p-1 text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded transition-colors"
@@ -1080,6 +1165,16 @@ export default function Vouchers() {
                     title="Cobrar factura y generar remito de pago"
                   >
                     <CircleDollarSign size={14} />
+                  </button>
+                )}
+
+                {currentAccountEnabled && isCurrentAccountReceipt(item) && (
+                  <button
+                    onClick={(e) => { animateButton(e); handleGoToCurrentAccount(item) }}
+                    className="p-1 text-gray-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30 rounded transition-colors"
+                    title="Ir a Cuenta Corriente"
+                  >
+                    <ExternalLink size={14} />
                   </button>
                 )}
                 
@@ -1444,7 +1539,10 @@ export default function Vouchers() {
               const selectedVouchers = (vouchersData?.items || []).filter((voucher) =>
                 selectedQuotationIds.includes(voucher.id),
               )
-              setCompileFiscalClientId(selectedVouchers[0]?.client?.id || selectedVouchers[0]?.client_id || '')
+              const sourceClientId = selectedVouchers[0]?.client?.id || selectedVouchers[0]?.client_id || ''
+              const sourceClient = compileClientOptions.find((client) => client.id === sourceClientId)
+              setCompileFiscalClientId(sourceClientId)
+              setCompileSelectedFiscalClient(sourceClient || null)
               setShowCompileModal(true)
             }}
             variant="primary"
@@ -1480,7 +1578,7 @@ export default function Vouchers() {
           renderCard={(voucher, _idx) => {
             const isDeleted = !!voucher.deleted_at
             // Selectable: quotation or receipt not yet invoiced
-            const isSelectable = (voucher.voucher_type === 'quotation' || voucher.voucher_type === 'receipt') && !voucher.invoiced_voucher_id && !voucher.is_return_receipt
+            const isSelectable = (voucher.voucher_type === 'quotation' || voucher.voucher_type === 'receipt') && !isCurrentAccountReceipt(voucher) && !voucher.invoiced_voucher_id && !voucher.is_return_receipt
             const typeLabels: Record<string, { label: string; color: string }> = {
               quotation: { label: 'Cotización', color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/30' },
               receipt: { label: 'Remito', color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30' },
@@ -1490,6 +1588,8 @@ export default function Vouchers() {
             }
             const typeInfo = voucher.is_return_receipt
               ? { label: 'Remito de devolución', color: 'text-red-700 bg-red-50 dark:text-red-300 dark:bg-red-900/30' }
+              : isCurrentAccountClosureVoucher(voucher)
+                ? { label: 'Resumen Cta Cte', color: 'text-violet-700 bg-violet-50 dark:text-violet-300 dark:bg-violet-900/30' }
               : typeLabels[voucher.voucher_type] || { label: voucher.voucher_type, color: 'text-gray-600 bg-gray-50 dark:bg-gray-700' }
             // Usar labels consistentes con desktop
             const statusRaw = statusLabels[voucher.status] || { label: voucher.status, className: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' }
@@ -1526,6 +1626,14 @@ export default function Vouchers() {
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full ${typeInfo.color}`}>
                       {typeInfo.label}
                     </span>
+                    {voucher.voucher_type === 'receipt' && (voucher.is_current_account || voucher.billing_client_id) && !voucher.is_current_account_closure && (
+                      <span
+                        title="Cuenta Corriente"
+                        className="inline-flex items-center px-1.5 h-5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700 text-[9px] font-bold leading-none shrink-0"
+                      >
+                        Cta Cte
+                      </span>
+                    )}
                     {isDeleted && (
                       <span className="text-xs font-bold text-red-600">ELIMINADO</span>
                     )}
@@ -1585,9 +1693,20 @@ export default function Vouchers() {
                           <CircleDollarSign size={16} />
                         </button>
                       )}
-                      <button onClick={(e) => { animateButton(e); setExpandedInvoiceId(expandedInvoiceId === voucher.id ? null : voucher.id) }} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg" title="Ver vinculados">
-                        <Menu size={16} />
-                      </button>
+                      {currentAccountEnabled && isCurrentAccountReceipt(voucher) && (
+                        <button
+                          onClick={(e) => { animateButton(e); handleGoToCurrentAccount(voucher) }}
+                          className="p-2 text-gray-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30 rounded-lg"
+                          title="Ir a Cuenta Corriente"
+                        >
+                          <ExternalLink size={16} />
+                        </button>
+                      )}
+                      {hasCompiledSources(voucher) && (
+                        <button onClick={(e) => { animateButton(e); setExpandedInvoiceId(expandedInvoiceId === voucher.id ? null : voucher.id) }} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg" title="Ver comprobantes vinculados">
+                          <Menu size={16} />
+                        </button>
+                      )}
                       <button onClick={(e) => { 
                         animateButton(e)
                         if (!voucher.is_current_account_closure && !voucher.is_receipt_linked_to_current_account_closure) {
@@ -1602,7 +1721,7 @@ export default function Vouchers() {
                 </div>
                 
                 {/* Expanded child rows - show linked quotations/remitos */}
-                {expandedInvoiceId === voucher.id && voucher.voucher_type?.startsWith('invoice_') && (
+                {expandedInvoiceId === voucher.id && hasCompiledSources(voucher) && (
                   <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
                     <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Comprobantes vinculados:</div>
                     {isSourceQuotationsFetching ? (
@@ -1858,6 +1977,7 @@ export default function Vouchers() {
           setCompileGeneralDiscount('0')
           setCompilePaymentError('')
           setCompileFiscalClientId('')
+          setCompileSelectedFiscalClient(null)
           setCompilePriceStrategy('historical')
           setCompilePayInCurrentAccount(false)
           setCompileCurrentAccountDays(30)
@@ -1901,34 +2021,6 @@ export default function Vouchers() {
                       ? previewTotal
                       : 0
 
-                    const compileClientOptions = (() => {
-                      const options = new Map<string, { id: string; name: string; document_number?: string; tax_condition?: string }>()
-
-                      allClients.forEach((client: any) => {
-                        if (client?.id) {
-                          options.set(client.id, client)
-                        }
-                      })
-
-                      selectedVouchers.forEach((voucher) => {
-                        const fallbackClientId = voucher.client?.id || voucher.client_id
-                        if (fallbackClientId) {
-                          options.set(fallbackClientId, {
-                            id: fallbackClientId,
-                            name: voucher.client?.name || `Cliente #${voucher.client_id.substring(0, 8)}...`,
-                            document_number: voucher.client?.document_number,
-                            tax_condition: voucher.client?.tax_condition,
-                          })
-                        }
-                      })
-
-                      return Array.from(options.values())
-                    })()
-
-                    const selectedFiscalClient = compileClientOptions.find(
-                      (client) => client.id === compileFiscalClientId,
-                    )
-
                     return (
                       <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                         <div className="space-y-3">
@@ -1949,22 +2041,20 @@ export default function Vouchers() {
                             <label className="block text-xs font-semibold text-blue-900 dark:text-blue-200 mb-1.5">
                               Cliente a facturar (titular fiscal)
                             </label>
-                            <select
-                              value={compileFiscalClientId}
-                              onChange={(e) => {
-                                setCompileFiscalClientId(e.target.value)
-                                setCompilePaymentError('')
-                              }}
+                            <button
+                              type="button"
+                              onClick={() => setShowFiscalClientModal(true)}
                               disabled={isClientsLoading || compileClientOptions.length === 0}
-                              className="h-10 w-full rounded-lg border border-blue-300 bg-white px-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-70 dark:border-blue-700 dark:bg-gray-900 dark:text-gray-100"
+                              className="h-10 w-full rounded-lg border border-blue-300 bg-white px-3 text-sm text-left text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-70 dark:border-blue-700 dark:bg-gray-900 dark:text-gray-100"
                             >
-                              <option value="">{isClientsLoading ? 'Cargando clientes...' : 'Seleccionar cliente fiscal'}</option>
-                              {compileClientOptions.map((client: any) => (
-                                <option key={client.id} value={client.id}>
-                                  {client.name} · {client.document_number}
-                                </option>
-                              ))}
-                            </select>
+                              {compileFiscalClientId && selectedFiscalClient ? (
+                                <span>{selectedFiscalClient.name} · {selectedFiscalClient.document_number}</span>
+                              ) : isClientsLoading ? (
+                                <span className="text-gray-400">Cargando clientes...</span>
+                              ) : (
+                                <span className="text-gray-400">Seleccionar cliente fiscal</span>
+                              )}
+                            </button>
                             <p className="mt-1.5 text-[11px] text-blue-700 dark:text-blue-300">
                               Diferenciá titular fiscal final vs cliente de
                               los comprobantes.
@@ -2406,6 +2496,21 @@ export default function Vouchers() {
           )
         })()}
       </Modal>
+
+      {/* Modal selector de cliente fiscal */}
+      <ClientSelectorModal
+        isOpen={showFiscalClientModal}
+        onClose={() => setShowFiscalClientModal(false)}
+        clients={compileClientOptions}
+        searchClients={clientsService.search}
+        onSelect={(client) => {
+          setCompileFiscalClientId(client.id)
+          setCompileSelectedFiscalClient(client)
+          setCompilePaymentError('')
+          setShowFiscalClientModal(false)
+        }}
+        title="Seleccionar cliente a facturar"
+      />
     </div>
   )
 }

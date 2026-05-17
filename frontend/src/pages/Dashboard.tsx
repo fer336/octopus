@@ -17,6 +17,7 @@ import {
   Receipt,
   Landmark,
   PiggyBank,
+  FileCheck,
 } from 'lucide-react'
 import {
   PieChart,
@@ -293,7 +294,7 @@ export default function Dashboard() {
       </div>
 
       {/* ═══ Cards secundarias ═══ */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
           {
             title: 'Facturas Cobradas',
@@ -318,6 +319,14 @@ export default function Dashboard() {
             icon: Landmark,
             bg: 'bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400',
             border: 'border-violet-200 dark:border-violet-800/40',
+          },
+          {
+            title: 'Ctas. Ctes. Cerradas',
+            value: formatCurrency(summary?.closed_current_accounts_total || 0),
+            subtitle: `${summary?.closed_current_accounts ?? 0} cierre${(summary?.closed_current_accounts ?? 0) !== 1 ? 's' : ''} en el período`,
+            icon: FileCheck,
+            bg: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400',
+            border: 'border-amber-200 dark:border-amber-800/40',
           },
           {
             title: 'Otros Ingresos',

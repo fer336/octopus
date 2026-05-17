@@ -283,7 +283,7 @@ const priceStrategyOptions: Array<{ value: PriceStrategy; label: string; help: s
   {
     value: 'current',
     label: 'Actualizar a precios vigentes',
-    help: 'Usa sale_price + IVA actuales del catálogo de productos.',
+    help: 'Usa el precio vigente final del catálogo de productos.',
   },
 ]
 
@@ -824,6 +824,9 @@ export default function Sales() {
         deleteDraftMutation.mutate(loadedDraftId)
         setLoadedDraftId(null)
       }
+
+      // Invalidar cache de Cuenta Corriente para que los remitos CC aparezcan sin recargar
+      void queryClient.invalidateQueries({ queryKey: ['current-account-receipts'] })
     },
     onError: (error: any) => {
       toast.error(formatErrorMessage(error))

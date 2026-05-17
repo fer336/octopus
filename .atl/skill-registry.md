@@ -1,8 +1,8 @@
 # Skill Registry
 
-**Generated**: 2026-05-14
-**Project**: OctopusTrack (octopus)
-**Source**: `~/.config/opencode/skills/` + `~/.agents/skills/`
+**Generated**: 2026-05-16
+**Project**: 18-OctopusTrack
+**Source**: `~/.config/opencode/skills/` + `~/.agents/skills/` + `~/.claude/skills/`
 
 ## Categories
 
@@ -13,7 +13,6 @@
 | **go-testing** | `~/.config/opencode/skills/go-testing` | Go tests, Bubbletea TUI testing, teatest, test coverage |
 | **n8n-workflow-patterns** | `~/.agents/skills/n8n-workflow-patterns` | Building n8n workflows, workflow architecture, webhook/API/database/AI/batch/scheduled automation |
 | **skill-creator** | `~/.config/opencode/skills/skill-creator` | Creating new AI skills, agent instructions, documenting patterns for AI |
-| **skill-registry** | `~/.config/opencode/skills/skill-registry` | Updating skill registry, scanning skills, "update skills" |
 | **find-skills** | `~/.agents/skills/find-skills` | Discovering skills, "how do I do X", extending capabilities |
 | **chained-pr** | `~/.config/opencode/skills/chained-pr` | PRs over 400 lines, stacked PRs, review slices, reviewer-load control |
 | **cognitive-doc-design** | `~/.config/opencode/skills/cognitive-doc-design` | Writing guides, READMEs, RFCs, onboarding, architecture, review-facing docs |
@@ -24,6 +23,7 @@
 | **branch-pr** | `~/.config/opencode/skills/branch-pr` | Creating pull requests, opening PRs, preparing changes for review |
 | **docx** | `~/.agents/skills/docx` | Word documents (.docx), reports, memos, letters, templates |
 | **markdown-to-epub-converter** | `~/.agents/skills/markdown-to-epub-converter` | Converting markdown to EPUB ebooks, Kindle format |
+| **customize-opencode** | `~/.config/opencode/skills/customize-opencode` | Editing opencode configuration, opencode.json, agents, skills, plugins, MCP |
 
 ### 🌐 Frontend & UI/UX
 
@@ -32,7 +32,7 @@
 | **frontend-design** | `~/.agents/skills/frontend-design` | Web components, pages, dashboards, React components, HTML/CSS layouts, UI design |
 | **design-md** | `~/.config/opencode/skills/design-md` | Analyzing Stitch projects, synthesizing design systems into DESIGN.md |
 | **product-tour** | `~/.config/opencode/skills/Product-tour` | Product tours, onboarding tours, guided walkthroughs, interactive tutorials, spotlight/highlight overlay |
-| **remotion-best-practices** | `~/.config/opencode/skills/remotion-best-practices` | Video creation in React, Remotion |
+| **remotion-best-practices** | `~/.agents/skills/remotion-best-practices` | Video creation in React, Remotion |
 
 ### ✨ Animation (GSAP)
 
@@ -72,29 +72,29 @@
 | **schema-markup** | `~/.agents/skills/schema-markup` | Schema markup, structured data, JSON-LD, rich snippets |
 | **content-strategy** | `~/.agents/skills/content-strategy` | Content planning, topic clusters, content ideas, blog strategy |
 | **copywriting** | `~/.agents/skills/copywriting` | Writing/rewriting marketing copy, landing pages, homepage, pricing pages |
-| **copy-editing** | `~/.agents/skills/copy-editing` | Editing/reviewing marketing copy, proofreading, copy feedback |
+| **copy-editing** | `~/.claude/skills/copy-editing` | Editing/reviewing marketing copy, proofreading, copy feedback |
 | **social-content** | `~/.agents/skills/social-content` | Social media content, LinkedIn posts, Twitter threads, content calendar |
 | **marketing-ideas** | `~/.agents/skills/marketing-ideas` | Marketing ideas, growth ideas, marketing strategies, promotion tactics |
-| **marketing-psychology** | `~/.agents/skills/marketing-psychology` | Psychological principles, mental models, behavioral science, persuasion |
+| **marketing-psychology** | `~/.claude/skills/marketing-psychology` | Psychological principles, mental models, behavioral science, persuasion |
 | **launch-strategy** | `~/.agents/skills/launch-strategy` | Product launches, feature announcements, go-to-market, beta launches |
 | **email-sequence** | `~/.agents/skills/email-sequence` | Email sequences, drip campaigns, nurture sequences, onboarding emails |
 | **paid-ads** | `~/.agents/skills/paid-ads` | PPC, Google Ads, Meta/Facebook/LinkedIn ads, ad copy, retargeting |
-| **referral-program** | `~/.agents/skills/referral-program` | Referral programs, affiliate programs, word-of-mouth, viral loops |
+| **referral-program** | `~/.claude/skills/referral-program` | Referral programs, affiliate programs, word-of-mouth, viral loops |
 | **pricing-strategy** | `~/.agents/skills/pricing-strategy` | Pricing decisions, tiers, packaging, freemium, free trial, monetization |
-| **product-marketing-context** | `~/.agents/skills/product-marketing-context` | Product marketing context, positioning, `.claude/product-marketing-context.md` |
+| **product-marketing-context** | `~/.claude/skills/product-marketing-context` | Product marketing context, positioning, `.claude/product-marketing-context.md` |
 
 ### 🧪 CRO (Conversion Rate Optimization)
 
 | Skill | Source | Triggers |
 |-------|--------|----------|
 | **page-cro** | `~/.agents/skills/page-cro` | Conversion optimization, CRO, landing pages, pricing pages, homepage |
-| **signup-flow-cro** | `~/.agents/skills/signup-flow-cro` | Signup optimization, registration flow, trial activation, account creation |
+| **signup-flow-cro** | `~/.claude/skills/signup-flow-cro` | Signup optimization, registration flow, trial activation, account creation |
 | **onboarding-cro** | `~/.agents/skills/onboarding-cro` | Post-signup onboarding, user activation, first-run experience, time-to-value |
 | **form-cro** | `~/.agents/skills/form-cro` | Form optimization (non-signup), lead capture, contact forms, demo requests |
 | **popup-cro** | `~/.agents/skills/popup-cro` | Popup/modal optimization, exit intent, overlays, banners |
 | **paywall-upgrade-cro** | `~/.agents/skills/paywall-upgrade-cro` | In-app paywalls, upgrade screens, feature gates, freemium conversion |
 | **free-tool-strategy** | `~/.agents/skills/free-tool-strategy` | Free tools for marketing, calculators, generators, lead gen tools |
-| **ab-test-setup** | `~/.agents/skills/ab-test-setup` | A/B tests, split tests, experiments, hypothesis testing |
+| **ab-test-setup** | `~/.claude/skills/ab-test-setup` | A/B tests, split tests, experiments, hypothesis testing |
 | **analytics-tracking** | `~/.agents/skills/analytics-tracking` | Analytics tracking, GA4, event tracking, UTM parameters, GTM |
 | **competitor-alternatives** | `~/.agents/skills/competitor-alternatives` | Competitor comparison pages, alternative pages, vs pages |
 
@@ -106,27 +106,21 @@
 |------|---------|
 | `PRD.md` | Source of truth — full product requirements document |
 | `AGENTS.md` | Agent roles, responsibilities, workflow, conventions |
-| `TASKS.md` | Task tracking with statuses (Pendiente/En progreso/Hecho/Bloqueado/Bug) |
 | `ruff.toml` | Python linter/formatter config (py312, line-length 100) |
 | `mypy.ini` | Python type checker config (py312, gradual typing) |
-| `frontend/.eslintrc.cjs` | Frontend lint config (TypeScript + React hooks) |
-| `frontend/tsconfig.json` | TypeScript config (strict, ES2020, paths @/) |
-| `frontend/vite.config.ts` | Vite config (React plugin, proxy, multi-entry) |
-| `frontend/tailwind.config.js` | TailwindCSS config |
+| `frontend/package.json` | Frontend deps & scripts |
 | `backend/requirements.txt` | Backend production deps |
 | `backend/requirements-dev.txt` | Backend dev deps (pytest, ruff, mypy) |
-| `frontend/package.json` | Frontend deps & scripts |
 | `.github/workflows/ci.yml` | CI workflow (ruff/mypy/pytest + eslint/tsc/vitest) |
 | `.github/workflows/system-deploy.yml` | System deploy workflow |
 | `.github/workflows/system-staging-deploy.yml` | Staging deploy workflow |
 | `.github/workflows/cms-deploy.yml` | CMS deploy workflow |
 | `.github/workflows/landing-deploy.yml` | Landing deploy workflow |
-| `.claude/settings.local.json` | Claude permissions config |
 | `docker-compose.yml` | Docker Compose config |
 | `backend/Dockerfile` | Backend Docker build |
-| `backend/Dockerfile.prod` | Backend production Docker build |
 | `frontend/Dockerfile` | Frontend Docker build |
-| `frontend/Dockerfile.prod` | Frontend production Docker build |
+| `frontend/vite.config.ts` | Vite config (React plugin, proxy, multi-entry) |
+| `frontend/tailwind.config.js` | TailwindCSS config |
 | `.env.example` | Environment variable template |
 
 ### Naming Conventions

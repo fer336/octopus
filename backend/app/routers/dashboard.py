@@ -46,6 +46,8 @@ class DashboardSummary(BaseSchema):
     current_account_collected: float  # Cobros de cuenta corriente en caja
     pending_customer_balance: float  # Saldo pendiente total de clientes
     other_income: float  # Ingresos manuales en caja
+    closed_current_accounts: int  # Cantidad de cierres de cuenta corriente
+    closed_current_accounts_total: float  # Monto total de cierres de cuenta corriente
     filter_month: int  # Mes filtrado (1-12)
     filter_year: int  # Año filtrado
 
@@ -218,6 +220,27 @@ async def get_dashboard_summary(
     )
     other_income = (await db.execute(other_income_query)).scalar() or 0.0
 
+    # Cierres de cuenta corriente: vouchers marcados como is_current_account_closure
+    closure_count_query = select(func.count(Voucher.id)).where(
+        Voucher.business_id == business_id,
+        Voucher.deleted_at.is_(None),
+        Voucher.is_current_account_closure == True,  # noqa: E712
+        Voucher.status == VoucherStatus.CONFIRMED,
+        extract("month", Voucher.date) == filter_month,
+        extract("year", Voucher.date) == filter_year,
+    )
+    closed_current_accounts = (await db.execute(closure_count_query)).scalar() or 0
+
+    closure_total_query = select(func.sum(Voucher.total)).where(
+        Voucher.business_id == business_id,
+        Voucher.deleted_at.is_(None),
+        Voucher.is_current_account_closure == True,  # noqa: E712
+        Voucher.status == VoucherStatus.CONFIRMED,
+        extract("month", Voucher.date) == filter_month,
+        extract("year", Voucher.date) == filter_year,
+    )
+    closed_current_accounts_total = (await db.execute(closure_total_query)).scalar() or 0.0
+
     pending_balance_query = select(
         func.sum(ClientAccount.debit - ClientAccount.credit)
     ).join(
@@ -243,6 +266,8 @@ async def get_dashboard_summary(
         current_account_collected=float(current_account_collected),
         pending_customer_balance=max(float(pending_customer_balance), 0.0),
         other_income=float(other_income),
+        closed_current_accounts=int(closed_current_accounts),
+        closed_current_accounts_total=float(closed_current_accounts_total),
         filter_month=filter_month,
         filter_year=filter_year,
     )

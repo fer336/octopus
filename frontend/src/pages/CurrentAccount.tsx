@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, ClipboardList, Eye, FileText, Filter, Plus, ShieldCheck, Trash2, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import clientsService from '../api/clientsService'
 import clientTypesService from '../api/clientTypesService'
@@ -26,6 +26,14 @@ const CURRENT_ACCOUNT_MODES = [
 export default function CurrentAccount() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const initialBillingClientId = searchParams.get('billing_client_id') || ''
+  const initialReceiptId = searchParams.get('receipt_id') || ''
+  const initialReceiptStatus = searchParams.get('receipt_status')
+  const initialReceiptStatusFilter: 'pending' | 'closed' | 'all' =
+    initialReceiptStatus === 'closed' || initialReceiptStatus === 'all'
+      ? initialReceiptStatus
+      : 'pending'
 
   const [billingClientId, setBillingClientId] = useState('')
   const [operatingClientId, setOperatingClientId] = useState('')
@@ -33,11 +41,13 @@ export default function CurrentAccount() {
   const [notes, setNotes] = useState('')
   const [editingAuth, setEditingAuth] = useState<ClientAuthorization | null>(null)
   const [authToDelete, setAuthToDelete] = useState<ClientAuthorization | null>(null)
-  const [closureBillingClientId, setClosureBillingClientId] = useState('')
+  const [closureBillingClientId, setClosureBillingClientId] = useState(initialBillingClientId)
   const [closureNotes, setClosureNotes] = useState('')
-  const [selectedReceiptIds, setSelectedReceiptIds] = useState<string[]>([])
+  const [selectedReceiptIds, setSelectedReceiptIds] = useState<string[]>(
+    initialReceiptId ? [initialReceiptId] : []
+  )
   const [receiptStatusFilter, setReceiptStatusFilter] = useState<'pending' | 'closed' | 'all'>(
-    'pending'
+    initialReceiptStatusFilter
   )
   const [receiptSearch, setReceiptSearch] = useState('')
   const [showDisabledBillingClients, setShowDisabledBillingClients] = useState(false)
@@ -84,10 +94,55 @@ export default function CurrentAccount() {
     retry: false,
   })
 
+  const { data: fallbackReceiptsData, isLoading: loadingFallbackReceipts } = useQuery({
+    queryKey: [
+      'current-account-receipts-fallback',
+      closureBillingClientId,
+      receiptStatusFilter,
+      receiptSearch.trim(),
+    ],
+    queryFn: () =>
+      vouchersService.getAll({
+        page: 1,
+        per_page: 300,
+        voucher_type: 'receipt',
+        search: receiptSearch.trim() || undefined,
+      }),
+    enabled: !!closureBillingClientId,
+    retry: false,
+  })
+
   const clients = clientsData?.items || []
   const clientTypes = clientTypesData || []
   const authorizations = authorizationsData?.items || []
   const currentAccountReceipts = currentAccountReceiptsData?.items || []
+  const fallbackCurrentAccountReceipts = useMemo(() => {
+    if (!closureBillingClientId || currentAccountReceipts.length > 0) {
+      return []
+    }
+
+    return (fallbackReceiptsData?.items || []).filter((voucher) => {
+      const belongsToSelectedClient =
+        voucher.billing_client_id === closureBillingClientId ||
+        (!voucher.billing_client_id && voucher.client_id === closureBillingClientId)
+      const isCurrentAccountReceipt =
+        voucher.voucher_type === 'receipt' &&
+        !voucher.is_current_account_closure &&
+        (voucher.is_current_account || !!voucher.billing_client_id)
+      const matchesStatus =
+        receiptStatusFilter === 'all' ||
+        (receiptStatusFilter === 'pending'
+          ? !voucher.invoiced_voucher_id
+          : !!voucher.invoiced_voucher_id)
+
+      return belongsToSelectedClient && isCurrentAccountReceipt && matchesStatus
+    })
+  }, [
+    closureBillingClientId,
+    currentAccountReceipts.length,
+    fallbackReceiptsData?.items,
+    receiptStatusFilter,
+  ])
 
   const clientsById = useMemo(() => {
     return new Map(clients.map((client) => [client.id, client]))
@@ -125,7 +180,19 @@ export default function CurrentAccount() {
     }
   }, [billingClients, billingClientId, closureBillingClientId])
 
-  const closureReceipts = useMemo(() => currentAccountReceipts, [currentAccountReceipts])
+  const closureReceipts = useMemo(
+    () =>
+      currentAccountReceipts.length > 0
+        ? currentAccountReceipts
+        : fallbackCurrentAccountReceipts,
+    [currentAccountReceipts, fallbackCurrentAccountReceipts]
+  )
+
+  const loadingClosureReceipts =
+    loadingPendingReceipts ||
+    (!!closureBillingClientId &&
+      currentAccountReceipts.length === 0 &&
+      loadingFallbackReceipts)
 
   const pendingReceiptIds = useMemo(
     () =>
@@ -140,6 +207,16 @@ export default function CurrentAccount() {
   useEffect(() => {
     setSelectedReceiptIds((prev) => prev.filter((id) => pendingReceiptIds.has(id)))
   }, [pendingReceiptIds])
+
+  useEffect(() => {
+    if (!initialReceiptId || !pendingReceiptIds.has(initialReceiptId)) {
+      return
+    }
+
+    setSelectedReceiptIds((prev) =>
+      prev.includes(initialReceiptId) ? prev : [...prev, initialReceiptId]
+    )
+  }, [initialReceiptId, pendingReceiptIds])
 
   const typeById = useMemo(() => {
     return new Map(clientTypes.map((item) => [item.id, item]))
@@ -964,19 +1041,21 @@ export default function CurrentAccount() {
         
         {/* Mobile cards */}
         <div className="lg:hidden space-y-2">
-          {loadingPendingReceipts && (
+          {loadingClosureReceipts && (
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
               Cargando remitos...
             </div>
           )}
           
-          {!loadingPendingReceipts && closureReceipts.length === 0 && (
+          {!loadingClosureReceipts && closureReceipts.length === 0 && (
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-              No hay remitos de Cuenta Corriente pendientes para este titular.
+              {closureBillingClientId
+                ? 'No hay remitos de Cuenta Corriente pendientes para este titular.'
+                : 'Seleccioná un cliente titular para ver sus remitos de Cuenta Corriente'}
             </div>
           )}
           
-          {!loadingPendingReceipts && closureReceipts.map((voucher) => {
+          {!loadingClosureReceipts && closureReceipts.map((voucher) => {
             const isLocked = !!voucher.invoiced_voucher_id
             const isAuthorized = !!voucher.is_withdrawal_authorized
             const isSelected = selectedReceiptIds.includes(voucher.id)
@@ -1060,7 +1139,7 @@ export default function CurrentAccount() {
               </tr>
             </thead>
             <tbody>
-              {loadingPendingReceipts && (
+              {loadingClosureReceipts && (
                 <tr>
                   <td colSpan={7} className="px-3 py-4 text-center text-gray-500 dark:text-gray-400">
                     Cargando remitos pendientes...
@@ -1068,21 +1147,24 @@ export default function CurrentAccount() {
                 </tr>
               )}
 
-              {!loadingPendingReceipts && closureReceipts.length === 0 && (
+              {!loadingClosureReceipts && closureReceipts.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-3 py-4 text-center text-gray-500 dark:text-gray-400">
-                    No hay remitos de Cuenta Corriente pendientes para este titular.
+                    {closureBillingClientId
+                      ? 'No hay remitos de Cuenta Corriente pendientes para este titular.'
+                      : 'Seleccioná un cliente titular para ver sus remitos de Cuenta Corriente'}
                   </td>
                 </tr>
               )}
 
-              {!loadingPendingReceipts &&
+              {!loadingClosureReceipts &&
                 closureReceipts.map((voucher) => {
                   const isLocked = !!voucher.invoiced_voucher_id
                   // Mostrar el titular (billing client)
                   const titularName =
                     voucher.billing_client?.name ||
                     clientsById.get(voucher.billing_client_id || '')?.name ||
+                    clientsById.get(voucher.client_id || '')?.name ||
                     '—'
                   const isAuthorized = !!voucher.is_withdrawal_authorized
                   const isReturnReceipt = voucher.is_return_receipt

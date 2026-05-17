@@ -17,6 +17,8 @@ export interface DashboardSummary {
   current_account_collected: number
   pending_customer_balance: number
   other_income: number
+  closed_current_accounts: number
+  closed_current_accounts_total: number
   filter_month: number
   filter_year: number
 }
