@@ -3,7 +3,7 @@
  * Permite crear cotizaciones, remitos y facturas.
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings, MoreVertical, Archive } from 'lucide-react'
+import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings, MoreVertical, Archive, ScanLine } from 'lucide-react'
 import { Button, Modal, Select, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import productsService from '../api/productsService'
@@ -25,6 +25,7 @@ import { useAuthStore } from '../stores/authStore'
 import { hasModuleAccess } from '../utils/acl'
 import { TAX_CONDITIONS, getTaxConditionLabel } from '../types'
 import { isMobile } from '../utils/device'
+import QrScanner from '../components/sales/QrScanner'
 
 type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'current_account' | 'acopio'
 type SalesMenuMode = VoucherType
@@ -376,6 +377,7 @@ export default function Sales() {
     priceCheck: any
   } | null>(null)
   const [items, setItems] = useState<CartItem[]>([])
+  const [showQrScanner, setShowQrScanner] = useState(false)
   const [mobileSection, setMobileSection] = useState<MobileSalesSection>('items')
   const [mobileProductPage, setMobileProductPage] = useState(0)
   const [showMobileVoucherMenu, setShowMobileVoucherMenu] = useState(false)
@@ -1387,6 +1389,19 @@ export default function Sales() {
       // Desbloquear eventos después de que todo se haya procesado
       blockKeyboardEventsRef.current = false
     }, 150)
+  }
+
+  const addScannedProduct = (product: Product, quantity: number) => {
+    setItems((prev) => {
+      const existing = prev.find((i) => i.id === product.id)
+      if (existing) {
+        return prev.map((i) =>
+          i.id === product.id ? { ...i, quantity: i.quantity + quantity } : i,
+        )
+      }
+      return [...prev, { ...product, product_id: product.id, quantity, discount: 0 }]
+    })
+    toast.success(`${product.description} ×${quantity} agregado`)
   }
 
   const removeItem = (id: string) => {
@@ -3256,15 +3271,25 @@ export default function Sales() {
           <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white py-2 px-4 pb-24 dark:border-gray-700 dark:bg-gray-800">
             {/* Configurar ahora se integra en barra inferior dinámica */}
 
-            <div className="mt-1 flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
-              <Search size={14} className="text-gray-400" />
-              <input
-                type="text"
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                placeholder="Buscar producto por código o nombre..."
-                className="w-full bg-transparent text-sm text-gray-800 outline-none dark:text-gray-100"
-              />
+            <div className="mt-1 flex items-center gap-2">
+              <div className="flex flex-1 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
+                <Search size={14} className="text-gray-400" />
+                <input
+                  type="text"
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  placeholder="Buscar producto por código o nombre..."
+                  className="w-full bg-transparent text-sm text-gray-800 outline-none dark:text-gray-100"
+                />
+              </div>
+              <button
+                onClick={() => setShowQrScanner(true)}
+                className="flex shrink-0 items-center gap-1 rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 dark:border-violet-700 dark:bg-violet-900/20 dark:text-violet-300"
+                title="Escanear QR"
+              >
+                <ScanLine size={16} />
+                QR
+              </button>
             </div>
 
             <div className="rounded-md bg-green-100 px-2 py-1 text-[11px] text-green-700 dark:bg-green-900/30 dark:text-green-300">
@@ -5911,6 +5936,13 @@ export default function Sales() {
           )}
         </div>
       </Modal>
+
+      {showQrScanner && (
+        <QrScanner
+          onAddProduct={addScannedProduct}
+          onClose={() => setShowQrScanner(false)}
+        />
+      )}
     </div>
   )
 }
