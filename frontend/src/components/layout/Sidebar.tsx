@@ -156,7 +156,7 @@ export default function Sidebar({
         <button
           type="button"
           aria-label="Cerrar menú"
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-30 bg-black/50 hidden md:block lg:hidden"
           onClick={onCloseMobile}
         />
       )}
@@ -164,8 +164,9 @@ export default function Sidebar({
       <aside
         className={clsx(
           'bg-[var(--color-brand-black)] text-white flex flex-col border-r border-[#2b2340]',
-          'fixed inset-y-0 left-0 z-40 h-screen w-64 transform transition-transform duration-300 lg:static lg:z-auto lg:translate-x-0 lg:h-screen lg:flex-shrink-0',
-          isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+          'hidden md:flex md:flex-col',
+          'md:fixed md:inset-y-0 md:left-0 md:z-40 md:h-screen md:w-64 md:transform md:transition-transform md:duration-300 lg:static lg:z-auto lg:translate-x-0 lg:h-screen lg:flex-shrink-0',
+          isMobileOpen ? 'md:translate-x-0' : 'md:-translate-x-full lg:translate-x-0',
           !isMobileOpen && isCollapsed && 'lg:w-16',
           !isCollapsed ? 'lg:w-60' : ''
         )}

@@ -62,10 +62,10 @@ export default function Header({
         <div className="flex items-center gap-3">
           <button
             onClick={onMenuClick}
-            className="p-1.5 text-primary-700 hover:text-primary-900 dark:text-primary-300 dark:hover:text-primary-100 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors"
+            className="hidden md:flex p-1.5 text-primary-700 hover:text-primary-900 dark:text-primary-300 dark:hover:text-primary-100 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors"
             aria-label={isMobileSidebarOpen || isSidebarCollapsed ? 'Expandir menú' : 'Colapsar menú'}
           >
-            <span className="lg:hidden">
+            <span className="md:block lg:hidden">
               <Menu size={20} />
             </span>
             <span className="hidden lg:inline">
