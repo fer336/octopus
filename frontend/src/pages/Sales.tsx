@@ -2615,7 +2615,7 @@ export default function Sales() {
   const mobileSteps: Array<{ key: MobileSalesSection; label: string }> = [
     { key: 'items', label: 'Cliente' },
     { key: 'products', label: 'Productos' },
-    { key: 'summary', label: 'Resumen' },
+    { key: 'summary', label: items.length > 0 ? `Resumen (${items.length})` : 'Resumen' },
   ]
 
   const mobileStepIndex = mobileSteps.findIndex((step) => step.key === mobileSection)
@@ -5951,7 +5951,10 @@ export default function Sales() {
       {showQrScanner && (
         <QrScanner
           onAddProduct={addScannedProduct}
-          onClose={() => setShowQrScanner(false)}
+          onClose={() => {
+            setShowQrScanner(false)
+            if (items.length > 0) setMobileSection('summary')
+          }}
         />
       )}
     </div>
