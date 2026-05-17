@@ -25,6 +25,7 @@ const Clients    = lazy(() => import('./pages/Clients'))
 const Suppliers  = lazy(() => import('./pages/Suppliers'))
 const Categories = lazy(() => import('./pages/Categories'))
 const Vouchers   = lazy(() => import('./pages/Vouchers'))
+const CurrentAccount = lazy(() => import('./pages/CurrentAccount'))
 const PaymentMethods = lazy(() => import('./pages/PaymentMethods'))
 const Reports    = lazy(() => import('./pages/Reports'))
 const Settings   = lazy(() => import('./pages/Settings'))
@@ -152,6 +153,9 @@ export default function App() {
               } />
               <Route path="caja" element={
                 <Suspense fallback={<PageLoader />}><Cash /></Suspense>
+              } />
+              <Route path="current-account" element={
+                <Suspense fallback={<PageLoader />}><CurrentAccount /></Suspense>
               } />
               <Route path="inventory" element={
                 <Suspense fallback={<PageLoader />}><Inventory /></Suspense>

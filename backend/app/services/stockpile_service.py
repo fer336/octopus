@@ -30,7 +30,7 @@ class StockpileService:
     async def _generate_stockpile_number(self, business_id: UUID) -> str:
         """
         Genera el siguiente número de acopio para el negocio.
-        Formato: ACOPIO-0001, ACOPIO-0002, etc.
+        Formato: AC-0001, AC-0002, etc.
         Se basa en el máximo número existente + 1 para evitar duplicados.
         Includes uniqueness check in a loop to handle race conditions.
         """
@@ -56,7 +56,7 @@ class StockpileService:
             else:
                 count = 1
             
-            candidate = f"ACOPIO-{count:04d}"
+            candidate = f"AC-{count:04d}"
             
             # Verify this candidate doesn't exist
             check = await self.db.execute(
@@ -75,7 +75,7 @@ class StockpileService:
             # The transaction ensures uniqueness across concurrent requests - need to re-fetch max
         
         # Fallback: use UUID if cannot find unique number after attempts
-        return f"ACOPIO-{uuid4().hex[:8].upper()}"
+        return f"AC-{uuid4().hex[:8].upper()}"
 
     async def _create_principal_receipt(
         self,
@@ -291,7 +291,7 @@ class StockpileService:
             if not billing_client or billing_client.business_id != business_id:
                 raise ValueError("Cliente de facturación no encontrado para este negocio")
 
-        # Generar número de acopio (ACOPIO-0001, etc.)
+        # Generar número de acopio (AC-0001, etc.)
         stockpile_number = await self._generate_stockpile_number(business_id)
 
         stockpile = Stockpile(

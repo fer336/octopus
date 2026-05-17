@@ -12,6 +12,7 @@ import { useAuthStore } from '../../stores/authStore'
 import businessService from '../../api/businessService'
 import Sidebar from './Sidebar'
 import Header from './Header'
+import MobileNav from './MobileNav'
 import AIAssistantPanel from '../ai/AIAssistantPanel'
 import Button from '../ui/Button'
 import { getActiveNavigationItem, navigationItems } from './navigationItems'
@@ -83,6 +84,7 @@ export default function MainLayout() {
   }, [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, location.pathname, navigate, user])
 
   const toggleSidebar = () => {
+    if (window.innerWidth < 768) return // mobile: MobileNav handles navigation
     if (window.innerWidth < 1024) {
       setMobileSidebarOpen((prev) => !prev)
       return
@@ -150,10 +152,23 @@ export default function MainLayout() {
           }`}
         >
           <Outlet />
+          {/* Spacer so the mobile tab bar never covers the bottom of any page */}
+          <div className="h-[54px] md:hidden" aria-hidden="true" />
         </main>
       </div>
 
       {aiEnabled && <AIAssistantPanel />}
+
+      {/* Mobile bottom navigation — only rendered/visible on < 768px */}
+      <div className="md:hidden">
+        <MobileNav
+          currentAccountMode={business?.current_account_mode}
+          priceUpdateEnabled={priceUpdateEnabled}
+          reportsEnabled={reportsEnabled}
+          inventoryEnabled={inventoryEnabled}
+          stockpileEnabled={stockpileEnabled}
+        />
+      </div>
     </div>
   )
 }

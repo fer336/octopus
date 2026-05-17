@@ -2,6 +2,7 @@
 Schemas para Productos.
 """
 
+from datetime import date
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -54,9 +55,10 @@ class ProductCreate(BaseSchema):
 
     iva_rate: Decimal = Field(default=Decimal("21.00"), description="Alícuota IVA")
 
-    current_stock: int = Field(default=0, ge=0)
+    current_stock: int = Field(default=0, ge=0, description="Stock inicial (crea lote si > 0)")
     minimum_stock: int = Field(default=0, ge=0)
     unit: str = Field(default="unidad", max_length=20)
+    units_per_pack: int | None = Field(None, ge=1, description="Cantidad por pack")
 
 
 class ProductUpdate(BaseSchema):
@@ -94,9 +96,9 @@ class ProductUpdate(BaseSchema):
 
     iva_rate: Decimal | None = None
 
-    current_stock: int | None = Field(None, ge=0)
     minimum_stock: int | None = Field(None, ge=0)
     unit: str | None = Field(None, max_length=20)
+    units_per_pack: int | None = Field(None, ge=1, description="Cantidad por pack")
 
     is_active: bool | None = None
 
@@ -105,6 +107,11 @@ class ProductBulkUpdateItem(ProductUpdate):
     """Producto dentro de una actualización en lote."""
 
     id: UUID
+    current_stock: int | None = Field(
+        None,
+        ge=0,
+        description="Stock final deseado; ajusta lotes por diferencia si se envía",
+    )
 
 
 class ProductBulkUpdateRequest(BaseSchema):
@@ -149,8 +156,13 @@ class ProductResponse(BaseResponse):
     current_stock: int
     minimum_stock: int
     unit: str
+    units_per_pack: int | None
 
     is_active: bool
+
+    # Campos de lotes (reemplazan expiration_date del producto)
+    next_expiration: date | None = None
+    lots_count: int = 0
 
 
 class ProductBulkUpdateResponse(BaseSchema):
@@ -159,6 +171,36 @@ class ProductBulkUpdateResponse(BaseSchema):
     updated_count: int
     not_found_ids: list[UUID] = Field(default_factory=list)
     products: list[ProductResponse]
+
+
+class StockDeltaItem(BaseSchema):
+    """Ítem individual para ajuste de stock por delta."""
+
+    product_id: UUID
+    delta: int = Field(..., description="Cantidad a sumar (positivo) o restar (negativo)")
+    reason: str | None = Field(None, max_length=200, description="Motivo del ajuste")
+
+
+class StockDeltaRequest(BaseSchema):
+    """Request para ajuste masivo de stock por delta."""
+
+    items: list[StockDeltaItem] = Field(..., min_length=1, max_length=500)
+
+
+class StockDeltaResult(BaseSchema):
+    """Resultado individual de un ajuste delta."""
+
+    product_id: UUID
+    success: bool
+    error: str | None = None
+
+
+class StockDeltaResponse(BaseSchema):
+    """Respuesta del ajuste masivo de stock por delta."""
+
+    results: list[StockDeltaResult]
+    total_success: int
+    total_failures: int
 
 
 class ProductListParams(BaseSchema):

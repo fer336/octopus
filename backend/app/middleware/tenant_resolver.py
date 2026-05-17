@@ -48,8 +48,8 @@ async def resolve_tenant_from_host(request: Request) -> str | None:
     En producción con subdominios reales, parsear host → tenant_slug.
     """
     host = request.headers.get("host", "")
-    # Ejemplo futuro: "mi-negocio.octopus.qeva.xyz" → "mi-negocio"
-    if "octopus.qeva.xyz" in host and "adminoctopus" not in host:
+    # Ejemplo futuro: "mi-negocio.octopustrack.shop" → "mi-negocio"
+    if "octopustrack.shop" in host and "adminoctopus" not in host:
         parts = host.split(".")
         if len(parts) > 2 and parts[0] not in ("www", "octopus"):
             return parts[0]

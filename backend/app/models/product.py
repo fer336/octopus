@@ -3,6 +3,7 @@ Modelo de Producto.
 Incluye precios, bonificaciones, stock y cálculo automático de precio final.
 """
 
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, Numeric, String, Text
@@ -88,11 +89,11 @@ class Product(BaseModel):
     iva_rate = Column(Numeric(5, 2), default=21.00, nullable=False)  # 10.5, 21, 27, 0
 
     # Stock
-    current_stock = Column(Integer, default=0, nullable=False)
     minimum_stock = Column(Integer, default=0, nullable=False)  # Alerta de stock bajo
     unit = Column(
         String(20), default="unidad", nullable=False
-    )  # unidad, metro, kg, litro
+    )  # unidad, metro, kg, litro, pack
+    units_per_pack = Column(Integer, nullable=True)  # Cantidad por pack
 
     is_active = Column(Boolean, default=True, nullable=False)
 
@@ -103,6 +104,26 @@ class Product(BaseModel):
     price_history = relationship(
         "PriceHistory", back_populates="product", lazy="dynamic"
     )
+    lots = relationship(
+        "ProductLot",
+        primaryjoin="and_(ProductLot.product_id == Product.id, ProductLot.deleted_at.is_(None))",
+        back_populates="product",
+    )
+
+    @property
+    def current_stock(self) -> int:
+        """Retorna el stock actual sumando la cantidad de todos los lotes activos."""
+        return sum(lot.quantity for lot in self.lots if not lot.deleted_at)
+
+    @property
+    def next_expiration(self) -> date | None:
+        """Retorna la fecha de vencimiento más próxima entre los lotes con stock > 0."""
+        dates = [
+            lot.expiration_date
+            for lot in self.lots
+            if not lot.deleted_at and lot.expiration_date and lot.quantity > 0
+        ]
+        return min(dates) if dates else None
 
     def calculate_prices(self) -> None:
         """

@@ -4,6 +4,8 @@ Maneja el login con Google OAuth y la gestión de tokens JWT.
 """
 
 
+import logging
+
 import httpx
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
@@ -20,6 +22,7 @@ from app.utils.security import (
 )
 
 settings = get_settings()
+logger = logging.getLogger("uvicorn")
 
 
 class AuthService:
@@ -122,9 +125,7 @@ class AuthService:
                 )
 
                 if token_response.status_code != 200:
-                    import logging
-
-                    logging.getLogger("uvicorn").error(
+                    logger.error(
                         f"[Auth] Google token exchange falló: {token_response.status_code} — {token_response.text}"
                     )
                     return None
@@ -133,6 +134,9 @@ class AuthService:
                 id_token_str = token_data.get("id_token")
 
                 if not id_token_str:
+                    logger.error(
+                        f"[Auth] Google token exchange sin id_token. Payload: {token_data}"
+                    )
                     return None
 
                 # Verificar y decodificar el ID token
@@ -149,7 +153,11 @@ class AuthService:
                     "picture": idinfo.get("picture", ""),
                 }
         except Exception as e:
-            print(f"Error exchanging code for token: {e}")
+            logger.exception(
+                "[Auth] Exception en exchange_code_for_token. "
+                f"redirect_uri={settings.GOOGLE_REDIRECT_URI}, "
+                f"client_id_prefix={settings.GOOGLE_CLIENT_ID[:16]}..., error={e}"
+            )
             return None
 
     async def login_with_google_code(self, code: str) -> dict | None:

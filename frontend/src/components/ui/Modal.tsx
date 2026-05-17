@@ -6,6 +6,7 @@ import { ReactNode, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { clsx } from 'clsx'
+import { isMobile } from '../../utils/device'
 
 interface ModalProps {
   isOpen: boolean
@@ -53,6 +54,17 @@ export default function Modal({
     }
   }, [isOpen, onClose])
 
+  // Prevent keyboard from opening on mobile when a modal mounts with an autoFocus input
+  useEffect(() => {
+    if (!isOpen || !isMobile()) return
+    const t = setTimeout(() => {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur()
+      }
+    }, 0)
+    return () => clearTimeout(t)
+  }, [isOpen])
+
   if (!isOpen) return null
 
   const sizes = {
@@ -66,7 +78,7 @@ export default function Modal({
   if (typeof document === 'undefined') return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 overflow-y-auto animate-fadeIn">
+    <div className="fixed inset-0 bottom-[54px] md:bottom-0 z-[80] overflow-y-auto animate-fadeIn">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/20 dark:bg-black/40 transition-opacity"

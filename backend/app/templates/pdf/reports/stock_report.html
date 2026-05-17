@@ -8,11 +8,15 @@
     h1 { margin: 0; font-size: 18px; color: #1d4ed8; }
     .meta { margin: 4px 0 10px 0; color: #4b5563; }
     .summary { margin: 12px 0; padding: 10px; background: #eff6ff; border: 1px solid #bfdbfe; }
+    .summary .stagnant { color: #dc2626; font-weight: bold; }
     table { width: 100%; border-collapse: collapse; }
     th, td { border: 1px solid #d1d5db; padding: 6px; }
-    th { background: #1d4ed8; color: white; text-align: left; }
+    th { background: #1d4ed8; color: white; text-align: left; font-size: 10px; }
     td.right { text-align: right; }
+    td.center { text-align: center; }
     .low-stock { background: #fef3c7; }
+    .stagnant { background: #fef2f2; }
+    .stagnant td { color: #991b1b; }
   </style>
 </head>
 <body>
@@ -24,6 +28,7 @@
   <div class="summary">
     Ítems: <strong>{{ summary.total_items }}</strong> ·
     Stock bajo: <strong>{{ summary.low_stock_items }}</strong> ·
+    Sin ventas +90d: <strong class="stagnant">{{ summary.stagnant_items }}</strong> ·
     Unidades: <strong>{{ summary.total_stock_units }}</strong> ·
     Valor stock: <strong>${{ "%.2f"|format(summary.total_stock_value) }}</strong>
   </div>
@@ -32,19 +37,21 @@
     <thead>
       <tr>
         <th>Código</th>
-        <th>Cód. Proveedor</th>
+        <th>Cód. Prov.</th>
         <th>Descripción</th>
         <th>Categoría</th>
         <th>Proveedor</th>
         <th>Stock</th>
-        <th>Mínimo</th>
-        <th>Precio Venta</th>
+        <th>Mín.</th>
+        <th>Precio Vta</th>
         <th>Valor Stock</th>
+        <th>Últ. Venta</th>
+        <th>Días</th>
       </tr>
     </thead>
     <tbody>
       {% for row in rows %}
-      <tr class="{% if row.is_low_stock %}low-stock{% endif %}">
+      <tr class="{% if row.is_low_stock %}low-stock{% endif %}{% if row.days_without_sale and row.days_without_sale > 90 %} stagnant{% endif %}">
         <td>{{ row.code }}</td>
         <td>{{ row.supplier_code }}</td>
         <td>{{ row.description }}</td>
@@ -54,6 +61,8 @@
         <td class="right">{{ row.minimum_stock }}</td>
         <td class="right">${{ "%.2f"|format(row.sale_price) }}</td>
         <td class="right">${{ "%.2f"|format(row.stock_value) }}</td>
+        <td class="center">{{ row.last_sale_date }}</td>
+        <td class="right">{% if row.days_without_sale %}{{ row.days_without_sale }}{% else %}—{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>

@@ -244,6 +244,107 @@ class PdfService:
             traceback.print_exc()
             raise
 
+    def generate_inventory_count_excel(
+        self,
+        business,
+        products: list,
+        supplier_name: str = "",
+        category_name: str = "",
+    ) -> bytes:
+        """Genera la planilla de conteo físico en Excel (.xlsx) con openpyxl."""
+        from io import BytesIO
+        from datetime import date as date_type
+
+        import openpyxl
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+        from openpyxl.utils import get_column_letter
+
+        HEADER_BG = "92400E"
+        HEADER_FG = "FFFFFF"
+        TITLE_BG = "FEF3C7"
+        ALT_ROW_BG = "FFFBEB"
+
+        columns = [
+            ("Código", 16),
+            ("Descripción", 42),
+            ("Categoría", 22),
+            ("Proveedor", 22),
+            ("Stock Sistema", 14),
+            ("Conteo Físico", 14),
+            ("A Pedir", 12),
+        ]
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Conteo de Inventario"
+
+        # ── Fila de título ──────────────────────────────────────────────────
+        num_cols = len(columns)
+        ws.merge_cells(f"A1:{get_column_letter(num_cols)}1")
+        title_cell = ws["A1"]
+        business_label = business.name if business else "Negocio"
+        filter_parts = []
+        if supplier_name:
+            filter_parts.append(f"Proveedor: {supplier_name}")
+        if category_name:
+            filter_parts.append(f"Categoría: {category_name}")
+        filter_str = " | ".join(filter_parts)
+        today_str = date_type.today().strftime("%d/%m/%Y")
+        title_text = f"{business_label} — Planilla de Conteo — {today_str}"
+        if filter_str:
+            title_text += f"\n{filter_str}"
+        title_cell.value = title_text
+        title_cell.font = Font(bold=True, size=12, color="78350F")
+        title_cell.fill = PatternFill("solid", fgColor=TITLE_BG)
+        title_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        ws.row_dimensions[1].height = 40 if filter_str else 26
+
+        # ── Fila de encabezados ─────────────────────────────────────────────
+        HEADER_ROW = 2
+        for col_idx, (header, width) in enumerate(columns, 1):
+            cell = ws.cell(row=HEADER_ROW, column=col_idx)
+            cell.value = header
+            cell.font = Font(bold=True, color=HEADER_FG, size=10)
+            cell.fill = PatternFill("solid", fgColor=HEADER_BG)
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            right_border = Side(style="thin", color="B45309") if col_idx < num_cols else Side()
+            cell.border = Border(
+                bottom=Side(style="medium", color="451A03"),
+                right=right_border,
+            )
+            ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+        # ── Filas de datos ──────────────────────────────────────────────────
+        for row_idx, p in enumerate(products, 1):
+            excel_row = HEADER_ROW + row_idx
+            row_bg = ALT_ROW_BG if row_idx % 2 == 0 else "FFFFFF"
+            row_data = [
+                p.code or "",
+                p.description or "",
+                p.category.name if p.category else "",
+                p.supplier.name if p.supplier else "",
+                p.current_stock,
+                "",
+                "",
+            ]
+            for col_idx, value in enumerate(row_data, 1):
+                cell = ws.cell(row=excel_row, column=col_idx)
+                cell.value = value
+                cell.fill = PatternFill("solid", fgColor=row_bg)
+                h_align = "right" if col_idx == 5 else "left"
+                cell.alignment = Alignment(horizontal=h_align, vertical="center")
+                cell.border = Border(bottom=Side(style="thin", color="FDE68A"))
+            ws.row_dimensions[excel_row].height = 18
+
+        # ── Freeze + autofilter ─────────────────────────────────────────────
+        ws.freeze_panes = "A3"
+        ws.auto_filter.ref = f"A{HEADER_ROW}:{get_column_letter(num_cols)}{HEADER_ROW}"
+
+        buf = BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return buf.read()
+
     def generate_closure_pdf(self, context: dict[str, Any]) -> bytes:
         """Genera PDF compacto de cierre de cuenta corriente."""
         try:

@@ -64,7 +64,7 @@ class Stockpile(BaseModel):
     # Nombre/Obra
     name = Column(String(255), nullable=False)
 
-    # Número de acopio (generado automáticamente: ACOPIO-0001)
+    # Número de acopio (generado automáticamente: AC-0001)
     stockpile_number = Column(String(20), nullable=True, index=True)
 
     # Descripción editable (para acopios por monto, puede indicar obra/especificación)

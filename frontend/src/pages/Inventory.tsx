@@ -3,11 +3,12 @@
  * Permite generar planillas de conteo físico, cargar el conteo real
  * y crear órdenes de pedido a proveedores con cálculo de costos.
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   ClipboardList,
   FileDown,
   Plus,
+  Upload,
   Eye,
   Trash2,
   CheckCircle,
@@ -25,7 +26,7 @@ import purchaseOrdersService, {
   PurchaseOrderListItem,
   PurchaseOrderStatus,
 } from '../api/purchaseOrdersService'
-import { Button, ConfirmModal } from '../components/ui'
+import { Button, ConfirmModal, Modal } from '../components/ui'
 import NewPurchaseOrderModal from '../components/inventory/NewPurchaseOrderModal'
 import PurchaseOrderDetailModal from '../components/inventory/PurchaseOrderDetailModal'
 
@@ -79,6 +80,15 @@ export default function Inventory() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [orderToDelete, setOrderToDelete] = useState<string | null>(null)
   const [editingDraft, setEditingDraft] = useState<PurchaseOrder | null>(null)
+
+  // Import Excel
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importSupplier, setImportSupplier] = useState('')
+  const [importCategory, setImportCategory] = useState('')
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [isImporting, setIsImporting] = useState(false)
+  const [importSkipped, setImportSkipped] = useState<string[]>([])
+  const importFileRef = useRef<HTMLInputElement>(null)
 
   // Queries
   const { data: categoriesData } = useQuery({
@@ -157,6 +167,35 @@ export default function Inventory() {
     }
   }
 
+  const handleImportExcel = async () => {
+    if (!importFile) return
+    if (!importSupplier && !importCategory) {
+      toast.error('Seleccioná al menos un proveedor o categoría')
+      return
+    }
+    setIsImporting(true)
+    try {
+      const result = await purchaseOrdersService.importCountSheetExcel(
+        importFile,
+        importSupplier || undefined,
+        importCategory || undefined,
+      )
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+      setImportSkipped(result.skipped_codes)
+      if (result.skipped_codes.length === 0) {
+        toast.success(`Orden ${result.order_number} creada con ${result.imported_count} productos`)
+        setShowImportModal(false)
+        setImportFile(null)
+        setImportSupplier('')
+        setImportCategory('')
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || 'Error al importar la planilla')
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   const orders = ordersData?.items ?? []
   // categoriesService retorna array directo; suppliersService retorna paginado
   const categories: Category[] = categoriesData ?? []
@@ -171,9 +210,14 @@ export default function Inventory() {
           <ClipboardList className="w-5 h-5 text-primary-600" />
           <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Inventario</span>
         </div>
-        <Button size="sm" onClick={() => setShowNewOrderModal(true)} data-tour-inventory-new-order>
-          <Plus className="w-3.5 h-3.5 mr-1" />Nueva
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowImportModal(true)} title="Importar planilla Excel">
+            <Upload className="w-3.5 h-3.5 mr-1" />Importar
+          </Button>
+          <Button size="sm" onClick={() => setShowNewOrderModal(true)} data-tour-inventory-new-order>
+            <Plus className="w-3.5 h-3.5 mr-1" />Nueva
+          </Button>
+        </div>
       </div>
 
       {/* Filtros compactos */}
@@ -482,6 +526,94 @@ export default function Inventory() {
         confirmText="Eliminar"
         isLoading={deleteMutation.isPending}
       />
+
+      {/* Modal: importar planilla Excel */}
+      <Modal
+        isOpen={showImportModal}
+        onClose={() => { setShowImportModal(false); setImportFile(null); setImportSkipped([]) }}
+        title="Importar planilla de conteo"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Seleccioná la planilla de conteo completada (.xlsx) y el proveedor o categoría correspondiente.
+            Se creará una orden en estado borrador con los datos del Excel.
+          </p>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Proveedor</label>
+            <select
+              value={importSupplier}
+              onChange={(e) => setImportSupplier(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
+            >
+              <option value="">— Seleccionar —</option>
+              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Categoría</label>
+            <select
+              value={importCategory}
+              onChange={(e) => setImportCategory(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
+            >
+              <option value="">— Seleccionar —</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Archivo Excel (.xlsx)
+            </label>
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".xlsx"
+              className="hidden"
+              onChange={(e) => { setImportFile(e.target.files?.[0] ?? null); setImportSkipped([]) }}
+            />
+            <button
+              type="button"
+              onClick={() => importFileRef.current?.click()}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-colors"
+            >
+              <Upload className="w-4 h-4" />
+              {importFile ? importFile.name : 'Seleccionar archivo'}
+            </button>
+          </div>
+
+          {importSkipped.length > 0 && (
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 p-3 text-xs">
+              <p className="font-semibold text-amber-800 dark:text-amber-300 mb-1">
+                Orden creada, pero {importSkipped.length} código{importSkipped.length > 1 ? 's' : ''} no {importSkipped.length > 1 ? 'fueron encontrados' : 'fue encontrado'}:
+              </p>
+              <p className="font-mono text-amber-700 dark:text-amber-400 break-all">{importSkipped.join(', ')}</p>
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={() => { setShowImportModal(false); setImportFile(null); setImportSkipped([]) }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              className="flex-1"
+              disabled={!importFile || (!importSupplier && !importCategory) || isImporting}
+              onClick={handleImportExcel}
+            >
+              {isImporting ? 'Importando...' : 'Importar'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

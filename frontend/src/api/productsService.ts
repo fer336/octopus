@@ -34,6 +34,9 @@ export interface Product {
   current_stock: number
   minimum_stock: number
   unit: string
+  units_per_pack?: number | null
+  next_expiration?: string | null
+  lots_count: number
   is_active: boolean
   created_at: string
   updated_at: string
@@ -60,8 +63,10 @@ export interface ProductCreate {
   profit_margin?: number
   iva_rate?: number
   current_stock?: number
+  expiration_date?: string | null
   minimum_stock?: number
   unit?: string
+  units_per_pack?: number | null
   cost_price?: number
 }
 
@@ -88,6 +93,7 @@ export interface ProductUpdate {
   current_stock?: number
   minimum_stock?: number
   unit?: string
+  units_per_pack?: number | null
   cost_price?: number
   is_active?: boolean
 }
@@ -129,6 +135,7 @@ export interface ProductImportRow {
   current_stock: number
   minimum_stock: number
   unit: string
+  units_per_pack?: number | null
   net_price?: number
   sale_price?: number
   discount_display?: string
@@ -151,10 +158,35 @@ export interface ImportConfirmRequest {
   rows: ProductImportRow[]
 }
 
+export interface ProductLot {
+  id: string
+  product_id: string
+  business_id: string
+  code: string | null
+  quantity: number
+  initial_quantity: number
+  expiration_date: string | null
+  cost_price: number | null
+  received_date: string
+  created_at: string
+  updated_at: string
+}
+
 export interface ImportConfirmResponse {
   created: number
   updated: number
   errors: string[]
+}
+
+export interface SyncPriceFromLotResponse {
+  lot_id: string
+  reference_price: number
+  preview_list_price: number
+  preview_net_price: number
+  preview_sale_price: number
+  confirmed: boolean
+  price_history_id: string | null
+  message: string
 }
 
 export const productsService = {
@@ -302,6 +334,53 @@ export const productsService = {
   bulkDelete: async (): Promise<{ deleted_count: number; message: string }> => {
     // Usar POST en vez de DELETE para evitar problemas
     const response = await httpClient.post('/products/bulk-delete-alt')
+    return response.data
+  },
+
+  // ── Lotes ─────────────────────────────────────────────────────
+
+  /**
+   * Obtiene la lista de lotes de un producto.
+   */
+  getLots: async (productId: string): Promise<ProductLot[]> => {
+    const response = await httpClient.get(`/products/${productId}/lots`)
+    return response.data
+  },
+
+  /**
+   * Crea un nuevo lote (ingreso de stock) para un producto.
+   */
+  createLot: async (
+    productId: string,
+    data: {
+      quantity: number
+      expiration_date?: string | null
+      cost_price?: number | null
+      code?: string | null
+      received_date?: string | null
+    },
+  ): Promise<ProductLot> => {
+    const response = await httpClient.post(`/products/${productId}/lots`, data)
+    return response.data
+  },
+
+  /**
+   * Sincroniza el precio de lista del producto desde el costo de un lote.
+   * Si confirm=false, devuelve preview sin persistir.
+   * Si confirm=true, actualiza el precio y crea PriceHistory.
+   */
+  syncPriceFromLot: async (
+    productId: string,
+    data: {
+      lot_id: string
+      reference_price?: number | null
+      confirm?: boolean
+    },
+  ): Promise<SyncPriceFromLotResponse> => {
+    const response = await httpClient.post(
+      `/products/${productId}/sync-price-from-lot`,
+      data,
+    )
     return response.data
   },
 }

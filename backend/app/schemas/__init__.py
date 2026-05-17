@@ -11,6 +11,7 @@ from app.schemas.category import (
 )
 from app.schemas.client import ClientCreate, ClientListParams, ClientResponse, ClientUpdate
 from app.schemas.product import ProductCreate, ProductListParams, ProductResponse, ProductUpdate
+from app.schemas.product_lot import ProductLotCreate, ProductLotResponse, ProductLotUpdate
 from app.schemas.supplier import (
     SupplierCreate,
     SupplierListParams,
@@ -39,6 +40,10 @@ __all__ = [
     "SupplierUpdate",
     "SupplierResponse",
     "SupplierListParams",
+    # Product Lot
+    "ProductLotCreate",
+    "ProductLotUpdate",
+    "ProductLotResponse",
     # Category
     "CategoryCreate",
     "CategoryUpdate",

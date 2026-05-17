@@ -5,7 +5,7 @@ Endpoints para control de inventario físico y gestión de órdenes a proveedore
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,7 @@ from app.models.purchase_order import PurchaseOrderStatus
 from app.schemas.base import MessageResponse, PaginatedResponse
 from app.schemas.purchase_order import (
     PurchaseOrderCreate,
+    PurchaseOrderImportResponse,
     PurchaseOrderListItem,
     PurchaseOrderResponse,
     PurchaseOrderUpdate,
@@ -103,6 +104,133 @@ async def download_inventory_count_pdf(
         iter([pdf_bytes]),
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Planilla de conteo (Excel)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/inventory-count/excel")
+async def download_inventory_count_excel(
+    supplier_id: UUID | None = Query(None, description="Filtrar por proveedor"),
+    category_id: UUID | None = Query(None, description="Filtrar por categoría"),
+    db: AsyncSession = Depends(get_db),
+    current_business=Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """
+    Genera y descarga la planilla de conteo físico en Excel (.xlsx).
+    Requiere al menos un filtro: supplier_id o category_id.
+    """
+    if not supplier_id and not category_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debe especificar al menos un proveedor o una categoría",
+        )
+
+    service = PurchaseOrderService(db)
+    products = await service.get_products_for_count_sheet(
+        business_id=current_business,
+        supplier_id=supplier_id,
+        category_id=category_id,
+    )
+
+    if not products:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No se encontraron productos activos con los filtros indicados",
+        )
+
+    business = await db.get(Business, current_business)
+
+    supplier_name = ""
+    category_name = ""
+    if products:
+        first = products[0]
+        if first.supplier:
+            supplier_name = first.supplier.name
+        if first.category:
+            category_name = first.category.name
+
+    excel_bytes = pdf_service.generate_inventory_count_excel(
+        business=business,
+        products=products,
+        supplier_name=supplier_name,
+        category_name=category_name,
+    )
+
+    suffix = ""
+    if supplier_name:
+        suffix += f"_{supplier_name[:15].replace(' ', '_')}"
+    if category_name:
+        suffix += f"_{category_name[:15].replace(' ', '_')}"
+    from datetime import date
+
+    filename = f"planilla_conteo{suffix}_{date.today().strftime('%Y_%m_%d')}.xlsx"
+
+    return StreamingResponse(
+        iter([excel_bytes]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Importar planilla de conteo (Excel → Orden)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/inventory-count/import-excel",
+    response_model=PurchaseOrderImportResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_inventory_count_excel(
+    file: UploadFile = File(..., description="Planilla de conteo (.xlsx)"),
+    supplier_id: UUID | None = Form(None, description="Proveedor de la orden"),
+    category_id: UUID | None = Form(None, description="Categoría de la orden"),
+    db: AsyncSession = Depends(get_db),
+    current_business=Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """
+    Importa una planilla de conteo (.xlsx) y crea una orden de pedido en estado DRAFT.
+    Requiere al menos supplier_id o category_id para asociar la orden.
+    Filas con códigos de producto no encontrados son ignoradas (skipped_codes).
+    """
+    if not supplier_id and not category_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debe especificar al menos un proveedor o una categoría",
+        )
+
+    if not file.filename or not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El archivo debe ser un Excel (.xlsx)",
+        )
+
+    file_bytes = await file.read()
+    service = PurchaseOrderService(db)
+
+    try:
+        order, skipped_codes = await service.import_from_excel(
+            business_id=current_business,
+            user_id=current_user.id,
+            file_bytes=file_bytes,
+            supplier_id=supplier_id,
+            category_id=category_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    return PurchaseOrderImportResponse(
+        order_id=order.id,
+        order_number=f"{order.sale_point}-{order.number}",
+        imported_count=len(order.items),
+        skipped_codes=skipped_codes,
     )
 
 

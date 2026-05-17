@@ -110,6 +110,9 @@ class Business(BaseModel):
     stockpiles = relationship(
         "Stockpile", back_populates="business", cascade="all, delete-orphan", lazy="dynamic"
     )
+    product_lots = relationship(
+        "ProductLot", back_populates="business", cascade="all, delete-orphan", lazy="dynamic"
+    )
 
     def __repr__(self) -> str:
         return f"<Business {self.name}>"

@@ -24,6 +24,7 @@ import { useSalesStore } from '../stores/salesStore'
 import { useAuthStore } from '../stores/authStore'
 import { hasModuleAccess } from '../utils/acl'
 import { TAX_CONDITIONS, getTaxConditionLabel } from '../types'
+import { isMobile } from '../utils/device'
 
 type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'current_account' | 'acopio'
 type SalesMenuMode = VoucherType
@@ -283,7 +284,7 @@ const priceStrategyOptions: Array<{ value: PriceStrategy; label: string; help: s
   {
     value: 'current',
     label: 'Actualizar a precios vigentes',
-    help: 'Usa sale_price + IVA actuales del catálogo de productos.',
+    help: 'Usa el precio vigente final del catálogo de productos.',
   },
 ]
 
@@ -376,6 +377,7 @@ export default function Sales() {
   } | null>(null)
   const [items, setItems] = useState<CartItem[]>([])
   const [mobileSection, setMobileSection] = useState<MobileSalesSection>('items')
+  const [mobileProductPage, setMobileProductPage] = useState(0)
   const [showMobileVoucherMenu, setShowMobileVoucherMenu] = useState(false)
   const [selectedProductIndex, setSelectedProductIndex] = useState(0)
   const productListRef = useRef<HTMLDivElement>(null)
@@ -824,6 +826,9 @@ export default function Sales() {
         deleteDraftMutation.mutate(loadedDraftId)
         setLoadedDraftId(null)
       }
+
+      // Invalidar cache de Cuenta Corriente para que los remitos CC aparezcan sin recargar
+      void queryClient.invalidateQueries({ queryKey: ['current-account-receipts'] })
     },
     onError: (error: any) => {
       toast.error(formatErrorMessage(error))
@@ -1252,9 +1257,10 @@ export default function Sales() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [filteredProducts, selectedProductIndex, showQuantityModal, showClientModal, showDraftsModal, tempSelectedProducts])
 
-  // Reset selected index cuando cambia la búsqueda
+  // Reset selected index y página mobile cuando cambia la búsqueda
   useEffect(() => {
     setSelectedProductIndex(0)
+    setMobileProductPage(0)
   }, [productSearch])
 
   // Auto-scroll: cuando el índice seleccionado cambia por teclado,
@@ -1273,7 +1279,7 @@ export default function Sales() {
     if (showQuantityModal) {
       // Focus en el primer input (cantidad del primer producto)
       setTimeout(() => {
-        if (modalInputsRef.current[0]) {
+        if (!isMobile() && modalInputsRef.current[0]) {
           modalInputsRef.current[0].focus()
           modalInputsRef.current[0].select()
         }
@@ -1285,7 +1291,7 @@ export default function Sales() {
   }, [showQuantityModal])
 
   useEffect(() => {
-    if (showClientModal && clientNameInputRef.current) {
+    if (showClientModal && !isMobile() && clientNameInputRef.current) {
       clientNameInputRef.current.focus()
     }
   }, [showClientModal])
@@ -1375,7 +1381,7 @@ export default function Sales() {
     
     // 4. Focus y desbloquear eventos después de un delay (sin limpiar search)
     setTimeout(() => {
-      if (searchInputRef.current) {
+      if (!isMobile() && searchInputRef.current) {
         searchInputRef.current.focus()
       }
       // Desbloquear eventos después de que todo se haya procesado
@@ -2882,7 +2888,7 @@ export default function Sales() {
         <div data-tour-sales-save-draft />
         
         {mobileSection === 'items' && (
-          <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white py-2 px-4 dark:border-gray-700 dark:bg-gray-800">
+          <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white py-2 px-4 pb-24 dark:border-gray-700 dark:bg-gray-800">
             {/* Botones de acción: Nuevo cliente + Borradores */}
             <div className="mt-2 flex items-center gap-2">
               <button type="button" onClick={() => setShowClientModal(true)} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-1 py-1.5 text-[9px] font-medium text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
@@ -3247,7 +3253,7 @@ export default function Sales() {
         )}
 
         {mobileSection === 'products' && (
-          <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white py-2 px-4 dark:border-gray-700 dark:bg-gray-800">
+          <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white py-2 px-4 pb-24 dark:border-gray-700 dark:bg-gray-800">
             {/* Configurar ahora se integra en barra inferior dinámica */}
 
             <div className="mt-1 flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
@@ -3267,37 +3273,69 @@ export default function Sales() {
 
             <p className="text-[11px] font-semibold tracking-wide text-gray-500 dark:text-gray-400">RESULTADOS</p>
 
-            <div className="space-y-2">
-              {filteredProducts.slice(0, 30).map((product) => {
-                const isSelected = tempSelectedProducts.some((p) => p.id === product.id)
-                return (
-                  <button
-                    key={product.id}
-                    type="button"
-                    onClick={() => toggleProductInTemp(product)}
-                    className={`flex w-full items-center gap-2 rounded-lg border px-2 py-2 text-left ${
-                      isSelected
-                        ? 'border-primary-300 bg-primary-100 dark:border-primary-700 dark:bg-primary-900/30'
-                        : 'border-gray-200 bg-white dark:border-gray-600 dark:bg-gray-700'
-                    }`}
-                  >
-                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">{product.code}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold text-gray-800 dark:text-gray-100">{product.description}</p>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400">${formatNumber(product.sale_price)}</p>
+            {(() => {
+              const PAGE_SIZE = 50
+              const totalPages = Math.ceil(filteredProducts.length / PAGE_SIZE)
+              const paginated = filteredProducts.slice(mobileProductPage * PAGE_SIZE, (mobileProductPage + 1) * PAGE_SIZE)
+              return (
+                <>
+                  <div className="space-y-2">
+                    {paginated.map((product) => {
+                      const isSelected = tempSelectedProducts.some((p) => p.id === product.id)
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() => toggleProductInTemp(product)}
+                          className={`flex w-full items-center gap-2 rounded-lg border px-2 py-2 text-left ${
+                            isSelected
+                              ? 'border-primary-300 bg-primary-100 dark:border-primary-700 dark:bg-primary-900/30'
+                              : 'border-gray-200 bg-white dark:border-gray-600 dark:bg-gray-700'
+                          }`}
+                        >
+                          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">{product.code}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-semibold text-gray-800 dark:text-gray-100">{product.description}</p>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400">${formatNumber(product.sale_price)}</p>
+                          </div>
+                          <span className={`flex h-6 w-6 items-center justify-center rounded-md text-sm font-semibold ${isSelected ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-primary-600 text-white'}`}>
+                            {isSelected ? '✓' : '+'}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between border-t border-gray-200 pt-2 dark:border-gray-700">
+                      <button
+                        type="button"
+                        onClick={() => setMobileProductPage((p) => Math.max(p - 1, 0))}
+                        disabled={mobileProductPage === 0}
+                        className="rounded-lg border border-gray-300 px-3 py-1 text-[10px] font-medium text-gray-600 disabled:opacity-40 dark:border-gray-600 dark:text-gray-400"
+                      >
+                        ← Anterior
+                      </button>
+                      <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                        {mobileProductPage + 1} / {totalPages}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setMobileProductPage((p) => Math.min(p + 1, totalPages - 1))}
+                        disabled={mobileProductPage === totalPages - 1}
+                        className="rounded-lg border border-gray-300 px-3 py-1 text-[10px] font-medium text-gray-600 disabled:opacity-40 dark:border-gray-600 dark:text-gray-400"
+                      >
+                        Siguiente →
+                      </button>
                     </div>
-                    <span className={`flex h-6 w-6 items-center justify-center rounded-md text-sm font-semibold ${isSelected ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-primary-600 text-white'}`}>
-                      {isSelected ? '✓' : '+'}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
+                  )}
+                </>
+              )
+            })()}
           </div>
         )}
 
         {mobileSection === 'summary' && (
-          <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white py-2 px-4 dark:border-gray-700 dark:bg-gray-800">
+          <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white py-2 px-4 pb-24 dark:border-gray-700 dark:bg-gray-800">
             <p className="mt-1 text-[11px] font-semibold tracking-wide text-gray-500 dark:text-gray-400">PRODUCTOS SELECCIONADOS</p>
             <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-600 dark:bg-gray-700">
               {items.length === 0 ? (
@@ -3430,7 +3468,7 @@ export default function Sales() {
         )}
       </div>
 
-      <div className="mb-2 overflow-x-hidden rounded-lg border border-gray-200 bg-white px-3 py-1.5 dark:border-gray-700 dark:bg-gray-800 lg:hidden">
+      <div className="fixed bottom-[54px] left-1 right-1 z-[60] overflow-x-hidden rounded-lg border border-gray-200 bg-white px-3 py-1.5 shadow-lg dark:border-gray-700 dark:bg-gray-800 md:relative md:bottom-auto md:left-auto md:right-auto md:mb-2 md:shadow-none lg:hidden">
         <div className="flex items-center gap-1">
           {mobileSteps.map((step, index) => {
             const isActive = index === mobileStepIndex

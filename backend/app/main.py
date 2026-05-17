@@ -15,6 +15,7 @@ from app.routers import (
     ai,
     ai_config,
     arca,
+    audit_logs,
     auth,
     billing,
     business,
@@ -29,6 +30,7 @@ from app.routers import (
     payment_methods,
     pdf_test,
     price_update_drafts,
+    product_lots,
     products,
     purchase_orders,
     reports,
@@ -90,6 +92,8 @@ app.add_middleware(
 # Auth router se monta sin prefijo para coincidir con Google OAuth callback
 app.include_router(auth.router)
 app.include_router(products.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(product_lots.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(product_lots.lot_router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(clients.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(client_authorizations.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(client_types.router, prefix=settings.API_TENANT_PREFIX)
@@ -110,6 +114,7 @@ app.include_router(ai_config.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(feedback.tenant_router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(reports.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(stockpiles.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(audit_logs.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(admin.router)  # /api/admin/* (prefijo interno)
 app.include_router(feedback.admin_router)
 app.include_router(billing.router)

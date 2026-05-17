@@ -85,6 +85,16 @@
 
 
 ## 🟢 Hecho
+- [x] [SEO-SSR-CONTENT-01] Landing: agregar contenido HTML estático visible a crawlers dentro de `<div id="root">` — Hero, Excel Offer, Features, Plans, Footer — para que ChatGPT/Claude/Gemini/Googlebot lean el contenido sin ejecutar JS ✅ 2026-05-11
+- [x] [SEO-SSR-CONTENT-02] Landing: separar Structured Data en dos bloques SoftwareApplication (Sistema Web ERP + Cotizador Excel) con offers, precios y descripciones específicas ✅ 2026-05-11
+- [x] [SEO-SSR-03] Landing: mejorar title y meta description con keywords ("ERP para Ferreterías", "Gestión de Stock, Ventas y Facturación ARCA") ✅ 2026-05-11
+- [x] [SEO-SSR-04] Landing: agregar BreadcrumbList JSON-LD + `lang="es-AR"` + limpiar SearchAction inválido del WebSite schema ✅ 2026-05-11
+- [x] [LANDING-COPY-FINAL-POLISH-07] Pulir secciones finales de landing Next.js: CTA final, testimonios/placeholders y coherencia de precio/copy ✅ 2026-05-11
+- [x] [LANDING-FIX-LOGO-GIGANTE] 🐛 Corregir bug del menú hamburguesa: SVG del logo con width/height=2829px inline causaba logo gigante al re-renderizar, y el hamburguesa estaba siempre visible incluso en desktop ✅ 2026-05-10
+- [x] [LANDING-FIX-MANIFEST-404] Crear /manifest.json faltante (referenciado en layout.tsx pero inexistente en public/) ✅ 2026-05-10
+- [x] [NEXT-LANDING-03] Reemplazar carruseles por HeroCarousel con GSAP (Ken Burns + crossfade + responsive desktop/mobile 9:16) y CrossfadeCarousel para Excel ✅ 2026-05-10
+- [x] [NEXT-LANDING-02] Agregar sección Excel con carrusel mobile (swipe táctil + auto-play) en landing Next.js con MobileCarousel y ExcelSection components ✅ 2026-05-10
+- [x] [NEXT-LANDING-01] Migrar landing de Vite SPA a Next.js App Router con diseño Stitch (Hero, Pricing, FAQ+Footer, /acceder) ✅ 2026-05-10
 
 - [x] [CMS-FEATURE-DEPENDENCY-15] Acopio depende de Remitos: al activar Acopio se activa Remitos, y al desactivar Remitos se apaga Acopio ✅ 2026-05-09
 - [x] [CMS-FEATURE-DEPENDENCY-16] Cuenta Corriente depende de Remitos: al activar CC se activa Remitos, y al apagar Remitos se desactiva CC ✅ 2026-05-09
@@ -456,6 +466,22 @@
 - [x] [VOU-02-UX-02] Comprobantes: ocultar cotizaciones ya facturadas de la tabla raíz y mostrar árbol de subfilas consistente aunque cambie paginación/filtros ✅ 2026-04-21
 - [x] [VOU-02-UX-03] Comprobantes: extender lógica de subfilas a remitos facturados (igual que cotizaciones) y ocultarlos de la tabla raíz ✅ 2026-04-21
 - [x] [VOU-02-FLOW-01] Facturación mixta: permitir facturar 1 o más comprobantes seleccionados (cotización y/o remito) con validación por cliente ✅ 2026-04-21
+
+### Landing — Migración Next.js (Mayo 2026)
+- [x] [NEXT-LANDING-01] Migrar landing de Vite/React SPA a Next.js 15 App Router en `frontend/next-landing/` ✅ 2026-05-10
+- [x] [NEXT-LANDING-02] Crear estructura App Router: layout con metadata SEO/OG/Twitter/Schema.org, pages (/, /acceder, /blog, /blog/[slug]) ✅ 2026-05-10
+- [x] [NEXT-LANDING-03] Migrar 10 componentes de landing (Header, Hero, ExcelOffer, FeaturesZigZag, Plans, Footer, FloatingContactButton, ThankYouPage, EmailModal, ProductAccess) + orquestador LandingPage ✅ 2026-05-10
+- [x] [NEXT-LANDING-04] Migrar componentes UI (Button shadcn-style, AnimatedTentacleLogo con GSAP dinámico) ✅ 2026-05-10
+- [x] [NEXT-LANDING-05] Crear sistema de entorno tipado (lib/env.ts) reemplazando import.meta.env por NEXT_PUBLIC_* ✅ 2026-05-10
+- [x] [NEXT-LANDING-06] Implementar blog SEO: 3 artículos en content/blog/posts.ts, listado y artículo SSG con generateStaticParams ✅ 2026-05-10
+- [x] [NEXT-LANDING-07] SEO dinámico: sitemap.ts, robots.ts, metadata API en cada página ✅ 2026-05-10
+- [x] [NEXT-LANDING-08] Copiar assets a public/ (imágenes, logos, favicons, OG, páginas legales, manifest.json) ✅ 2026-05-10
+- [x] [NEXT-LANDING-09] Fix PostCSS (monorepo ESM→CJS), useSearchParams→Suspense, tipos TS estrictos, ESLint config ✅ 2026-05-10
+- [x] [NEXT-LANDING-10] Build exitoso: 11 rutas generadas, 102 kB First Load JS ✅ 2026-05-10
+- [x] [NEXT-LANDING-11] Dockerfile para Next.js standalone (node:20-alpine, user no-root, public/.next/static) ✅ 2026-05-09
+- [x] [NEXT-LANDING-12] Remover outputFileTracingRoot de next.config.ts (no aplica en Docker independiente) ✅ 2026-05-09
+- [x] [NEXT-LANDING-13] Actualizar landing-deploy.yml: context→./frontend/next-landing, build-args→NEXT_PUBLIC_* ✅ 2026-05-09
+- [x] [NEXT-LANDING-14] Agregar páginas legales (/politicas-privacidad.html, /politicas-seguridad.html) al sitemap ✅ 2026-05-09
 
 ### Marketing (Abril 2026)
 - [x] [MKT-05] Implementar flujo de compra y entrega automatica del Cotizador (checkout + pagina de gracias + entrega de Excel/Google Sheets + captura de contacto) ✅ 2026-04-24

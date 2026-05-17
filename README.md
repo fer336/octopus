@@ -6,7 +6,7 @@ Sistema ERP para sanitarios, ferreterías y corralones.
 
 ## 🚀 Probar el sistema
 
-🌐 **Demo online:** https://octopus.qeva.xyz
+🌐 **Demo online:** https://app.octopustrack.shop
 
 📲 **Acceso de prueba con autorización previa por WhatsApp:**
 

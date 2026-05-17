@@ -3,12 +3,13 @@
  * Lista, búsqueda y gestión de productos con cálculo de precio final.
  */
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Edit, Trash2, Calculator, Upload, Download, Search, AlertTriangle, FileCode, RotateCcw } from 'lucide-react'
-import { Button, Table, Pagination, Modal, Select } from '../components/ui'
+import { Plus, Edit, Trash2, Calculator, Upload, Download, Search, AlertTriangle, FileCode, RotateCcw, Loader2, Package, ChevronDown } from 'lucide-react'
+import { Button, Pagination, Modal, Select } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import toast from 'react-hot-toast'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import productsService, { ProductCreate, ProductUpdate, Product, ProductImportRow, ImportPreviewResponse } from '../api/productsService'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useDebounce } from '../hooks/useDebounce'
+import productsService, { ProductCreate, ProductUpdate, Product, ProductImportRow, ImportPreviewResponse, SyncPriceFromLotResponse } from '../api/productsService'
 import categoriesService from '../api/categoriesService'
 import suppliersService from '../api/suppliersService'
 import businessService from '../api/businessService'
@@ -16,15 +17,23 @@ import ImportPreviewModal from '../components/products/ImportPreviewModal'
 import BulkDeleteModal from '../components/products/BulkDeleteModal'
 import ImportProgressModal from '../components/products/ImportProgressModal'
 
+type ProductFormData = Partial<Product> & {
+  expiration_date?: string
+}
+
+const todayISODate = () => new Date().toISOString().slice(0, 10)
+
 export default function Products() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedSupplier, setSelectedSupplier] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set())
   const [isImporting, setIsImporting] = useState(false)
   const [showImportPreview, setShowImportPreview] = useState(false)
   const [importPreviewData, setImportPreviewData] = useState<ImportPreviewResponse | null>(null)
@@ -36,17 +45,44 @@ export default function Products() {
   const [importMessage, setImportMessage] = useState('')
   const [isSqlImporting, setIsSqlImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const lotQuantityRef = useRef<HTMLInputElement>(null)
+  const lotCodeRef = useRef<HTMLInputElement>(null)
+  const lotCostRef = useRef<HTMLInputElement>(null)
+  const lotReceivedDateRef = useRef<HTMLInputElement>(null)
+  const lotExpirationDateRef = useRef<HTMLInputElement>(null)
+  const lotSubmitRef = useRef<HTMLButtonElement>(null)
+
+  // Estado del modal de lotes
+  const [showLotModal, setShowLotModal] = useState(false)
+  const [lotModalProduct, setLotModalProduct] = useState<Product | null>(null)
+  const [lots, setLots] = useState<any[]>([])
+  const [lotsLoading, setLotsLoading] = useState(false)
+  const [showNewLotForm, setShowNewLotForm] = useState(false)
+  const [lotFormData, setLotFormData] = useState({
+    quantity: 0,
+    expiration_date: '',
+    cost_price: '',
+    code: '',
+    has_expiration: true,
+    received_date: todayISODate(),
+  })
+
+  // Estado de sincronización de precio desde lote
+  const [syncPricePreview, setSyncPricePreview] = useState<SyncPriceFromLotResponse | null>(null)
+  const [syncingLotId, setSyncingLotId] = useState<string | null>(null)
+  const [syncLoading, setSyncLoading] = useState(false)
 
   // React Query para productos con filtros
-  const { data: productsData, isLoading, error } = useQuery({
-    queryKey: ['products', page, search, selectedCategory, selectedSupplier],
+  const { data: productsData, isLoading, isFetching, error } = useQuery({
+    queryKey: ['products', page, debouncedSearch, selectedCategory, selectedSupplier],
     queryFn: () => productsService.getAll({ 
       page, 
       per_page: 20, 
-      search,
+      search: debouncedSearch,
       category_id: selectedCategory || undefined,
       supplier_id: selectedSupplier || undefined
     }),
+    placeholderData: keepPreviousData,
     retry: false,
   })
 
@@ -360,7 +396,128 @@ export default function Products() {
     input.click()
   }
 
-  // Manejo de borrado total
+  // ── Lotes ─────────────────────────────────────────────────────
+
+  const handleOpenLotModal = async (product: Product) => {
+    setLotModalProduct(product)
+    setShowLotModal(true)
+    setShowNewLotForm(false)
+    setLotFormData({ quantity: 0, expiration_date: '', cost_price: '', code: '', has_expiration: true, received_date: todayISODate() })
+    setSyncPricePreview(null)
+    setSyncingLotId(null)
+    setLotsLoading(true)
+    try {
+      const lotList = await productsService.getLots(product.id)
+      setLots(lotList)
+    } catch (error: any) {
+      toast.error('Error al cargar lotes: ' + (error.response?.data?.detail || error.message))
+    } finally {
+      setLotsLoading(false)
+    }
+  }
+
+  const handleCloseLotModal = () => {
+    setShowLotModal(false)
+    setLotModalProduct(null)
+    setLots([])
+    setShowNewLotForm(false)
+    setSyncPricePreview(null)
+    setSyncingLotId(null)
+  }
+
+  const handleCreateLot = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!lotModalProduct) return
+    if (lotFormData.quantity <= 0) {
+      toast.error('La cantidad debe ser mayor a 0')
+      return
+    }
+
+    try {
+      const newLot = await productsService.createLot(lotModalProduct.id, {
+        quantity: lotFormData.quantity,
+        expiration_date: lotFormData.has_expiration ? (lotFormData.expiration_date || null) : null,
+        cost_price: lotFormData.cost_price ? parseFloat(lotFormData.cost_price) : null,
+        code: lotFormData.code || null,
+        received_date: lotFormData.received_date || null,
+      })
+      toast.success('Stock ingresado correctamente', { icon: '✅' })
+
+      // Refetch lotes y producto
+      const lotList = await productsService.getLots(lotModalProduct.id)
+      setLots(lotList)
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+
+      setShowNewLotForm(false)
+      setLotFormData({ quantity: 0, expiration_date: '', cost_price: '', code: '', has_expiration: true, received_date: todayISODate() })
+
+      // Si el lote tiene cost_price, ofrecer sincronizar precio
+      if (newLot.cost_price && newLot.cost_price > 0) {
+        setSyncingLotId(newLot.id)
+        // Mostrar preview de sincronización
+        try {
+          setSyncLoading(true)
+          const preview = await productsService.syncPriceFromLot(lotModalProduct.id, {
+            lot_id: newLot.id,
+            confirm: false,
+          })
+          setSyncPricePreview(preview)
+        } catch {
+          // Si falla el preview, no mostrar error — el lote ya se creó OK
+          setSyncPricePreview(null)
+        } finally {
+          setSyncLoading(false)
+        }
+      }
+    } catch (error: any) {
+      toast.error(formatErrorMessage(error))
+    }
+  }
+
+  const handleConfirmSyncPrice = async () => {
+    if (!lotModalProduct || !syncingLotId) return
+    try {
+      setSyncLoading(true)
+      const result = await productsService.syncPriceFromLot(lotModalProduct.id, {
+        lot_id: syncingLotId,
+        confirm: true,
+      })
+      toast.success('Precio sincronizado desde lote', { icon: '✅' })
+      setSyncPricePreview(result)
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+    } catch (error: any) {
+      toast.error(formatErrorMessage(error))
+    } finally {
+      setSyncLoading(false)
+    }
+  }
+
+  const handlePreviewSyncPriceFromLot = async (lot: any) => {
+    if (!lotModalProduct) return
+
+    if (lot.cost_price == null || Number(lot.cost_price) <= 0) {
+      toast.error('Este lote no tiene costo unitario para usar como precio de lista')
+      return
+    }
+
+    try {
+      setSyncLoading(true)
+      setSyncingLotId(lot.id)
+      const preview = await productsService.syncPriceFromLot(lotModalProduct.id, {
+        lot_id: lot.id,
+        confirm: false,
+      })
+      setSyncPricePreview(preview)
+    } catch (error: any) {
+      toast.error(formatErrorMessage(error))
+      setSyncPricePreview(null)
+      setSyncingLotId(null)
+    } finally {
+      setSyncLoading(false)
+    }
+  }
+
+  // ── Fin Lotes ──────────────────────────────────────────────
   const handleBulkDeleteConfirm = async () => {
     try {
       const result = await productsService.bulkDelete()
@@ -379,7 +536,7 @@ export default function Products() {
   }
 
   // Formulario de producto
-  const [formData, setFormData] = useState<Partial<Product>>({
+  const [formData, setFormData] = useState<ProductFormData>({
     code: '',
     description: '',
     customer_terms: '',
@@ -394,8 +551,10 @@ export default function Products() {
     profit_margin: 0,
     iva_rate: 21,
     current_stock: 0,
+    expiration_date: '',
     minimum_stock: 0,
     unit: 'unidad',
+    units_per_pack: null as number | null,
     is_active: true,
   })
 
@@ -433,8 +592,10 @@ export default function Products() {
       profit_margin: 0,
       iva_rate: 21,
       current_stock: 0,
+      expiration_date: '',
       minimum_stock: 0,
       unit: 'unidad',
+      units_per_pack: null as number | null,
       is_active: true,
     })
     setDiscountsInput('')
@@ -473,6 +634,12 @@ export default function Products() {
       setTimeout(() => codeRef.current?.focus(), 100)
     }
   }, [showModal])
+
+  useEffect(() => {
+    if (showNewLotForm && lotQuantityRef.current) {
+      setTimeout(() => lotQuantityRef.current?.focus(), 80)
+    }
+  }, [showNewLotForm])
 
   // Navegar al siguiente campo con Enter
   const handleEnterKey = (e: React.KeyboardEvent, nextRef: React.RefObject<any>) => {
@@ -518,6 +685,32 @@ export default function Products() {
     }
   }
 
+  const handleLotNumericKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    nextRef?: React.RefObject<any>,
+  ) => {
+    const input = e.currentTarget
+    const currentValue = input.value
+
+    if (e.key === 'Enter' && nextRef) {
+      e.preventDefault()
+      nextRef.current?.focus()
+      return
+    }
+
+    if (currentValue === '0') {
+      if (/^[1-9]$/.test(e.key)) {
+        e.preventDefault()
+        input.value = e.key
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      } else if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault()
+        input.value = ''
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+    }
+  }
+
   const handleOpenModal = (product?: Product) => {
     if (product) {
       setIsEditing(true)
@@ -555,118 +748,98 @@ export default function Products() {
     }
 
     // Preparar datos para enviar al backend
-    const dataToSend: ProductCreate | ProductUpdate = {
-      code: formData.code!.trim(),
-      supplier_code: formData.supplier_code?.trim() || undefined,
-      description: formData.description!.trim(),
-      customer_terms: formData.customer_terms?.trim() || undefined,
-      category_id: formData.category_id || undefined,
-      supplier_id: formData.supplier_id || undefined,
-      list_price: formData.list_price!,
-      discount_1: formData.discount_1 || 0,
-      discount_2: formData.discount_2 || 0,
-      discount_3: formData.discount_3 || 0,
-      extra_cost: formData.extra_cost || 0,
-      profit_margin: formData.profit_margin || 0,
-      iva_rate: formData.iva_rate || 21,
-      current_stock: formData.current_stock || 0,
-      minimum_stock: formData.minimum_stock || 0,
-      unit: formData.unit || 'unidad',
-      cost_price: 0, // Se calcula en el backend
-    }
-
-    // Ejecutar mutation correspondiente
     if (isEditing && editingId) {
+      // En edición NO se envía current_stock (se gestiona por lotes)
+      const dataToSend: ProductUpdate = {
+        code: formData.code!.trim(),
+        supplier_code: formData.supplier_code?.trim() || undefined,
+        description: formData.description!.trim(),
+        customer_terms: formData.customer_terms?.trim() || undefined,
+        category_id: formData.category_id || undefined,
+        supplier_id: formData.supplier_id || undefined,
+        list_price: formData.list_price!,
+        discount_1: formData.discount_1 || 0,
+        discount_2: formData.discount_2 || 0,
+        discount_3: formData.discount_3 || 0,
+        extra_cost: formData.extra_cost || 0,
+        profit_margin: formData.profit_margin || 0,
+        iva_rate: formData.iva_rate || 21,
+        minimum_stock: formData.minimum_stock || 0,
+        unit: formData.unit || 'unidad',
+        units_per_pack: formData.units_per_pack || null,
+      }
       updateMutation.mutate({ id: editingId, data: dataToSend })
     } else {
-      createMutation.mutate(dataToSend as ProductCreate)
+      // En creación se envía current_stock para crear lote inicial
+      const dataToSend: ProductCreate = {
+        code: formData.code!.trim(),
+        supplier_code: formData.supplier_code?.trim() || undefined,
+        description: formData.description!.trim(),
+        customer_terms: formData.customer_terms?.trim() || undefined,
+        category_id: formData.category_id || undefined,
+        supplier_id: formData.supplier_id || undefined,
+        list_price: formData.list_price!,
+        discount_1: formData.discount_1 || 0,
+        discount_2: formData.discount_2 || 0,
+        discount_3: formData.discount_3 || 0,
+        extra_cost: formData.extra_cost || 0,
+        profit_margin: formData.profit_margin || 0,
+        iva_rate: formData.iva_rate || 21,
+        current_stock: formData.current_stock || 0,
+        expiration_date: formData.expiration_date || null,
+        minimum_stock: formData.minimum_stock || 0,
+        unit: formData.unit || 'unidad',
+        units_per_pack: formData.units_per_pack || null,
+      }
+      createMutation.mutate(dataToSend)
     }
   }
 
-  const columns = [
-    { key: 'code', header: 'Código' },
-    { key: 'description', header: 'Descripción' },
-    {
-      key: 'category_id',
-      header: 'Categoría',
-      render: (item: Product) => {
-        const category = categories.find(c => c.id === item.category_id)
-        return category ? (
-          <span className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded">
-            {category.name}
-          </span>
-        ) : (
-          <span className="text-gray-400 text-xs">-</span>
-        )
-      },
-    },
-    {
-      key: 'supplier_id',
-      header: 'Proveedor',
-      render: (item: Product) => {
-        const supplier = suppliers.find(s => s.id === item.supplier_id)
-        return supplier ? (
-          <span className="text-xs">{supplier.name}</span>
-        ) : (
-          <span className="text-gray-400 text-xs">-</span>
-        )
-      },
-    },
-    {
-      key: 'list_price',
-      header: 'Lista',
-      render: (item: Product) => (
-        <span className="text-xs">${item.list_price.toLocaleString()}</span>
-      ),
-    },
-    {
-      key: 'sale_price',
-      header: 'Venta',
-      render: (item: Product) => (
-        <span className="font-medium text-xs">${item.sale_price.toLocaleString()}</span>
-      ),
-    },
-    {
-      key: 'bonif',
-      header: 'Bonif',
-      render: (item: Product) => (
-        <span className="text-xs text-green-600">{item.discount_display ? `${item.discount_display}%` : '-'}</span>
-      ),
-    },
-    {
-      key: 'extra',
-      header: 'Extra',
-      render: (item: Product) => (
-        <span className="text-xs text-orange-600">{item.extra_cost > 0 ? `${item.extra_cost}%` : '-'}</span>
-      ),
-    },
-    {
-      key: 'current_stock',
-      header: 'Stock',
-      render: (item: Product) => (
-        <span className={item.current_stock < 10 ? 'text-red-600 font-medium' : ''}>
-          {item.current_stock}
+  const toggleExpandedProduct = (productId: string) => {
+    setExpandedProductIds((prev) => {
+      const next = new Set(prev)
+      next.has(productId) ? next.delete(productId) : next.add(productId)
+      return next
+    })
+  }
+
+  const formatUnit = (item: Product) => (
+    item.unit === 'pack' && item.units_per_pack ? `Pack x${item.units_per_pack}` : item.unit
+  )
+
+  const renderExpirationBadge = (item: Product) => {
+    if (!item.next_expiration) {
+      return <span className="inline-flex rounded-md bg-gray-100 px-2 py-1 text-[11px] text-gray-500 dark:bg-gray-800 dark:text-gray-400">Sin venc.</span>
+    }
+
+    const expDate = new Date(item.next_expiration)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const daysUntilExp = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    const formattedDate = expDate.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+
+    if (daysUntilExp < 0) {
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+          <span className="h-1.5 w-1.5 rounded-full bg-red-500" /> Vencido · {formattedDate}
         </span>
-      ),
-    },
-    {
-      key: 'actions',
-      header: '',
-      render: (item: Product) => (
-        <div className="flex gap-2">
-          <button
-            className="text-gray-400 hover:text-primary-600"
-            onClick={() => handleOpenModal(item)}
-          >
-            <Edit size={18} />
-          </button>
-          <button className="text-gray-400 hover:text-red-600">
-            <Trash2 size={18} />
-          </button>
-        </div>
-      ),
-    },
-  ]
+      )
+    }
+
+    if (daysUntilExp <= 30) {
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> {daysUntilExp}d · {formattedDate}
+        </span>
+      )
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {formattedDate}
+      </span>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -717,8 +890,19 @@ export default function Products() {
     return suppliers.find((s) => s.id === supplierId)?.name || null
   }
 
+  // Indicator inline cuando se está buscando (evita full-page spinner)
+  const showInlineLoader = isFetching && !isLoading
+
   return (
     <div className="space-y-3">
+      {/* Indicador de búsqueda/carga inline */}
+      {showInlineLoader && (
+        <div className="flex items-center gap-2 text-xs text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 px-3 py-1.5 rounded-lg border border-primary-200 dark:border-primary-800 animate-pulse">
+          <Loader2 size={14} className="animate-spin" />
+          <span>Buscando...</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex justify-end -mt-1">
         <div className="flex items-center gap-1.5" data-tour-products-actions>
@@ -786,7 +970,10 @@ export default function Products() {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
             placeholder="Buscar por código o descripción..."
             className="w-full pl-9 pr-4 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
             data-tour-products-search
@@ -814,12 +1001,123 @@ export default function Products() {
 
       {/* Tabla desktop */}
       <div className="hidden lg:block" data-tour-products-table>
-        <Table
-          columns={columns}
-          data={products}
-          keyExtractor={(item) => item.id}
-          emptyMessage="No se encontraron productos con estos filtros."
-        />
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+          <div className="grid grid-cols-[88px_minmax(260px,1.6fr)_120px_120px_110px_120px_110px] items-center gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-400">
+            <span>Código</span>
+            <span>Producto</span>
+            <span>Vence</span>
+            <span>Lista</span>
+            <span>Venta</span>
+            <span>Stock</span>
+            <span className="text-right">Acciones</span>
+          </div>
+
+          {products.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+              No se encontraron productos con estos filtros.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 dark:divide-gray-800">
+              {products.map((item) => {
+                const categoryName = getCategoryName(item.category_id)
+                const supplierName = getSupplierName(item.supplier_id)
+                const lowStock = item.current_stock < 10
+                const isExpanded = expandedProductIds.has(item.id)
+
+                return (
+                  <article key={item.id} className="group bg-white transition-colors hover:bg-gray-50/80 dark:bg-gray-900 dark:hover:bg-gray-800/60">
+                    <div className="grid grid-cols-[88px_minmax(260px,1.6fr)_120px_120px_110px_120px_110px] items-center gap-3 px-4 py-3">
+                      <span className="inline-flex w-fit rounded-lg bg-gray-100 px-2 py-1 font-mono text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                        {item.code}
+                      </span>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            {item.description}
+                          </h3>
+                          {lowStock && (
+                            <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 ring-1 ring-red-200 dark:bg-red-900/20 dark:text-red-300 dark:ring-red-800">
+                              Bajo
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                          <span className="truncate">{categoryName || 'Sin categoría'}</span>
+                          <span className="h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+                          <span>{formatUnit(item)}</span>
+                        </div>
+                      </div>
+
+                      <div>{renderExpirationBadge(item)}</div>
+
+                      <span className="font-mono text-xs text-gray-700 dark:text-gray-300">
+                        ${item.list_price.toLocaleString('es-AR')}
+                      </span>
+                      <span className="font-mono text-sm font-semibold text-primary-700 dark:text-primary-300">
+                        ${item.sale_price.toLocaleString('es-AR')}
+                      </span>
+                      <span className={`inline-flex w-fit rounded-lg px-2.5 py-1 text-sm font-bold ${lowStock ? 'bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-900/20 dark:text-red-300 dark:ring-red-800' : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100'}`}>
+                        {item.current_stock}
+                      </span>
+
+                      <div className="flex justify-end gap-1">
+                        <button
+                          className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                          onClick={() => toggleExpandedProduct(item.id)}
+                          title="Ver más datos"
+                        >
+                          <ChevronDown size={17} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                        </button>
+                        <button
+                          className="rounded-lg p-1.5 text-gray-400 transition hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-900/20 dark:hover:text-amber-300"
+                          title="Ver lotes"
+                          onClick={() => handleOpenLotModal(item)}
+                        >
+                          <Package size={17} />
+                        </button>
+                        <button
+                          className="rounded-lg p-1.5 text-gray-400 transition hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-900/20 dark:hover:text-primary-300"
+                          onClick={() => handleOpenModal(item)}
+                          title="Editar producto"
+                        >
+                          <Edit size={17} />
+                        </button>
+                        <button className="rounded-lg p-1.5 text-gray-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-300" title="Eliminar producto">
+                          <Trash2 size={17} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="grid grid-cols-[88px_1fr] gap-3 border-t border-gray-100 bg-gray-50/80 px-4 py-2.5 dark:border-gray-800 dark:bg-gray-800/40">
+                        <span />
+                        <div className="grid grid-cols-4 gap-2 text-xs">
+                          <div className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 dark:border-gray-700 dark:bg-gray-900">
+                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Proveedor</p>
+                            <p className="mt-0.5 truncate font-medium text-gray-700 dark:text-gray-200">{supplierName || 'Sin proveedor'}</p>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 dark:border-gray-700 dark:bg-gray-900">
+                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Bonificación</p>
+                            <p className="mt-0.5 font-semibold text-green-700 dark:text-green-300">{item.discount_display ? `${item.discount_display}%` : '—'}</p>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 dark:border-gray-700 dark:bg-gray-900">
+                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Extra</p>
+                            <p className="mt-0.5 font-semibold text-orange-700 dark:text-orange-300">{item.extra_cost > 0 ? `${item.extra_cost}%` : '—'}</p>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 dark:border-gray-700 dark:bg-gray-900">
+                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Código proveedor</p>
+                            <p className="mt-0.5 truncate font-mono text-gray-700 dark:text-gray-200">{item.supplier_code || '—'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Cards mobile */}
@@ -857,6 +1155,13 @@ export default function Products() {
                   </div>
 
                   <div className="flex items-center gap-1">
+                    <button
+                      className="rounded-md p-1.5 text-gray-500 hover:bg-amber-50 hover:text-amber-600 dark:text-gray-300 dark:hover:bg-amber-900/30 dark:hover:text-amber-300"
+                      onClick={() => handleOpenLotModal(item)}
+                      aria-label="Ver lotes"
+                    >
+                      <Package size={16} />
+                    </button>
                     <button
                       className="rounded-md p-1.5 text-gray-500 hover:bg-primary-50 hover:text-primary-600 dark:text-gray-300 dark:hover:bg-primary-900/30 dark:hover:text-primary-300"
                       onClick={() => handleOpenModal(item)}
@@ -939,12 +1244,16 @@ export default function Products() {
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         title={isEditing ? 'Editar Producto' : 'Nuevo Producto'}
-        size="lg"
+        size="full"
+        containerClassName="max-w-[1180px] w-[96vw]"
+        headerClassName="px-4 py-3"
+        contentClassName="px-4 py-3"
       >
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="grid gap-3 lg:grid-cols-[1.05fr_1.25fr]">
+          <div className="space-y-3">
           {/* Sección 1: Identificación - 2 columnas */}
-          <div className="bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/10 dark:to-primary-900/10 p-3 rounded-lg">
-            <div className="grid grid-cols-3 gap-3">
+          <div className="bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/10 dark:to-primary-900/10 p-2.5 rounded-lg">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Código *
@@ -974,22 +1283,78 @@ export default function Products() {
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 />
               </div>
+            </div>
+            {/* Unit type + Pack qty */}
+            <div className="grid grid-cols-2 gap-3 mt-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Stock
+                  Unidad
+                </label>
+                <select
+                  value={formData.unit}
+                  name="unit-select"
+                  onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="unidad">Unidad</option>
+                  <option value="m">Metro (m)</option>
+                  <option value="m2">Metro² (m²)</option>
+                  <option value="kg">Kilogramo (kg)</option>
+                  <option value="litro">Litro</option>
+                  <option value="pack">Pack</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {isEditing ? 'Stock total' : 'Stock inicial'}
+                </label>
+                {isEditing ? (
+                  <div className="w-full px-2 py-1.5 text-sm border rounded-lg bg-gray-100 dark:bg-gray-700 dark:border-gray-600 text-gray-500 dark:text-gray-400 flex items-center">
+                    <span>{formData.current_stock} unidades</span>
+                    <span className="ml-1 text-[10px] text-gray-400">(gestionado por lotes)</span>
+                  </div>
+                ) : (
+                  <input
+                    ref={stockRef}
+                    type="number"
+                    value={formData.current_stock}
+                    onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })}
+                    onFocus={handleNumericFocus}
+                    onKeyDown={(e) => handleNumericKeyDown(e, 'current_stock', submitBtnRef)}
+                    placeholder="0"
+                    className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                  />
+                )}
+              </div>
+            </div>
+            {formData.unit === 'pack' && (
+              <div className="mt-3">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Unidades por Pack
                 </label>
                 <input
-                  ref={stockRef}
                   type="number"
-                  value={formData.current_stock}
-                  onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })}
-                  onFocus={handleNumericFocus}
-                  onKeyDown={(e) => handleNumericKeyDown(e, 'current_stock', submitBtnRef)}
-                  placeholder="0"
+                  min={1}
+                  value={formData.units_per_pack ?? ''}
+                  onChange={(e) => setFormData({ ...formData, units_per_pack: parseInt(e.target.value) || null })}
+                  placeholder="Ej: 12"
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 />
               </div>
-            </div>
+            )}
+            {!isEditing && (formData.current_stock || 0) > 0 && (
+              <div className="mt-3">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Vencimiento del lote inicial
+                </label>
+                <input
+                  type="date"
+                  value={formData.expiration_date || ''}
+                  onChange={(e) => setFormData({ ...formData, expiration_date: e.target.value })}
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            )}
             <div className="mt-3">
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Descripción *
@@ -1013,14 +1378,16 @@ export default function Products() {
                 value={formData.customer_terms || ''}
                 onChange={(e) => setFormData({ ...formData, customer_terms: e.target.value })}
                 placeholder="Ej: rosca tuerca pp, entrerosca plastica, niple pp"
-                rows={2}
-                className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-              />
+                  rows={1}
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
             </div>
           </div>
 
+          <div className="space-y-3">
           {/* Sección 2: Precios - responsive (mobile primero) */}
-          <div className="bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 p-2.5 lg:p-3 rounded-lg">
+          <div className="bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 p-2.5 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
               <Calculator className="text-green-600" size={16} />
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -1127,8 +1494,8 @@ export default function Products() {
               const finalPrice = netWithProfit + ivaAmount
 
               return (
-                <div className="mt-3 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/10 dark:to-primary-900/10 rounded-lg p-3 lg:p-4 border border-primary-200 dark:border-primary-700">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-start">
+                <div className="mt-3 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/10 dark:to-primary-900/10 rounded-lg p-2.5 border border-primary-200 dark:border-primary-700">
+                  <div className="flex flex-col gap-2 lg:flex-row lg:justify-between lg:items-start">
                     <div className="space-y-1 flex-1 min-w-0">
                       <p className="text-xs text-primary-600 dark:text-primary-400 font-medium">Desglose de Precio:</p>
                       <div className="text-xs space-y-0.5 text-gray-600 dark:text-gray-400">
@@ -1164,7 +1531,7 @@ export default function Products() {
                         </div>
                       </div>
                     </div>
-                    <div className="rounded-lg border border-primary-200 bg-white/70 px-2 py-2 text-right dark:border-primary-700 dark:bg-gray-800/60 lg:ml-4 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
+                    <div className="rounded-lg border border-primary-200 bg-white/70 px-3 py-2 text-right dark:border-primary-700 dark:bg-gray-800/60 lg:min-w-[170px]">
                       <p className="text-xs text-primary-600 dark:text-primary-400 font-medium mb-1">Precio Final:</p>
                       <p className="text-xl lg:text-2xl font-bold text-primary-700 dark:text-primary-300 break-words">
                         ${finalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1177,7 +1544,7 @@ export default function Products() {
           </div>
 
           {/* Sección 3: Categorización */}
-          <div className="bg-gradient-to-r from-primary-50 to-pink-50 dark:from-primary-900/10 dark:to-pink-900/10 p-3 rounded-lg">
+          <div className="bg-gradient-to-r from-primary-50 to-pink-50 dark:from-primary-900/10 dark:to-pink-900/10 p-2.5 rounded-lg">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1187,7 +1554,17 @@ export default function Products() {
                   ref={categoryRef}
                   value={formData.category_id || ''}
                   onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                  onKeyDown={(e) => handleEnterKey(e, supplierRef)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      // En create mode va a stock, en edit va a unit
+                      if (!isEditing && stockRef.current) {
+                        stockRef.current.focus()
+                      } else {
+                        (document.querySelector('select[name="unit-select"]') as HTMLElement)?.focus()
+                      }
+                    }
+                  }}
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="">Seleccionar...</option>
@@ -1206,7 +1583,16 @@ export default function Products() {
                   ref={supplierRef}
                   value={formData.supplier_id || ''}
                   onChange={(e) => handleSupplierChange(e.target.value)}
-                  onKeyDown={(e) => handleEnterKey(e, stockRef)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      if (!isEditing && stockRef.current) {
+                        stockRef.current?.focus()
+                      } else {
+                        descriptionRef.current?.focus()
+                      }
+                    }
+                  }}
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="">Seleccionar...</option>
@@ -1219,9 +1605,10 @@ export default function Products() {
               </div>
             </div>
           </div>
+          </div>
 
           {/* Botones con indicadores */}
-          <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-gray-700 lg:col-span-2">
             <div className="text-xs text-gray-500">
               <kbd className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px]">Enter</kbd> siguiente campo
             </div>
@@ -1273,6 +1660,332 @@ export default function Products() {
         message={importMessage}
         errorMessage="Error al importar productos. Revisa los datos e intenta nuevamente."
       />
+
+      {/* Modal de Lotes */}
+      <Modal
+        isOpen={showLotModal}
+        onClose={handleCloseLotModal}
+        title={lotModalProduct ? `Lotes de ${lotModalProduct.description}` : 'Lotes'}
+        size="lg"
+      >
+        <div className="space-y-4">
+          {lotsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+            </div>
+          ) : lots.length === 0 && !showNewLotForm ? (
+            <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
+              <Package size={40} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
+              <p>Este producto no tiene lotes registrados.</p>
+              <p className="text-xs mt-1">Ingresá stock para crear el primer lote.</p>
+            </div>
+          ) : (
+            <>
+              {/* Mobile cards */}
+              <div className="md:hidden space-y-2">
+                {lots.map((lot: any) => {
+                  const expirationEl = lot.expiration_date ? (() => {
+                    const exp = new Date(lot.expiration_date)
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    const days = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                    if (days < 0) return <span className="text-red-600 font-semibold">{lot.expiration_date}</span>
+                    if (days <= 30) return <span className="text-amber-500 font-semibold">{lot.expiration_date}</span>
+                    return <span className="text-gray-700 dark:text-gray-300">{lot.expiration_date}</span>
+                  })() : <span className="text-gray-400">—</span>
+
+                  return (
+                    <div key={lot.id} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono font-medium text-gray-800 dark:text-gray-200 truncate max-w-[60%]">
+                          {lot.code || <span className="italic text-gray-400">Sin código</span>}
+                        </span>
+                        <span className="ml-2 flex-shrink-0 rounded-full bg-violet-100 dark:bg-violet-900/30 px-3 py-0.5 text-sm font-bold text-violet-700 dark:text-violet-300">
+                          {lot.quantity} uds.
+                        </span>
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-gray-400 dark:text-gray-500">Costo</span>
+                          <span className="font-medium text-gray-700 dark:text-gray-300">
+                            {lot.cost_price != null ? `$${Number(lot.cost_price).toLocaleString()}` : '—'}
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-gray-400 dark:text-gray-500">Vence</span>
+                          <span className="font-medium">{expirationEl}</span>
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-gray-400 dark:text-gray-500">Recibido</span>
+                          <span className="font-medium text-gray-700 dark:text-gray-300">{lot.received_date || '—'}</span>
+                        </div>
+                      </div>
+                      {lot.cost_price != null && Number(lot.cost_price) > 0 && (
+                        <div className="mt-2 border-t border-gray-100 dark:border-gray-700 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => handlePreviewSyncPriceFromLot(lot)}
+                            disabled={syncLoading && syncingLotId === lot.id}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-100 disabled:opacity-60 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300"
+                          >
+                            <Calculator size={12} />
+                            {syncLoading && syncingLotId === lot.id ? 'Calculando...' : 'Usar costo'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left px-3 py-2 font-medium text-gray-600 dark:text-gray-400">Código</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-600 dark:text-gray-400">Cantidad</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-600 dark:text-gray-400">Vence</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-600 dark:text-gray-400">Costo</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-600 dark:text-gray-400">Recibido</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-600 dark:text-gray-400">Precio</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {lots.map((lot: any) => (
+                      <tr key={lot.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                        <td className="px-3 py-2 font-mono text-gray-800 dark:text-gray-200">{lot.code || '—'}</td>
+                        <td className="px-3 py-2 text-right font-medium">{lot.quantity}</td>
+                        <td className="px-3 py-2 text-center">
+                          {lot.expiration_date ? (
+                            (() => {
+                              const exp = new Date(lot.expiration_date)
+                              const today = new Date()
+                              today.setHours(0, 0, 0, 0)
+                              const days = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                              if (days < 0) return <span className="text-red-600 font-medium">{lot.expiration_date}</span>
+                              if (days <= 30) return <span className="text-amber-600 font-medium">{lot.expiration_date}</span>
+                              return <span>{lot.expiration_date}</span>
+                            })()
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {lot.cost_price != null ? `$${Number(lot.cost_price).toLocaleString()}` : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-center text-gray-500">{lot.received_date}</td>
+                        <td className="px-3 py-2 text-right">
+                          {lot.cost_price != null && Number(lot.cost_price) > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => handlePreviewSyncPriceFromLot(lot)}
+                              disabled={syncLoading && syncingLotId === lot.id}
+                              className="inline-flex items-center gap-1 rounded-md border border-green-200 bg-green-50 px-2 py-1 text-[11px] font-semibold text-green-700 transition hover:bg-green-100 disabled:opacity-60 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300 dark:hover:bg-green-900/30"
+                              title="Usar este costo como precio de lista"
+                            >
+                              <Calculator size={12} />
+                              {syncLoading && syncingLotId === lot.id ? 'Calculando' : 'Usar costo'}
+                            </button>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {/* Formulario de ingreso de stock */}
+          {showNewLotForm && (
+            <form onSubmit={handleCreateLot} className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-amber-50 p-3 shadow-sm dark:border-amber-800 dark:from-amber-900/10 dark:via-gray-900 dark:to-amber-900/10">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Ingresar stock</h4>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">Enter avanza campo por campo para cargar más rápido.</p>
+                </div>
+                <span className="rounded-full border border-amber-200 bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                  Nuevo lote
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Cantidad *
+                  </label>
+                  <input
+                    ref={lotQuantityRef}
+                    type="number"
+                    min={1}
+                    value={lotFormData.quantity || ''}
+                    onChange={(e) => setLotFormData({ ...lotFormData, quantity: parseInt(e.target.value) || 0 })}
+                    onFocus={handleNumericFocus}
+                    onKeyDown={(e) => handleLotNumericKeyDown(e, lotCodeRef)}
+                    className="w-full px-2 py-2 md:py-1.5 text-base md:text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Costo unitario
+                  </label>
+                  <input
+                    ref={lotCostRef}
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={lotFormData.cost_price}
+                    onChange={(e) => setLotFormData({ ...lotFormData, cost_price: e.target.value })}
+                    onFocus={handleNumericFocus}
+                    onKeyDown={(e) => handleLotNumericKeyDown(e, lotReceivedDateRef)}
+                    placeholder="0.00"
+                    className="w-full px-2 py-2 md:py-1.5 text-base md:text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div className="col-span-2 md:col-span-1">
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Código de lote
+                  </label>
+                  <input
+                    ref={lotCodeRef}
+                    type="text"
+                    value={lotFormData.code}
+                    onChange={(e) => setLotFormData({ ...lotFormData, code: e.target.value })}
+                    onKeyDown={(e) => handleEnterKey(e, lotCostRef)}
+                    placeholder="Opcional"
+                    className="w-full px-2 py-2 md:py-1.5 text-base md:text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Recibido
+                  </label>
+                  <input
+                    ref={lotReceivedDateRef}
+                    type="date"
+                    value={lotFormData.received_date}
+                    onChange={(e) => setLotFormData({ ...lotFormData, received_date: e.target.value })}
+                    onKeyDown={(e) => handleEnterKey(e, lotFormData.has_expiration ? lotExpirationDateRef : lotSubmitRef)}
+                    className="w-full px-2 py-2 md:py-1.5 text-base md:text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div className="col-span-1 md:col-span-2">
+                  <label className="flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <input
+                      type="checkbox"
+                      checked={lotFormData.has_expiration}
+                      onChange={(e) => {
+                        setLotFormData({
+                          ...lotFormData,
+                          has_expiration: e.target.checked,
+                          expiration_date: e.target.checked ? lotFormData.expiration_date : '',
+                        })
+                      }}
+                      className="rounded border-gray-300 dark:border-gray-600 text-amber-600 focus:ring-amber-500"
+                    />
+                    Este lote tiene vencimiento
+                  </label>
+                  {lotFormData.has_expiration && (
+                    <input
+                      ref={lotExpirationDateRef}
+                      type="date"
+                      value={lotFormData.expiration_date}
+                      onChange={(e) => setLotFormData({ ...lotFormData, expiration_date: e.target.value })}
+                      onKeyDown={(e) => handleEnterKey(e, lotSubmitRef)}
+                      className="w-full px-2 py-2 md:py-1.5 text-base md:text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
+                    />
+                  )}
+                  {!lotFormData.has_expiration && (
+                    <div className="flex h-[42px] md:h-[34px] items-center rounded-lg border border-dashed border-gray-300 bg-white/70 px-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
+                      Sin vencimiento para este lote
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="mt-3 flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-2 border-t border-amber-100 pt-3 dark:border-amber-900/40">
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  La fecha de recepción puede ser distinta al día de carga.
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowNewLotForm(false)} type="button" className="flex-1 md:flex-none">
+                    Cancelar
+                  </Button>
+                  <Button ref={lotSubmitRef} size="sm" type="submit" className="flex-1 md:flex-none bg-amber-600 hover:bg-amber-700 text-white">
+                    ✓ Ingresar stock
+                  </Button>
+                </div>
+              </div>
+            </form>
+          )}
+
+          {/* Sincronización de precio desde lote */}
+          {syncPricePreview && !syncPricePreview.confirmed && (
+            <div className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-lg p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Calculator size={16} className="text-green-600" />
+                <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                  Sincronizar precio desde lote
+                </h4>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                Lote seleccionado: <strong>{lots.find((lot: any) => lot.id === syncingLotId)?.code || 'Sin código'}</strong>. El precio de lista se actualizará a <strong>${Number(syncPricePreview.preview_list_price).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</strong>, resultando en un precio de venta de <strong>${Number(syncPricePreview.preview_sale_price).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</strong>.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleConfirmSyncPrice}
+                  disabled={syncLoading}
+                  className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                >
+                  {syncLoading ? 'Sincronizando...' : '✓ Aplicar precio'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSyncPricePreview(null)}
+                  className="text-xs"
+                >
+                  Descartar
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {syncPricePreview?.confirmed && (
+            <div className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-lg p-3 text-sm">
+              <p className="text-green-700 dark:text-green-300 font-medium">
+                ✓ Precio actualizado: ${Number(syncPricePreview.preview_sale_price).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                {syncPricePreview.message}
+              </p>
+            </div>
+          )}
+
+          {/* Botones inferiores */}
+          <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-700">
+            {!showNewLotForm ? (
+              <Button
+                size="sm"
+                onClick={() => setShowNewLotForm(true)}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                + Ingresar stock
+              </Button>
+            ) : (
+              <div /> /* Empty div to keep spacing */
+            )}
+            <Button variant="outline" size="sm" onClick={handleCloseLotModal}>
+              Cerrar
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

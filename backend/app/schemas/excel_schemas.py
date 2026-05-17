@@ -33,6 +33,10 @@ class ProductImportRow(BaseSchema):
     current_stock: int = Field(default=0, ge=0)
     minimum_stock: int = Field(default=0, ge=0)
     unit: str = Field(default="unidad")
+    units_per_pack: int | None = Field(None, ge=1, description="Cantidad por pack")
+    expiration_date: str | None = Field(
+        None, description="Fecha de vencimiento (YYYY-MM-DD)"
+    )
 
     # Campos calculados (read-only en preview)
     net_price: Decimal | None = Field(None, description="Precio sin IVA (calculado)")

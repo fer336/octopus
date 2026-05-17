@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.product import Product
+from app.models.user import User
 from app.schemas.base import MessageResponse, PaginatedResponse
 from app.schemas.excel_schemas import (
     ImportConfirmRequest,
@@ -34,6 +35,8 @@ from app.schemas.price_update import (
     PriceUpdateRequest,
     UpdateType,
 )
+from app.schemas.price_history import PriceHistoryResponse, PriceRestoreRequest, PriceRestoreResponse
+from app.schemas.price_sync import SyncPriceFromLotRequest, SyncPriceFromLotResponse
 from app.schemas.product import (
     ProductBulkUpdateRequest,
     ProductBulkUpdateResponse,
@@ -41,9 +44,13 @@ from app.schemas.product import (
     ProductListParams,
     ProductResponse,
     ProductUpdate,
+    StockDeltaRequest,
+    StockDeltaResponse,
+    StockDeltaResult,
 )
 from app.services.backup_service import BackupService
 from app.services.excel_service import ExcelService
+from app.services.product_lot_service import ProductLotService
 from app.services.product_service import ProductService
 from app.utils.security import (
     get_current_business,
@@ -356,10 +363,17 @@ async def update_stock(
     ),
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
+    current_user: User = Depends(get_current_user),
 ):
     """Actualiza el stock de un producto."""
     service = ProductService(db)
-    product = await service.update_stock(product_id, business_id, quantity)
+    product = await service.update_stock(
+        product_id,
+        business_id,
+        quantity,
+        user_id=current_user.id,
+        reason="Ajuste manual desde panel de productos",
+    )
 
     if not product:
         raise HTTPException(
@@ -368,6 +382,108 @@ async def update_stock(
         )
 
     return ProductResponse.model_validate(product)
+
+
+@router.get("/{product_id}/price-history")
+async def list_price_history(
+    product_id: UUID,
+    page: int = Query(1, ge=1, description="Número de página"),
+    per_page: int = Query(20, ge=1, le=100, description="Elementos por página"),
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """Obtiene el historial de precios de un producto."""
+    from app.schemas.base import PaginatedResponse
+
+    service = ProductService(db)
+    entries, total = await service.get_price_history(
+        product_id=product_id,
+        business_id=business_id,
+        limit=per_page,
+        offset=(page - 1) * per_page,
+    )
+
+    if total == 0:
+        # Verificar que el producto existe
+        product = await service.get_by_id(product_id, business_id)
+        if not product:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Producto no encontrado",
+            )
+
+    pages = (total + per_page - 1) // per_page if per_page else 0
+    return PaginatedResponse(
+        items=[PriceHistoryResponse.model_validate(e) for e in entries],
+        total=total,
+        page=page,
+        per_page=per_page,
+        pages=pages,
+    )
+
+
+@router.post("/{product_id}/price-history/{entry_id}/restore", response_model=PriceRestoreResponse)
+async def restore_price(
+    product_id: UUID,
+    entry_id: UUID,
+    request: PriceRestoreRequest = PriceRestoreRequest(),
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    current_user: User = Depends(get_current_user),
+):
+    """Restaura el precio de un producto desde un entry del historial."""
+    service = ProductService(db)
+    product, new_entry = await service.restore_price(
+        product_id=product_id,
+        business_id=business_id,
+        entry_id=entry_id,
+        user_id=current_user.id,
+        reason=request.reason,
+    )
+
+    if not product or not new_entry:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Producto o entry de historial no encontrado",
+        )
+
+    return PriceRestoreResponse(
+        product_id=product.id,
+        restored_list_price=product.list_price,
+        restored_net_price=product.net_price,
+        restored_sale_price=product.sale_price,
+        new_history_entry_id=new_entry.id,
+        message="Precio restaurado correctamente",
+    )
+
+
+@router.post("/stock-delta", response_model=StockDeltaResponse)
+async def bulk_stock_delta(
+    request: StockDeltaRequest,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    current_user: User = Depends(get_current_user),
+):
+    """Ajusta stock de múltiples productos por delta (+/-)."""
+    service = ProductService(db)
+    items = [
+        (item.product_id, item.delta, item.reason)
+        for item in request.items
+    ]
+    results = await service.bulk_stock_delta(
+        business_id=business_id,
+        items=items,
+        user_id=current_user.id,
+    )
+
+    return StockDeltaResponse(
+        results=[
+            StockDeltaResult(product_id=pid, success=ok, error=err)
+            for pid, ok, err in results
+        ],
+        total_success=sum(1 for _, ok, _ in results if ok),
+        total_failures=sum(1 for _, ok, _ in results if not ok),
+    )
 
 
 @router.post("/import/preview", response_model=ImportPreviewResponse)
@@ -401,15 +517,19 @@ async def confirm_import_excel(
     request: ImportConfirmRequest,
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Confirma la importación de productos después del preview.
     Crea/actualiza productos en la base de datos.
+    Los lotes creados se atribuyen al usuario autenticado.
     """
     service = ExcelService(db)
 
     try:
-        result = await service.confirm_import(business_id, request)
+        result = await service.confirm_import(
+            business_id, request, user_id=current_user.id
+        )
         return result
     except Exception as e:
         raise HTTPException(
@@ -757,6 +877,8 @@ async def apply_price_update(
     """Aplica actualización masiva de precios."""
     from decimal import Decimal as D
 
+    from app.schemas.product_lot import ProductLotCreate
+
     query = select(Product).where(
         Product.id.in_(request.product_ids),
         Product.business_id == business_id,
@@ -766,13 +888,58 @@ async def apply_price_update(
     result = await db.execute(query)
     products = result.scalars().all()
 
+    is_stock_field = request.field == FieldToUpdate.CURRENT_STOCK
+    is_price_field = not is_stock_field
+
+    if is_stock_field:
+        # current_stock ahora es @property → redirigir a lotes
+        lot_service = ProductLotService(db)
+        count = 0
+        for product in products:
+            current_stock = int(product.current_stock)
+            new_stock = max(0, round(D(str(request.value))))
+
+            if request.update_type == UpdateType.INCREASE:
+                diff = new_stock
+            elif request.update_type == UpdateType.DECREASE:
+                diff = -min(current_stock, new_stock)
+            elif request.update_type == UpdateType.SET_VALUE:
+                diff = new_stock - current_stock
+            else:
+                diff = 0
+
+            if diff > 0:
+                await lot_service.create(
+                    product_id=product.id,
+                    business_id=business_id,
+                    data=ProductLotCreate(quantity=diff),
+                )
+                count += 1
+            elif diff < 0:
+                try:
+                    await lot_service.fifo_consume(
+                        product_id=product.id,
+                        business_id=business_id,
+                        quantity=abs(diff),
+                    )
+                    count += 1
+                except ValueError:
+                    continue  # Sin stock suficiente, se saltea
+            else:
+                count += 1  # Sin cambio, igual se cuenta
+
+        return PriceUpdateApplyResponse(
+            updated_count=count,
+            message=f"Se actualizaron {count} productos correctamente",
+        )
+
+    # Campos de precio: lógica normal
     field_attr = {
         FieldToUpdate.LIST_PRICE: "list_price",
         FieldToUpdate.DISCOUNT_1: "discount_1",
         FieldToUpdate.DISCOUNT_2: "discount_2",
         FieldToUpdate.DISCOUNT_3: "discount_3",
         FieldToUpdate.EXTRA_COST: "extra_cost",
-        FieldToUpdate.CURRENT_STOCK: "current_stock",
     }[request.field]
 
     count = 0
@@ -791,16 +958,7 @@ async def apply_price_update(
             new_value = current_value
 
         setattr(product, field_attr, round(new_value, 2))
-
-        if request.field in [
-            FieldToUpdate.LIST_PRICE,
-            FieldToUpdate.DISCOUNT_1,
-            FieldToUpdate.DISCOUNT_2,
-            FieldToUpdate.DISCOUNT_3,
-            FieldToUpdate.EXTRA_COST,
-        ]:
-            product.calculate_prices()
-
+        product.calculate_prices()
         count += 1
 
     await db.commit()
@@ -982,4 +1140,135 @@ async def export_tenant_sql_backup(
         io.StringIO(sql_content),
         media_type="application/sql",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.post(
+    "/{product_id}/sync-price-from-lot",
+    response_model=SyncPriceFromLotResponse,
+)
+async def sync_price_from_lot(
+    product_id: UUID,
+    data: SyncPriceFromLotRequest,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """
+    Sincroniza el precio de lista del producto desde el costo de un lote.
+
+    - Si no se envía reference_price, usa cost_price del lote.
+    - Si no hay precio disponible (lote sin cost_price y sin reference_price), error 400.
+    - Si confirm=false: calcula preview y retorna sin persistir.
+    - Si confirm=true: actualiza list_price, recalcula precios, crea PriceHistory.
+    - Valida que el lote pertenezca al mismo producto y negocio.
+    """
+    from decimal import Decimal
+
+    from app.models.price_history import PriceHistory
+    from app.models.product_lot import ProductLot
+    from app.services.product_service import ProductService
+
+    # 1. Verificar que el producto existe
+    product_service = ProductService(db)
+    product = await product_service.get_by_id(product_id, business_id)
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Producto no encontrado",
+        )
+
+    # 2. Buscar el lote
+    lot_query = select(ProductLot).where(
+        ProductLot.id == data.lot_id,
+        ProductLot.business_id == business_id,
+        ProductLot.deleted_at.is_(None),
+    )
+    lot_result = await db.execute(lot_query)
+    lot = lot_result.scalar_one_or_none()
+    if not lot:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lote no encontrado",
+        )
+
+    # 3. Validar que el lote pertenece al producto
+    if lot.product_id != product_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El lote no pertenece al producto especificado",
+        )
+
+    # 4. Determinar el precio de referencia
+    reference_price = data.reference_price
+    if reference_price is None:
+        if lot.cost_price is not None and lot.cost_price > 0:
+            reference_price = lot.cost_price
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El lote no tiene precio de costo. "
+                       "Enviá un reference_price para usar como referencia.",
+            )
+
+    # 5. Calcular preview usando calculate_prices()
+    original_values = {
+        "list_price": product.list_price,
+        "net_price": product.net_price,
+        "sale_price": product.sale_price,
+    }
+
+    product.list_price = reference_price
+    product.calculate_prices()
+    preview_net = Decimal(str(product.net_price))
+    preview_sale = Decimal(str(product.sale_price))
+    preview_list = Decimal(str(product.list_price))
+
+    # Restaurar valores originales si es solo preview
+    if not data.confirm:
+        for field, value in original_values.items():
+            setattr(product, field, value)
+
+        return SyncPriceFromLotResponse(
+            lot_id=data.lot_id,
+            reference_price=reference_price,
+            preview_list_price=preview_list,
+            preview_net_price=preview_net,
+            preview_sale_price=preview_sale,
+            confirmed=False,
+            message="Preview calculado. Enviá confirm=true para aplicar.",
+        )
+
+    # 6. Confirmar: persistir cambios
+    old_list = original_values["list_price"]
+    old_net = original_values["net_price"]
+    old_sale = original_values["sale_price"]
+
+    # El producto ya tiene los valores calculados (se setearon arriba)
+    # Crear PriceHistory
+    history = PriceHistory(
+        product_id=product.id,
+        changed_by=current_user.id,
+        old_list_price=old_list,
+        old_net_price=old_net,
+        old_sale_price=old_sale,
+        new_list_price=preview_list,
+        new_net_price=preview_net,
+        new_sale_price=preview_sale,
+        change_reason="Sincronizado desde lote",
+    )
+    db.add(history)
+
+    await db.commit()
+    await db.refresh(product)
+
+    return SyncPriceFromLotResponse(
+        lot_id=data.lot_id,
+        reference_price=reference_price,
+        preview_list_price=preview_list,
+        preview_net_price=preview_net,
+        preview_sale_price=preview_sale,
+        confirmed=True,
+        price_history_id=history.id,
+        message="Precio sincronizado desde lote correctamente.",
     )

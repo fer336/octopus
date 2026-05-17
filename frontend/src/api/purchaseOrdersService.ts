@@ -178,6 +178,46 @@ const purchaseOrdersService = {
     window.URL.revokeObjectURL(url)
   },
 
+  async importCountSheetExcel(
+    file: File,
+    supplierId?: string,
+    categoryId?: string,
+  ): Promise<{ order_id: string; order_number: string; imported_count: number; skipped_codes: string[] }> {
+    const form = new FormData()
+    form.append('file', file)
+    if (supplierId) form.append('supplier_id', supplierId)
+    if (categoryId) form.append('category_id', categoryId)
+
+    const response = await httpClient.post('/purchase-orders/inventory-count/import-excel', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data
+  },
+
+  async downloadCountSheetExcel(
+    supplierId?: string,
+    categoryId?: string,
+  ): Promise<void> {
+    const params = new URLSearchParams()
+    if (supplierId) params.append('supplier_id', supplierId)
+    if (categoryId) params.append('category_id', categoryId)
+
+    const response = await httpClient.get(
+      `/purchase-orders/inventory-count/excel?${params.toString()}`,
+      { responseType: 'blob' },
+    )
+
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    const today = new Date().toISOString().split('T')[0].replace(/-/g, '_')
+    link.setAttribute('download', `planilla_conteo_${today}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  },
+
   /**
    * Lista todas las órdenes de pedido con filtros y paginación.
    */

@@ -10,7 +10,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -66,10 +66,16 @@ from app.utils.security import (
 def serialize_voucher(voucher: Voucher) -> dict:
     """Serializa un comprobante a dict con información del vendedor."""
     data = VoucherResponse.model_validate(voucher).model_dump()
+    unloaded_relationships = inspect(voucher).unloaded
+    child_stockpiles = (
+        []
+        if "child_stockpiles" in unloaded_relationships
+        else (getattr(voucher, "child_stockpiles", []) or [])
+    )
     data["is_stockpile_principal_receipt"] = bool(
         voucher.voucher_type == VoucherType.RECEIPT
         and not getattr(voucher, "stockpile_id", None)
-        and len(getattr(voucher, "child_stockpiles", []) or []) > 0
+        and len(child_stockpiles) > 0
     )
     # Agregar info del vendedor
     if voucher.created_by_user:
@@ -1469,6 +1475,30 @@ async def preview_compile_totals(
             detail="Todos los comprobantes deben pertenecer al mismo cliente",
         )
 
+    # Resolve fiscal client (override) and determine invoice variant
+    from app.models.client import Client
+
+    source_client = await db.get(Client, next(iter(client_ids)))
+    if not source_client or source_client.business_id != business_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cliente origen no encontrado",
+        )
+
+    invoice_client = source_client
+    if data.fiscal_client_id:
+        override_client = await db.get(Client, data.fiscal_client_id)
+        if not override_client or override_client.business_id != business_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Cliente fiscal no encontrado",
+            )
+        invoice_client = override_client
+
+    invoice_variant = "B"
+    if invoice_client.tax_condition == "RI":
+        invoice_variant = "A"
+
     # Calculate totals using the same logic as _build_invoice_items_from_source_vouchers
     total_subtotal = D("0")
     total_iva = D("0")
@@ -1489,12 +1519,15 @@ async def preview_compile_totals(
                     detail=f"Producto {source_item.product_id} no encontrado",
                 )
 
-            # Resolve price based on strategy
+            # Resolve price based on strategy. IMPORTANT: this preview must
+            # mirror VoucherService._resolve_price_and_iva_by_strategy exactly.
+            # product.sale_price already includes IVA, so using it here and
+            # adding iva_line below would double-charge IVA in the modal preview.
             if data.price_strategy == "historical":
                 unit_price = D(str(source_item.unit_price))
                 iva_rate = D(str(source_item.iva_rate))
             else:
-                unit_price = D(str(product.sale_price))
+                unit_price = D(str(product.net_price))
                 iva_rate = D(str(product.iva_rate))
 
             item_discount_factor = D("1") - (D(str(source_item.discount_percent)) / D("100"))
@@ -1537,6 +1570,8 @@ async def preview_compile_totals(
         discount_amount=discount_amount.quantize(D("0.01")),
         voucher_count=len(source_vouchers),
         item_count=item_count,
+        invoice_variant=invoice_variant,
+        fiscal_client_id=data.fiscal_client_id,
     )
 
 

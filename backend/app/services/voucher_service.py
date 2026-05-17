@@ -10,7 +10,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import Integer, cast, desc, func, or_, select
+from sqlalchemy import Integer, and_, cast, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -22,6 +22,7 @@ from app.models.client_account import ClientAccount, MovementType
 from app.models.client_authorization import ClientAuthorization
 from app.models.payment_method import PaymentMethodCatalog
 from app.models.product import Product
+from app.models.product_lot import ProductLot
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
 from app.models.voucher_payment import VoucherPayment
@@ -36,6 +37,7 @@ from app.schemas.voucher import (
     VoucherUpdate,
 )
 from app.services.pdf_service import pdf_service
+from app.services.product_lot_service import ProductLotService
 
 
 class VoucherService:
@@ -78,8 +80,17 @@ class VoucherService:
         conditions = [
             Voucher.business_id == business_id,
             Voucher.voucher_type == VoucherType.RECEIPT,
-            Voucher.is_current_account.is_(True),
-            Voucher.billing_client_id == billing_client_id,
+            or_(
+                Voucher.is_current_account.is_(True),
+                Voucher.billing_client_id.is_not(None),
+            ),
+            or_(
+                Voucher.billing_client_id == billing_client_id,
+                and_(
+                    Voucher.billing_client_id.is_(None),
+                    Voucher.client_id == billing_client_id,
+                ),
+            ),
             Voucher.deleted_at.is_(None),
             Voucher.invoiced_voucher_id.is_(None),
         ]
@@ -306,8 +317,16 @@ class VoucherService:
         items_data,
         general_discount: Decimal,
         voucher_type: VoucherType,
+        user_id: UUID | None = None,
+        voucher_id: UUID | None = None,
     ) -> tuple[list[VoucherItem], Decimal, Decimal, Decimal]:
-        """Construye items del comprobante y recalcula totales."""
+        """Construye items del comprobante y recalcula totales.
+
+        Si se provee user_id, los consumos FIFO se registran con
+        atribución de usuario y persistencia de LotConsumption.
+        Si se provee voucher_id, se asigna a los VoucherItem antes
+        del flush para respetar la constraint NOT NULL.
+        """
         total_subtotal = Decimal(0)
         total_iva = Decimal(0)
         total_final = Decimal(0)
@@ -355,11 +374,50 @@ class VoucherService:
                 total=total_line,
                 line_number=i + 1,
             )
+            if voucher_id:
+                voucher_item.voucher_id = voucher_id
             items_db.append(voucher_item)
 
             # Las cotizaciones no modifican stock
             if voucher_type != VoucherType.QUOTATION:
-                product.current_stock -= int(item_data.quantity)
+                lot_service = ProductLotService(self.db)
+                qty = int(item_data.quantity)
+
+                # Flushear el item para obtener su ID antes de fifo_consume
+                self.db.add(voucher_item)
+                await self.db.flush()
+
+                if qty > 0:
+                    # Determinar razón según tipo de comprobante
+                    if voucher_type in (VoucherType.INVOICE_A, VoucherType.INVOICE_B, VoucherType.INVOICE_C):
+                        reason = "Factura"
+                    elif voucher_type == VoucherType.RECEIPT:
+                        reason = "Remito"
+                    else:
+                        reason = "Venta"
+
+                    last_lot_id, consumptions = await lot_service.fifo_consume(
+                        product_id=product.id,
+                        business_id=business_id,
+                        quantity=qty,
+                        voucher_item_id=voucher_item.id,
+                        user_id=user_id,
+                        reason=reason,
+                    )
+                    voucher_item.product_lot_id = last_lot_id
+                elif qty < 0:
+                    # Devolución: crear nuevo lote con la mercadería devuelta
+                    from datetime import date as date_type
+                    return_lot = ProductLot(
+                        product_id=product.id,
+                        business_id=business_id,
+                        quantity=abs(qty),
+                        initial_quantity=abs(qty),
+                        received_date=date_type.today(),
+                    )
+                    self.db.add(return_lot)
+                    await self.db.flush()
+                    voucher_item.product_lot_id = return_lot.id
 
         return items_db, total_subtotal, total_iva, total_final
 
@@ -478,28 +536,6 @@ class VoucherService:
 
         previous_balance = Decimal(str(client.current_balance or Decimal("0")))
 
-        (
-            items_db,
-            total_subtotal,
-            total_iva,
-            total_final,
-        ) = await self._build_items_and_totals(
-            business_id=business_id,
-            items_data=items_data,
-            general_discount=general_discount,
-            voucher_type=VoucherType.RECEIPT,
-        )
-
-        if total_final > Decimal("0"):
-            await self.db.rollback()
-            raise ValueError(
-                "El total de la operación es positivo. Debe emitirse un comprobante de venta normal."
-            )
-
-        credit_amount = abs(total_final)
-        new_balance = previous_balance - credit_amount
-        client.current_balance = new_balance
-
         last_number = int(business.last_receipt_number or "0")
         next_number = last_number + 1
         business.last_receipt_number = str(next_number).zfill(8)
@@ -516,18 +552,45 @@ class VoucherService:
             notes=notes or "Remito de devolución con saldo a favor del cliente",
             show_prices="S",
             general_discount=general_discount,
-            subtotal=total_subtotal,
-            iva_amount=total_iva,
-            total=total_final,
             is_return_receipt=True,
         )
 
+        # Flushear el receipt primero para obtener su ID antes
+        # de construir los items (necesitan voucher_id para el flush)
         self.db.add(return_receipt)
         await self.db.flush()
 
-        for item in items_db:
-            item.voucher_id = return_receipt.id
-            self.db.add(item)
+        (
+            items_db,
+            total_subtotal,
+            total_iva,
+            total_final,
+        ) = await self._build_items_and_totals(
+            business_id=business_id,
+            items_data=items_data,
+            general_discount=general_discount,
+            voucher_type=VoucherType.RECEIPT,
+            user_id=user_id,
+            voucher_id=return_receipt.id,
+        )
+
+        # Asignar totales ahora que los calculamos
+        return_receipt.subtotal = total_subtotal
+        return_receipt.iva_amount = total_iva
+        return_receipt.total = total_final
+
+        if total_final > Decimal("0"):
+            await self.db.rollback()
+            raise ValueError(
+                "El total de la operación es positivo. Debe emitirse un comprobante de venta normal."
+            )
+
+        credit_amount = abs(total_final)
+        new_balance = previous_balance - credit_amount
+        client.current_balance = new_balance
+
+        # Los items ya fueron flusheados dentro de _build_items_and_totals
+        # con voucher_id asignado.
 
         if credit_amount > Decimal("0"):
             description = "Saldo a favor por devolución excedente en ventas"
@@ -591,8 +654,16 @@ class VoucherService:
         price_strategy: Literal["historical", "current"],
         invoice_general_discount: Decimal,
         metadata_strategy: Literal["source", "product"],
+        voucher_id: UUID | None = None,
+        user_id: UUID | None = None,
+        reason: str = "Factura",
     ) -> tuple[list[VoucherItem], Decimal, Decimal, Decimal]:
-        """Construye ítems/totales de factura desde comprobantes origen."""
+        """Construye ítems/totales de factura desde comprobantes origen.
+
+        Si se provee voucher_id y user_id, los VoucherItem se flushean
+        con el ID de la factura y los consumos FIFO se registran con
+        atribución de usuario (LotConsumption).
+        """
         total_subtotal = Decimal("0")
         total_iva = Decimal("0")
         total_final = Decimal("0")
@@ -654,26 +725,56 @@ class VoucherService:
                     description = source_item.description
                     unit = source_item.unit
 
-                items_db.append(
-                    VoucherItem(
-                        product_id=product.id,
-                        code=code,
-                        description=description,
-                        quantity=source_item.quantity,
-                        unit=unit,
-                        unit_price=unit_price,
-                        discount_percent=source_item.discount_percent,
-                        iva_rate=iva_rate,
-                        iva_amount=iva_line,
-                        subtotal=subtotal_line,
-                        total=total_line,
-                        line_number=line_number,
-                    )
+                voucher_item = VoucherItem(
+                    product_id=product.id,
+                    code=code,
+                    description=description,
+                    quantity=source_item.quantity,
+                    unit=unit,
+                    unit_price=unit_price,
+                    discount_percent=source_item.discount_percent,
+                    iva_rate=iva_rate,
+                    iva_amount=iva_line,
+                    subtotal=subtotal_line,
+                    total=total_line,
+                    line_number=line_number,
                 )
+                if voucher_id:
+                    voucher_item.voucher_id = voucher_id
+                items_db.append(voucher_item)
                 line_number += 1
 
                 # Las facturas descuentan stock
-                product.current_stock -= int(source_item.quantity)
+                lot_service = ProductLotService(self.db)
+                qty = int(source_item.quantity)
+                if qty > 0:
+                    self.db.add(voucher_item)
+                    await self.db.flush()
+
+                    last_lot_id, consumptions = await lot_service.fifo_consume(
+                        product_id=product.id,
+                        business_id=business_id,
+                        quantity=qty,
+                        voucher_item_id=voucher_item.id,
+                        user_id=user_id,
+                        reason=reason,
+                    )
+                    voucher_item.product_lot_id = last_lot_id
+                elif qty < 0:
+                    self.db.add(voucher_item)
+                    await self.db.flush()
+
+                    from datetime import date as date_type
+                    return_lot = ProductLot(
+                        product_id=product.id,
+                        business_id=business_id,
+                        quantity=abs(qty),
+                        initial_quantity=abs(qty),
+                        received_date=date_type.today(),
+                    )
+                    self.db.add(return_lot)
+                    await self.db.flush()
+                    voucher_item.product_lot_id = return_lot.id
 
         return (
             items_db,
@@ -764,6 +865,11 @@ class VoucherService:
             general_discount=data.general_discount,
         )
 
+        # Flushear el voucher primero para obtener su ID antes
+        # de construir los items (necesitan voucher_id para el flush)
+        self.db.add(voucher)
+        await self.db.flush()
+
         (
             items_db,
             total_subtotal,
@@ -774,6 +880,8 @@ class VoucherService:
             items_data=data.items,
             general_discount=data.general_discount,
             voucher_type=data.voucher_type,
+            user_id=user_id,
+            voucher_id=voucher.id,
         )
 
         # Asignar totales al voucher
@@ -790,6 +898,13 @@ class VoucherService:
             raise ValueError(
                 "El total de la factura debe ser mayor a $0. Si la devolución supera la venta, registre el saldo a favor del cliente."
             )
+
+        if (
+            data.voucher_type == VoucherType.RECEIPT
+            and data.billing_client_id
+            and not data.is_current_account
+        ):
+            data.is_current_account = True
 
         cc_context = await self._validate_current_account_for_receipt(
             business_id=business_id,
@@ -856,13 +971,8 @@ class VoucherService:
             # Vincular el voucher al stockpile
             voucher.stockpile_id = data.stockpile_id
 
-        # Guardar todo
-        self.db.add(voucher)
-        await self.db.flush()  # Para obtener ID del voucher
-
-        for item in items_db:
-            item.voucher_id = voucher.id
-            self.db.add(item)
+        # Los items ya fueron flusheados dentro de _build_items_and_totals
+        # con voucher_id asignado. Solo queda crear pagos y relaciones.
 
         payments_raw = (
             [payment.model_dump() for payment in data.payments]
@@ -1206,7 +1316,7 @@ class VoucherService:
 
             for rev_voucher in vouchers_to_revert:
                 # Revertir stock
-                self._revert_stock_from_voucher(rev_voucher)
+                await self._revert_stock_from_voucher(rev_voucher)
 
                 # Revertir saldo en cuenta corriente
                 await self._revert_client_account_from_voucher(rev_voucher)
@@ -1221,26 +1331,64 @@ class VoucherService:
         await self.db.commit()
         return True
 
-    def _revert_stock_from_voucher(self, voucher: Voucher) -> None:
-        """Revierte el stock de lositems de un voucher de devolución."""
-        # Por cada item: si quantity < 0 (era devolución),sumar al stock
-        # si quantity > 0, restar del stock (porque en creación se hizo al revés)
+    async def _revert_stock_from_voucher(self, voucher: Voucher) -> None:
+        """Revierte el stock de los items de un voucher usando lotes.
+
+        Si VoucherItem.product_lot_id está seteado → restaura a ESE lote específico.
+        Si no está seteado (legacy) → restaura al lote más reciente por received_date.
+        Usa with_for_update() para row-level locking.
+        """
+        lot_service = ProductLotService(self.db)
         for item in voucher.items:
-            if item.product:
-                if item.quantity < 0:
-                    # Era un item de devolución (quantity negativo)
-                    # Al crear: product.stock -= quantity (negativo = sumar)
-                    # Al revertir: product.stock -= quantity (negativo = sumar de nuevo, restaura)
-                    # Pero espera - en la creación hicimos:
-                    # product.current_stock -= int(quantity) donde quantity es negativo
-                    # Entonces: current_stock -= (-5) = current_stock + 5 (suma stock)
-                    # Al revertir: current_stock -= (-5) = current_stock + 5 (devuelve al origen)
-                    item.product.current_stock -= int(item.quantity)
+            if not item.product:
+                continue
+
+            qty = int(item.quantity)
+            quantity_change = abs(qty)
+
+            if item.product_lot_id:
+                # Restaurar al lote específico que se consumió
+                query = (
+                    select(ProductLot)
+                    .where(ProductLot.id == item.product_lot_id)
+                    .with_for_update()
+                )
+                result = await self.db.execute(query)
+                lot = result.scalar_one_or_none()
+                if not lot:
+                    continue
+
+                if qty > 0:
+                    # Item normal: devolver stock al lote
+                    lot.quantity += quantity_change
                 else:
-                    # Era un item normal (no devolución)
-                    # Al crear: product.stock -= quantity (restó)
-                    # Al revertir: product.stock += quantity (devuelve)
-                    item.product.current_stock += int(item.quantity)
+                    # Item de devolución: remover el stock agregado
+                    lot.quantity -= quantity_change
+                    if lot.quantity < 0:
+                        lot.quantity = 0
+            else:
+                # Legacy: restaurar al lote más reciente
+                query = (
+                    select(ProductLot)
+                    .where(
+                        ProductLot.product_id == item.product_id,
+                        ProductLot.business_id == voucher.business_id,
+                        ProductLot.deleted_at.is_(None),
+                    )
+                    .order_by(ProductLot.received_date.desc())
+                    .with_for_update()
+                )
+                result = await self.db.execute(query)
+                lot = result.scalar_one_or_none()
+                if not lot:
+                    continue
+
+                if qty > 0:
+                    lot.quantity += quantity_change
+                else:
+                    lot.quantity -= quantity_change
+                    if lot.quantity < 0:
+                        lot.quantity = 0
 
     async def _revert_client_account_from_voucher(self, voucher: Voucher) -> None:
         """Revierte el movimiento de cuenta corriente creado por una devolución."""
@@ -1975,12 +2123,23 @@ class VoucherService:
         base_conditions = [
             Voucher.business_id == business_id,
             Voucher.voucher_type == VoucherType.RECEIPT,
-            Voucher.is_current_account.is_(True),
+            or_(
+                Voucher.is_current_account.is_(True),
+                Voucher.billing_client_id.is_not(None),
+            ),
             Voucher.deleted_at.is_(None),
         ]
 
         if billing_client_id:
-            base_conditions.append(Voucher.billing_client_id == billing_client_id)
+            base_conditions.append(
+                or_(
+                    Voucher.billing_client_id == billing_client_id,
+                    and_(
+                        Voucher.billing_client_id.is_(None),
+                        Voucher.client_id == billing_client_id,
+                    ),
+                )
+            )
 
         if pending_only is True:
             base_conditions.append(Voucher.invoiced_voucher_id.is_(None))
@@ -2038,8 +2197,17 @@ class VoucherService:
         base_conditions = [
             Voucher.business_id == business_id,
             Voucher.voucher_type == VoucherType.RECEIPT,
-            Voucher.is_current_account.is_(True),
-            Voucher.billing_client_id == billing_client_id,
+            or_(
+                Voucher.is_current_account.is_(True),
+                Voucher.billing_client_id.is_not(None),
+            ),
+            or_(
+                Voucher.billing_client_id == billing_client_id,
+                and_(
+                    Voucher.billing_client_id.is_(None),
+                    Voucher.client_id == billing_client_id,
+                ),
+            ),
             Voucher.invoiced_voucher_id.is_(None),
             Voucher.deleted_at.is_(None),
         ]
@@ -2131,8 +2299,17 @@ general_discount=general_discount,
         base_conditions = [
             Voucher.business_id == business_id,
             Voucher.voucher_type == VoucherType.RECEIPT,
-            Voucher.is_current_account.is_(True),
-            Voucher.billing_client_id == billing_client_id,
+            or_(
+                Voucher.is_current_account.is_(True),
+                Voucher.billing_client_id.is_not(None),
+            ),
+            or_(
+                Voucher.billing_client_id == billing_client_id,
+                and_(
+                    Voucher.billing_client_id.is_(None),
+                    Voucher.client_id == billing_client_id,
+                ),
+            ),
             Voucher.invoiced_voucher_id.is_(None),
             Voucher.deleted_at.is_(None),
         ]
@@ -2454,6 +2631,11 @@ general_discount=general_discount,
             paid_amount=None if is_current_account else Decimal("0"),
         )
 
+        # Flushear la factura primero para obtener su ID antes
+        # de construir los items
+        self.db.add(invoice)
+        await self.db.flush()
+
         (
             items_db,
             total_subtotal,
@@ -2465,6 +2647,9 @@ general_discount=general_discount,
             price_strategy=price_strategy,
             invoice_general_discount=Decimal("0"),
             metadata_strategy="product",
+            voucher_id=invoice.id,
+            user_id=user_id,
+            reason="Factura",
         )
 
         # 7. Asignar totales
@@ -2472,13 +2657,8 @@ general_discount=general_discount,
         invoice.iva_amount = total_iva
         invoice.total = total_final
 
-        # 8. Guardar factura y sus items
-        self.db.add(invoice)
-        await self.db.flush()  # Para obtener ID de la factura
-
-        for item in items_db:
-            item.voucher_id = invoice.id
-            self.db.add(item)
+        # Los items ya fueron flusheados dentro de
+        # _build_invoice_items_from_source_vouchers
 
         await self._create_voucher_payments(
             voucher_id=invoice.id,
@@ -2670,6 +2850,11 @@ general_discount=general_discount,
             paid_amount=None if is_current_account else Decimal("0"),
         )
 
+        # Flushear la factura primero para obtener su ID antes
+        # de construir los items
+        self.db.add(invoice)
+        await self.db.flush()
+
         # 13. Copiar TODOS los items de TODOS los comprobantes origen
         (
             items_db,
@@ -2682,6 +2867,9 @@ general_discount=general_discount,
             price_strategy=price_strategy,
             invoice_general_discount=general_discount,
             metadata_strategy="source",
+            voucher_id=invoice.id,
+            user_id=user_id,
+            reason="Factura",
         )
 
         # 14. Asignar totales
@@ -2689,13 +2877,8 @@ general_discount=general_discount,
         invoice.iva_amount = total_iva
         invoice.total = total_final
 
-        # 15. Guardar factura
-        self.db.add(invoice)
-        await self.db.flush()
-
-        for item in items_db:
-            item.voucher_id = invoice.id
-            self.db.add(item)
+        # Los items ya fueron flusheados dentro de
+        # _build_invoice_items_from_source_vouchers
 
         # 16. Crear pagos
         await self._create_voucher_payments(

@@ -3,6 +3,7 @@ Servicio de Importación/Exportación Excel.
 Maneja la carga masiva de productos.
 """
 import io
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
@@ -10,9 +11,12 @@ import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.audit_log import AuditLog
 from app.models.category import Category
 from app.models.product import Product
+from app.models.product_lot import ProductLot
 from app.models.supplier import Supplier
+from app.services.product_lot_service import ProductLotService
 from app.schemas.excel_schemas import (
     ImportConfirmRequest,
     ImportConfirmResponse,
@@ -146,6 +150,22 @@ class ExcelService:
                 iva_rate = Decimal(str(row.get('iva', 21))) if pd.notna(row.get('iva')) else Decimal(21)
                 current_stock = int(row.get('stock', 0)) if pd.notna(row.get('stock')) else 0
 
+                # Leer unidad, pack qty y vencimiento
+                unit = str(row.get('unidad', 'unidad')).strip().lower() if pd.notna(row.get('unidad')) else 'unidad'
+                units_per_pack = None
+                if pd.notna(row.get('unidades_x_pack')):
+                    try:
+                        units_per_pack = int(row.get('unidades_x_pack'))
+                    except (ValueError, TypeError):
+                        pass
+                expiration_date = None
+                if pd.notna(row.get('vencimiento')):
+                    try:
+                        exp_date = pd.to_datetime(row.get('vencimiento'))
+                        expiration_date = exp_date.strftime('%Y-%m-%d')
+                    except Exception:
+                        pass
+
                 # Calcular precios
                 net_price, sale_price, discount_display = self._calculate_prices(
                     list_price, d1, d2, d3, extra_cost, profit_margin, iva_rate
@@ -205,6 +225,9 @@ class ExcelService:
                     profit_margin=profit_margin,
                     iva_rate=iva_rate,
                     current_stock=current_stock,
+                    unit=unit,
+                    units_per_pack=units_per_pack,
+                    expiration_date=expiration_date,
                     net_price=net_price,
                     sale_price=sale_price,
                     discount_display=discount_display,
@@ -233,10 +256,18 @@ class ExcelService:
             rows=rows
         )
 
-    async def confirm_import(self, business_id: UUID, request: ImportConfirmRequest) -> ImportConfirmResponse:
+    async def confirm_import(
+        self,
+        business_id: UUID,
+        request: ImportConfirmRequest,
+        user_id: UUID | None = None,
+    ) -> ImportConfirmResponse:
         """
         Confirma la importación de productos después del preview.
         Crea/actualiza productos en la base de datos.
+
+        Si se provee user_id, los lotes creados se atribuyen al usuario
+        y se registra Auditoría (lot_operation:create).
         """
         created = 0
         updated = 0
@@ -251,6 +282,7 @@ class ExcelService:
             try:
                 if row.is_new:
                     # Crear nuevo producto
+                    initial_stock = row.current_stock
                     new_product = Product(
                         business_id=business_id,
                         code=row.code,
@@ -265,16 +297,57 @@ class ExcelService:
                         extra_cost=row.extra_cost,
                         profit_margin=row.profit_margin,
                         iva_rate=row.iva_rate,
-                        current_stock=row.current_stock,
+                        unit=row.unit,
+                        units_per_pack=row.units_per_pack,
                         cost_price=Decimal(0),  # Se puede calcular después
                     )
                     new_product.calculate_prices()
                     self.db.add(new_product)
+
+                    # Crear lote inicial si hay stock
+                    if initial_stock > 0:
+                        await self.db.flush()
+                        lot = ProductLot(
+                            product_id=new_product.id,
+                            business_id=business_id,
+                            code=f"IMP-{str(new_product.id)[:8]}",
+                            quantity=initial_stock,
+                            initial_quantity=initial_stock,
+                            received_date=date.today(),
+                            created_by=user_id,
+                        )
+                        self.db.add(lot)
+
+                        # Flushear para obtener lot.id antes de auditoría
+                        await self.db.flush()
+
+                        # Registrar auditoría de creación de lote
+                        if user_id:
+                            audit = AuditLog(
+                                user_id=user_id,
+                                business_id=business_id,
+                                action="create",
+                                resource_type="lot_operation",
+                                resource_id=lot.id,
+                                details={
+                                    "product_id": str(new_product.id),
+                                    "quantity": initial_stock,
+                                    "code": lot.code,
+                                    "delta": initial_stock,
+                                    "source": "excel_import",
+                                },
+                            )
+                            self.db.add(audit)
+
                     created += 1
                 else:
                     # Actualizar producto existente
                     if row.existing_id:
-                        query = select(Product).where(Product.id == row.existing_id)
+                        from sqlalchemy.orm import selectinload
+
+                        query = select(Product).options(
+                            selectinload(Product.lots)
+                        ).where(Product.id == row.existing_id)
                         result = await self.db.execute(query)
                         existing_product = result.scalar_one_or_none()
 
@@ -291,7 +364,59 @@ class ExcelService:
                             existing_product.extra_cost = row.extra_cost
                             existing_product.profit_margin = row.profit_margin
                             existing_product.iva_rate = row.iva_rate
-                            existing_product.current_stock = row.current_stock
+                            existing_product.unit = row.unit
+                            existing_product.units_per_pack = row.units_per_pack
+
+                            # Ajustar stock via lotes (current_stock es @property)
+                            new_stock_val = row.current_stock
+                            current_stock_val = int(existing_product.current_stock)
+                            stock_diff = new_stock_val - current_stock_val
+                            if stock_diff > 0:
+                                lot = ProductLot(
+                                    product_id=existing_product.id,
+                                    business_id=business_id,
+                                    quantity=stock_diff,
+                                    initial_quantity=stock_diff,
+                                    received_date=date.today(),
+                                    created_by=user_id,
+                                )
+                                self.db.add(lot)
+
+                                # Flushear para obtener lot.id antes de auditoría
+                                await self.db.flush()
+
+                                # Registrar auditoría de creación de lote
+                                if user_id:
+                                    audit = AuditLog(
+                                        user_id=user_id,
+                                        business_id=business_id,
+                                        action="create",
+                                        resource_type="lot_operation",
+                                        resource_id=lot.id,
+                                        details={
+                                            "product_id": str(existing_product.id),
+                                            "quantity": stock_diff,
+                                            "code": lot.code,
+                                            "delta": stock_diff,
+                                            "source": "excel_import",
+                                        },
+                                    )
+                                    self.db.add(audit)
+                            elif stock_diff < 0:
+                                lot_service = ProductLotService(self.db)
+                                try:
+                                    await lot_service.fifo_consume(
+                                        product_id=existing_product.id,
+                                        business_id=business_id,
+                                        quantity=abs(stock_diff),
+                                        user_id=user_id,
+                                        reason="Ajuste por importación Excel",
+                                    )
+                                except ValueError:
+                                    errors.append(
+                                        f"Fila {row.row_number}: Stock insuficiente para aplicar reducción"
+                                    )
+
                             existing_product.calculate_prices()
                             updated += 1
                         else:
@@ -378,8 +503,19 @@ class ExcelService:
                     "extra_cost": Decimal(str(row.get('cargo_extra', 0))) if pd.notna(row.get('cargo_extra')) else Decimal(0),
                     "profit_margin": Decimal(str(row.get('ganancia', 0))) if pd.notna(row.get('ganancia')) else Decimal(0),
                     "iva_rate": Decimal("21.00"), # Default
+                    "unit": str(row.get('unidad', 'unidad')).strip().lower() if pd.notna(row.get('unidad')) else 'unidad',
+                    "units_per_pack": int(row.get('unidades_x_pack')) if pd.notna(row.get('unidades_x_pack')) else None,
+                    "expiration_date": None,
                     "business_id": business_id
                 }
+
+                # Parsear vencimiento si está presente
+                if pd.notna(row.get('vencimiento')):
+                    try:
+                        exp_date = pd.to_datetime(row.get('vencimiento'))
+                        product_data["expiration_date"] = exp_date.date()
+                    except Exception:
+                        pass
 
                 # Buscar si existe
                 query = select(Product).where(
@@ -445,8 +581,8 @@ class ExcelService:
         # Definir columnas (orden para importación)
         headers = [
             'codigo', 'codigo_proveedor', 'nombre_proveedor', 'categoria',
-            'nombre', 'stock', 'precio_lista', 'bonificaciones', 'cargo_extra',
-            'ganancia', 'precio_venta'
+            'nombre', 'unidad', 'stock', 'precio_lista', 'bonificaciones',
+            'cargo_extra', 'ganancia', 'vencimiento', 'unidades_x_pack', 'precio_venta'
         ]
 
         # Escribir headers con estilo
@@ -478,11 +614,14 @@ class ExcelService:
                 p.supplier.name if p.supplier else '',
                 p.category.name if p.category else '',
                 p.description or '',
+                p.unit or 'unidad',
                 int(p.current_stock) if p.current_stock else 0,
                 float(p.list_price) if p.list_price else 0.0,
                 bonificaciones_str,
                 float(p.extra_cost) if p.extra_cost else 0.0,
                 float(p.profit_margin) if p.profit_margin else 0.0,
+                p.expiration_date.strftime('%Y-%m-%d') if p.expiration_date else '',
+                int(p.units_per_pack) if p.units_per_pack else '',
                 float(p.sale_price) if p.sale_price else 0.0,
             ]
 
@@ -492,15 +631,15 @@ class ExcelService:
                 # Alineación según tipo
                 if col_idx in [3, 4, 5]:  # nombre_proveedor, categoria, nombre
                     cell.alignment = Alignment(horizontal="left", vertical="center")
-                elif col_idx in [1, 2, 8]:  # código, codigo_proveedor, bonificaciones
+                elif col_idx in [1, 2, 6, 9, 12, 13]:  # códigos, unidad, bonificaciones, vencimiento, unidades_x_pack
                     cell.alignment = Alignment(horizontal="center", vertical="center")
                 else:  # números
                     cell.alignment = Alignment(horizontal="right", vertical="center")
 
                 # Formato de números
-                if col_idx in [7, 9, 10, 11]:  # precio_lista, cargo_extra, ganancia, precio_venta
+                if col_idx in [8, 10, 11, 14]:  # precio_lista, cargo_extra, ganancia, precio_venta
                     cell.number_format = '#,##0.00'
-                elif col_idx == 6:  # stock
+                elif col_idx == 7:  # stock
                     cell.number_format = '0'
 
                 # Bordes
@@ -522,12 +661,15 @@ class ExcelService:
             'C': 25,  # nombre_proveedor
             'D': 20,  # categoria
             'E': 40,  # nombre (descripción del producto)
-            'F': 12,  # stock
-            'G': 15,  # precio_lista
-            'H': 16,  # bonificaciones
-            'I': 14,  # cargo_extra
-            'J': 14,  # ganancia
-            'K': 15,  # precio_venta
+            'F': 10,  # unidad
+            'G': 12,  # stock
+            'H': 15,  # precio_lista
+            'I': 16,  # bonificaciones
+            'J': 14,  # cargo_extra
+            'K': 14,  # ganancia
+            'L': 15,  # vencimiento
+            'M': 16,  # unidades_x_pack
+            'N': 15,  # precio_venta
         }
 
         for col, width in column_widths.items():
@@ -641,6 +783,8 @@ class ExcelService:
                 'stock_actual': p.current_stock,
                 'stock_minimo': p.minimum_stock,
                 'unidad': p.unit,
+                'unidades_x_pack': p.units_per_pack,
+                'vencimiento': p.expiration_date.strftime('%Y-%m-%d') if p.expiration_date else '',
                 'activo': p.is_active,
                 'fecha_creacion': p.created_at.isoformat() if p.created_at else '',
                 'fecha_actualizacion': p.updated_at.isoformat() if p.updated_at else '',

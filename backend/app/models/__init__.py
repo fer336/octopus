@@ -21,6 +21,7 @@ from app.models.client_account import ClientAccount, MovementType
 from app.models.client_authorization import ClientAuthorization
 from app.models.client_type import ClientType
 from app.models.draft import Draft
+from app.models.lot_consumption import LotConsumption
 from app.models.feedback_ticket import FeedbackTicket
 from app.models.payment import Payment, PaymentMethod
 from app.models.payment_receipt import PaymentReceipt
@@ -45,6 +46,7 @@ from app.models.user import User
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
 from app.models.voucher_payment import VoucherPayment
+from app.models.product_lot import ProductLot
 from app.models.stockpile import Stockpile, StockpileItem, StockpileStatus
 
 __all__ = [
@@ -102,6 +104,9 @@ __all__ = [
     "Stockpile",
     "StockpileItem",
     "StockpileStatus",
+    # Lotes
+    "ProductLot",
+    "LotConsumption",
     # IA
     "AIProviderConfig",
     "AIProvider",
