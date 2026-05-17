@@ -119,12 +119,21 @@ export default function Products() {
   // Mutation para crear producto
   const createMutation = useMutation({
     mutationFn: (data: ProductCreate) => productsService.create(data),
-    onSuccess: () => {
+    onSuccess: async (newProduct) => {
+      if (selectedPhotoFile) {
+        try {
+          await productsService.uploadPhoto(newProduct.id, selectedPhotoFile)
+        } catch {
+          toast.error('Producto creado, pero no se pudo subir la foto.')
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ['products'] })
       toast.success('Producto creado correctamente', {
         duration: 3000,
         icon: '✅',
       })
+      setSelectedPhotoFile(null)
+      setPhotoPreview(null)
       setShowModal(false)
       resetForm()
     },
@@ -137,12 +146,21 @@ export default function Products() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: ProductUpdate }) =>
       productsService.update(id, data),
-    onSuccess: () => {
+    onSuccess: async (updatedProduct) => {
+      if (selectedPhotoFile) {
+        try {
+          await productsService.uploadPhoto(updatedProduct.id, selectedPhotoFile)
+        } catch {
+          toast.error('Producto actualizado, pero no se pudo subir la foto.')
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ['products'] })
       toast.success('Producto actualizado correctamente', {
         duration: 3000,
         icon: '✅',
       })
+      setSelectedPhotoFile(null)
+      setPhotoPreview(null)
       setShowModal(false)
       resetForm()
     },
@@ -562,6 +580,8 @@ export default function Products() {
   })
 
   const [discountsInput, setDiscountsInput] = useState('')
+  const [selectedPhotoFile, setSelectedPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
 
   // Refs para navegación con Enter
   const codeRef = useRef<HTMLInputElement>(null)
@@ -602,6 +622,8 @@ export default function Products() {
       is_active: true,
     })
     setDiscountsInput('')
+    setSelectedPhotoFile(null)
+    setPhotoPreview(null)
   }
 
   // Parsear input de bonificaciones (ej: "10+10+5")
@@ -722,6 +744,8 @@ export default function Products() {
       // Construir el string de descuentos
       const discounts = [product.discount_1, product.discount_2, product.discount_3].filter(d => d > 0)
       setDiscountsInput(discounts.join('+'))
+      setSelectedPhotoFile(null)
+      setPhotoPreview(null)
     } else {
       resetForm()
     }
@@ -1314,6 +1338,50 @@ export default function Products() {
                 />
               </div>
             </div>
+            {/* Photo upload */}
+            <div className="mt-3">
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Foto del producto
+              </label>
+              <div className="flex items-center gap-3">
+                {(photoPreview || (formData as any).photo_url) && (
+                  <img
+                    src={photoPreview || (formData as any).photo_url}
+                    alt="foto"
+                    className="h-16 w-16 rounded-lg object-cover border border-gray-200"
+                  />
+                )}
+                <label className="cursor-pointer rounded-lg border border-dashed border-gray-300 px-4 py-2 text-sm text-gray-600 hover:border-primary-400 hover:text-primary-600 dark:border-gray-600 dark:text-gray-400">
+                  {photoPreview || (formData as any).photo_url ? 'Cambiar foto' : 'Subir foto'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      if (file.size > 2 * 1024 * 1024) {
+                        toast.error('La imagen no puede superar 2 MB.')
+                        return
+                      }
+                      setSelectedPhotoFile(file)
+                      setPhotoPreview(URL.createObjectURL(file))
+                    }}
+                  />
+                </label>
+                {photoPreview && (
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedPhotoFile(null); setPhotoPreview(null) }}
+                    className="text-xs text-red-500 hover:text-red-700"
+                  >
+                    Quitar
+                  </button>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-gray-400">Máximo 2 MB · JPG, PNG o WebP</p>
+            </div>
+
             {/* Unit type + Pack qty */}
             <div className="grid grid-cols-2 gap-3 mt-3">
               <div>

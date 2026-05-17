@@ -45,6 +45,7 @@ class Product(BaseModel):
     supplier_code = Column(
         String(50), nullable=True, index=True
     )  # Código del proveedor
+    photo_url = Column(String(500), nullable=True)
 
     # Descripción
     description = Column(String(500), nullable=False, index=True)

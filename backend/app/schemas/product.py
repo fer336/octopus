@@ -19,6 +19,7 @@ class ProductCreate(BaseSchema):
     supplier_code: str | None = Field(
         None, max_length=50, description="Código del proveedor"
     )
+    photo_url: str | None = None
     description: str = Field(
         ..., max_length=500, description="Descripción del producto"
     )
@@ -66,6 +67,7 @@ class ProductUpdate(BaseSchema):
 
     code: str | None = Field(None, max_length=50)
     supplier_code: str | None = Field(None, max_length=50)
+    photo_url: str | None = None
     description: str | None = Field(None, max_length=500)
     details: str | None = None
     brand: str | None = Field(None, max_length=100)
@@ -159,6 +161,8 @@ class ProductResponse(BaseResponse):
     units_per_pack: int | None
 
     is_active: bool
+
+    photo_url: str | None = None
 
     # Campos de lotes (reemplazan expiration_date del producto)
     next_expiration: date | None = None

@@ -1272,3 +1272,32 @@ async def sync_price_from_lot(
         price_history_id=history.id,
         message="Precio sincronizado desde lote correctamente.",
     )
+
+
+@router.post("/{product_id}/photo", response_model=ProductResponse)
+async def upload_product_photo(
+    product_id: UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """Upload or replace a product photo. Max 2 MB. Allowed: image/jpeg, image/png, image/webp."""
+    MAX_SIZE = 2 * 1024 * 1024  # 2 MB
+
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Solo se permiten imágenes (jpeg, png, webp).")
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_SIZE:
+        raise HTTPException(status_code=400, detail="La imagen no puede superar 2 MB.")
+
+    service = ProductService(db)
+    product = await service.get_by_id(product_id, business_id)
+    if not product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado.")
+
+    from app.services.logo_storage_service import upload_product_photo as _upload
+    photo_url = _upload(str(business_id), str(product_id), file_bytes, file.filename or "photo.jpg")
+
+    updated = await service.update(product_id, business_id, ProductUpdate(photo_url=photo_url))
+    return ProductResponse.model_validate(updated)

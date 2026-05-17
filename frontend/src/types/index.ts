@@ -29,6 +29,7 @@ export interface AuthTokens {
 export interface Product extends BaseEntity {
   code: string
   supplier_code?: string
+  photo_url?: string
   description: string
   details?: string
   brand?: string

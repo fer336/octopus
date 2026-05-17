@@ -16,6 +16,7 @@ import Login from './pages/Login'
 import AuthCallback from './pages/AuthCallback'
 import Landing from './pages/Landing'
 import ProductAccess from './pages/ProductAccess'
+import ProductPublicPage from './pages/ProductPublicPage'
 
 // Páginas protegidas con lazy load — cada una genera su propio chunk
 // El browser solo descarga el código cuando el usuario navega a esa ruta
@@ -118,6 +119,7 @@ export default function App() {
             <Route path="/acceder" element={<ProductAccess />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/landing" element={<Landing />} />
+            <Route path="/p/:id" element={<ProductPublicPage />} />
 
             {/* Rutas protegidas — cada página carga solo cuando se navega */}
             <Route

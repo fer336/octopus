@@ -32,6 +32,7 @@ from app.routers import (
     price_update_drafts,
     product_lots,
     products,
+    public,
     purchase_orders,
     reports,
     suppliers,
@@ -118,6 +119,7 @@ app.include_router(audit_logs.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(admin.router)  # /api/admin/* (prefijo interno)
 app.include_router(feedback.admin_router)
 app.include_router(billing.router)
+app.include_router(public.router, prefix="/api/public")
 
 
 @app.get("/health", tags=["Health"])
