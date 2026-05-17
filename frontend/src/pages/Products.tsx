@@ -1681,8 +1681,65 @@ export default function Products() {
             </div>
           ) : (
             <>
-              {/* Tabla de lotes */}
-              <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+              {/* Mobile cards */}
+              <div className="md:hidden space-y-2">
+                {lots.map((lot: any) => {
+                  const expirationEl = lot.expiration_date ? (() => {
+                    const exp = new Date(lot.expiration_date)
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    const days = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                    if (days < 0) return <span className="text-red-600 font-semibold">{lot.expiration_date}</span>
+                    if (days <= 30) return <span className="text-amber-500 font-semibold">{lot.expiration_date}</span>
+                    return <span className="text-gray-700 dark:text-gray-300">{lot.expiration_date}</span>
+                  })() : <span className="text-gray-400">—</span>
+
+                  return (
+                    <div key={lot.id} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono font-medium text-gray-800 dark:text-gray-200 truncate max-w-[60%]">
+                          {lot.code || <span className="italic text-gray-400">Sin código</span>}
+                        </span>
+                        <span className="ml-2 flex-shrink-0 rounded-full bg-violet-100 dark:bg-violet-900/30 px-3 py-0.5 text-sm font-bold text-violet-700 dark:text-violet-300">
+                          {lot.quantity} uds.
+                        </span>
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-gray-400 dark:text-gray-500">Costo</span>
+                          <span className="font-medium text-gray-700 dark:text-gray-300">
+                            {lot.cost_price != null ? `$${Number(lot.cost_price).toLocaleString()}` : '—'}
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-gray-400 dark:text-gray-500">Vence</span>
+                          <span className="font-medium">{expirationEl}</span>
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-gray-400 dark:text-gray-500">Recibido</span>
+                          <span className="font-medium text-gray-700 dark:text-gray-300">{lot.received_date || '—'}</span>
+                        </div>
+                      </div>
+                      {lot.cost_price != null && Number(lot.cost_price) > 0 && (
+                        <div className="mt-2 border-t border-gray-100 dark:border-gray-700 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => handlePreviewSyncPriceFromLot(lot)}
+                            disabled={syncLoading && syncingLotId === lot.id}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-100 disabled:opacity-60 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300"
+                          >
+                            <Calculator size={12} />
+                            {syncLoading && syncingLotId === lot.id ? 'Calculando...' : 'Usar costo'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
@@ -1755,7 +1812,7 @@ export default function Products() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Cantidad *
@@ -1768,23 +1825,9 @@ export default function Products() {
                     onChange={(e) => setLotFormData({ ...lotFormData, quantity: parseInt(e.target.value) || 0 })}
                     onFocus={handleNumericFocus}
                     onKeyDown={(e) => handleLotNumericKeyDown(e, lotCodeRef)}
-                    className="w-full px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
+                    className="w-full px-2 py-2 md:py-1.5 text-base md:text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
                     required
                     autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Código de lote
-                  </label>
-                  <input
-                    ref={lotCodeRef}
-                    type="text"
-                    value={lotFormData.code}
-                    onChange={(e) => setLotFormData({ ...lotFormData, code: e.target.value })}
-                    onKeyDown={(e) => handleEnterKey(e, lotCostRef)}
-                    placeholder="Opcional — autogenerado si se omite"
-                    className="w-full px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
                 <div>
@@ -1801,7 +1844,21 @@ export default function Products() {
                     onFocus={handleNumericFocus}
                     onKeyDown={(e) => handleLotNumericKeyDown(e, lotReceivedDateRef)}
                     placeholder="0.00"
-                    className="w-full px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
+                    className="w-full px-2 py-2 md:py-1.5 text-base md:text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div className="col-span-2 md:col-span-1">
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Código de lote
+                  </label>
+                  <input
+                    ref={lotCodeRef}
+                    type="text"
+                    value={lotFormData.code}
+                    onChange={(e) => setLotFormData({ ...lotFormData, code: e.target.value })}
+                    onKeyDown={(e) => handleEnterKey(e, lotCostRef)}
+                    placeholder="Opcional"
+                    className="w-full px-2 py-2 md:py-1.5 text-base md:text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
                 <div>
@@ -1814,10 +1871,10 @@ export default function Products() {
                     value={lotFormData.received_date}
                     onChange={(e) => setLotFormData({ ...lotFormData, received_date: e.target.value })}
                     onKeyDown={(e) => handleEnterKey(e, lotFormData.has_expiration ? lotExpirationDateRef : lotSubmitRef)}
-                    className="w-full px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
+                    className="w-full px-2 py-2 md:py-1.5 text-base md:text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-1 md:col-span-2">
                   <label className="flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                     <input
                       type="checkbox"
@@ -1840,27 +1897,27 @@ export default function Products() {
                       value={lotFormData.expiration_date}
                       onChange={(e) => setLotFormData({ ...lotFormData, expiration_date: e.target.value })}
                       onKeyDown={(e) => handleEnterKey(e, lotSubmitRef)}
-                      className="w-full px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
+                      className="w-full px-2 py-2 md:py-1.5 text-base md:text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-600 focus:ring-2 focus:ring-amber-500"
                     />
                   )}
                   {!lotFormData.has_expiration && (
-                    <div className="flex h-[34px] items-center rounded-lg border border-dashed border-gray-300 bg-white/70 px-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
+                    <div className="flex h-[42px] md:h-[34px] items-center rounded-lg border border-dashed border-gray-300 bg-white/70 px-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
                       Sin vencimiento para este lote
                     </div>
                   )}
                 </div>
               </div>
-              <div className="mt-3 flex items-center justify-between gap-3 border-t border-amber-100 pt-3 dark:border-amber-900/40">
+              <div className="mt-3 flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-2 border-t border-amber-100 pt-3 dark:border-amber-900/40">
                 <p className="text-[11px] text-gray-500 dark:text-gray-400">
                   La fecha de recepción puede ser distinta al día de carga.
                 </p>
                 <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setShowNewLotForm(false)} type="button">
-                  Cancelar
-                </Button>
-                <Button ref={lotSubmitRef} size="sm" type="submit" className="bg-amber-600 hover:bg-amber-700 text-white">
-                  ✓ Ingresar stock
-                </Button>
+                  <Button variant="outline" size="sm" onClick={() => setShowNewLotForm(false)} type="button" className="flex-1 md:flex-none">
+                    Cancelar
+                  </Button>
+                  <Button ref={lotSubmitRef} size="sm" type="submit" className="flex-1 md:flex-none bg-amber-600 hover:bg-amber-700 text-white">
+                    ✓ Ingresar stock
+                  </Button>
                 </div>
               </div>
             </form>
