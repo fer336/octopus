@@ -6,6 +6,7 @@ import { ReactNode, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { clsx } from 'clsx'
+import { isMobile } from '../../utils/device'
 
 interface ModalProps {
   isOpen: boolean
@@ -52,6 +53,17 @@ export default function Modal({
       document.body.style.overflow = 'unset'
     }
   }, [isOpen, onClose])
+
+  // Prevent keyboard from opening on mobile when a modal mounts with an autoFocus input
+  useEffect(() => {
+    if (!isOpen || !isMobile()) return
+    const t = setTimeout(() => {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur()
+      }
+    }, 0)
+    return () => clearTimeout(t)
+  }, [isOpen])
 
   if (!isOpen) return null
 

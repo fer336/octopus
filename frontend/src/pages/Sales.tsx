@@ -24,6 +24,7 @@ import { useSalesStore } from '../stores/salesStore'
 import { useAuthStore } from '../stores/authStore'
 import { hasModuleAccess } from '../utils/acl'
 import { TAX_CONDITIONS, getTaxConditionLabel } from '../types'
+import { isMobile } from '../utils/device'
 
 type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'current_account' | 'acopio'
 type SalesMenuMode = VoucherType
@@ -1278,7 +1279,7 @@ export default function Sales() {
     if (showQuantityModal) {
       // Focus en el primer input (cantidad del primer producto)
       setTimeout(() => {
-        if (modalInputsRef.current[0]) {
+        if (!isMobile() && modalInputsRef.current[0]) {
           modalInputsRef.current[0].focus()
           modalInputsRef.current[0].select()
         }
@@ -1290,7 +1291,7 @@ export default function Sales() {
   }, [showQuantityModal])
 
   useEffect(() => {
-    if (showClientModal && clientNameInputRef.current) {
+    if (showClientModal && !isMobile() && clientNameInputRef.current) {
       clientNameInputRef.current.focus()
     }
   }, [showClientModal])
@@ -1380,7 +1381,7 @@ export default function Sales() {
     
     // 4. Focus y desbloquear eventos después de un delay (sin limpiar search)
     setTimeout(() => {
-      if (searchInputRef.current) {
+      if (!isMobile() && searchInputRef.current) {
         searchInputRef.current.focus()
       }
       // Desbloquear eventos después de que todo se haya procesado
