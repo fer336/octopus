@@ -157,7 +157,7 @@ class TestCompilePreviewFiscalClient:
             "price_strategy": "historical",
         }
         resp = await client.post(
-            f"/api/tenant/vouchers/compile-to-invoice/preview",
+            "/api/tenant/vouchers/compile-to-invoice/preview",
             json=payload,
             headers=headers,
         )
@@ -187,7 +187,7 @@ class TestCompilePreviewFiscalClient:
             "fiscal_client_id": str(test_client_ri.id),
         }
         resp = await client.post(
-            f"/api/tenant/vouchers/compile-to-invoice/preview",
+            "/api/tenant/vouchers/compile-to-invoice/preview",
             json=payload,
             headers=headers,
         )
@@ -214,7 +214,7 @@ class TestCompilePreviewFiscalClient:
             "fiscal_client_id": str(test_client_mono.id),
         }
         resp = await client.post(
-            f"/api/tenant/vouchers/compile-to-invoice/preview",
+            "/api/tenant/vouchers/compile-to-invoice/preview",
             json=payload,
             headers=headers,
         )
@@ -235,7 +235,7 @@ class TestCompilePreviewFiscalClient:
             "fiscal_client_id": str(uuid4()),
         }
         resp = await client.post(
-            f"/api/tenant/vouchers/compile-to-invoice/preview",
+            "/api/tenant/vouchers/compile-to-invoice/preview",
             json=payload,
             headers=headers,
         )

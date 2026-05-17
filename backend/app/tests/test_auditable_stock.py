@@ -28,6 +28,7 @@ from app.models.product_lot import ProductLot
 from app.models.user import User
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
+from app.schemas.excel_schemas import ProductImportRow
 
 # ── Fixtures compartidas ────────────────────────────────────────
 
@@ -788,7 +789,7 @@ async def test_voucher_quotation_does_not_create_consumptions(
     )
     lot_result = await db.execute(lot_query)
     lots = list(lot_result.scalars().all())
-    total_stock = sum(l.quantity for l in lots)
+    total_stock = sum(lot.quantity for lot in lots)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -948,10 +949,8 @@ async def _excel_import_row(
     current_stock: int = 0,
     is_new: bool = True,
     existing_id=None,
-) -> "ProductImportRow":
+) -> ProductImportRow:
     """Helper para crear filas de importación de prueba."""
-    from app.schemas.excel_schemas import ProductImportRow
-
     lp = list_price or Decimal("100.00")
     return ProductImportRow(
         row_number=2,
@@ -1153,7 +1152,7 @@ async def test_excel_confirm_import_existing_product_stock_increase(
         )
     )
     lots = list(lot_result.scalars().all())
-    created_lot = next((l for l in lots if l.created_by == user_a.id), None)
+    created_lot = next((lot for lot in lots if lot.created_by == user_a.id), None)
     assert created_lot is not None, "Debe haber un lote con created_by"
     assert created_lot.quantity == 50
 
@@ -1252,7 +1251,7 @@ async def test_bulk_stock_delta_positive(
     )
     lots = list(lot_result.scalars().all())
     assert len(lots) >= 1, "Debe haber al menos un lote"
-    total_stock = sum(l.quantity for l in lots)
+    total_stock = sum(lot.quantity for lot in lots)
     assert total_stock >= 25
 
     # Verificar AuditLog stock_adjustment
@@ -1314,7 +1313,6 @@ async def test_bulk_stock_delta_product_not_found(
     membership_a,
 ):
     """D1-S2: stock-delta con producto inexistente retorna error."""
-    from uuid import uuid4
     from app.services.product_service import ProductService
 
     service = ProductService(db)
@@ -1401,7 +1399,6 @@ async def test_price_history_empty_for_nonexistent_product(
     business_a,
 ):
     """D1-S2: get_price_history de producto inexistente retorna vacío."""
-    from uuid import uuid4
     from app.services.product_service import ProductService
 
     service = ProductService(db)
@@ -1470,7 +1467,6 @@ async def test_restore_price_nonexistent_entry(
     membership_a,
 ):
     """D1-S2: restore_price con entry inexistente retorna (None, None)."""
-    from uuid import uuid4
     from app.services.product_service import ProductService
 
     service = ProductService(db)
@@ -1538,8 +1534,6 @@ async def test_integration_patch_stock(
     membership_a,
 ):
     """I1-S1: PATCH /products/{id}/stock ajusta stock y crea AuditLog."""
-    from httpx import AsyncClient
-
     auth = make_auth_header(user_a)
 
     response = await client.patch(
@@ -1560,7 +1554,7 @@ async def test_integration_patch_stock(
     )
     lots = list(lot_result.scalars().all())
     assert len(lots) >= 1
-    total_stock = sum(l.quantity for l in lots)
+    total_stock = sum(lot.quantity for lot in lots)
     assert total_stock == 30
 
     # Verificar AuditLog
@@ -1589,7 +1583,7 @@ async def test_integration_stock_delta(
     auth = make_auth_header(user_a)
 
     response = await client.post(
-        f"/api/tenant/products/stock-delta",
+        "/api/tenant/products/stock-delta",
         json={
             "items": [
                 {"product_id": str(audit_product.id), "delta": 15, "reason": "Test integración"}
@@ -1611,7 +1605,7 @@ async def test_integration_stock_delta(
         )
     )
     lots = list(lot_result.scalars().all())
-    assert sum(l.quantity for l in lots) == 15
+    assert sum(lot.quantity for lot in lots) == 15
 
 
 @pytest.mark.asyncio
@@ -1623,12 +1617,10 @@ async def test_integration_stock_delta_not_found(
     membership_a,
 ):
     """I1-S2: stock-delta con producto inexistente retorna error 200 con failure."""
-    from uuid import uuid4
-
     auth = make_auth_header(user_a)
 
     response = await client.post(
-        f"/api/tenant/products/stock-delta",
+        "/api/tenant/products/stock-delta",
         json={
             "items": [
                 {"product_id": str(uuid4()), "delta": 10, "reason": "Test not found"}
@@ -1650,7 +1642,7 @@ async def test_integration_stock_delta_unauthorized(
 ):
     """I1-S2: stock-delta sin auth retorna 401."""
     response = await client.post(
-        f"/api/tenant/products/stock-delta",
+        "/api/tenant/products/stock-delta",
         json={"items": [{"product_id": "00000000-0000-0000-0000-000000000000", "delta": 10}]},
     )
     assert response.status_code == 401
@@ -1716,7 +1708,7 @@ async def test_integration_audit_logs(
 
     auth = make_auth_header(user_a)
     response = await client.get(
-        f"/api/tenant/audit-logs",
+        "/api/tenant/audit-logs",
         headers=auth,
     )
     assert response.status_code == 200, response.text
@@ -1754,7 +1746,7 @@ async def test_integration_audit_logs_filtered(
 
     auth = make_auth_header(user_a)
     response = await client.get(
-        f"/api/tenant/audit-logs",
+        "/api/tenant/audit-logs",
         params={"resource_type": "stock_adjustment"},
         headers=auth,
     )

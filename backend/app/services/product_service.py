@@ -465,9 +465,9 @@ class ProductService:
     async def bulk_stock_delta(
         self,
         business_id: UUID,
-        items: builtins.list["tuple[UUID, int, str | None]"],
+        items: builtins.list[tuple[UUID, int, str | None]],
         user_id: UUID | None = None,
-    ) -> builtins.list["tuple[UUID, bool, str | None]"]:
+    ) -> builtins.list[tuple[UUID, bool, str | None]]:
         """Ajusta stock de múltiples productos por delta.
 
         Cada item es (product_id, delta, reason).

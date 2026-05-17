@@ -200,7 +200,7 @@ async def test_list_lots_by_product(
     lots = await service.list_by_product(product.id, business_a.id)
 
     assert len(lots) >= 1
-    lot_ids = [str(l.id) for l in lots]
+    lot_ids = [str(lot.id) for lot in lots]
     assert str(lot_a.id) in lot_ids
 
 
@@ -213,7 +213,7 @@ async def test_list_lots_returns_all_active_lots(
     lots = await service.list_by_product(product.id, business_a.id)
 
     assert len(lots) >= 2
-    lot_ids = [str(l.id) for l in lots]
+    lot_ids = [str(lot.id) for lot in lots]
     assert str(lot_a.id) in lot_ids
     assert str(lot_b.id) in lot_ids
 
@@ -523,7 +523,6 @@ async def test_voucher_reverts_lot(
     # El comprobante queda marcado como eliminado
     from uuid import UUID
     from sqlalchemy import select
-    from app.models.voucher import Voucher
     result = await db.execute(select(Voucher).where(Voucher.id == UUID(voucher_id)))
     deleted_voucher = result.scalar_one()
     assert deleted_voucher.deleted_at is not None
@@ -786,8 +785,6 @@ async def test_sync_price_nonexistent_lot_returns_404(
     user_a: User, membership_a,
 ):
     """Lote inexistente devuelve 404."""
-    from uuid import uuid4
-
     headers = make_auth_header(user_a)
 
     response = await client.post(
