@@ -3,7 +3,7 @@
  * Lista, búsqueda y gestión de productos con cálculo de precio final.
  */
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Edit, Trash2, Calculator, Upload, Download, Search, AlertTriangle, FileCode, RotateCcw, Loader2, Package, ChevronDown } from 'lucide-react'
+import { Plus, Edit, Trash2, Calculator, Upload, Download, Search, AlertTriangle, FileCode, RotateCcw, Loader2, Package, ChevronDown, QrCode } from 'lucide-react'
 import { Button, Pagination, Modal, Select } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import toast from 'react-hot-toast'
@@ -14,6 +14,7 @@ import categoriesService from '../api/categoriesService'
 import suppliersService from '../api/suppliersService'
 import businessService from '../api/businessService'
 import ImportPreviewModal from '../components/products/ImportPreviewModal'
+import QrPrintPreview from '../components/products/QrPrintPreview'
 import BulkDeleteModal from '../components/products/BulkDeleteModal'
 import ImportProgressModal from '../components/products/ImportProgressModal'
 
@@ -39,6 +40,8 @@ export default function Products() {
   const [importPreviewData, setImportPreviewData] = useState<ImportPreviewResponse | null>(null)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [showImportProgress, setShowImportProgress] = useState(false)
+  const [selectedForQr, setSelectedForQr] = useState<Set<string>>(new Set())
+  const [showQrPreview, setShowQrPreview] = useState(false)
   const [importProgress, setImportProgress] = useState(0)
   const [importStatus, setImportStatus] = useState<'importing' | 'success' | 'error'>('importing')
   const [importTotal, setImportTotal] = useState(0)
@@ -1002,7 +1005,8 @@ export default function Products() {
       {/* Tabla desktop */}
       <div className="hidden lg:block" data-tour-products-table>
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
-          <div className="grid grid-cols-[88px_minmax(260px,1.6fr)_120px_120px_110px_120px_110px] items-center gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-400">
+          <div className="grid grid-cols-[32px_88px_minmax(260px,1.6fr)_120px_120px_110px_120px_110px] items-center gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-400">
+            <span />
             <span>Código</span>
             <span>Producto</span>
             <span>Vence</span>
@@ -1025,8 +1029,20 @@ export default function Products() {
                 const isExpanded = expandedProductIds.has(item.id)
 
                 return (
-                  <article key={item.id} className="group bg-white transition-colors hover:bg-gray-50/80 dark:bg-gray-900 dark:hover:bg-gray-800/60">
-                    <div className="grid grid-cols-[88px_minmax(260px,1.6fr)_120px_120px_110px_120px_110px] items-center gap-3 px-4 py-3">
+                  <article key={item.id} className={`group bg-white transition-colors hover:bg-gray-50/80 dark:bg-gray-900 dark:hover:bg-gray-800/60 ${selectedForQr.has(item.id) ? 'ring-1 ring-inset ring-violet-400 dark:ring-violet-600' : ''}`}>
+                    <div className="grid grid-cols-[32px_88px_minmax(260px,1.6fr)_120px_120px_110px_120px_110px] items-center gap-3 px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedForQr.has(item.id)}
+                        onChange={() =>
+                          setSelectedForQr((prev) => {
+                            const next = new Set(prev)
+                            next.has(item.id) ? next.delete(item.id) : next.add(item.id)
+                            return next
+                          })
+                        }
+                        className="h-4 w-4 cursor-pointer rounded accent-violet-600"
+                      />
                       <span className="inline-flex w-fit rounded-lg bg-gray-100 px-2 py-1 font-mono text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
                         {item.code}
                       </span>
@@ -1135,10 +1151,23 @@ export default function Products() {
             return (
               <article
                 key={item.id}
-                className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                className={`rounded-xl border bg-white p-3 shadow-sm dark:bg-gray-800 ${selectedForQr.has(item.id) ? 'border-violet-400 dark:border-violet-600' : 'border-gray-200 dark:border-gray-700'}`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
+                  <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedForQr.has(item.id)}
+                      onChange={() =>
+                        setSelectedForQr((prev) => {
+                          const next = new Set(prev)
+                          next.has(item.id) ? next.delete(item.id) : next.add(item.id)
+                          return next
+                        })
+                      }
+                      className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded accent-violet-600"
+                    />
+                    <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="inline-flex rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
                         {item.code}
@@ -1153,6 +1182,7 @@ export default function Products() {
                       {item.description}
                     </h3>
                   </div>
+                  </div>{/* end min-w-0 flex-1 wrapper */}
 
                   <div className="flex items-center gap-1">
                     <button
@@ -1986,6 +2016,38 @@ export default function Products() {
           </div>
         </div>
       </Modal>
+
+      {/* QR selection floating action bar */}
+      {selectedForQr.size > 0 && (
+        <div className="fixed bottom-[54px] left-1/2 z-40 -translate-x-1/2 md:bottom-6">
+          <div className="flex items-center gap-3 rounded-2xl bg-gray-900 px-4 py-3 shadow-2xl ring-1 ring-white/10 dark:bg-gray-800">
+            <span className="text-sm font-semibold text-white">
+              {selectedForQr.size} seleccionado(s)
+            </span>
+            <button
+              onClick={() => setSelectedForQr(new Set())}
+              className="rounded-lg px-2 py-1 text-xs text-gray-400 hover:text-white"
+            >
+              Limpiar
+            </button>
+            <button
+              onClick={() => setShowQrPreview(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-violet-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-violet-500 active:scale-95"
+            >
+              <QrCode size={16} />
+              Generar QR
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* QR print preview fullscreen */}
+      {showQrPreview && (
+        <QrPrintPreview
+          products={products.filter((p) => selectedForQr.has(p.id))}
+          onClose={() => setShowQrPreview(false)}
+        />
+      )}
     </div>
   )
 }
