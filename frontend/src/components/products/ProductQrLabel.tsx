@@ -45,6 +45,19 @@ export default function ProductQrLabel({ product }: Props) {
       >
         {product.code}
       </p>
+      {product.supplier_code && (
+        <p
+          style={{
+            fontSize: '5pt',
+            fontFamily: 'monospace',
+            color: '#888',
+            margin: 0,
+            textAlign: 'center',
+          }}
+        >
+          Prov: {product.supplier_code}
+        </p>
+      )}
       <p
         style={{
           fontSize: '6.5pt',
