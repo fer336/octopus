@@ -75,7 +75,7 @@ export default function Modal({
       />
 
       {/* Modal */}
-      <div className={clsx('flex min-h-full items-center justify-center p-4', frameClassName)}>
+      <div className={clsx('flex min-h-full items-center justify-center p-4 pb-[70px] md:pb-4', frameClassName)}>
         <div
           className={clsx(
             'relative w-full bg-white dark:bg-gray-800 rounded-xl shadow-xl',

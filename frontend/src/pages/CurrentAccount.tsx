@@ -391,8 +391,17 @@ export default function CurrentAccount() {
       window.open(url, '_blank')
 
       toast.success('PDF generado', { id: 'preview-pdf' })
-    } catch (error) {
-      toast.error(formatErrorMessage(error), { id: 'preview-pdf' })
+    } catch (error: any) {
+      const status = error?.response?.status
+      const detail = error?.response?.data?.detail
+      if (status === 400) {
+        toast.error(
+          typeof detail === 'string' ? detail : 'No hay remitos disponibles para previsualizar.',
+          { id: 'preview-pdf' }
+        )
+      } else {
+        toast.error(formatErrorMessage(error), { id: 'preview-pdf' })
+      }
     }
   }
 
