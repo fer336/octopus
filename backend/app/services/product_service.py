@@ -383,7 +383,7 @@ class ProductService:
         business_id: UUID,
         limit: int = 50,
         offset: int = 0,
-    ) -> tuple[list[PriceHistory], int]:
+    ) -> tuple[builtins.list[PriceHistory], int]:
         """Retorna el historial de precios de un producto."""
         query = select(PriceHistory).where(
             PriceHistory.product_id == product_id,
