@@ -20,13 +20,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Upgrade schema."""
-    op.add_column(
-        "products",
-        sa.Column("units_per_pack", sa.Integer(), nullable=True),
-    )
+    # d4e5f6a7b8c9 already adds this column; use IF NOT EXISTS to be safe on all envs
+    op.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS units_per_pack INTEGER")
 
 
 def downgrade() -> None:
-    """Downgrade schema."""
-    op.drop_column("products", "units_per_pack")
+    # Column is owned by d4e5f6a7b8c9 — do not drop it here
+    pass
