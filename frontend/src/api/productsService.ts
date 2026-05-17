@@ -11,6 +11,7 @@ export interface Product {
   supplier_id?: string
   code: string
   supplier_code?: string
+  photo_url?: string
   description: string
   details?: string
   brand?: string
@@ -361,6 +362,18 @@ export const productsService = {
     },
   ): Promise<ProductLot> => {
     const response = await httpClient.post(`/products/${productId}/lots`, data)
+    return response.data
+  },
+
+  /**
+   * Sube o reemplaza la foto de un producto. Max 2 MB.
+   */
+  uploadPhoto: async (productId: string, file: File): Promise<Product> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await httpClient.post(`/products/${productId}/photo`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
     return response.data
   },
 

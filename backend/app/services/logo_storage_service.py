@@ -71,6 +71,38 @@ def upload_logo_to_storage(tenant_id: str, file_bytes: bytes, original_name: str
         raise RuntimeError(f"Error subiendo logo a MinIO: {exc}") from exc
 
 
+def upload_product_photo(business_id: str, product_id: str, file_bytes: bytes, original_name: str) -> str:
+    """Upload a product photo to MinIO and return its public URL."""
+    service = LogoStorageService()
+    try:
+        settings = service.settings
+        bucket = settings.MINIO_BUCKET_NAME
+        extension = (original_name.rsplit(".", 1)[-1].lower() if "." in original_name else "jpg")
+        object_name = f"products/{business_id}/{product_id}.{extension}"
+
+        content_type = mimetypes.guess_type(original_name)[0] or "image/jpeg"
+        data = io.BytesIO(file_bytes)
+
+        if not service.client.bucket_exists(bucket):
+            service.client.make_bucket(bucket)
+
+        service.client.put_object(
+            bucket_name=bucket,
+            object_name=object_name,
+            data=data,
+            length=len(file_bytes),
+            content_type=content_type,
+        )
+
+        if settings.MINIO_PUBLIC_BASE_URL:
+            return f"{settings.MINIO_PUBLIC_BASE_URL.rstrip('/')}/{object_name}"
+
+        scheme = "https" if settings.MINIO_SECURE else "http"
+        return f"{scheme}://{settings.MINIO_ENDPOINT}/{bucket}/{object_name}"
+    except Exception as exc:
+        raise RuntimeError(f"Error subiendo foto de producto a MinIO: {exc}") from exc
+
+
 def _get_minio_client_class() -> Any:
     """Import lazy de MinIO para no romper arranque si falta dependencia."""
     try:

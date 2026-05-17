@@ -59,16 +59,24 @@ export default function QrScanner({ onAddProduct, onClose }: Props) {
     if (processingRef.current) return
     processingRef.current = true
 
-    let qrData: { id?: string; code?: string; name?: string; price?: number }
-    try {
-      qrData = JSON.parse(decodedText)
-    } catch {
-      // Not JSON — not our QR, ignore silently
-      processingRef.current = false
-      return
+    let productId: string | undefined
+
+    // New format: URL like https://app.octopustrack.shop/p/{uuid}
+    const urlMatch = decodedText.match(/\/p\/([0-9a-f-]{36})/i)
+    if (urlMatch) {
+      productId = urlMatch[1]
+    } else {
+      // Legacy format: JSON payload
+      try {
+        const qrData: { id?: string } = JSON.parse(decodedText)
+        productId = qrData.id
+      } catch {
+        processingRef.current = false
+        return
+      }
     }
 
-    if (!qrData.id) {
+    if (!productId) {
       toast('QR no reconocido', { icon: '⚠️', duration: 1500 })
       processingRef.current = false
       return
@@ -78,7 +86,7 @@ export default function QrScanner({ onAddProduct, onClose }: Props) {
     setIsLookingUp(true)
 
     try {
-      const product = await productsService.getById(qrData.id)
+      const product = await productsService.getById(productId)
       if (navigator.vibrate) navigator.vibrate(40)
       setPending({ product, quantity: 1 })
     } catch {
