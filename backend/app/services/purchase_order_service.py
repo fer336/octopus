@@ -384,7 +384,7 @@ class PurchaseOrderService:
         file_bytes: bytes,
         supplier_id: UUID | None,
         category_id: UUID | None,
-    ) -> tuple["PurchaseOrder", list[str]]:
+    ) -> tuple[PurchaseOrder, list[str]]:
         """
         Parsea una planilla de conteo (.xlsx) e crea una orden de pedido.
 
