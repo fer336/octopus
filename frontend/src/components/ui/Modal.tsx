@@ -66,7 +66,7 @@ export default function Modal({
   if (typeof document === 'undefined') return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 overflow-y-auto animate-fadeIn">
+    <div className="fixed inset-0 z-[80] overflow-y-auto animate-fadeIn">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/20 dark:bg-black/40 transition-opacity"
