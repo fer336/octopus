@@ -78,6 +78,7 @@ export default function NewPurchaseOrderModal({
   const [selectedCategory, setSelectedCategory] = useState(draftOrder?.category_id ?? '')
   const [notes, setNotes] = useState(draftOrder?.notes ?? '')
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isDownloadingExcel, setIsDownloadingExcel] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSavingDraft, setIsSavingDraft] = useState(false)
 
@@ -238,6 +239,21 @@ export default function NewPurchaseOrderModal({
       toast.error('Error al descargar la planilla')
     } finally {
       setIsDownloading(false)
+    }
+  }
+
+  const handleDownloadSheetExcel = async () => {
+    setIsDownloadingExcel(true)
+    try {
+      await purchaseOrdersService.downloadCountSheetExcel(
+        selectedSupplier || undefined,
+        selectedCategory || undefined,
+      )
+      toast.success('Planilla Excel descargada')
+    } catch {
+      toast.error('Error al descargar la planilla Excel')
+    } finally {
+      setIsDownloadingExcel(false)
     }
   }
 
@@ -438,14 +454,24 @@ export default function NewPurchaseOrderModal({
                     Descargá la planilla de conteo para llevar al depósito.
                     Anotá el stock físico de cada producto y luego volvé a cargarlos acá.
                   </p>
-                  <button
-                    onClick={handleDownloadSheet}
-                    disabled={isDownloading}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
-                  >
-                    <FileDown className="w-4 h-4" />
-                    {isDownloading ? 'Descargando...' : 'Descargar Planilla de Conteo'}
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={handleDownloadSheet}
+                      disabled={isDownloading || isDownloadingExcel}
+                      className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                    >
+                      <FileDown className="w-4 h-4" />
+                      {isDownloading ? 'Descargando...' : 'PDF'}
+                    </button>
+                    <button
+                      onClick={handleDownloadSheetExcel}
+                      disabled={isDownloading || isDownloadingExcel}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                    >
+                      <FileDown className="w-4 h-4" />
+                      {isDownloadingExcel ? 'Descargando...' : 'Excel'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

@@ -107,6 +107,76 @@ async def download_inventory_count_pdf(
 
 
 # ---------------------------------------------------------------------------
+# Planilla de conteo (Excel)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/inventory-count/excel")
+async def download_inventory_count_excel(
+    supplier_id: UUID | None = Query(None, description="Filtrar por proveedor"),
+    category_id: UUID | None = Query(None, description="Filtrar por categoría"),
+    db: AsyncSession = Depends(get_db),
+    current_business=Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """
+    Genera y descarga la planilla de conteo físico en Excel (.xlsx).
+    Requiere al menos un filtro: supplier_id o category_id.
+    """
+    if not supplier_id and not category_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debe especificar al menos un proveedor o una categoría",
+        )
+
+    service = PurchaseOrderService(db)
+    products = await service.get_products_for_count_sheet(
+        business_id=current_business,
+        supplier_id=supplier_id,
+        category_id=category_id,
+    )
+
+    if not products:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No se encontraron productos activos con los filtros indicados",
+        )
+
+    business = await db.get(Business, current_business)
+
+    supplier_name = ""
+    category_name = ""
+    if products:
+        first = products[0]
+        if first.supplier:
+            supplier_name = first.supplier.name
+        if first.category:
+            category_name = first.category.name
+
+    excel_bytes = pdf_service.generate_inventory_count_excel(
+        business=business,
+        products=products,
+        supplier_name=supplier_name,
+        category_name=category_name,
+    )
+
+    suffix = ""
+    if supplier_name:
+        suffix += f"_{supplier_name[:15].replace(' ', '_')}"
+    if category_name:
+        suffix += f"_{category_name[:15].replace(' ', '_')}"
+    from datetime import date
+
+    filename = f"planilla_conteo{suffix}_{date.today().strftime('%Y_%m_%d')}.xlsx"
+
+    return StreamingResponse(
+        iter([excel_bytes]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+# ---------------------------------------------------------------------------
 # CRUD Órdenes de Pedido
 # ---------------------------------------------------------------------------
 
