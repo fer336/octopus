@@ -53,7 +53,6 @@ export default function QrScanner({ onAddProduct, onClose }: Props) {
       document.body.style.overflow = ''
       scanner.stop().catch(() => {})
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function handleScan(decodedText: string) {
