@@ -151,10 +151,9 @@ export default function MainLayout() {
             location.pathname.startsWith('/sales') ? 'p-2 sm:p-4 lg:p-6' : 'p-2 sm:p-3'
           }`}
         >
-          {/* Wrapper adds bottom padding on mobile so content never hides behind the tab bar */}
-          <div className="min-h-full pb-[54px] md:pb-0">
-            <Outlet />
-          </div>
+          <Outlet />
+          {/* Spacer so the mobile tab bar never covers the bottom of any page */}
+          <div className="h-[54px] md:hidden" aria-hidden="true" />
         </main>
       </div>
 
