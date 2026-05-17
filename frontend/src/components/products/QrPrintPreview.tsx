@@ -13,24 +13,33 @@ const COLS = 3
 const ROWS = 6
 
 const PRINT_CSS = `
-@page { size: A4 portrait; margin: 8mm; }
+@page { size: A4 portrait; margin: 0; }
 @media print {
-  body > *:not(#qr-print-root) { display: none !important; }
+  body * { visibility: hidden !important; }
+  #qr-print-root,
+  #qr-print-root * { visibility: visible !important; }
   #qr-print-root .no-print { display: none !important; }
   #qr-print-root {
     position: fixed !important;
-    inset: 0 !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: auto !important;
     overflow: visible !important;
     background: white !important;
     padding: 0 !important;
   }
+  .qr-print-scroll {
+    overflow: visible !important;
+    height: auto !important;
+    padding: 0 !important;
+    background: white !important;
+  }
   .qr-page-sheet {
     page-break-after: always;
-    margin: 0 !important;
-    padding: 0 !important;
     box-shadow: none !important;
     border: none !important;
-    width: 100% !important;
+    margin: 0 auto !important;
   }
   .qr-page-sheet:last-child { page-break-after: auto; }
 }
@@ -83,7 +92,7 @@ export default function QrPrintPreview({ products, onClose }: Props) {
       </div>
 
       {/* Scrollable page previews */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="qr-print-scroll flex-1 overflow-auto p-6">
         {pages.map((pageProducts, pageIndex) => (
           <div
             key={pageIndex}
