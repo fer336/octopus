@@ -5937,6 +5937,17 @@ export default function Sales() {
         </div>
       </Modal>
 
+      {/* Mobile-only floating camera button — always accessible above the stepper bar */}
+      {!showQrScanner && (
+        <button
+          onClick={() => setShowQrScanner(true)}
+          className="fixed bottom-[132px] right-4 z-[70] flex h-12 w-12 items-center justify-center rounded-full bg-violet-600 shadow-lg shadow-violet-900/40 active:scale-95 lg:hidden"
+          aria-label="Escanear QR"
+        >
+          <ScanLine size={22} className="text-white" />
+        </button>
+      )}
+
       {showQrScanner && (
         <QrScanner
           onAddProduct={addScannedProduct}
