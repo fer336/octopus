@@ -66,7 +66,7 @@ export default function Modal({
   if (typeof document === 'undefined') return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] overflow-y-auto animate-fadeIn">
+    <div className="fixed inset-0 bottom-[54px] md:bottom-0 z-[80] overflow-y-auto animate-fadeIn">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/20 dark:bg-black/40 transition-opacity"
@@ -75,7 +75,7 @@ export default function Modal({
       />
 
       {/* Modal */}
-      <div className={clsx('flex min-h-full items-center justify-center p-4 pb-[70px] md:pb-4', frameClassName)}>
+      <div className={clsx('flex min-h-full items-center justify-center p-4', frameClassName)}>
         <div
           className={clsx(
             'relative w-full bg-white dark:bg-gray-800 rounded-xl shadow-xl',
