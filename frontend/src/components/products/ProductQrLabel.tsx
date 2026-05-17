@@ -34,10 +34,17 @@ export default function ProductQrLabel({ product }: Props) {
         backgroundColor: 'white',
       }}
     >
-      <div
-        style={{ width: '26mm', height: '26mm', lineHeight: 0, flexShrink: 0 }}
-        dangerouslySetInnerHTML={{ __html: svgHtml }}
-      />
+      <p
+        style={{
+          fontSize: '5.5pt',
+          fontFamily: 'monospace',
+          color: '#555',
+          margin: 0,
+          textAlign: 'center',
+        }}
+      >
+        {product.code}
+      </p>
       <p
         style={{
           fontSize: '6.5pt',
@@ -55,27 +62,10 @@ export default function ProductQrLabel({ product }: Props) {
       >
         {product.description}
       </p>
-      <p
-        style={{
-          fontSize: '5.5pt',
-          fontFamily: 'monospace',
-          color: '#555',
-          margin: 0,
-          textAlign: 'center',
-        }}
-      >
-        {product.code}
-      </p>
-      <p
-        style={{
-          fontSize: '7pt',
-          color: '#15803d',
-          fontWeight: 700,
-          margin: 0,
-        }}
-      >
-        ${product.sale_price.toLocaleString('es-AR')}
-      </p>
+      <div
+        style={{ width: '26mm', height: '26mm', lineHeight: 0, flexShrink: 0 }}
+        dangerouslySetInnerHTML={{ __html: svgHtml }}
+      />
     </div>
   )
 }
