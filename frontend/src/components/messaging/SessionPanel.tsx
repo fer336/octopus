@@ -80,7 +80,6 @@ export default function SessionPanel({ onSessionReady }: Props) {
     }
 
     bootstrap()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
   async function handleDisconnect() {

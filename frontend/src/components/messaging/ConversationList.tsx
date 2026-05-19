@@ -116,7 +116,7 @@ export default function ConversationList({ sessionId }: Props) {
                     alt={contactDisplayName(contact)}
                     className="w-10 h-10 rounded-full object-cover"
                     onError={(e) => {
-                      ;(e.target as HTMLImageElement).style.display = 'none'
+                      (e.target as HTMLImageElement).style.display = 'none'
                     }}
                   />
                 ) : (
