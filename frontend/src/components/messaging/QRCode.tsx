@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { RefreshCw, Wifi } from 'lucide-react'
-import { getQRCode, getSession } from '../../api/whatsapp/service'
+import QRCodeLib from 'qrcode'
+import { getQRCode, getConnectionState } from '../../api/whatsapp/service'
 import type { SessionStatus } from '../../types/whatsapp'
 
 interface Props {
@@ -17,7 +18,8 @@ export default function QRCode({ sessionId, onConnected }: Props) {
 
   const poll = useCallback(async () => {
     try {
-      const session = await getSession(sessionId)
+      // GET /instance/connectionState/{instance} — read-only, sin side effects
+      const session = await getConnectionState(sessionId)
       setStatus(session.status)
 
       if (session.status === 'ready') {
@@ -25,16 +27,25 @@ export default function QRCode({ sessionId, onConnected }: Props) {
         return
       }
 
-      if (session.status === 'qr_ready') {
+      if (session.status === 'qr_ready' && !qrDataUrl) {
+        // GET /instance/connect/{instance} — devuelve el code para generar QR
         const qr = await getQRCode(sessionId)
-        setQrDataUrl(qr.qrCode)
+        if (qr.qrCode) {
+          // Generar QR image desde el code string
+          const url = await QRCodeLib.toDataURL(qr.qrCode, {
+            width: 300,
+            margin: 2,
+            color: { dark: '#1f2937', light: '#ffffff' },
+          })
+          setQrDataUrl(url)
+        }
         setError(null)
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error fetching QR'
       setError(msg)
     }
-  }, [sessionId, onConnected])
+  }, [sessionId, onConnected, qrDataUrl])
 
   useEffect(() => {
     poll()

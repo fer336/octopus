@@ -6,25 +6,39 @@ function readString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
+/**
+ * Retorna la config por defecto, sobreescribiendo apiKey desde VITE_EVOLUTION_API_KEY
+ * cuando existe (build-time). Así cada entorno puede tener su propia key sin hardcodear.
+ */
+function defaultWithEnvOverrides(): WhatsAppProviderConfig {
+  let envApiKey = ''
+  try {
+    envApiKey = import.meta.env.VITE_EVOLUTION_API_KEY ?? ''
+  } catch {
+    // fallback si import.meta.env no está disponible
+  }
+
+  return {
+    ...DEFAULT_PROVIDER_CONFIG,
+    apiKey: envApiKey || DEFAULT_PROVIDER_CONFIG.apiKey,
+  }
+}
+
 function normalizeProviderConfig(rawConfig: unknown): WhatsAppProviderConfig {
   const data = typeof rawConfig === 'object' && rawConfig !== null
     ? rawConfig as Record<string, unknown>
     : {}
-  const provider = readString(data.provider)
-  const isEvolutionConfig = provider === DEFAULT_PROVIDER_CONFIG.provider
   const baseUrl = readString(data.baseUrl)?.trim()
   const apiKey = readString(data.apiKey) ?? ''
   const defaultSessionId = readString(data.defaultSessionId)?.trim()
 
+  const defaults = defaultWithEnvOverrides()
+
   return {
-    ...DEFAULT_PROVIDER_CONFIG,
-    baseUrl: isEvolutionConfig && baseUrl ? baseUrl : DEFAULT_PROVIDER_CONFIG.baseUrl,
-    apiKey,
-    authHeader: DEFAULT_PROVIDER_CONFIG.authHeader,
-    authPrefix: DEFAULT_PROVIDER_CONFIG.authPrefix,
-    defaultSessionId: isEvolutionConfig && defaultSessionId
-      ? defaultSessionId
-      : DEFAULT_PROVIDER_CONFIG.defaultSessionId,
+    ...defaults,
+    baseUrl: baseUrl || defaults.baseUrl,
+    apiKey: apiKey || defaults.apiKey,
+    defaultSessionId: defaultSessionId || defaults.defaultSessionId,
   }
 }
 
@@ -39,7 +53,7 @@ export function getProviderConfig(): WhatsAppProviderConfig {
   } catch {
     // ignore parse errors
   }
-  return { ...DEFAULT_PROVIDER_CONFIG }
+  return { ...defaultWithEnvOverrides() }
 }
 
 export function saveProviderConfig(config: WhatsAppProviderConfig): void {

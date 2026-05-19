@@ -66,7 +66,7 @@ export default function SessionPanel({ onSessionReady }: Props) {
       } catch (err: unknown) {
         const status = (err as { response?: { status?: number } })?.response?.status
         if (status === 401 || status === 403) {
-          toast.error('API key inválida. Revisá la configuración en Ajustes.')
+          toast.error('WhatsApp no está autorizado. Revisá la configuración del servidor.')
         } else {
           toast.error('No se pudo conectar con el servidor de WhatsApp.')
         }
@@ -118,7 +118,7 @@ export default function SessionPanel({ onSessionReady }: Props) {
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status
       if (status === 401 || status === 403) {
-        toast.error('API key inválida. Revisá la configuración en Ajustes.')
+        toast.error('WhatsApp no está autorizado. Revisá la configuración del servidor.')
       } else {
         toast.error('No se pudo conectar. Verificá que el servidor esté activo.')
       }

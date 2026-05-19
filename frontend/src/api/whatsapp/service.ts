@@ -20,13 +20,6 @@ interface EvolutionInstanceResponse {
   instance?: EvolutionInstanceData
 }
 
-interface EvolutionQRCodeResponse {
-  base64?: string
-  code?: string
-  qrcode?: string
-  pairingCode?: string
-}
-
 interface EvolutionMessageResponse {
   key?: {
     id?: string
@@ -177,17 +170,42 @@ export async function listSessions(): Promise<WhatsAppSession[]> {
 }
 
 export async function getSession(id: string): Promise<WhatsAppSession> {
+  // GET /instance/connectionState/{instance} — read-only, sin side effects
   const res = await client().get(`/instance/connectionState/${id}`)
   return normalizeEvolutionSession(res.data?.instance ?? { instanceName: id })
 }
 
-export async function createSession(name: string): Promise<WhatsAppSession> {
+/** GET /instance/connect/{instance} — inicia conexión y devuelve pairingCode/code para QR */
+export async function connectSession(id: string): Promise<{ pairingCode?: string; code?: string }> {
+  const res = await client().get<{ pairingCode?: string; code?: string; count?: number }>(`/instance/connect/${id}`)
+  return {
+    pairingCode: res.data.pairingCode,
+    code: res.data.code,
+  }
+}
+
+/** GET /instance/connectionState/{instance} — estado real sin efectos secundarios */
+export async function getConnectionState(id: string): Promise<WhatsAppSession> {
+  const res = await client().get(`/instance/connectionState/${id}`)
+  return normalizeEvolutionSession(res.data?.instance ?? { instanceName: id })
+}
+
+export async function createSession(name: string, token?: string): Promise<WhatsAppSession> {
   try {
-    const res = await client().post('/instance/create', {
+    const payload: Record<string, unknown> = {
       instanceName: name,
-      integration: 'WHATSAPP-BAILEYS',
       qrcode: true,
-    })
+      rejectCall: true,
+      groupsIgnore: true,
+      alwaysOnline: true,
+      readMessages: true,
+      readStatus: true,
+      syncFullHistory: true,
+    }
+
+    if (token) payload.token = token
+
+    const res = await client().post('/instance/create', payload)
     return normalizeEvolutionSession(res.data?.instance ?? { instanceName: name, state: 'qrcode' })
   } catch (error: unknown) {
     if (getHttpStatus(error) === 403) {
@@ -201,8 +219,10 @@ export async function createSession(name: string): Promise<WhatsAppSession> {
 }
 
 export async function startSession(id: string): Promise<WhatsAppSession> {
-  const res = await client().get(`/instance/connect/${id}`)
-  return normalizeEvolutionSession(res.data?.instance ?? { instanceName: id, state: 'qrcode' })
+  // GET /instance/connect/{instance} — inicia conexión y devuelve pairingCode/code para QR
+  await client().get(`/instance/connect/${id}`)
+  // Después de conectar, consultamos el estado real
+  return getConnectionState(id)
 }
 
 export async function stopSession(id: string): Promise<void> {
@@ -213,11 +233,12 @@ export async function deleteSession(id: string): Promise<void> {
   await client().delete(`/instance/delete/${id}`)
 }
 
-export async function getQRCode(id: string): Promise<{ qrCode: string; status: string }> {
-  const res = await client().get<EvolutionQRCodeResponse>(`/instance/connect/${id}`)
+/** GET /instance/connect/{instance} — obtiene el code/pairingCode para generar QR */
+export async function getQRCode(id: string): Promise<{ qrCode: string; pairingCode?: string }> {
+  const res = await client().get<{ pairingCode?: string; code?: string; count?: number; base64?: string; qrcode?: string }>(`/instance/connect/${id}`)
   return {
-    qrCode: res.data.base64 ?? res.data.qrcode ?? res.data.code ?? '',
-    status: res.data.base64 || res.data.qrcode || res.data.code ? 'qr_ready' : 'initializing',
+    qrCode: res.data.code ?? res.data.base64 ?? res.data.qrcode ?? '',
+    pairingCode: res.data.pairingCode,
   }
 }
 

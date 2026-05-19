@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { MessageSquare, Loader2, Search, Phone, User } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { sendDocument, sendText, listSessions } from '../../api/whatsapp/service'
-import { getProviderConfig } from '../../api/whatsapp/provider'
 import { useMessagingStore } from '../../stores/messagingStore'
 import clientsService, { type Client } from '../../api/clientsService'
 
@@ -93,8 +92,6 @@ export default function WhatsAppSendModal({
       setResolvedSessionId(storeSessionId)
       return
     }
-    const config = getProviderConfig()
-    if (!config.apiKey?.trim()) return
     listSessions()
       .then((sessions) => {
         const ready = sessions.find((s) => s.status === 'ready')
@@ -174,9 +171,6 @@ export default function WhatsAppSendModal({
 
   if (!isOpen) return null
 
-  const config = getProviderConfig()
-  const hasApiKey = !!config.apiKey?.trim()
-
   function selectClient(c: Client) {
     setSelectedClient(c)
     setClientSearch('')
@@ -199,10 +193,6 @@ export default function WhatsAppSendModal({
   const valid = !!chatId && isValidArgentina(recipientPhone)
 
   async function handleSend() {
-    if (!hasApiKey) {
-      toast.error('Configurá WhatsApp primero en Ajustes → WhatsApp / Mensajería')
-      return
-    }
     if (!activeSessionId) {
       toast.error('No hay sesión de WhatsApp activa. Abrí el CRM y conectá tu cuenta.')
       return

@@ -75,30 +75,15 @@ export default function WhatsAppSettings({ onSaved }: Props = {}) {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-            API Key / Token
+            API Key (Global)
           </label>
           <input
             type="password"
             value={config.apiKey}
             onChange={(e) => setConfig((prev) => ({ ...prev, apiKey: e.target.value }))}
-            placeholder="sk-..."
+            placeholder="VITE_EVOLUTION_API_KEY del .env"
             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-            Header de autenticación
-          </label>
-          <input
-            type="text"
-            value={config.authHeader}
-            onChange={(e) => setConfig((prev) => ({ ...prev, authHeader: e.target.value }))}
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            Encabezado usado por Evolution API.
-          </p>
         </div>
 
         <div>

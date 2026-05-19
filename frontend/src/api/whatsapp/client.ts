@@ -6,12 +6,7 @@ let _configSnapshot = ''
 
 export function getWhatsAppClient(): AxiosInstance {
   const config = getProviderConfig()
-  const snapshot = JSON.stringify({
-    base: config.baseUrl,
-    key: config.apiKey,
-    header: config.authHeader,
-    prefix: config.authPrefix,
-  })
+  const snapshot = JSON.stringify({ base: config.baseUrl, key: config.apiKey })
 
   if (!_client || snapshot !== _configSnapshot) {
     _configSnapshot = snapshot
