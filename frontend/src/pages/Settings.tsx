@@ -322,7 +322,7 @@ export default function Settings() {
               WhatsApp / Mensajería
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Configurá el provider de WhatsApp para el CRM
+              Configurá Evolution API para el CRM
             </p>
           </div>
         </div>

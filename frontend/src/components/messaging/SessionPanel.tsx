@@ -3,28 +3,24 @@ import { Smartphone, Wifi, WifiOff, LogOut, RefreshCw, CheckCircle } from 'lucid
 import toast from 'react-hot-toast'
 import { createSession, startSession, stopSession, deleteSession, listSessions } from '../../api/whatsapp/service'
 import { useMessagingStore } from '../../stores/messagingStore'
-import { useAuthStore } from '../../stores/authStore'
 import QRCode from './QRCode'
 import type { WhatsAppSession } from '../../types/whatsapp'
+import { getProviderConfig } from '../../api/whatsapp/provider'
 
 interface Props {
   onSessionReady: () => void
 }
 
-function emailToSessionId(email: string): string {
-  return email.toLowerCase().replace(/[@.]/g, '-').replace(/[^a-z0-9-]/g, '')
-}
-
 export default function SessionPanel({ onSessionReady }: Props) {
   const { sessions, setSessions, upsertSession, setActiveSessionId } = useMessagingStore()
-  const user = useAuthStore((state) => state.user)
 
   const [loading, setLoading] = useState(true)
   const [reconnecting, setReconnecting] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null)
 
-  const sessionId = user ? emailToSessionId(user.email) : null
+  const configuredSessionId = getProviderConfig().defaultSessionId.trim()
+  const sessionId = configuredSessionId || 'octopustrack'
   const mySession: WhatsAppSession | undefined = sessions.find((s) => s.id === sessionId)
 
   useEffect(() => {
@@ -55,13 +51,13 @@ export default function SessionPanel({ onSessionReady }: Props) {
           try {
             session = await startSession(existing.id)
           } catch {
-            // WAHA dropped the session internally — delete and recreate
+            // Evolution puede perder la instancia en el servidor; se recrea para obtener QR nuevo.
             await deleteSession(existing.id).catch(() => null)
-            session = await createSession(sessionId!)
+            session = await createSession(sessionId)
             session = await startSession(session.id)
           }
         } else {
-          session = await createSession(sessionId!)
+          session = await createSession(sessionId)
           session = await startSession(session.id)
         }
         upsertSession(session)
@@ -106,7 +102,7 @@ export default function SessionPanel({ onSessionReady }: Props) {
         try {
           session = await startSession(mySession.id)
         } catch {
-          // WAHA dropped the session — delete and recreate
+          // Evolution puede perder la instancia en el servidor; se recrea para obtener QR nuevo.
           await deleteSession(mySession.id).catch(() => null)
           session = await createSession(sessionId)
           session = await startSession(session.id)
@@ -156,11 +152,9 @@ export default function SessionPanel({ onSessionReady }: Props) {
           </span>
         </div>
         <QRCode sessionId={pendingSessionId} onConnected={handleQRConnected} />
-        {user && (
-          <p className="text-xs text-gray-400 text-center mt-3">
-            Sesión vinculada a <span className="font-medium">{user.email}</span>
-          </p>
-        )}
+        <p className="text-xs text-gray-400 text-center mt-3">
+          Sesión configurada: <span className="font-medium">{sessionId}</span>
+        </p>
       </div>
     )
   }
@@ -176,9 +170,7 @@ export default function SessionPanel({ onSessionReady }: Props) {
           {mySession.phone && (
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{mySession.phone}</p>
           )}
-          {user && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{user.email}</p>
-          )}
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{sessionId}</p>
         </div>
         <button
           onClick={handleDisconnect}
@@ -200,9 +192,7 @@ export default function SessionPanel({ onSessionReady }: Props) {
       </div>
       <div className="text-center">
         <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Sesión desconectada</p>
-        {user && (
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{user.email}</p>
-        )}
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{sessionId}</p>
       </div>
       <div className="flex gap-2">
         <button

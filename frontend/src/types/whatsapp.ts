@@ -55,12 +55,11 @@ export interface WhatsAppContact {
   profilePicUrl?: string
 }
 
-export type WhatsAppProviderType =
-  | 'qeva'
-  | 'evolution-api'
-  | 'waha'
-  | 'open-wa'
-  | 'meta'
+export const WHATSAPP_PROVIDER = {
+  EVOLUTION_API: 'evolution-api',
+} as const
+
+export type WhatsAppProviderType = (typeof WHATSAPP_PROVIDER)[keyof typeof WHATSAPP_PROVIDER]
 
 export interface WhatsAppProviderConfig {
   provider: WhatsAppProviderType
@@ -71,22 +70,11 @@ export interface WhatsAppProviderConfig {
   defaultSessionId: string
 }
 
-export const PROVIDER_PRESETS: Record<
-  WhatsAppProviderType,
-  Pick<WhatsAppProviderConfig, 'authHeader' | 'authPrefix'>
-> = {
-  qeva: { authHeader: 'X-API-Key', authPrefix: '' },
-  'open-wa': { authHeader: 'X-API-Key', authPrefix: '' },
-  'evolution-api': { authHeader: 'apikey', authPrefix: '' },
-  waha: { authHeader: 'X-Api-Key', authPrefix: '' },
-  meta: { authHeader: 'Authorization', authPrefix: 'Bearer ' },
-}
-
 export const DEFAULT_PROVIDER_CONFIG: WhatsAppProviderConfig = {
-  provider: 'qeva',
-  baseUrl: 'https://api.qeva.xyz',
+  provider: WHATSAPP_PROVIDER.EVOLUTION_API,
+  baseUrl: 'https://evo.qeva.xyz',
   apiKey: '',
-  authHeader: 'X-API-Key',
+  authHeader: 'apikey',
   authPrefix: '',
-  defaultSessionId: '',
+  defaultSessionId: 'octopustrack',
 }

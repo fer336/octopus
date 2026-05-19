@@ -1,21 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Save, ExternalLink, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
-import {
-  getProviderConfig,
-  saveProviderConfig,
-  applyProviderPreset,
-} from '../../api/whatsapp/provider'
+import { getProviderConfig, saveProviderConfig } from '../../api/whatsapp/provider'
 import { invalidateWhatsAppClient } from '../../api/whatsapp/client'
-import type { WhatsAppProviderConfig, WhatsAppProviderType } from '../../types/whatsapp'
+import type { WhatsAppProviderConfig } from '../../types/whatsapp'
 
-const PROVIDERS: { value: WhatsAppProviderType; label: string; docsUrl: string }[] = [
-  { value: 'qeva', label: 'Qeva (open-wa)', docsUrl: 'https://api.qeva.xyz/api/docs' },
-  { value: 'open-wa', label: 'open-wa / wa-js', docsUrl: 'https://github.com/open-wa/wa-automate-nodejs' },
-  { value: 'evolution-api', label: 'Evolution API', docsUrl: 'https://doc.evolution-api.com' },
-  { value: 'waha', label: 'WAHA (WhatsApp HTTP API)', docsUrl: 'https://waha.devlike.pro' },
-  { value: 'meta', label: 'WhatsApp Business (Meta Cloud API)', docsUrl: 'https://developers.facebook.com/docs/whatsapp' },
-]
+const EVOLUTION_DOCS_URL = 'https://doc.evolution-api.com'
 
 interface Props {
   onSaved?: () => void
@@ -28,10 +18,6 @@ export default function WhatsAppSettings({ onSaved }: Props = {}) {
   useEffect(() => {
     setConfig(getProviderConfig())
   }, [])
-
-  function handleProviderChange(provider: WhatsAppProviderType) {
-    setConfig((prev) => applyProviderPreset(prev, provider))
-  }
 
   function handleSave() {
     if (!config.baseUrl.trim()) {
@@ -46,49 +32,30 @@ export default function WhatsAppSettings({ onSaved }: Props = {}) {
     onSaved?.()
   }
 
-  const selectedProvider = PROVIDERS.find((p) => p.value === config.provider)
-
   return (
     <div className="space-y-6">
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
           Provider
         </label>
-        <div className="flex flex-col gap-2">
-          {PROVIDERS.map((p) => (
-            <label
-              key={p.value}
-              className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                config.provider === p.value
-                  ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-              }`}
-            >
-              <input
-                type="radio"
-                name="provider"
-                value={p.value}
-                checked={config.provider === p.value}
-                onChange={() => handleProviderChange(p.value)}
-                className="text-primary-600"
-              />
-              <div className="flex-1">
-                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                  {p.label}
-                </span>
-              </div>
-              <a
-                href={p.docsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="text-gray-400 hover:text-primary-600 transition-colors"
-                title="Ver documentación"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </label>
-          ))}
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-primary-500 bg-primary-50 dark:bg-primary-900/20">
+          <div className="flex-1">
+            <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+              Evolution API
+            </span>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Proveedor fijo para la integración de WhatsApp.
+            </p>
+          </div>
+          <a
+            href={EVOLUTION_DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gray-400 hover:text-primary-600 transition-colors"
+            title="Ver documentación"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
         </div>
       </div>
 
@@ -101,7 +68,7 @@ export default function WhatsAppSettings({ onSaved }: Props = {}) {
             type="url"
             value={config.baseUrl}
             onChange={(e) => setConfig((prev) => ({ ...prev, baseUrl: e.target.value }))}
-            placeholder="https://api.qeva.xyz"
+            placeholder="https://evo.qeva.xyz"
             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
@@ -130,7 +97,7 @@ export default function WhatsAppSettings({ onSaved }: Props = {}) {
             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
           <p className="mt-1 text-xs text-gray-400">
-            {config.provider === 'meta' ? 'Authorization (con prefix Bearer)' : `Auto-detectado para ${selectedProvider?.label}`}
+            Encabezado usado por Evolution API.
           </p>
         </div>
 
@@ -142,7 +109,7 @@ export default function WhatsAppSettings({ onSaved }: Props = {}) {
             type="text"
             value={config.defaultSessionId}
             onChange={(e) => setConfig((prev) => ({ ...prev, defaultSessionId: e.target.value }))}
-            placeholder="octopus-session"
+            placeholder="octopustrack"
             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
