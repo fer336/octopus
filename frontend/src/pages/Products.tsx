@@ -111,6 +111,7 @@ export default function Products() {
     staleTime: 60_000,
   })
   const sqlBackupEnabled = business?.sql_backup_enabled ?? false
+  const qrScannerEnabled = business?.qr_scanner_enabled ?? true
 
   // Valores seguros con fallback a array vacío
   const categories = Array.isArray(categoriesData) ? categoriesData : []
@@ -1055,18 +1056,22 @@ export default function Products() {
                 return (
                   <article key={item.id} className={`group bg-white transition-colors hover:bg-gray-50/80 dark:bg-gray-900 dark:hover:bg-gray-800/60 ${selectedForQr.has(item.id) ? 'ring-1 ring-inset ring-violet-400 dark:ring-violet-600' : ''}`}>
                     <div className="grid grid-cols-[32px_88px_minmax(260px,1.6fr)_120px_120px_110px_120px_110px] items-center gap-3 px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedForQr.has(item.id)}
-                        onChange={() =>
-                          setSelectedForQr((prev) => {
-                            const next = new Set(prev)
-                            next.has(item.id) ? next.delete(item.id) : next.add(item.id)
-                            return next
-                          })
-                        }
-                        className="h-4 w-4 cursor-pointer rounded accent-violet-600"
-                      />
+                      {qrScannerEnabled ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedForQr.has(item.id)}
+                          onChange={() =>
+                            setSelectedForQr((prev) => {
+                              const next = new Set(prev)
+                              next.has(item.id) ? next.delete(item.id) : next.add(item.id)
+                              return next
+                            })
+                          }
+                          className="h-4 w-4 cursor-pointer rounded accent-violet-600"
+                        />
+                      ) : (
+                        <span />
+                      )}
                       <span className="inline-flex w-fit rounded-lg bg-gray-100 px-2 py-1 font-mono text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
                         {item.code}
                       </span>
@@ -1179,18 +1184,20 @@ export default function Products() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                    <input
-                      type="checkbox"
-                      checked={selectedForQr.has(item.id)}
-                      onChange={() =>
-                        setSelectedForQr((prev) => {
-                          const next = new Set(prev)
-                          next.has(item.id) ? next.delete(item.id) : next.add(item.id)
-                          return next
-                        })
-                      }
-                      className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded accent-violet-600"
-                    />
+                    {qrScannerEnabled && (
+                      <input
+                        type="checkbox"
+                        checked={selectedForQr.has(item.id)}
+                        onChange={() =>
+                          setSelectedForQr((prev) => {
+                            const next = new Set(prev)
+                            next.has(item.id) ? next.delete(item.id) : next.add(item.id)
+                            return next
+                          })
+                        }
+                        className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded accent-violet-600"
+                      />
+                    )}
                     <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="inline-flex rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
@@ -2086,7 +2093,7 @@ export default function Products() {
       </Modal>
 
       {/* QR selection floating action bar */}
-      {selectedForQr.size > 0 && (
+      {qrScannerEnabled && selectedForQr.size > 0 && (
         <div className="fixed bottom-[54px] left-1/2 z-40 -translate-x-1/2 md:bottom-6">
           <div className="flex items-center gap-3 rounded-2xl bg-gray-900 px-4 py-3 shadow-2xl ring-1 ring-white/10 dark:bg-gray-800">
             <span className="text-sm font-semibold text-white">
@@ -2110,7 +2117,7 @@ export default function Products() {
       )}
 
       {/* QR print preview fullscreen */}
-      {showQrPreview && (
+      {qrScannerEnabled && showQrPreview && (
         <QrPrintPreview
           products={products.filter((p) => selectedForQr.has(p.id))}
           onClose={() => setShowQrPreview(false)}

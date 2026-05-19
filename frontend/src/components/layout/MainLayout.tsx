@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ShoppingCart } from 'lucide-react'
+import { ScanLine, ShoppingCart } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAIStore } from '../../stores/aiStore'
 import { useAuthStore } from '../../stores/authStore'
@@ -44,6 +44,8 @@ export default function MainLayout() {
   const reportsEnabled = business?.reports_enabled ?? true
   const inventoryEnabled = business?.inventory_enabled ?? true
   const stockpileEnabled = business?.stockpile_enabled ?? true
+  const whatsappEnabled = business?.whatsapp_enabled ?? true
+  const qrScannerEnabled = business?.qr_scanner_enabled ?? true
 
   useEffect(() => {
     if (!aiEnabled) {
@@ -77,11 +79,20 @@ export default function MainLayout() {
       return
     }
 
-    if (!hasPathAccess(user, location.pathname)) {
+    if (
+      (location.pathname.startsWith('/messaging') || location.pathname.startsWith('/whatsapp-auth')) &&
+      business !== undefined &&
+      !whatsappEnabled
+    ) {
+      navigate('/', { replace: true })
+      return
+    }
+
+    if (user && !hasPathAccess(user, location.pathname)) {
       const fallbackPath = navigationItems.find((item) => hasPathAccess(user, item.path))?.path ?? '/'
       navigate(fallbackPath, { replace: true })
     }
-  }, [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, location.pathname, navigate, user])
+  }, [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, whatsappEnabled, business, location.pathname, navigate, user])
 
   const toggleSidebar = () => {
     if (window.innerWidth < 768) return // mobile: MobileNav handles navigation
@@ -102,8 +113,23 @@ export default function MainLayout() {
   const activeNavigationItem = getActiveNavigationItem(location.pathname)
   const currentRouteLabel = activeNavigationItem?.label ?? 'Octopus'
   const isVouchersRoute = activeNavigationItem?.path === '/comprobantes'
+  const isSalesRoute = location.pathname.startsWith('/sales')
 
-  const contextualAction = isVouchersRoute ? (
+  const contextualAction = (isSalesRoute && qrScannerEnabled) ? (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => {
+        navigate('/sales?scan=1')
+      }}
+      className="h-8 px-2 md:hidden"
+      aria-label="Escanear producto"
+      title="Escanear producto"
+    >
+      <ScanLine size={16} />
+      <span className="ml-1.5 hidden sm:inline">Escanear producto</span>
+    </Button>
+  ) : isVouchersRoute ? (
     <Button
       variant="outline"
       size="sm"
@@ -131,6 +157,7 @@ export default function MainLayout() {
           reportsEnabled={reportsEnabled}
           inventoryEnabled={inventoryEnabled}
           stockpileEnabled={stockpileEnabled}
+          whatsappEnabled={whatsappEnabled}
         />
 
       {/* Main content */}
@@ -167,6 +194,7 @@ export default function MainLayout() {
           reportsEnabled={reportsEnabled}
           inventoryEnabled={inventoryEnabled}
           stockpileEnabled={stockpileEnabled}
+          whatsappEnabled={whatsappEnabled}
         />
       </div>
     </div>

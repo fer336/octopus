@@ -57,6 +57,8 @@ class Business(BaseModel):
     # Feature flags por tenant (CMS superadmin)
     ai_agent_enabled = Column(Boolean, nullable=False, default=False)
     linear_sync_enabled = Column(Boolean, nullable=False, default=False)
+    whatsapp_enabled = Column(Boolean, nullable=False, default=False)
+    qr_scanner_enabled = Column(Boolean, nullable=False, default=False)
     current_account_mode = Column(String(20), nullable=False, default="disabled")
     invoicing_enabled = Column(Boolean, nullable=False, default=True)
     receipts_enabled = Column(Boolean, nullable=False, default=True)
@@ -66,6 +68,8 @@ class Business(BaseModel):
     price_update_enabled = Column(Boolean, nullable=False, default=True)
     reports_enabled = Column(Boolean, nullable=False, default=True)
     sql_backup_enabled = Column(Boolean, nullable=False, default=False)
+    evolution_api_key = Column(String(500), nullable=True)
+    whatsapp_instance_name = Column(String(100), nullable=True)
 
     # Suscripción / bloqueo comercial por tenant
     subscription_starts_at = Column(DateTime, nullable=True)

@@ -6,6 +6,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings, MoreVertical, Archive, ScanLine } from 'lucide-react'
 import { Button, Modal, Select, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useLocation, useNavigate } from 'react-router-dom'
 import productsService from '../api/productsService'
 import clientsService from '../api/clientsService'
 import clientAuthorizationsService from '../api/clientAuthorizationsService'
@@ -26,6 +27,7 @@ import { hasModuleAccess } from '../utils/acl'
 import { TAX_CONDITIONS, getTaxConditionLabel } from '../types'
 import { isMobile } from '../utils/device'
 import QrScanner from '../components/sales/QrScanner'
+import WhatsAppSendPdfButton from '../components/messaging/WhatsAppSendPdfButton'
 
 type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'current_account' | 'acopio'
 type SalesMenuMode = VoucherType
@@ -53,6 +55,7 @@ interface Product {
   description: string
   net_price: number // Precio sin IVA (para enviar al backend)
   sale_price: number // Precio de venta final (ya calculado con IVA)
+  photo_url?: string
 }
 
 interface CartItem extends Product {
@@ -138,6 +141,7 @@ const normalizeCartItems = (rawItems: unknown[]): CartItem[] => {
         sale_price: salePrice,
         quantity,
         discount: safeNumber(item.discount),
+        photo_url: typeof item.photo_url === 'string' ? item.photo_url : undefined,
       }
     })
     .filter((item) => item.id && item.description && item.quantity !== 0)
@@ -291,6 +295,8 @@ const priceStrategyOptions: Array<{ value: PriceStrategy; label: string; help: s
 
 export default function Sales() {
   const queryClient = useQueryClient()
+  const location = useLocation()
+  const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const aiPreloadedItems = useSalesStore((s) => s.items)
   const aiPreloadedFromAI = useSalesStore((s) => s.preloadedFromAI)
@@ -382,6 +388,8 @@ export default function Sales() {
   const [mobileProductPage, setMobileProductPage] = useState(0)
   const [showMobileVoucherMenu, setShowMobileVoucherMenu] = useState(false)
   const [selectedProductIndex, setSelectedProductIndex] = useState(0)
+  const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null)
+  const [mobilePhotoPreview, setMobilePhotoPreview] = useState<{ url: string; name: string } | null>(null)
   const productListRef = useRef<HTMLDivElement>(null)
   const selectedRowRef = useRef<HTMLTableRowElement>(null)
   const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null)
@@ -596,6 +604,7 @@ export default function Sales() {
         const blobUrl = URL.createObjectURL(pdfBlob)
         setPdfUrl(blobUrl)
         setPdfVoucherInfo({ type: data.voucher_type, number: data.number })
+        setPdfWhatsAppCtx({ voucherId: data.id, clientId: data.billing_client_id || data.client_id })
         setShowPdfModal(true)
       } catch (error) {
         toast.error('Error al abrir el PDF: ' + formatErrorMessage(error))
@@ -670,6 +679,7 @@ export default function Sales() {
         const blobUrl = URL.createObjectURL(pdfBlob)
         setPdfUrl(blobUrl)
         setPdfVoucherInfo({ type: data.voucher_type, number: data.number })
+        setPdfWhatsAppCtx({ voucherId: data.id, clientId: data.billing_client_id || data.client_id })
         setShowPdfModal(true)
       } catch (error) {
         toast.error('Error al abrir el PDF: ' + formatErrorMessage(error))
@@ -740,43 +750,46 @@ export default function Sales() {
     mutationFn: (data: VoucherCreate) => vouchersService.create(data),
     onSuccess: async (data) => {
       const isInvoice = data.voucher_type.startsWith('invoice_')
-      
-      toast.success('Comprobante generado correctamente', { icon: '✅' })
-      
-      // Si es factura, emitir electrónicamente
+
+      // Si es factura, la emisión en ARCA determina el éxito real.
+      // No mostramos "generado" antes de tener el CAE.
       if (isInvoice) {
         toast.loading('Emitiendo factura electrónica en ARCA/AFIP...', { id: 'emitting' })
-        
+
         try {
           const emitResponse = await arcaService.emitInvoice({ voucher_id: data.id })
-          
+
           if (emitResponse.success) {
             toast.success(
               `Factura emitida correctamente\nCAE: ${emitResponse.cae}\nVencimiento: ${emitResponse.cae_expiration}`,
-              { 
-                id: 'emitting',
-                duration: 5000,
-                icon: '🎉'
-              }
+              { id: 'emitting', duration: 5000, icon: '🎉' }
             )
           } else {
+            // ARCA rechazó — eliminar el comprobante generado sin CAE
+            try {
+              await vouchersService.delete(data.id, 'Anulado automáticamente: ARCA rechazó la emisión')
+            } catch (_) { /* best-effort delete, ignore failure */ }
             toast.error(
               `Error al emitir factura:\n${emitResponse.message}\n${emitResponse.errors?.join('\n') || ''}`,
-              { 
-                id: 'emitting',
-                duration: 7000
-              }
+              { id: 'emitting', duration: 7000 }
             )
+            setIsGenerating(false)
+            return
           }
         } catch (error: any) {
+          // Excepción de red o backend — eliminar el comprobante generado sin CAE
+          try {
+            await vouchersService.delete(data.id, 'Anulado automáticamente: error de conexión con ARCA')
+          } catch (_) { /* best-effort delete, ignore failure */ }
           toast.error(
             `Error al emitir factura electrónica:\n${error.response?.data?.detail || error.message}`,
-            { 
-              id: 'emitting',
-              duration: 7000
-            }
+            { id: 'emitting', duration: 7000 }
           )
+          setIsGenerating(false)
+          return
         }
+      } else {
+        toast.success('Comprobante generado correctamente', { icon: '✅' })
       }
       
       // Descargar PDF con autenticación y abrirlo en modal
@@ -795,6 +808,7 @@ export default function Sales() {
           type: data.voucher_type,
           number: data.number
         })
+        setPdfWhatsAppCtx({ voucherId: data.id, clientId: data.billing_client_id || data.client_id })
         
         console.log('📋 Información del voucher guardada:', { type: data.voucher_type, number: data.number })
         
@@ -861,6 +875,7 @@ export default function Sales() {
             type: 'return_receipt',
             number: data.return_receipt_number || '',
           })
+          setPdfWhatsAppCtx({ voucherId: data.return_receipt_id!, clientId: selectedClient?.id || '' })
           setShowPdfModal(true)
         }).catch((error) => {
           toast.error(`Saldo registrado, pero no se pudo abrir el remito de devolución: ${formatErrorMessage(error)}`)
@@ -906,6 +921,7 @@ export default function Sales() {
       resetPaymentSelections()
 
       setPdfVoucherInfo({ type: data.voucher_type, number: data.number })
+      setPdfWhatsAppCtx({ voucherId: data.id, clientId: data.billing_client_id || data.client_id })
     },
     onError: (error: any) => {
       toast.error(formatErrorMessage(error))
@@ -928,6 +944,7 @@ export default function Sales() {
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [pdfVoucherInfo, setPdfVoucherInfo] = useState<{ type: string, number: string } | null>(null)
+  const [pdfWhatsAppCtx, setPdfWhatsAppCtx] = useState<{ voucherId: string; clientId: string } | null>(null)
 
   // === Modal de diferencias de precios al cargar presupuesto ===
   const [showPriceDiffModal, setShowPriceDiffModal] = useState(false)
@@ -1050,6 +1067,7 @@ export default function Sales() {
       description: safeText(p.description),
       net_price: safeNumber(p.net_price),
       sale_price: safeNumber(p.sale_price),
+      photo_url: typeof p.photo_url === 'string' ? p.photo_url : undefined,
     }))
     .filter(p =>
       p.code.toLowerCase().includes(normalizedProductSearch) ||
@@ -1403,6 +1421,22 @@ export default function Sales() {
     })
     toast.success(`${product.description} ×${quantity} agregado`)
   }
+
+  useEffect(() => {
+    const shouldOpenScanner = new URLSearchParams(location.search).get('scan') === '1'
+
+    if (!shouldOpenScanner) return
+
+    if (!isMobile() || business?.qr_scanner_enabled === false) {
+      navigate(location.pathname, { replace: true })
+      return
+    }
+
+    setVoucherType('quotation')
+    setShowPrices(true)
+    setShowQrScanner(true)
+    navigate(location.pathname, { replace: true })
+  }, [location.pathname, location.search, navigate, business?.qr_scanner_enabled])
 
   const removeItem = (id: string) => {
     setItems((prevItems) => prevItems.filter(i => i.id !== id))
@@ -3282,14 +3316,16 @@ export default function Sales() {
                   className="w-full bg-transparent text-sm text-gray-800 outline-none dark:text-gray-100"
                 />
               </div>
-              <button
-                onClick={() => setShowQrScanner(true)}
-                className="flex shrink-0 items-center gap-1 rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 dark:border-violet-700 dark:bg-violet-900/20 dark:text-violet-300"
-                title="Escanear QR"
-              >
-                <ScanLine size={16} />
-                QR
-              </button>
+              {business?.qr_scanner_enabled && (
+                <button
+                  onClick={() => setShowQrScanner(true)}
+                  className="flex shrink-0 items-center gap-1 rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 dark:border-violet-700 dark:bg-violet-900/20 dark:text-violet-300"
+                  title="Escanear QR"
+                >
+                  <ScanLine size={16} />
+                  QR
+                </button>
+              )}
             </div>
 
             <div className="rounded-md bg-green-100 px-2 py-1 text-[11px] text-green-700 dark:bg-green-900/30 dark:text-green-300">
@@ -3311,7 +3347,10 @@ export default function Sales() {
                         <button
                           key={product.id}
                           type="button"
-                          onClick={() => toggleProductInTemp(product)}
+                          onClick={() => {
+                            toggleProductInTemp(product)
+                            if (product.photo_url) setMobilePhotoPreview({ url: product.photo_url, name: product.description })
+                          }}
                           className={`flex w-full items-center gap-2 rounded-lg border px-2 py-2 text-left ${
                             isSelected
                               ? 'border-primary-300 bg-primary-100 dark:border-primary-700 dark:bg-primary-900/30'
@@ -3356,6 +3395,31 @@ export default function Sales() {
                 </>
               )
             })()}
+
+            {mobilePhotoPreview && (
+              <div className="fixed bottom-[54px] left-0 right-0 z-[300] flex flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-900"
+                style={{ maxHeight: '72vh' }}
+              >
+                <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2.5 dark:border-gray-700">
+                  <p className="truncate text-xs font-semibold text-gray-800 dark:text-gray-100">{mobilePhotoPreview.name}</p>
+                  <button
+                    type="button"
+                    onClick={() => setMobilePhotoPreview(null)}
+                    className="ml-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700"
+                    aria-label="Cerrar foto"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="flex flex-1 items-center justify-center overflow-hidden p-2">
+                  <img
+                    src={mobilePhotoPreview.url}
+                    alt={mobilePhotoPreview.name}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -3686,7 +3750,11 @@ export default function Sales() {
                     </tr>
                   ) : (
                     items.map((item, rowIndex) => (
-                      <tr key={item.id} className={`hover:bg-primary-50 dark:hover:bg-primary-900/20 ${item.quantity < 0 ? 'bg-red-50/70 dark:bg-red-900/10' : rowIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-primary-50/30 dark:bg-primary-900/10'}`}>
+                      <tr
+                        key={item.id}
+                        onClick={() => item.photo_url ? setPreviewPhotoUrl(item.photo_url) : undefined}
+                        className={`hover:bg-primary-50 dark:hover:bg-primary-900/20 ${item.photo_url ? 'cursor-pointer' : ''} ${item.quantity < 0 ? 'bg-red-50/70 dark:bg-red-900/10' : rowIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-primary-50/30 dark:bg-primary-900/10'}`}
+                      >
                         <td className="px-3 py-[3px]">
                           {item.quantity < 0 && (
                             <span
@@ -3838,7 +3906,10 @@ export default function Sales() {
                                 ? 'bg-primary-100 dark:bg-primary-900'
                                 : 'hover:bg-gray-50 dark:hover:bg-gray-700'
                           }`}
-                          onClick={() => setSelectedProductIndex(index)}
+                          onClick={() => {
+                            setSelectedProductIndex(index)
+                            if (product.photo_url) setPreviewPhotoUrl(product.photo_url)
+                          }}
                           onDoubleClick={() => toggleProductInTemp(product)}
                         >
                           <td className="px-3 py-2 font-medium">
@@ -3883,9 +3954,64 @@ export default function Sales() {
         {/* Panel lateral - Resumen */}
         <div className={`w-full lg:w-72 flex-shrink-0 h-full min-h-0 overflow-hidden ${mobileSection === 'summary' ? 'block' : 'hidden lg:block'}`}>
           <div className="bg-white dark:bg-gray-800 rounded-md p-2 shadow-sm border border-gray-200 dark:border-gray-700 h-full max-h-full flex flex-col overflow-hidden">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2 flex-shrink-0">
-              Resumen
-            </h3>
+
+            {/* Numeración del comprobante — en el header, reemplaza el título "Resumen" */}
+            {business && voucherType !== 'acopio' && voucherType !== 'current_account' && (() => {
+              const salePoint = business.sale_point?.padStart(4, '0') ?? '0001'
+              let label = ''
+              let lastNumber = ''
+              let borderColor = 'border-gray-200 dark:border-gray-700'
+              let bgColor = 'bg-gray-50 dark:bg-gray-900/20'
+              let labelColor = 'text-gray-500 dark:text-gray-400'
+              let valueColor = 'text-gray-800 dark:text-gray-200'
+
+              if (voucherType === 'invoice') {
+                if (!selectedClient) return null
+                const isA = selectedClient.tax_condition === 'RI'
+                label = `Factura ${isA ? 'A' : 'B'}`
+                lastNumber = isA ? business.last_invoice_a_number : business.last_invoice_b_number
+                borderColor = 'border-blue-200 dark:border-blue-800'
+                bgColor = 'bg-blue-50 dark:bg-blue-900/20'
+                labelColor = 'text-blue-600 dark:text-blue-400'
+                valueColor = 'text-blue-800 dark:text-blue-200'
+              } else if (voucherType === 'quotation') {
+                label = 'Cotización'
+                lastNumber = business.last_quotation_number
+                borderColor = 'border-amber-200 dark:border-amber-800'
+                bgColor = 'bg-amber-50 dark:bg-amber-900/20'
+                labelColor = 'text-amber-600 dark:text-amber-400'
+                valueColor = 'text-amber-800 dark:text-amber-200'
+              } else if (voucherType === 'receipt') {
+                label = 'Remito'
+                lastNumber = business.last_receipt_number
+                borderColor = 'border-green-200 dark:border-green-800'
+                bgColor = 'bg-green-50 dark:bg-green-900/20'
+                labelColor = 'text-green-600 dark:text-green-400'
+                valueColor = 'text-green-800 dark:text-green-200'
+              } else {
+                return null
+              }
+
+              const lastFormatted = `${salePoint}-${lastNumber}`
+              const nextNumber = String(parseInt(lastNumber || '0') + 1).padStart(8, '0')
+              const nextFormatted = `${salePoint}-${nextNumber}`
+
+              return (
+                <div className={`rounded-lg border ${borderColor} ${bgColor} px-3 py-2 space-y-1 mb-2 flex-shrink-0`}>
+                  <p className={`text-[10px] font-semibold ${labelColor} uppercase tracking-wide`}>
+                    {label}
+                  </p>
+                  <div className={`flex justify-between text-xs ${labelColor}`}>
+                    <span>Último emitido</span>
+                    <span className="font-mono font-medium">{lastFormatted}</span>
+                  </div>
+                  <div className={`flex justify-between text-xs ${valueColor} font-semibold`}>
+                    <span>Próximo</span>
+                    <span className="font-mono">{nextFormatted}</span>
+                  </div>
+                </div>
+              )
+            })()}
 
             <div className="space-y-1.5 text-xs flex-shrink-0">
               {generalDiscount > 0 && (
@@ -3946,6 +4072,38 @@ export default function Sales() {
                 />
                 <span className="text-sm font-medium text-gray-500">%</span>
               </div>
+            </div>
+
+            {/* Zona scrolleable: foto de producto */}
+            <div className="flex-1 min-h-0 overflow-y-auto py-1">
+
+              {/* Preview de imagen del producto seleccionado en el carrito */}
+              <div className="pt-1">
+                {previewPhotoUrl ? (
+                  <div className="relative rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
+                    <img
+                      src={previewPhotoUrl}
+                      alt="Producto seleccionado"
+                      className="w-full h-36 object-contain"
+                      onError={() => setPreviewPhotoUrl(null)}
+                    />
+                    <button
+                      onClick={() => setPreviewPhotoUrl(null)}
+                      className="absolute top-1 right-1 bg-white/80 dark:bg-gray-900/80 rounded-full p-0.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                      title="Cerrar imagen"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-20 rounded-lg border border-dashed border-gray-200 dark:border-gray-600 text-center text-[10px] text-gray-400 dark:text-gray-500 italic select-none">
+                    Seleccioná un producto para ver su imagen
+                  </div>
+                )}
+              </div>
+
             </div>
 
             {/* SALES-ACOPIO-FRONTEND-03: Acopio summary panel — solo para remito */}
@@ -5902,25 +6060,34 @@ export default function Sales() {
               </div>
 
               {/* Botones de acción */}
-              <div className="grid grid-cols-3 gap-2 pt-2">
-                <Button 
-                  variant="outline" 
+              <div className={`grid gap-2 pt-2 ${pdfWhatsAppCtx && business?.whatsapp_enabled ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                <Button
+                  variant="outline"
                   onClick={handleDownloadPdf}
                   className="w-full min-w-0"
                 >
                   <Download size={16} className="sm:mr-2" />
                   <span className="hidden sm:inline">Descargar PDF</span>
                 </Button>
-                <Button 
-                  variant="outline" 
+                {pdfWhatsAppCtx && business?.whatsapp_enabled && (
+                  <WhatsAppSendPdfButton
+                    defaultClientId={pdfWhatsAppCtx.clientId}
+                    getPdfBlob={() => vouchersService.getPdf(pdfWhatsAppCtx.voucherId)}
+                    filename={`comprobante-${pdfVoucherInfo?.type}-${pdfVoucherInfo?.number}.pdf`}
+                    caption={`Comprobante ${pdfVoucherInfo?.type} ${pdfVoucherInfo?.number}`}
+                    fullButton
+                  />
+                )}
+                <Button
+                  variant="outline"
                   onClick={handlePrintPdf}
                   className="w-full min-w-0"
                 >
                   <Printer size={16} className="sm:mr-2" />
                   <span className="hidden sm:inline">Imprimir</span>
                 </Button>
-                <Button 
-                  variant="primary" 
+                <Button
+                  variant="primary"
                   onClick={handleClosePdfModal}
                   className="w-full min-w-0"
                 >
@@ -5938,7 +6105,7 @@ export default function Sales() {
       </Modal>
 
       {/* Mobile-only floating camera button — always accessible above the stepper bar */}
-      {!showQrScanner && (
+      {business?.qr_scanner_enabled && !showQrScanner && (
         <button
           onClick={() => setShowQrScanner(true)}
           className="fixed bottom-[132px] right-4 z-[70] flex h-12 w-12 items-center justify-center rounded-full bg-violet-600 shadow-lg shadow-violet-900/40 active:scale-95 lg:hidden"

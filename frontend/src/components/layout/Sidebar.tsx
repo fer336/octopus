@@ -47,6 +47,7 @@ interface SidebarProps {
   reportsEnabled?: boolean
   inventoryEnabled?: boolean
   stockpileEnabled?: boolean
+  whatsappEnabled?: boolean
 }
 
 export default function Sidebar({
@@ -58,6 +59,7 @@ export default function Sidebar({
   reportsEnabled = true,
   inventoryEnabled = true,
   stockpileEnabled = true,
+  whatsappEnabled = true,
 }: SidebarProps) {
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
@@ -81,9 +83,12 @@ export default function Sidebar({
         if (item.path === '/stockpiles' && !stockpileEnabled) {
           return false
         }
+        if ((item.path === '/messaging' || item.path === '/whatsapp-auth') && !whatsappEnabled) {
+          return false
+        }
         return hasPathAccess(user, item.path)
       }),
-    [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, user],
+    [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, whatsappEnabled, user],
   )
 
   const getActiveSection = (pathname: string) =>

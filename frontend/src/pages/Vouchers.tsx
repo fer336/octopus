@@ -14,6 +14,8 @@ import businessService from '../api/businessService'
 import clientsService from '../api/clientsService'
 import { usePaymentMethods } from '../hooks/usePaymentMethods'
 import CreditNoteModal from '../components/vouchers/CreditNoteModal'
+import WhatsAppSendModal, { type PdfSpec } from '../components/messaging/WhatsAppSendModal'
+import WhatsAppIcon from '../components/messaging/WhatsAppIcon'
 import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { useAuthStore } from '../stores/authStore'
@@ -180,6 +182,7 @@ export default function Vouchers() {
   })
   const invoicingEnabled = business?.invoicing_enabled ?? true
   const receiptsEnabled = business?.receipts_enabled ?? true
+  const whatsappEnabled = business?.whatsapp_enabled ?? true
   const currentAccountEnabled =
     (business?.current_account_mode ?? 'disabled') !== 'disabled' &&
     hasModuleAccess(user, 'current_account')
@@ -198,6 +201,7 @@ export default function Vouchers() {
   const [showCreditNoteModal, setShowCreditNoteModal] = useState(false)
   const [selectedVoucherForNC, setSelectedVoucherForNC] = useState<any>(null)
   const [selectedQuotationIds, setSelectedQuotationIds] = useState<string[]>([])
+  const [bulkWhatsAppOpen, setBulkWhatsAppOpen] = useState(false)
   const [showCompileModal, setShowCompileModal] = useState(false)
   const [compileSelectedPaymentMethodId, setCompileSelectedPaymentMethodId] = useState<string | null>(null)
   const [compilePaymentReferences, setCompilePaymentReferences] = useState<Record<string, string>>({})
@@ -1530,35 +1534,78 @@ export default function Vouchers() {
 
       {/* Tabla */}
       {selectedQuotationIds.length >= 1 && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg mb-4">
-          <span className="text-sm font-medium text-primary-700 dark:text-primary-300">
+        <div className="mb-4 hidden items-center justify-start gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 dark:border-primary-800 dark:bg-primary-900/20 lg:flex">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-primary-700 dark:text-primary-300">
             {selectedQuotationIds.length} comprobante{selectedQuotationIds.length > 1 ? 's' : ''} seleccionado{selectedQuotationIds.length > 1 ? 's' : ''}
           </span>
-          <Button
-            onClick={() => {
-              const selectedVouchers = (vouchersData?.items || []).filter((voucher) =>
-                selectedQuotationIds.includes(voucher.id),
-              )
-              const sourceClientId = selectedVouchers[0]?.client?.id || selectedVouchers[0]?.client_id || ''
-              const sourceClient = compileClientOptions.find((client) => client.id === sourceClientId)
-              setCompileFiscalClientId(sourceClientId)
-              setCompileSelectedFiscalClient(sourceClient || null)
-              setShowCompileModal(true)
-            }}
-            variant="primary"
-            size="sm"
-          >
-            Facturar seleccionados
-          </Button>
-          <Button
+          {(vouchersData?.items || []).some(
+            (v) =>
+              selectedQuotationIds.includes(v.id) &&
+              (v.voucher_type === 'quotation' || v.voucher_type === 'receipt') &&
+              !isCurrentAccountReceipt(v) &&
+              !v.invoiced_voucher_id,
+          ) && (
+            <button
+              onClick={() => {
+                const selectedVouchers = (vouchersData?.items || []).filter((voucher) =>
+                  selectedQuotationIds.includes(voucher.id),
+                )
+                const sourceClientId = selectedVouchers[0]?.client?.id || selectedVouchers[0]?.client_id || ''
+                const sourceClient = compileClientOptions.find((client) => client.id === sourceClientId)
+                setCompileFiscalClientId(sourceClientId)
+                setCompileSelectedFiscalClient(sourceClient || null)
+                setShowCompileModal(true)
+              }}
+              className="inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-lg bg-primary-600 px-2.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-700"
+              title="Facturar seleccionados"
+              aria-label="Facturar seleccionados"
+            >
+              <Receipt size={14} />
+              <span>Facturar seleccionados</span>
+            </button>
+          )}
+          {whatsappEnabled && (
+            <button
+              onClick={() => setBulkWhatsAppOpen(true)}
+              className="inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-lg border border-emerald-400 px-2.5 py-1.5 text-sm font-medium text-emerald-600 transition-colors hover:bg-emerald-500 hover:text-white dark:border-emerald-500 dark:text-emerald-400"
+              title="Enviar por WhatsApp"
+              aria-label="Enviar por WhatsApp"
+            >
+              <WhatsAppIcon size={14} />
+              <span>Enviar por WhatsApp</span>
+            </button>
+          )}
+          <button
             onClick={() => setSelectedQuotationIds([])}
-            variant="ghost"
-            size="sm"
+            className="inline-flex flex-shrink-0 items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+            title="Cancelar selección"
+            aria-label="Cancelar selección"
           >
-            Cancelar
-          </Button>
+            <X size={14} />
+            <span>Cancelar</span>
+          </button>
         </div>
       )}
+
+      {bulkWhatsAppOpen && (() => {
+        const selectedVouchers = (vouchersData?.items || []).filter((v) =>
+          selectedQuotationIds.includes(v.id),
+        )
+        const pdfList: PdfSpec[] = selectedVouchers.map((v) => ({
+          getPdfBlob: () => vouchersService.getPdf(v.id),
+          filename: `comprobante-${v.sale_point}-${v.number}.pdf`,
+          caption: `Comprobante ${v.sale_point}-${v.number}`,
+        }))
+        const firstClientId = selectedVouchers[0]?.billing_client_id || selectedVouchers[0]?.client_id || ''
+        return (
+          <WhatsAppSendModal
+            isOpen={bulkWhatsAppOpen}
+            onClose={() => setBulkWhatsAppOpen(false)}
+            pdfs={pdfList}
+            defaultClientId={firstClientId}
+          />
+        )
+      })()}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         <ResponsiveTable
           data={tableVouchers}
@@ -1598,25 +1645,67 @@ export default function Vouchers() {
             const statusColor = statusRaw.className.replace('green', 'emerald')
             const currentAccountInfo = getCurrentAccountInvoiceInfo(voucher)
             const canPayCurrentAccountInvoice = currentAccountEnabled && isInvoiceVoucher(voucher) && !!voucher.is_current_account && !voucher.is_paid
+            const isSelected = selectedQuotationIds.includes(voucher.id)
             
             return (
               <div key={voucher.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 {/* Checkbox para seleccionar - solo cotizaciones/remitos sin facturar */}
                 {isSelectable && (
                   <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100 dark:border-gray-700">
-                    <input
-                      type="checkbox"
-                      className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                      checked={selectedQuotationIds.includes(voucher.id)}
-                      onChange={() => {
-                        setSelectedQuotationIds((prev) =>
-                          prev.includes(voucher.id)
-                            ? prev.filter((id) => id !== voucher.id)
-                            : [...prev, voucher.id],
-                        )
-                      }}
-                    />
-                    <span className="text-xs text-gray-400">Seleccionar para facturar</span>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        checked={isSelected}
+                        onChange={() => {
+                          setSelectedQuotationIds((prev) =>
+                            prev.includes(voucher.id)
+                              ? prev.filter((id) => id !== voucher.id)
+                              : [...prev, voucher.id],
+                          )
+                        }}
+                      />
+                      {!isSelected && <span className="text-xs text-gray-400">Seleccionar para facturar</span>}
+                    </label>
+                    {isSelected && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const sourceClientId = voucher.client?.id || voucher.client_id || ''
+                            const sourceClient = compileClientOptions.find((client) => client.id === sourceClientId)
+                            setCompileFiscalClientId(sourceClientId)
+                            setCompileSelectedFiscalClient(sourceClient || null)
+                            setShowCompileModal(true)
+                          }}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary-600 text-white transition-colors hover:bg-primary-700"
+                          title="Facturar seleccionados"
+                          aria-label="Facturar seleccionados"
+                        >
+                          <Receipt size={17} />
+                        </button>
+                        {whatsappEnabled && (
+                          <button
+                            type="button"
+                            onClick={() => setBulkWhatsAppOpen(true)}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-400 text-emerald-600 transition-colors hover:bg-emerald-500 hover:text-white dark:border-emerald-500 dark:text-emerald-400"
+                            title="Enviar por WhatsApp"
+                            aria-label="Enviar por WhatsApp"
+                          >
+                            <WhatsAppIcon size={17} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedQuotationIds((prev) => prev.filter((id) => id !== voucher.id))}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                          title="Cancelar selección"
+                          aria-label="Cancelar selección"
+                        >
+                          <X size={17} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
                 

@@ -4,15 +4,25 @@ Lee variables de entorno desde .env
 """
 
 
+import os
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+BACKEND_ENV_FILE = os.getenv("BACKEND_ENV_FILE")
+ENV_FILES = tuple(
+    env_file
+    for env_file in (".env", "backend/.env", BACKEND_ENV_FILE)
+    if env_file
+)
 
 
 class Settings(BaseSettings):
     """Configuración principal de la aplicación."""
 
     model_config = SettingsConfigDict(
-        env_file=(".env", "backend/.env"),  # busca en raíz del repo Y en backend/
+        env_file=ENV_FILES,  # raíz, backend/ y BACKEND_ENV_FILE con mayor prioridad
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
@@ -67,6 +77,10 @@ class Settings(BaseSettings):
 
     # Seguridad webhook billing (n8n -> backend)
     BILLING_WEBHOOK_SECRET: str = ""
+
+    # Evolution API / WhatsApp (server-side only)
+    AUTHENTICATION_API_KEY: str = ""
+    EVOLUTION_API_BASE_URL: str = "https://evo.qeva.xyz"
 
     # n8n webhook para auditoría de logins (Google OAuth)
     N8N_LOGIN_AUDIT_WEBHOOK_URL: str = ""

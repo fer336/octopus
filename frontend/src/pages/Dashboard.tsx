@@ -34,6 +34,7 @@ import {
 } from 'recharts'
 import dashboardService from '../api/dashboardService'
 import { Button } from '../components/ui'
+import WhatsAppStatusCard from '../components/messaging/WhatsAppStatusCard'
 
 const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -358,6 +359,9 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {/* ═══ WhatsApp Status ═══ */}
+      <WhatsAppStatusCard />
 
       {/* ═══ Bar Chart — Facturado vs Cobrado ═══ */}
       <div className="bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-800 rounded-2xl p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] border border-slate-200 dark:border-gray-700">

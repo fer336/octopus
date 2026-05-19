@@ -7,12 +7,14 @@ import {
   FolderTree,
   LayoutDashboard,
   Package,
+  ShieldCheck,
   ShoppingCart,
   TrendingUp,
   Truck,
   Users,
   Wallet,
   MessageSquare,
+  MessagesSquare,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -20,7 +22,7 @@ export interface NavigationItem {
   path: string
   icon: LucideIcon
   label: string
-  section: 'inicio' | 'ventas' | 'catalogo' | 'contactos' | 'analisis'
+  section: 'inicio' | 'ventas' | 'catalogo' | 'contactos' | 'comunicaciones' | 'analisis'
   badge?: boolean
 }
 
@@ -35,6 +37,7 @@ export const navigationSections: NavigationSection[] = [
   { key: 'ventas', label: 'Ventas y Caja', icon: ShoppingCart },
   { key: 'catalogo', label: 'Catalogo e Inventario', icon: Package },
   { key: 'contactos', label: 'Contactos y Categorias', icon: Users },
+  { key: 'comunicaciones', label: 'Comunicaciones', icon: MessagesSquare },
   { key: 'analisis', label: 'Analisis', icon: BarChart3 },
 ]
 
@@ -52,6 +55,8 @@ export const navigationItems: NavigationItem[] = [
   { path: '/clients', icon: Users, label: 'Clientes', section: 'contactos' },
   { path: '/suppliers', icon: Truck, label: 'Proveedores', section: 'contactos' },
   { path: '/categories', icon: FolderTree, label: 'Categorias', section: 'contactos' },
+  { path: '/messaging', icon: MessagesSquare, label: 'WhatsApp CRM', section: 'comunicaciones' },
+  { path: '/whatsapp-auth', icon: ShieldCheck, label: 'Autorizaciones WA', section: 'comunicaciones' },
   { path: '/reports', icon: BarChart3, label: 'Reportes', section: 'analisis' },
   { path: '/feedback', icon: MessageSquare, label: 'Feedback', section: 'analisis' },
 ]

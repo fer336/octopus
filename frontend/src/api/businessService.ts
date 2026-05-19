@@ -21,6 +21,10 @@ export interface Business {
   header_text?: string
   sale_point: string
   ai_agent_enabled: boolean
+  whatsapp_enabled: boolean
+  qr_scanner_enabled: boolean
+  evolution_api_key?: string
+  whatsapp_instance_name?: string | null
   current_account_mode: 'disabled' | 'automatic' | 'manual'
   invoicing_enabled: boolean
   receipts_enabled: boolean
@@ -31,6 +35,11 @@ export interface Business {
   reports_enabled: boolean
   sql_backup_enabled: boolean
   arca_environment?: string
+  last_quotation_number: string
+  last_receipt_number: string
+  last_invoice_a_number: string
+  last_invoice_b_number: string
+  last_invoice_c_number: string
 }
 
 export interface BusinessUpdate {
@@ -49,6 +58,7 @@ export interface BusinessUpdate {
   logo_display_mode?: 'alongside_text' | 'replace_text'
   header_text?: string
   sale_point?: string
+  whatsapp_instance_name?: string | null
 }
 
 const businessService = {

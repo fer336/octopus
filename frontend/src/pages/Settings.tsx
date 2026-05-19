@@ -3,7 +3,8 @@
  * Datos del negocio, membrete y preferencias.
  */
 import { useState, useEffect } from 'react'
-import { Building2, FileText, Bell, Shield } from 'lucide-react'
+import { Building2, FileText, Bell, Shield, MessageSquare } from 'lucide-react'
+import WhatsAppSettings from '../components/settings/WhatsAppSettings'
 import { Button, Input, Select } from '../components/ui'
 import { TAX_CONDITIONS } from '../types'
 import AIConfiguration from '../components/settings/AIConfiguration'
@@ -309,6 +310,24 @@ export default function Settings() {
 
       {/* Inteligencia Artificial */}
       {businessId && <AIConfiguration businessId={businessId} />}
+
+      {/* WhatsApp */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+            <MessageSquare className="text-green-600" size={20} />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              WhatsApp / Mensajería
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Configurá Evolution API para el CRM
+            </p>
+          </div>
+        </div>
+        <WhatsAppSettings />
+      </div>
 
       {/* Seguridad */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
