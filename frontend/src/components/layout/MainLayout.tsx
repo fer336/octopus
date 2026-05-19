@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ShoppingCart } from 'lucide-react'
+import { ScanLine, ShoppingCart } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAIStore } from '../../stores/aiStore'
 import { useAuthStore } from '../../stores/authStore'
@@ -77,7 +77,7 @@ export default function MainLayout() {
       return
     }
 
-    if (!hasPathAccess(user, location.pathname)) {
+    if (user && !hasPathAccess(user, location.pathname)) {
       const fallbackPath = navigationItems.find((item) => hasPathAccess(user, item.path))?.path ?? '/'
       navigate(fallbackPath, { replace: true })
     }
@@ -102,8 +102,23 @@ export default function MainLayout() {
   const activeNavigationItem = getActiveNavigationItem(location.pathname)
   const currentRouteLabel = activeNavigationItem?.label ?? 'Octopus'
   const isVouchersRoute = activeNavigationItem?.path === '/comprobantes'
+  const isSalesRoute = location.pathname.startsWith('/sales')
 
-  const contextualAction = isVouchersRoute ? (
+  const contextualAction = isSalesRoute ? (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => {
+        navigate('/sales?scan=1')
+      }}
+      className="h-8 px-2 md:hidden"
+      aria-label="Escanear producto"
+      title="Escanear producto"
+    >
+      <ScanLine size={16} />
+      <span className="ml-1.5 hidden sm:inline">Escanear producto</span>
+    </Button>
+  ) : isVouchersRoute ? (
     <Button
       variant="outline"
       size="sm"

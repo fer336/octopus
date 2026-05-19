@@ -9,6 +9,7 @@ import { formatErrorMessage } from '../utils/errorHelpers'
 import toast from 'react-hot-toast'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import stockpileService, { StockpileResponse, StockpileItemResponse } from '../api/stockpileService'
+import WhatsAppSendPdfButton from '../components/messaging/WhatsAppSendPdfButton'
 
 // Estados del acopio
 const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }> = {
@@ -442,6 +443,13 @@ export default function Stockpiles() {
                                     >
                                       <Download size={16} />
                                     </button>
+                                    <WhatsAppSendPdfButton
+                                      defaultClientId={item.billing_client_id || item.client_id || ''}
+                                      getPdfBlob={() => stockpileService.downloadVoucherPdf(item.principal_voucher_id as string)}
+                                      filename={`remito-${item.principal_voucher_number}.pdf`}
+                                      caption={`Remito ${item.principal_voucher_number}`}
+                                      size={14}
+                                    />
                                   </div>
                                 </td>
                               </tr>
@@ -498,6 +506,13 @@ export default function Stockpiles() {
                                       >
                                         <Download size={16} />
                                       </button>
+                                      <WhatsAppSendPdfButton
+                                        defaultClientId={item.billing_client_id || item.client_id || ''}
+                                        getPdfBlob={() => stockpileService.downloadVoucherPdf(voucher.id)}
+                                        filename={`remito-${voucher.number}.pdf`}
+                                        caption={`Remito ${voucher.number}`}
+                                        size={14}
+                                      />
                                       {voucher.status !== 'cancelled' && (
                                         <button
                                           onClick={() => setVoucherToCancel({ id: voucher.id, number: voucher.number, stockpileId: item.id, stockpileName: item.name })}
@@ -725,6 +740,14 @@ export default function Stockpiles() {
               <Button variant="secondary" onClick={() => handleDownloadVoucher(selectedVoucher.id)}>
                 Descargar PDF
               </Button>
+              {selectedVoucher.client_id && (
+                <WhatsAppSendPdfButton
+                  defaultClientId={selectedVoucher.billing_client_id || selectedVoucher.client_id}
+                  getPdfBlob={() => stockpileService.downloadVoucherPdf(selectedVoucher.id)}
+                  filename={`remito-${selectedVoucher.number}.pdf`}
+                  caption={`Remito ${selectedVoucher.number}`}
+                />
+              )}
             </div>
           </div>
         )}

@@ -102,6 +102,8 @@ export interface StockpileTreeItem {
   name: string
   stockpile_number: string | null
   description: string | null
+  client_id?: string
+  billing_client_id?: string | null
   client_name: string
   status: string
   created_at: string

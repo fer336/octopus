@@ -41,6 +41,7 @@ yarn-error.log*
 # Build
 frontend/dist/
 frontend/dist-landing/
+frontend/next-landing/.next/
 frontend/build/
 frontend/modelofacturas/
 

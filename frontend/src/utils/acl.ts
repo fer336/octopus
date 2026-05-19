@@ -16,6 +16,8 @@ export const MODULE_ROUTE_MAP: Record<string, string> = {
   '/feedback': 'feedback',
   '/current-account': 'current_account',
   '/stockpiles': 'stockpiles',
+  '/messaging': 'messaging',
+  '/settings': 'settings',
 }
 
 function getModuleForPath(pathname: string): string | null {

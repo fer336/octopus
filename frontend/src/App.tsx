@@ -36,6 +36,7 @@ const Cash       = lazy(() => import('./pages/Cash'))
 const Inventory  = lazy(() => import('./pages/Inventory'))
 const Feedback   = lazy(() => import('./pages/Feedback'))
 const Authorizations = lazy(() => import('./pages/Authorizations'))
+const Messaging  = lazy(() => import('./pages/Messaging'))
 
 // Skeleton de carga entre navegaciones
 function PageLoader() {
@@ -177,6 +178,9 @@ export default function App() {
               } />
               <Route path="authorizations" element={
                 <Suspense fallback={<PageLoader />}><Authorizations /></Suspense>
+              } />
+              <Route path="messaging" element={
+                <Suspense fallback={<PageLoader />}><Messaging /></Suspense>
               } />
             </Route>
 

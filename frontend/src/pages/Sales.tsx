@@ -6,6 +6,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings, MoreVertical, Archive, ScanLine } from 'lucide-react'
 import { Button, Modal, Select, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useLocation, useNavigate } from 'react-router-dom'
 import productsService from '../api/productsService'
 import clientsService from '../api/clientsService'
 import clientAuthorizationsService from '../api/clientAuthorizationsService'
@@ -26,6 +27,7 @@ import { hasModuleAccess } from '../utils/acl'
 import { TAX_CONDITIONS, getTaxConditionLabel } from '../types'
 import { isMobile } from '../utils/device'
 import QrScanner from '../components/sales/QrScanner'
+import WhatsAppSendPdfButton from '../components/messaging/WhatsAppSendPdfButton'
 
 type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'current_account' | 'acopio'
 type SalesMenuMode = VoucherType
@@ -291,6 +293,8 @@ const priceStrategyOptions: Array<{ value: PriceStrategy; label: string; help: s
 
 export default function Sales() {
   const queryClient = useQueryClient()
+  const location = useLocation()
+  const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const aiPreloadedItems = useSalesStore((s) => s.items)
   const aiPreloadedFromAI = useSalesStore((s) => s.preloadedFromAI)
@@ -596,6 +600,7 @@ export default function Sales() {
         const blobUrl = URL.createObjectURL(pdfBlob)
         setPdfUrl(blobUrl)
         setPdfVoucherInfo({ type: data.voucher_type, number: data.number })
+        setPdfWhatsAppCtx({ voucherId: data.id, clientId: data.billing_client_id || data.client_id })
         setShowPdfModal(true)
       } catch (error) {
         toast.error('Error al abrir el PDF: ' + formatErrorMessage(error))
@@ -670,6 +675,7 @@ export default function Sales() {
         const blobUrl = URL.createObjectURL(pdfBlob)
         setPdfUrl(blobUrl)
         setPdfVoucherInfo({ type: data.voucher_type, number: data.number })
+        setPdfWhatsAppCtx({ voucherId: data.id, clientId: data.billing_client_id || data.client_id })
         setShowPdfModal(true)
       } catch (error) {
         toast.error('Error al abrir el PDF: ' + formatErrorMessage(error))
@@ -795,6 +801,7 @@ export default function Sales() {
           type: data.voucher_type,
           number: data.number
         })
+        setPdfWhatsAppCtx({ voucherId: data.id, clientId: data.billing_client_id || data.client_id })
         
         console.log('📋 Información del voucher guardada:', { type: data.voucher_type, number: data.number })
         
@@ -861,6 +868,7 @@ export default function Sales() {
             type: 'return_receipt',
             number: data.return_receipt_number || '',
           })
+          setPdfWhatsAppCtx({ voucherId: data.return_receipt_id!, clientId: selectedClient?.id || '' })
           setShowPdfModal(true)
         }).catch((error) => {
           toast.error(`Saldo registrado, pero no se pudo abrir el remito de devolución: ${formatErrorMessage(error)}`)
@@ -906,6 +914,7 @@ export default function Sales() {
       resetPaymentSelections()
 
       setPdfVoucherInfo({ type: data.voucher_type, number: data.number })
+      setPdfWhatsAppCtx({ voucherId: data.id, clientId: data.billing_client_id || data.client_id })
     },
     onError: (error: any) => {
       toast.error(formatErrorMessage(error))
@@ -928,6 +937,7 @@ export default function Sales() {
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [pdfVoucherInfo, setPdfVoucherInfo] = useState<{ type: string, number: string } | null>(null)
+  const [pdfWhatsAppCtx, setPdfWhatsAppCtx] = useState<{ voucherId: string; clientId: string } | null>(null)
 
   // === Modal de diferencias de precios al cargar presupuesto ===
   const [showPriceDiffModal, setShowPriceDiffModal] = useState(false)
@@ -1403,6 +1413,22 @@ export default function Sales() {
     })
     toast.success(`${product.description} ×${quantity} agregado`)
   }
+
+  useEffect(() => {
+    const shouldOpenScanner = new URLSearchParams(location.search).get('scan') === '1'
+
+    if (!shouldOpenScanner) return
+
+    if (!isMobile()) {
+      navigate(location.pathname, { replace: true })
+      return
+    }
+
+    setVoucherType('quotation')
+    setShowPrices(true)
+    setShowQrScanner(true)
+    navigate(location.pathname, { replace: true })
+  }, [location.pathname, location.search, navigate])
 
   const removeItem = (id: string) => {
     setItems((prevItems) => prevItems.filter(i => i.id !== id))
@@ -5903,14 +5929,24 @@ export default function Sales() {
 
               {/* Botones de acción */}
               <div className="grid grid-cols-3 gap-2 pt-2">
-                <Button 
-                  variant="outline" 
-                  onClick={handleDownloadPdf}
-                  className="w-full min-w-0"
-                >
-                  <Download size={16} className="sm:mr-2" />
-                  <span className="hidden sm:inline">Descargar PDF</span>
-                </Button>
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    onClick={handleDownloadPdf}
+                    className="flex-1 min-w-0"
+                  >
+                    <Download size={16} className="sm:mr-2" />
+                    <span className="hidden sm:inline">Descargar PDF</span>
+                  </Button>
+                  {pdfWhatsAppCtx && (
+                    <WhatsAppSendPdfButton
+                      defaultClientId={pdfWhatsAppCtx.clientId}
+                      getPdfBlob={() => vouchersService.getPdf(pdfWhatsAppCtx.voucherId)}
+                      filename={`comprobante-${pdfVoucherInfo?.type}-${pdfVoucherInfo?.number}.pdf`}
+                      caption={`Comprobante ${pdfVoucherInfo?.type} ${pdfVoucherInfo?.number}`}
+                    />
+                  )}
+                </div>
                 <Button 
                   variant="outline" 
                   onClick={handlePrintPdf}
@@ -5936,17 +5972,6 @@ export default function Sales() {
           )}
         </div>
       </Modal>
-
-      {/* Mobile-only floating camera button — always accessible above the stepper bar */}
-      {!showQrScanner && (
-        <button
-          onClick={() => setShowQrScanner(true)}
-          className="fixed bottom-[132px] right-4 z-[70] flex h-12 w-12 items-center justify-center rounded-full bg-violet-600 shadow-lg shadow-violet-900/40 active:scale-95 lg:hidden"
-          aria-label="Escanear QR"
-        >
-          <ScanLine size={22} className="text-white" />
-        </button>
-      )}
 
       {showQrScanner && (
         <QrScanner

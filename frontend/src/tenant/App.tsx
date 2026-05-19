@@ -2,7 +2,7 @@
  * Componente principal de la aplicación tenant (ERP para usuarios de negocio).
  * Configura providers, rutas y layout.
  */
-import { lazy, Suspense, type ReactNode } from 'react'
+import { lazy, Suspense, Component, type ReactNode } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
@@ -34,6 +34,44 @@ const Inventory  = lazy(() => import('../pages/Inventory'))
 const Feedback   = lazy(() => import('../pages/Feedback'))
 const CurrentAccount = lazy(() => import('../pages/CurrentAccount'))
 const Stockpiles = lazy(() => import('../pages/Stockpiles'))
+const Messaging  = lazy(() => import('../pages/Messaging'))
+const Settings   = lazy(() => import('../pages/Settings'))
+
+// Error boundary para capturar crashes de páginas individuales
+class PageErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props)
+    this.state = { error: null }
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+  componentDidCatch(error: Error, info: { componentStack: string }) {
+    console.error('[PageError]', error.message, info.componentStack)
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="p-8 text-center">
+          <p className="text-red-600 font-semibold mb-2">Error al cargar la página</p>
+          <pre className="text-xs text-left bg-red-50 dark:bg-red-900/20 p-4 rounded max-h-64 overflow-auto text-red-800 dark:text-red-200">
+            {this.state.error.message}
+          </pre>
+          <button
+            className="mt-4 px-4 py-2 bg-primary-600 text-white rounded text-sm"
+            onClick={() => this.setState({ error: null })}
+          >
+            Reintentar
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 // Skeleton de carga entre navegaciones
 function PageLoader() {
@@ -131,7 +169,7 @@ export default function App() {
                 <Suspense fallback={<PageLoader />}><Dashboard /></Suspense>
               } />
               <Route path="sales" element={
-                <Suspense fallback={<PageLoader />}><Sales /></Suspense>
+                <PageErrorBoundary><Suspense fallback={<PageLoader />}><Sales /></Suspense></PageErrorBoundary>
               } />
               <Route path="products" element={
                 <Suspense fallback={<PageLoader />}><Products /></Suspense>
@@ -172,7 +210,12 @@ export default function App() {
               <Route path="reports" element={
                 <Suspense fallback={<PageLoader />}><Reports /></Suspense>
               } />
-              <Route path="settings" element={<Navigate to="/" replace />} />
+              <Route path="messaging" element={
+                <Suspense fallback={<PageLoader />}><Messaging /></Suspense>
+              } />
+              <Route path="settings" element={
+                <Suspense fallback={<PageLoader />}><Settings /></Suspense>
+              } />
             </Route>
 
             {/* Ruta por defecto */}
