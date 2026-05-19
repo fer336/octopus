@@ -597,8 +597,8 @@ class AfipSdkService:
         imp_iva = float(voucher.iva_amount)
         imp_total = float(voucher.total)
 
-        # Fecha del comprobante (formato YYYYMMDD)
-        cbte_fch = voucher.date.strftime("%Y%m%d")
+        # Fecha del comprobante (formato YYYYMMDD como entero, requerido por ARCA)
+        cbte_fch = int(voucher.date.strftime("%Y%m%d"))
 
         # ================================================================
         # LÓGICA CORRECTA SEGÚN RG 5616:
@@ -643,14 +643,26 @@ class AfipSdkService:
         # Desglose de IVA
         iva_breakdown = self._calculate_iva_breakdown(voucher)
 
+        # Obtener el último número autorizado directamente de ARCA para evitar
+        # el error 10016 causado por desincronía en el contador interno del SDK.
+        sale_point_int = int(voucher.sale_point)
+        last_result = await self.get_last_voucher(sale_point_int, cbte_tipo)
+        if not last_result["success"]:
+            raise ValueError(
+                f"No se pudo obtener el último comprobante de ARCA: {last_result.get('error')}"
+            )
+        next_number = last_result["lastVoucher"] + 1
+
         # Construir datos del comprobante
         data = {
             "CantReg": 1,
-            "PtoVta": int(voucher.sale_point),
+            "PtoVta": sale_point_int,
             "CbteTipo": cbte_tipo,
             "Concepto": 1,  # 1 = Productos
             "DocTipo": doc_tipo,
             "DocNro": doc_nro,
+            "CbteDesde": next_number,
+            "CbteHasta": next_number,
             "CbteFch": cbte_fch,
             "ImpTotal": round(imp_total, 2),
             "ImpTotConc": 0,
@@ -664,15 +676,27 @@ class AfipSdkService:
             "Iva": iva_breakdown,
         }
 
-        logger.info(f"Emitiendo factura electrónica: {voucher.full_number}")
+        logger.info(f"Emitiendo factura electrónica: {voucher.full_number} → número ARCA: {next_number}")
         logger.info(f"Datos del comprobante: {data}")
 
-        result = await self.create_next_voucher(data)
+        result = await self.create_voucher(data)
 
         if not result["success"]:
             raise ValueError(f"Error de ARCA/AFIP: {result['error']}")
 
-        return result
+        # create_voucher devuelve result["data"] con el CAE y número
+        arca_data = result.get("data") or {}
+        cae_fch_vto = arca_data.get("CAEFchVto")
+        # Normalizar fecha: ARCA puede devolver YYYYMMDD o YYYY-MM-DD
+        if cae_fch_vto and len(str(cae_fch_vto)) == 8 and "-" not in str(cae_fch_vto):
+            cae_fch_vto = f"{str(cae_fch_vto)[:4]}-{str(cae_fch_vto)[4:6]}-{str(cae_fch_vto)[6:]}"
+
+        return {
+            "success": True,
+            "CAE": arca_data.get("CAE"),
+            "CAEFchVto": cae_fch_vto,
+            "voucherNumber": next_number,
+        }
 
     async def emit_credit_note(
         self,
@@ -717,8 +741,8 @@ class AfipSdkService:
         imp_iva = abs(float(credit_note.iva_amount))
         imp_total = abs(float(credit_note.total))
 
-        # Fecha del comprobante (formato YYYYMMDD)
-        cbte_fch = credit_note.date.strftime("%Y%m%d")
+        # Fecha del comprobante (formato YYYYMMDD como entero, requerido por ARCA)
+        cbte_fch = int(credit_note.date.strftime("%Y%m%d"))
 
         # ================================================================
         # LÓGICA CORRECTA PARA NOTAS DE CRÉDITO:
@@ -768,14 +792,25 @@ class AfipSdkService:
             }
         ]
 
+        # Obtener el último número autorizado directamente de ARCA para evitar error 10016.
+        sale_point_int = int(credit_note.sale_point)
+        last_result = await self.get_last_voucher(sale_point_int, cbte_tipo)
+        if not last_result["success"]:
+            raise ValueError(
+                f"No se pudo obtener el último comprobante de ARCA: {last_result.get('error')}"
+            )
+        next_number = last_result["lastVoucher"] + 1
+
         # Construir datos del comprobante
         data = {
             "CantReg": 1,
-            "PtoVta": int(credit_note.sale_point),
+            "PtoVta": sale_point_int,
             "CbteTipo": cbte_tipo,
             "Concepto": 1,  # 1 = Productos
             "DocTipo": doc_tipo,
             "DocNro": doc_nro,
+            "CbteDesde": next_number,
+            "CbteHasta": next_number,
             "CbteFch": cbte_fch,
             "ImpTotal": round(imp_total, 2),
             "ImpTotConc": 0,
@@ -787,19 +822,29 @@ class AfipSdkService:
             "MonCotiz": 1,
             "CondicionIVAReceptorId": condicion_iva_receptor_id,
             "Iva": iva_breakdown,
-            "CbtesAsoc": cbtes_asoc,  # 🔑 CLAVE: Referencia a factura original
+            "CbtesAsoc": cbtes_asoc,
         }
 
-        logger.info(f"Emitiendo Nota de Crédito electrónica: {credit_note.full_number}")
+        logger.info(f"Emitiendo Nota de Crédito electrónica: {credit_note.full_number} → número ARCA: {next_number}")
         logger.info(f"Referencia a factura original: {original_voucher.full_number}")
         logger.info(f"Datos del comprobante: {data}")
 
-        result = await self.create_next_voucher(data)
+        result = await self.create_voucher(data)
 
         if not result["success"]:
             raise ValueError(f"Error de ARCA/AFIP: {result['error']}")
 
-        return result
+        arca_data = result.get("data") or {}
+        cae_fch_vto = arca_data.get("CAEFchVto")
+        if cae_fch_vto and len(str(cae_fch_vto)) == 8 and "-" not in str(cae_fch_vto):
+            cae_fch_vto = f"{str(cae_fch_vto)[:4]}-{str(cae_fch_vto)[4:6]}-{str(cae_fch_vto)[6:]}"
+
+        return {
+            "success": True,
+            "CAE": arca_data.get("CAE"),
+            "CAEFchVto": cae_fch_vto,
+            "voucherNumber": next_number,
+        }
 
     # ================================================================
     # Diagnóstico

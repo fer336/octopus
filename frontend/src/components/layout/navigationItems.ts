@@ -7,6 +7,7 @@ import {
   FolderTree,
   LayoutDashboard,
   Package,
+  ShieldCheck,
   ShoppingCart,
   TrendingUp,
   Truck,
@@ -55,6 +56,7 @@ export const navigationItems: NavigationItem[] = [
   { path: '/suppliers', icon: Truck, label: 'Proveedores', section: 'contactos' },
   { path: '/categories', icon: FolderTree, label: 'Categorias', section: 'contactos' },
   { path: '/messaging', icon: MessagesSquare, label: 'WhatsApp CRM', section: 'comunicaciones' },
+  { path: '/whatsapp-auth', icon: ShieldCheck, label: 'Autorizaciones WA', section: 'comunicaciones' },
   { path: '/reports', icon: BarChart3, label: 'Reportes', section: 'analisis' },
   { path: '/feedback', icon: MessageSquare, label: 'Feedback', section: 'analisis' },
 ]

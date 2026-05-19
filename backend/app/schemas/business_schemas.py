@@ -5,7 +5,7 @@ Schemas para Business (Negocio).
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class BusinessBase(BaseModel):
@@ -61,6 +61,7 @@ class BusinessUpdate(BaseModel):
     logo_display_mode: Literal["alongside_text", "replace_text"] | None = Field(None)
     header_text: str | None = Field(None)
     sale_point: str | None = Field(None, max_length=5)
+    whatsapp_instance_name: str | None = Field(None, max_length=100)
 
 
 class BusinessResponse(BaseModel):
@@ -83,6 +84,10 @@ class BusinessResponse(BaseModel):
     header_text: str | None
     sale_point: str
     ai_agent_enabled: bool
+    whatsapp_enabled: bool
+    qr_scanner_enabled: bool
+    evolution_api_key: str | None
+    whatsapp_instance_name: str | None
     current_account_mode: Literal["disabled", "automatic", "manual"]
     invoicing_enabled: bool
     receipts_enabled: bool
@@ -95,6 +100,25 @@ class BusinessResponse(BaseModel):
 
     # Configuración ARCA (solo lectura, se edita en /arca)
     arca_environment: str | None
+
+    # Últimos números de comprobante emitidos (para mostrar en UI)
+    last_quotation_number: str = "00000000"
+    last_receipt_number: str = "00000000"
+    last_invoice_a_number: str = "00000000"
+    last_invoice_b_number: str = "00000000"
+    last_invoice_c_number: str = "00000000"
+
+    @field_validator(
+        "last_quotation_number",
+        "last_receipt_number",
+        "last_invoice_a_number",
+        "last_invoice_b_number",
+        "last_invoice_c_number",
+        mode="before",
+    )
+    @classmethod
+    def coerce_number(cls, v: object) -> str:
+        return str(v) if v is not None else "00000000"
 
     class Config:
         from_attributes = True

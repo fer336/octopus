@@ -317,6 +317,7 @@ function BrandingTab({ tenantId }: { tenantId: string }) {
 function FeaturesTab({ tenantId }: { tenantId: string }) {
   const queryClient = useQueryClient()
   const [linearApiKey, setLinearApiKey] = useState('')
+  const [evolutionApiKey, setEvolutionApiKey] = useState('')
 
   const flagsQuery = useQuery({
     queryKey: ['admin-feature-flags', tenantId],
@@ -379,6 +380,12 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
       if (typeof payload.sql_backup_enabled === 'boolean') {
         toast.success(payload.sql_backup_enabled ? 'Backup SQL habilitado' : 'Backup SQL deshabilitado')
       }
+      if (typeof payload.whatsapp_enabled === 'boolean') {
+        toast.success(payload.whatsapp_enabled ? 'WhatsApp habilitado' : 'WhatsApp deshabilitado')
+      }
+      if (typeof payload.qr_scanner_enabled === 'boolean') {
+        toast.success(payload.qr_scanner_enabled ? 'Scanner QR habilitado' : 'Scanner QR deshabilitado')
+      }
       queryClient.invalidateQueries({ queryKey: ['admin-feature-flags', tenantId] })
     },
     onError: (error: any) => {
@@ -403,8 +410,26 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
     },
   })
 
+  const saveEvolutionKeyMutation = useMutation({
+    mutationFn: (apiKey: string) =>
+      adminAPI.updateArcaSecrets(tenantId, {
+        evolution_api_key: apiKey,
+      }),
+    onSuccess: () => {
+      toast.success('Evolution API Key guardada')
+      setEvolutionApiKey('')
+      queryClient.invalidateQueries({ queryKey: ['admin-arca-secrets', tenantId] })
+    },
+    onError: (error: any) => {
+      const detail = error?.response?.data?.detail
+      toast.error(typeof detail === 'string' ? detail : 'No se pudo guardar la API Key de Evolution')
+    },
+  })
+
   const currentEnabled = flagsQuery.data?.ai_agent_enabled ?? false
   const linearSyncEnabled = flagsQuery.data?.linear_sync_enabled ?? false
+  const whatsappEnabled = flagsQuery.data?.whatsapp_enabled ?? false
+  const qrScannerEnabled = flagsQuery.data?.qr_scanner_enabled ?? false
   const currentAccountMode = flagsQuery.data?.current_account_mode ?? 'disabled'
   const currentAccountEnabled = currentAccountMode !== 'disabled'
   const invoicingEnabled = flagsQuery.data?.invoicing_enabled ?? true
@@ -713,6 +738,103 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
             >
               {sqlBackupEnabled ? 'Habilitado (Premium)' : 'Deshabilitado'}
             </span>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Scanner QR</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Habilita el scanner de QR en la versión móvil y la generación de QR en productos.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={qrScannerEnabled}
+              onClick={() => updateMutation.mutate({ qr_scanner_enabled: !qrScannerEnabled })}
+              disabled={updateMutation.isPending}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                qrScannerEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                  qrScannerEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">WhatsApp (Evolution API)</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Habilita el envío de documentos por WhatsApp desde la sección de ventas.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={whatsappEnabled}
+              onClick={() => updateMutation.mutate({ whatsapp_enabled: !whatsappEnabled })}
+              disabled={updateMutation.isPending}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                whatsappEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                  whatsappEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-flex px-2 py-1 text-xs rounded-full ${
+                linearSecretsQuery.data?.secrets?.evolution_api_key?.configured
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+              }`}
+            >
+              {linearSecretsQuery.data?.secrets?.evolution_api_key?.configured
+                ? `API Key configurada (${linearSecretsQuery.data.secrets.evolution_api_key.last4 ?? '****'})`
+                : 'API Key no configurada'}
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Evolution API Key
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={evolutionApiKey}
+                onChange={(e) => setEvolutionApiKey(e.target.value)}
+                placeholder="Ingresá la API Key de Evolution..."
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!evolutionApiKey.trim()) {
+                    toast.error('Ingresá una API Key válida')
+                    return
+                  }
+                  saveEvolutionKeyMutation.mutate(evolutionApiKey.trim())
+                }}
+                disabled={saveEvolutionKeyMutation.isPending}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                {saveEvolutionKeyMutation.isPending ? 'Guardando...' : 'Guardar key'}
+              </button>
+            </div>
           </div>
         </div>
 

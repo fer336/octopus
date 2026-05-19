@@ -195,12 +195,7 @@ export async function createSession(name: string, token?: string): Promise<Whats
     const payload: Record<string, unknown> = {
       instanceName: name,
       qrcode: true,
-      rejectCall: true,
-      groupsIgnore: true,
-      alwaysOnline: true,
-      readMessages: true,
-      readStatus: true,
-      syncFullHistory: true,
+      integration: 'WHATSAPP-BAILEYS',
     }
 
     if (token) payload.token = token

@@ -361,6 +361,23 @@ async def emit_electronic_invoice(
                 ).date()
             voucher.status = VoucherStatus.CONFIRMED
 
+            # Sincronizar el número local con el asignado por ARCA.
+            # Pueden diferir si el contador local quedó desincronizado por emisiones fallidas previas.
+            arca_number = arca_response.get("voucherNumber")
+            if arca_number and str(arca_number).zfill(8) != voucher.number:
+                logger.warning(
+                    f"Sincronizando número de comprobante: local={voucher.number}, ARCA={arca_number}"
+                )
+                voucher.number = str(arca_number).zfill(8)
+                # También actualizar el contador del negocio para futuros comprobantes
+                voucher_type_str = voucher.voucher_type.value
+                if voucher_type_str == "invoice_a":
+                    business.last_invoice_a_number = str(arca_number).zfill(8)
+                elif voucher_type_str == "invoice_b":
+                    business.last_invoice_b_number = str(arca_number).zfill(8)
+                elif voucher_type_str == "invoice_c":
+                    business.last_invoice_c_number = str(arca_number).zfill(8)
+
             await db.commit()
             await db.refresh(voucher)
 

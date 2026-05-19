@@ -80,6 +80,7 @@ export interface ArcaSecretsUpdate {
   afip_cert?: string
   afip_key?: string
   linear_api_key?: string
+  evolution_api_key?: string
 }
 
 export interface ArcaTestResponse {
@@ -135,6 +136,8 @@ export interface FeatureFlagsResponse {
   business_id: string
   ai_agent_enabled: boolean
   linear_sync_enabled: boolean
+  whatsapp_enabled?: boolean
+  qr_scanner_enabled?: boolean
   current_account_mode: 'disabled' | 'automatic' | 'manual'
   invoicing_enabled: boolean
   receipts_enabled: boolean
@@ -149,6 +152,8 @@ export interface FeatureFlagsResponse {
 export interface FeatureFlagsUpdate {
   ai_agent_enabled?: boolean
   linear_sync_enabled?: boolean
+  whatsapp_enabled?: boolean
+  qr_scanner_enabled?: boolean
   current_account_mode?: 'disabled' | 'automatic' | 'manual'
   invoicing_enabled?: boolean
   receipts_enabled?: boolean

@@ -182,6 +182,7 @@ export default function Vouchers() {
   })
   const invoicingEnabled = business?.invoicing_enabled ?? true
   const receiptsEnabled = business?.receipts_enabled ?? true
+  const whatsappEnabled = business?.whatsapp_enabled ?? true
   const currentAccountEnabled =
     (business?.current_account_mode ?? 'disabled') !== 'disabled' &&
     hasModuleAccess(user, 'current_account')
@@ -1563,15 +1564,17 @@ export default function Vouchers() {
               <span>Facturar seleccionados</span>
             </button>
           )}
-          <button
-            onClick={() => setBulkWhatsAppOpen(true)}
-            className="inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-lg border border-emerald-400 px-2.5 py-1.5 text-sm font-medium text-emerald-600 transition-colors hover:bg-emerald-500 hover:text-white dark:border-emerald-500 dark:text-emerald-400"
-            title="Enviar por WhatsApp"
-            aria-label="Enviar por WhatsApp"
-          >
-            <WhatsAppIcon size={14} />
-            <span>Enviar por WhatsApp</span>
-          </button>
+          {whatsappEnabled && (
+            <button
+              onClick={() => setBulkWhatsAppOpen(true)}
+              className="inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-lg border border-emerald-400 px-2.5 py-1.5 text-sm font-medium text-emerald-600 transition-colors hover:bg-emerald-500 hover:text-white dark:border-emerald-500 dark:text-emerald-400"
+              title="Enviar por WhatsApp"
+              aria-label="Enviar por WhatsApp"
+            >
+              <WhatsAppIcon size={14} />
+              <span>Enviar por WhatsApp</span>
+            </button>
+          )}
           <button
             onClick={() => setSelectedQuotationIds([])}
             className="inline-flex flex-shrink-0 items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
@@ -1681,15 +1684,17 @@ export default function Vouchers() {
                         >
                           <Receipt size={17} />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setBulkWhatsAppOpen(true)}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-400 text-emerald-600 transition-colors hover:bg-emerald-500 hover:text-white dark:border-emerald-500 dark:text-emerald-400"
-                          title="Enviar por WhatsApp"
-                          aria-label="Enviar por WhatsApp"
-                        >
-                          <WhatsAppIcon size={17} />
-                        </button>
+                        {whatsappEnabled && (
+                          <button
+                            type="button"
+                            onClick={() => setBulkWhatsAppOpen(true)}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-400 text-emerald-600 transition-colors hover:bg-emerald-500 hover:text-white dark:border-emerald-500 dark:text-emerald-400"
+                            title="Enviar por WhatsApp"
+                            aria-label="Enviar por WhatsApp"
+                          >
+                            <WhatsAppIcon size={17} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setSelectedQuotationIds((prev) => prev.filter((id) => id !== voucher.id))}

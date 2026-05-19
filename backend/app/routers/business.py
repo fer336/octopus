@@ -6,12 +6,13 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.audit_log import AuditLog
 from app.models.business import Business
+from app.models.voucher import Voucher, VoucherType
 from app.schemas.business_schemas import BusinessResponse, BusinessUpdate
 from app.utils.security import get_current_business, get_current_user
 
@@ -62,7 +63,14 @@ async def get_my_business(
             detail="Negocio no encontrado",
         )
 
-    # Convertir UUID a string para el response
+    # Query real last numbers from vouchers table (MAX per type, single round-trip)
+    rows = await db.execute(
+        select(Voucher.voucher_type, func.max(Voucher.number))
+        .where(Voucher.business_id == business_id)
+        .group_by(Voucher.voucher_type)
+    )
+    last_by_type: dict[VoucherType, str] = {row[0]: row[1] for row in rows.all()}
+
     return BusinessResponse(
         id=str(business.id),
         name=business.name,
@@ -84,6 +92,10 @@ async def get_my_business(
         header_text=business.header_text,
         sale_point=business.sale_point,
         ai_agent_enabled=bool(business.ai_agent_enabled),
+        whatsapp_enabled=bool(getattr(business, "whatsapp_enabled", False)),
+        qr_scanner_enabled=bool(getattr(business, "qr_scanner_enabled", False)),
+        evolution_api_key=getattr(business, "evolution_api_key", None),
+        whatsapp_instance_name=getattr(business, "whatsapp_instance_name", None),
         current_account_mode=business.current_account_mode or "disabled",
         invoicing_enabled=bool(business.invoicing_enabled),
         receipts_enabled=bool(business.receipts_enabled),
@@ -94,6 +106,11 @@ async def get_my_business(
         reports_enabled=bool(business.reports_enabled),
         sql_backup_enabled=bool(getattr(business, "sql_backup_enabled", False)),
         arca_environment=business.arca_environment,
+        last_quotation_number=last_by_type.get(VoucherType.QUOTATION) or "00000000",
+        last_receipt_number=last_by_type.get(VoucherType.RECEIPT) or "00000000",
+        last_invoice_a_number=last_by_type.get(VoucherType.INVOICE_A) or "00000000",
+        last_invoice_b_number=last_by_type.get(VoucherType.INVOICE_B) or "00000000",
+        last_invoice_c_number=last_by_type.get(VoucherType.INVOICE_C) or "00000000",
     )
 
 
@@ -161,6 +178,10 @@ async def update_my_business(
         header_text=business.header_text,
         sale_point=business.sale_point,
         ai_agent_enabled=bool(business.ai_agent_enabled),
+        whatsapp_enabled=bool(getattr(business, "whatsapp_enabled", False)),
+        qr_scanner_enabled=bool(getattr(business, "qr_scanner_enabled", False)),
+        evolution_api_key=getattr(business, "evolution_api_key", None),
+        whatsapp_instance_name=getattr(business, "whatsapp_instance_name", None),
         current_account_mode=business.current_account_mode or "disabled",
         invoicing_enabled=bool(business.invoicing_enabled),
         receipts_enabled=bool(business.receipts_enabled),

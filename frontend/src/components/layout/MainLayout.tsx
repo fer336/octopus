@@ -44,6 +44,8 @@ export default function MainLayout() {
   const reportsEnabled = business?.reports_enabled ?? true
   const inventoryEnabled = business?.inventory_enabled ?? true
   const stockpileEnabled = business?.stockpile_enabled ?? true
+  const whatsappEnabled = business?.whatsapp_enabled ?? true
+  const qrScannerEnabled = business?.qr_scanner_enabled ?? true
 
   useEffect(() => {
     if (!aiEnabled) {
@@ -77,11 +79,20 @@ export default function MainLayout() {
       return
     }
 
+    if (
+      (location.pathname.startsWith('/messaging') || location.pathname.startsWith('/whatsapp-auth')) &&
+      business !== undefined &&
+      !whatsappEnabled
+    ) {
+      navigate('/', { replace: true })
+      return
+    }
+
     if (user && !hasPathAccess(user, location.pathname)) {
       const fallbackPath = navigationItems.find((item) => hasPathAccess(user, item.path))?.path ?? '/'
       navigate(fallbackPath, { replace: true })
     }
-  }, [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, location.pathname, navigate, user])
+  }, [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, whatsappEnabled, business, location.pathname, navigate, user])
 
   const toggleSidebar = () => {
     if (window.innerWidth < 768) return // mobile: MobileNav handles navigation
@@ -104,7 +115,7 @@ export default function MainLayout() {
   const isVouchersRoute = activeNavigationItem?.path === '/comprobantes'
   const isSalesRoute = location.pathname.startsWith('/sales')
 
-  const contextualAction = isSalesRoute ? (
+  const contextualAction = (isSalesRoute && qrScannerEnabled) ? (
     <Button
       variant="outline"
       size="sm"
@@ -146,6 +157,7 @@ export default function MainLayout() {
           reportsEnabled={reportsEnabled}
           inventoryEnabled={inventoryEnabled}
           stockpileEnabled={stockpileEnabled}
+          whatsappEnabled={whatsappEnabled}
         />
 
       {/* Main content */}
@@ -182,6 +194,7 @@ export default function MainLayout() {
           reportsEnabled={reportsEnabled}
           inventoryEnabled={inventoryEnabled}
           stockpileEnabled={stockpileEnabled}
+          whatsappEnabled={whatsappEnabled}
         />
       </div>
     </div>

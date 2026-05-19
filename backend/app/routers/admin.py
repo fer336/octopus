@@ -61,6 +61,7 @@ SECRET_TYPES = [
     "afip_cert",
     "afip_key",
     "linear_api_key",
+    "evolution_api_key",
 ]
 
 # ============================================================================
@@ -95,6 +96,7 @@ class ArcaSecretsUpdate(BaseModel):
     afip_cert: str | None = None
     afip_key: str | None = None
     linear_api_key: str | None = None
+    evolution_api_key: str | None = None
 
 
 class ArcaTestResponse(BaseModel):
@@ -158,6 +160,8 @@ class FeatureFlagsResponse(BaseModel):
     business_id: str
     ai_agent_enabled: bool
     linear_sync_enabled: bool
+    whatsapp_enabled: bool = False
+    qr_scanner_enabled: bool = False
     current_account_mode: Literal["disabled", "automatic", "manual"]
     invoicing_enabled: bool
     receipts_enabled: bool
@@ -174,6 +178,8 @@ class FeatureFlagsUpdate(BaseModel):
 
     ai_agent_enabled: bool | None = None
     linear_sync_enabled: bool | None = None
+    whatsapp_enabled: bool | None = None
+    qr_scanner_enabled: bool | None = None
     current_account_mode: Literal["disabled", "automatic", "manual"] | None = None
     invoicing_enabled: bool | None = None
     receipts_enabled: bool | None = None
@@ -1320,6 +1326,9 @@ async def update_arca_secrets(
     if updates.get('afip_key') and updates['afip_key'].strip():
         business.afip_key = updates['afip_key'].strip()
 
+    if updates.get('evolution_api_key') and updates['evolution_api_key'].strip():
+        business.evolution_api_key = updates['evolution_api_key'].strip()
+
     # Actualizar arca_environment en la tabla business (campo real que usa AfipSdkService)
     if arca_env and arca_env.strip():
         business.arca_environment = arca_env.strip()
@@ -1637,6 +1646,8 @@ async def get_feature_flags(
         business_id=str(business.id),
         ai_agent_enabled=bool(business.ai_agent_enabled),
         linear_sync_enabled=bool(business.linear_sync_enabled),
+        whatsapp_enabled=bool(getattr(business, "whatsapp_enabled", False)),
+        qr_scanner_enabled=bool(getattr(business, "qr_scanner_enabled", False)),
         current_account_mode=business.current_account_mode or "disabled",
         invoicing_enabled=bool(business.invoicing_enabled),
         receipts_enabled=bool(business.receipts_enabled),
@@ -1700,6 +1711,8 @@ async def update_feature_flags(
         business_id=str(business.id),
         ai_agent_enabled=bool(business.ai_agent_enabled),
         linear_sync_enabled=bool(business.linear_sync_enabled),
+        whatsapp_enabled=bool(getattr(business, "whatsapp_enabled", False)),
+        qr_scanner_enabled=bool(getattr(business, "qr_scanner_enabled", False)),
         current_account_mode=business.current_account_mode or "disabled",
         invoicing_enabled=bool(business.invoicing_enabled),
         receipts_enabled=bool(business.receipts_enabled),

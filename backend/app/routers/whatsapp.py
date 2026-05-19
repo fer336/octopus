@@ -122,3 +122,13 @@ async def whatsapp_numbers(
     service: WhatsAppEvolutionService = Depends(get_evolution_service),
 ):
     return await service.request("POST", f"/chat/whatsappNumbers/{instance_name}", json=body)
+
+
+@router.post("/message/sendList/{instance_name}")
+async def send_list(
+    instance_name: str,
+    body: dict[str, Any],
+    current_business=Depends(get_current_business),
+    service: WhatsAppEvolutionService = Depends(get_evolution_service),
+):
+    return await service.request("POST", f"/message/sendList/{instance_name}", json=body)
