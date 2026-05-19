@@ -1,28 +1,24 @@
 import axios, { type AxiosInstance } from 'axios'
-import { getProviderConfig } from './provider'
+import { getTenantApiUrl } from '../httpClient'
+import { useAuthStore } from '../../stores/authStore'
 
 let _client: AxiosInstance | null = null
-let _configSnapshot = ''
 
 export function getWhatsAppClient(): AxiosInstance {
-  const config = getProviderConfig()
-  const snapshot = JSON.stringify({ base: config.baseUrl, key: config.apiKey })
-
-  if (!_client || snapshot !== _configSnapshot) {
-    _configSnapshot = snapshot
+  if (!_client) {
     _client = axios.create({
-      baseURL: config.baseUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        [config.authHeader]: `${config.authPrefix}${config.apiKey}`,
-      },
+      baseURL: `${getTenantApiUrl()}/whatsapp`,
+      headers: { 'Content-Type': 'application/json' },
+    })
+    _client.interceptors.request.use((config) => {
+      const token = useAuthStore.getState().accessToken
+      if (token) config.headers.Authorization = `Bearer ${token}`
+      return config
     })
   }
-
   return _client
 }
 
 export function invalidateWhatsAppClient(): void {
   _client = null
-  _configSnapshot = ''
 }

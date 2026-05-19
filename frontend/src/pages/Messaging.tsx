@@ -1,11 +1,9 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Smartphone, Wifi, WifiOff, LogOut, CheckCircle, AlertCircle, RefreshCw, MessageCircle } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import businessService from '../api/businessService'
 import { stopSession, createSession, getConnectionState } from '../api/whatsapp/service'
-import { invalidateWhatsAppClient } from '../api/whatsapp/client'
-import { getProviderConfig, saveProviderConfig } from '../api/whatsapp/provider'
 import { useMessagingStore } from '../stores/messagingStore'
 import QRCode from '../components/messaging/QRCode'
 import ConversationList from '../components/messaging/ConversationList'
@@ -13,12 +11,6 @@ import ChatView from '../components/messaging/ChatView'
 import type { WhatsAppSession } from '../types/whatsapp'
 
 const INSTANCE_CACHE_KEY = 'whatsapp-instance-name'
-
-// env var key wins; business key is the fallback for environments without the var
-function resolveApiKey(businessKey?: string | null): string {
-  const envKey = (import.meta.env.VITE_EVOLUTION_API_KEY as string | undefined) ?? ''
-  return envKey || businessKey || ''
-}
 
 export default function Messaging() {
   const queryClient = useQueryClient()
@@ -37,7 +29,6 @@ export default function Messaging() {
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null)
   const [sessionError, setSessionError] = useState<string | null>(null)
   const [disconnecting, setDisconnecting] = useState(false)
-  const configInjected = useRef(false)
 
   // Sync instance name from backend when business loads
   useEffect(() => {
@@ -49,24 +40,10 @@ export default function Messaging() {
 
   const mySession: WhatsAppSession | undefined = sessions.find((s) => s.id === instanceName)
   const isConnected = mySession?.status === 'ready'
-  const effectiveApiKey = resolveApiKey(business?.evolution_api_key)
 
-  // Inject the effective API key into the WhatsApp client config
-  useEffect(() => {
-    if (!effectiveApiKey || configInjected.current) return
-    const current = getProviderConfig()
-    saveProviderConfig({
-      ...current,
-      apiKey: effectiveApiKey,
-      defaultSessionId: instanceName || current.defaultSessionId,
-    })
-    invalidateWhatsAppClient()
-    configInjected.current = true
-  }, [effectiveApiKey, instanceName])
-
-  // Bootstrap: check connection state, create instance if needed — no startSession call
+  // Bootstrap: check connection state, create instance if needed
   const bootstrap = useCallback(async () => {
-    if (!instanceName || !effectiveApiKey) return
+    if (!instanceName) return
     setSessionLoading(true)
     setSessionError(null)
     try {
@@ -88,21 +65,23 @@ export default function Messaging() {
       }
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status
-      if (status === 401 || status === 403) {
-        setSessionError('El servidor rechazó la conexión. Contactá al administrador.')
+      if (status === 503) {
+        setSessionError('WhatsApp no está configurado en el servidor. Contactá al administrador.')
+      } else if (status === 401 || status === 403) {
+        setSessionError('Sin permisos para acceder a WhatsApp. Contactá al administrador.')
       } else {
         setSessionError('No se pudo conectar con el servidor de WhatsApp.')
       }
     } finally {
       setSessionLoading(false)
     }
-  }, [instanceName, effectiveApiKey])
+  }, [instanceName])
 
   useEffect(() => {
-    if (instanceName && effectiveApiKey) {
+    if (instanceName) {
       bootstrap()
     }
-  }, [instanceName, effectiveApiKey, bootstrap])
+  }, [instanceName, bootstrap])
 
   async function handleCreateInstance() {
     const name = nameInput.trim().toLowerCase().replace(/\s+/g, '-')
@@ -117,12 +96,8 @@ export default function Messaging() {
       return
     }
 
-    // Update local config
-    const current = getProviderConfig()
-    saveProviderConfig({ ...current, defaultSessionId: name })
     localStorage.setItem(INSTANCE_CACHE_KEY, name)
     setInstanceName(name)
-    configInjected.current = false
   }
 
   function handleQRConnected() {
@@ -159,7 +134,6 @@ export default function Messaging() {
     setPendingSessionId(null)
     setSessionError(null)
     setActiveSessionId(null)
-    configInjected.current = false
   }
 
   // ── Loading business ──
@@ -167,23 +141,6 @@ export default function Messaging() {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600" />
-      </div>
-    )
-  }
-
-  // ── No API key in env or backend ──
-  if (!effectiveApiKey) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="flex max-w-sm flex-col items-center gap-4 rounded-xl border border-yellow-200 bg-yellow-50 p-8 text-center dark:border-yellow-800 dark:bg-yellow-900/20">
-          <AlertCircle className="h-10 w-10 text-yellow-500" />
-          <div>
-            <p className="font-semibold text-yellow-800 dark:text-yellow-200">WhatsApp no configurado</p>
-            <p className="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
-              El administrador aún no configuró la integración con Evolution API. Contactá al soporte.
-            </p>
-          </div>
-        </div>
       </div>
     )
   }
