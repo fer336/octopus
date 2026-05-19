@@ -768,7 +768,7 @@ export default function Sales() {
             // ARCA rechazó — eliminar el comprobante generado sin CAE
             try {
               await vouchersService.delete(data.id, 'Anulado automáticamente: ARCA rechazó la emisión')
-            } catch {}
+            } catch (_) { /* best-effort delete, ignore failure */ }
             toast.error(
               `Error al emitir factura:\n${emitResponse.message}\n${emitResponse.errors?.join('\n') || ''}`,
               { id: 'emitting', duration: 7000 }
@@ -780,7 +780,7 @@ export default function Sales() {
           // Excepción de red o backend — eliminar el comprobante generado sin CAE
           try {
             await vouchersService.delete(data.id, 'Anulado automáticamente: error de conexión con ARCA')
-          } catch {}
+          } catch (_) { /* best-effort delete, ignore failure */ }
           toast.error(
             `Error al emitir factura electrónica:\n${error.response?.data?.detail || error.message}`,
             { id: 'emitting', duration: 7000 }
