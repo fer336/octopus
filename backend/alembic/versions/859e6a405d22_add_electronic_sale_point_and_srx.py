@@ -1,6 +1,6 @@
 """add_electronic_sale_point_and_srx
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 859e6a405d22
 Revises: z9y8x7w6v5u4
 Create Date: 2026-05-20 00:00:00.000000
 
@@ -12,7 +12,7 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic
-revision = 'a1b2c3d4e5f6'
+revision = '859e6a405d22'
 down_revision = 'z9y8x7w6v5u4'
 branch_labels = None
 depends_on = None
