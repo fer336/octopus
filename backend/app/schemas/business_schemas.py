@@ -41,6 +41,9 @@ class BusinessBase(BaseModel):
         None, description="Texto adicional para membrete"
     )
     sale_point: str = Field("0001", max_length=5, description="Punto de venta ARCA")
+    electronic_sale_point: str | None = "0012"
+    alternative_sale_point: str | None = "5001"
+    srx_enabled: bool | None = False
 
 
 class BusinessUpdate(BaseModel):
@@ -61,6 +64,9 @@ class BusinessUpdate(BaseModel):
     logo_display_mode: Literal["alongside_text", "replace_text"] | None = Field(None)
     header_text: str | None = Field(None)
     sale_point: str | None = Field(None, max_length=5)
+    electronic_sale_point: str | None = Field(None, max_length=5)
+    alternative_sale_point: str | None = Field(None, max_length=5)
+    srx_enabled: bool | None = Field(None)
     whatsapp_instance_name: str | None = Field(None, max_length=100)
 
 
@@ -97,6 +103,12 @@ class BusinessResponse(BaseModel):
     price_update_enabled: bool
     reports_enabled: bool
     sql_backup_enabled: bool
+
+    # Facturación electrónica separada por función
+    electronic_sale_point: str | None = None
+    alternative_sale_point: str | None = None
+    srx_enabled: bool | None = False
+    last_invoice_x_number: str | None = None
 
     # Configuración ARCA (solo lectura, se edita en /arca)
     arca_environment: str | None

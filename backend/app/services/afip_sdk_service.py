@@ -645,7 +645,9 @@ class AfipSdkService:
 
         # Obtener el último número autorizado directamente de ARCA para evitar
         # el error 10016 causado por desincronía en el contador interno del SDK.
-        sale_point_int = int(voucher.sale_point)
+        sale_point_int = int(
+            (voucher.business.electronic_sale_point or voucher.business.sale_point or "1")
+        )
         last_result = await self.get_last_voucher(sale_point_int, cbte_tipo)
         if not last_result["success"]:
             raise ValueError(
@@ -793,7 +795,9 @@ class AfipSdkService:
         ]
 
         # Obtener el último número autorizado directamente de ARCA para evitar error 10016.
-        sale_point_int = int(credit_note.sale_point)
+        sale_point_int = int(
+            (credit_note.business.electronic_sale_point or credit_note.business.sale_point or "1")
+        )
         last_result = await self.get_last_voucher(sale_point_int, cbte_tipo)
         if not last_result["success"]:
             raise ValueError(
@@ -952,7 +956,7 @@ class AfipSdkService:
             )
 
         # Check 5: Autenticación — verificar obteniendo último comprobante
-        sale_point = int(self.business.sale_point or "1")
+        sale_point = int(self.business.electronic_sale_point or self.business.sale_point or "1")
         try:
             last_voucher = await self.get_last_voucher(sale_point, 6)  # Factura B
             if last_voucher["success"]:

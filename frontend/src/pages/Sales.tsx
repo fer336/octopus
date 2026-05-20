@@ -29,7 +29,7 @@ import { isMobile } from '../utils/device'
 import QrScanner from '../components/sales/QrScanner'
 import WhatsAppSendPdfButton from '../components/messaging/WhatsAppSendPdfButton'
 
-type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'current_account' | 'acopio'
+type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'invoice_x' | 'current_account' | 'acopio'
 type SalesMenuMode = VoucherType
 type MobileSalesSection = 'items' | 'products' | 'summary'
 
@@ -269,6 +269,7 @@ const resolveBackendVoucherType = (
 ): VoucherTotalsPreviewRequest['voucher_type'] => {
   if (type === 'quotation') return 'quotation'
   if (type === 'receipt' || type === 'current_account') return 'receipt'
+  if (type === 'invoice_x') return 'invoice_x'
   return taxCondition === 'RI' ? 'invoice_a' : 'invoice_b'
 }
 
@@ -315,30 +316,43 @@ export default function Sales() {
     (business?.current_account_mode ?? 'disabled') !== 'disabled' &&
     hasModuleAccess(user, 'current_account')
 
+  const srxEnabled = business?.srx_enabled ?? false
+  const [srxMode, setSrxMode] = useState(false)
+
   const voucherTypes = useMemo(
-    () =>
-      baseVoucherTypes.filter((item) => {
+    () => {
+      const base = baseVoucherTypes.filter((item) => {
         if (item.value === 'invoice') return invoicingEnabled
         if (item.value === 'receipt') return receiptsEnabled
         if (item.value === 'quotation') return quotationEnabled
         if (item.value === 'acopio') return stockpileEnabled
         if (item.value === 'current_account') return currentAccountEnabled
         return true
-      }),
-    [invoicingEnabled, receiptsEnabled, quotationEnabled, stockpileEnabled, currentAccountEnabled],
+      })
+      if (srxMode && srxEnabled) {
+        base.push({ value: 'invoice_x', label: 'Comprobante X', icon: Receipt })
+      }
+      return base
+    },
+    [invoicingEnabled, receiptsEnabled, quotationEnabled, stockpileEnabled, currentAccountEnabled, srxMode, srxEnabled],
   )
 
   const salesMenuModes = useMemo(
-    () =>
-      baseSalesMenuModes.filter((item) => {
+    () => {
+      const base = baseSalesMenuModes.filter((item) => {
         if (item.value === 'invoice') return invoicingEnabled
         if (item.value === 'receipt') return receiptsEnabled
         if (item.value === 'quotation') return quotationEnabled
         if (item.value === 'acopio') return stockpileEnabled
         if (item.value === 'current_account') return currentAccountEnabled
         return true
-      }),
-    [invoicingEnabled, receiptsEnabled, quotationEnabled, stockpileEnabled, currentAccountEnabled],
+      })
+      if (srxMode && srxEnabled) {
+        base.push({ value: 'invoice_x' as SalesMenuMode, label: 'Comprobante X', icon: Receipt })
+      }
+      return base
+    },
+    [invoicingEnabled, receiptsEnabled, quotationEnabled, stockpileEnabled, currentAccountEnabled, srxMode, srxEnabled],
   )
 
   // React Query para productos
@@ -579,8 +593,8 @@ export default function Sales() {
       const sourceLabel = variables.sourceVoucherType === 'receipt' ? 'remito' : 'cotización'
       toast.success(`Factura generada a partir del ${sourceLabel}`, { icon: '✅' })
 
-      // Emitir en ARCA/AFIP
-      if (data.voucher_type.startsWith('invoice_')) {
+      // Emitir en ARCA/AFIP (INVOICE_X no se emite en ARCA)
+      if (data.voucher_type.startsWith('invoice_') && data.voucher_type !== 'invoice_x') {
         toast.loading('Emitiendo factura electrónica en ARCA/AFIP...', { id: 'emitting-conversion' })
         try {
           const emitResponse = await arcaService.emitInvoice({ voucher_id: data.id })
@@ -655,7 +669,8 @@ export default function Sales() {
       toast.success('Factura compilada correctamente desde múltiples presupuestos', { icon: '✅' })
 
       // Emitir en ARCA/AFIP
-      if (data.voucher_type.startsWith('invoice_')) {
+      // INVOICE_X no se emite en ARCA
+      if (data.voucher_type.startsWith('invoice_') && data.voucher_type !== 'invoice_x') {
         toast.loading('Emitiendo factura electrónica en ARCA/AFIP...', { id: 'emitting-compile' })
         try {
           const emitResponse = await arcaService.emitInvoice({ voucher_id: data.id })
@@ -754,7 +769,9 @@ export default function Sales() {
   const createVoucherMutation = useMutation({
     mutationFn: (data: VoucherCreate) => vouchersService.create(data),
     onSuccess: async (data) => {
-      const isInvoice = data.voucher_type.startsWith('invoice_')
+      // INVOICE_X es un comprobante sin validez fiscal — no se emite en ARCA
+      const isInvoice =
+        data.voucher_type.startsWith('invoice_') && data.voucher_type !== 'invoice_x'
 
       // Si es factura, la emisión en ARCA determina el éxito real.
       // No mostramos "generado" antes de tener el CAE.
@@ -1199,6 +1216,27 @@ export default function Sales() {
     }
   }, [voucherType, invoicingEnabled, receiptsEnabled, stockpileEnabled])
 
+  // SRX-User: toggle mode with Ctrl+D (only when srx_enabled for this tenant)
+  useEffect(() => {
+    if (!business?.srx_enabled) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'd') {
+        e.preventDefault()
+        setSrxMode((prev) => {
+          const next = !prev
+          if (next) {
+            setVoucherType('invoice_x')
+          } else {
+            setVoucherType('invoice')
+          }
+          return next
+        })
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [business?.srx_enabled])
+
   useEffect(() => {
     if (voucherType !== 'current_account') {
       return
@@ -1488,7 +1526,7 @@ export default function Sales() {
     }
 
     // Defaults por tipo (el usuario puede ajustar en cotización/remito)
-    if (nextType === 'invoice') {
+    if (nextType === 'invoice' || nextType === 'invoice_x') {
       setShowPrices(true)
       return
     }
@@ -1944,6 +1982,10 @@ export default function Sales() {
       // Lógica simple: Si es RI -> A, sino B
       backendType = selectedClient.tax_condition === 'RI' ? 'invoice_a' : 'invoice_b'
     }
+    if (voucherType === 'invoice_x') {
+      // Comprobante X: sin validez fiscal, punto de venta alternativo
+      backendType = 'invoice_x'
+    }
 
     // Obtener fecha local (sin conversión UTC)
     const today = new Date()
@@ -1968,7 +2010,7 @@ export default function Sales() {
       client_id: selectedClient.id,
       voucher_type: backendType as any,
       date: localDate,
-      show_prices: voucherType === 'invoice' || voucherType === 'quotation' || selectedStockpile ? true : showPrices,
+      show_prices: voucherType === 'invoice' || voucherType === 'invoice_x' || voucherType === 'quotation' || selectedStockpile ? true : showPrices,
       is_current_account: isCC,
       billing_client_id: (voucherType === 'current_account' || (voucherType === 'invoice' && payInCurrentAccount)) ? selectedClient.id : undefined,
       operating_client_id: operatingClientIdForPayload,
@@ -2903,6 +2945,13 @@ export default function Sales() {
                 <p className="mt-1 text-[10px] text-blue-700 dark:text-blue-300">
                   {priceStrategyOptions.find((option) => option.value === loadedBudgetsPriceStrategy)?.help}
                 </p>
+              </div>
+            )}
+
+            {srxMode && srxEnabled && (
+              <div className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+                <span>SRX</span>
+                <span className="text-red-200 text-[9px]">SIN VALIDEZ FISCAL</span>
               </div>
             )}
 

@@ -22,7 +22,7 @@ export type PriceStrategy = 'historical' | 'current'
 
 export interface VoucherCreate {
   client_id: string
-  voucher_type: 'quotation' | 'receipt' | 'invoice_a' | 'invoice_b' | 'invoice_c'
+  voucher_type: 'quotation' | 'receipt' | 'invoice_a' | 'invoice_b' | 'invoice_c' | 'invoice_x'
   date: string
   notes?: string
   show_prices: boolean
@@ -38,7 +38,7 @@ export interface VoucherCreate {
 }
 
 export interface VoucherTotalsPreviewRequest {
-  voucher_type: 'quotation' | 'receipt' | 'invoice_a' | 'invoice_b' | 'invoice_c'
+  voucher_type: 'quotation' | 'receipt' | 'invoice_a' | 'invoice_b' | 'invoice_c' | 'invoice_x'
   general_discount: number
   items: VoucherItemCreate[]
 }

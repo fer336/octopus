@@ -47,6 +47,10 @@ class Business(BaseModel):
 
     # Configuración de facturación
     sale_point = Column(String(5), default="0001")  # Punto de venta ARCA
+    electronic_sale_point = Column(String(5), default="0012")
+    alternative_sale_point = Column(String(5), default="5001")
+    srx_enabled = Column(Boolean, default=False)
+    last_invoice_x_number = Column(String(8), default="00000000")
     last_quotation_number = Column(String(8), default="00000000")
     last_receipt_number = Column(String(8), default="00000000")
     last_invoice_a_number = Column(String(8), default="00000000")
