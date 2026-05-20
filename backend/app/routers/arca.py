@@ -438,3 +438,52 @@ async def emit_electronic_invoice(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al emitir factura: {str(e)}",
         )
+
+
+@router.post("/sync-numbers")
+async def sync_invoice_numbers(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+    current_business_id: UUID = Depends(get_current_business),
+):
+    """
+    Sincroniza los contadores de numeración local con los valores reales de ARCA.
+    Se usa cuando hay un error de numeración (error 10016) para corregir el desfase.
+    """
+    result = await db.execute(select(Business).where(Business.id == current_business_id))
+    business = result.scalar_one_or_none()
+    if not business:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Negocio no encontrado")
+
+    service = AfipSdkService(business)
+    sale_point = int(business.sale_point or "1")
+
+    try:
+        synced = {}
+
+        # Factura A (tipo 1)
+        res_a = await service.get_last_voucher(sale_point, 1)
+        if res_a["success"]:
+            last_a = res_a["lastVoucher"]
+            business.last_invoice_a_number = str(last_a).zfill(8)
+            synced["last_invoice_a"] = last_a
+            synced["next_invoice_a"] = last_a + 1
+
+        # Factura B (tipo 6)
+        res_b = await service.get_last_voucher(sale_point, 6)
+        if res_b["success"]:
+            last_b = res_b["lastVoucher"]
+            business.last_invoice_b_number = str(last_b).zfill(8)
+            synced["last_invoice_b"] = last_b
+            synced["next_invoice_b"] = last_b + 1
+
+        await db.commit()
+        logger.info(f"Numeración sincronizada con ARCA: {synced}")
+        return {"success": True, "synced": synced}
+
+    except Exception as e:
+        logger.error(f"Error al sincronizar numeración con ARCA: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"No se pudo sincronizar con ARCA: {str(e)}",
+        )

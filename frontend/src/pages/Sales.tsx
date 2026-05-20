@@ -509,6 +509,11 @@ export default function Sales() {
     return defaultMessage
   }
 
+  const isArcaNumberMismatch = (msg: string): boolean => {
+    const m = msg.toLowerCase()
+    return m.includes('10016') || m.includes('numero de comprobante') || m.includes('número de comprobante') || m.includes('no es el correcto')
+  }
+
   // Query para obtener borradores desde la API
   const { data: apiDrafts, refetch: refetchDrafts } = useQuery({
     queryKey: ['drafts'],
@@ -765,26 +770,34 @@ export default function Sales() {
               { id: 'emitting', duration: 5000, icon: '🎉' }
             )
           } else {
-            // ARCA rechazó — eliminar el comprobante generado sin CAE
+            const errMsg = `${emitResponse.message}\n${emitResponse.errors?.join('\n') || ''}`.trim()
+            toast.dismiss('emitting')
+            if (isArcaNumberMismatch(errMsg)) {
+              setArcaMismatch({ voucherId: data.id, errorMsg: errMsg })
+              setIsGenerating(false)
+              return
+            }
+            // ARCA rechazó por otra razón — eliminar el comprobante generado sin CAE
             try {
               await vouchersService.delete(data.id, 'Anulado automáticamente: ARCA rechazó la emisión')
             } catch (_) { /* best-effort delete, ignore failure */ }
-            toast.error(
-              `Error al emitir factura:\n${emitResponse.message}\n${emitResponse.errors?.join('\n') || ''}`,
-              { id: 'emitting', duration: 7000 }
-            )
+            toast.error(`Error al emitir factura:\n${errMsg}`, { duration: 7000 })
             setIsGenerating(false)
             return
           }
         } catch (error: any) {
+          const errMsg = error.response?.data?.detail || error.message || ''
+          toast.dismiss('emitting')
+          if (isArcaNumberMismatch(errMsg)) {
+            setArcaMismatch({ voucherId: data.id, errorMsg: errMsg })
+            setIsGenerating(false)
+            return
+          }
           // Excepción de red o backend — eliminar el comprobante generado sin CAE
           try {
             await vouchersService.delete(data.id, 'Anulado automáticamente: error de conexión con ARCA')
           } catch (_) { /* best-effort delete, ignore failure */ }
-          toast.error(
-            `Error al emitir factura electrónica:\n${error.response?.data?.detail || error.message}`,
-            { id: 'emitting', duration: 7000 }
-          )
+          toast.error(`Error al emitir factura electrónica:\n${errMsg}`, { duration: 7000 })
           setIsGenerating(false)
           return
         }
@@ -945,6 +958,10 @@ export default function Sales() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [pdfVoucherInfo, setPdfVoucherInfo] = useState<{ type: string, number: string } | null>(null)
   const [pdfWhatsAppCtx, setPdfWhatsAppCtx] = useState<{ voucherId: string; clientId: string } | null>(null)
+
+  // === Modal de desincronización de numeración ARCA ===
+  const [arcaMismatch, setArcaMismatch] = useState<{ voucherId: string; errorMsg: string } | null>(null)
+  const [arcaSyncing, setArcaSyncing] = useState(false)
 
   // === Modal de diferencias de precios al cargar presupuesto ===
   const [showPriceDiffModal, setShowPriceDiffModal] = useState(false)
@@ -1419,7 +1436,6 @@ export default function Sales() {
       }
       return [...prev, { ...product, product_id: product.id, quantity, discount: 0 }]
     })
-    toast.success(`${product.description} ×${quantity} agregado`)
   }
 
   useEffect(() => {
@@ -1668,6 +1684,46 @@ export default function Sales() {
     }
 
     toast.success('Presupuesto removido')
+  }
+
+  const handleArcaSync = async (confirm: boolean) => {
+    if (!arcaMismatch) return
+    if (!confirm) {
+      // Cancel: delete the voucher and close modal
+      try {
+        await vouchersService.delete(arcaMismatch.voucherId, 'Anulado: numeración desincronizada con ARCA')
+      } catch (_) { /* best-effort */ }
+      setArcaMismatch(null)
+      return
+    }
+
+    setArcaSyncing(true)
+    try {
+      await arcaService.syncNumbers()
+      toast.loading('Reemitiendo con numeración actualizada...', { id: 'arca-retry' })
+      const emitResponse = await arcaService.emitInvoice({ voucher_id: arcaMismatch.voucherId })
+      if (emitResponse.success) {
+        toast.success(
+          `Factura emitida correctamente\nCAE: ${emitResponse.cae}\nVencimiento: ${emitResponse.cae_expiration}`,
+          { id: 'arca-retry', duration: 5000, icon: '🎉' }
+        )
+        setArcaMismatch(null)
+        queryClient.invalidateQueries({ queryKey: ['business-me'] })
+        queryClient.invalidateQueries({ queryKey: ['vouchers'] })
+      } else {
+        toast.dismiss('arca-retry')
+        toast.error(`Error al reemitir:\n${emitResponse.message}`, { duration: 7000 })
+        try {
+          await vouchersService.delete(arcaMismatch.voucherId, 'Anulado: reemisión fallida tras sync ARCA')
+        } catch (_) { /* best-effort */ }
+        setArcaMismatch(null)
+      }
+    } catch (err: any) {
+      toast.dismiss('arca-retry')
+      toast.error(`Error: ${err.response?.data?.detail || err.message}`, { duration: 7000 })
+    } finally {
+      setArcaSyncing(false)
+    }
   }
 
   const handleGenerateClick = () => {
@@ -3425,6 +3481,53 @@ export default function Sales() {
 
         {mobileSection === 'summary' && (
           <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white py-2 px-4 pb-24 dark:border-gray-700 dark:bg-gray-800">
+            {/* Voucher numbering — mobile */}
+            {business && voucherType !== 'acopio' && voucherType !== 'current_account' && (() => {
+              const salePoint = business.sale_point?.padStart(4, '0') ?? '0001'
+              let label = ''
+              let lastNumber = ''
+              let borderColor = 'border-gray-200 dark:border-gray-700'
+              let bgColor = 'bg-gray-50 dark:bg-gray-900/20'
+              let labelColor = 'text-gray-500 dark:text-gray-400'
+              let valueColor = 'text-gray-800 dark:text-gray-200'
+
+              if (voucherType === 'invoice') {
+                if (!selectedClient) return null
+                const isA = selectedClient.tax_condition === 'RI'
+                label = `Factura ${isA ? 'A' : 'B'}`
+                lastNumber = isA ? business.last_invoice_a_number : business.last_invoice_b_number
+                borderColor = 'border-blue-200 dark:border-blue-800'
+                bgColor = 'bg-blue-50 dark:bg-blue-900/20'
+                labelColor = 'text-blue-600 dark:text-blue-400'
+                valueColor = 'text-blue-800 dark:text-blue-200'
+              } else if (voucherType === 'quotation') {
+                label = 'Cotización'
+                lastNumber = business.last_quotation_number
+                borderColor = 'border-amber-200 dark:border-amber-800'
+                bgColor = 'bg-amber-50 dark:bg-amber-900/20'
+                labelColor = 'text-amber-600 dark:text-amber-400'
+                valueColor = 'text-amber-800 dark:text-amber-200'
+              } else if (voucherType === 'receipt') {
+                label = 'Remito'
+                lastNumber = business.last_receipt_number
+                borderColor = 'border-green-200 dark:border-green-800'
+                bgColor = 'bg-green-50 dark:bg-green-900/20'
+                labelColor = 'text-green-600 dark:text-green-400'
+                valueColor = 'text-green-800 dark:text-green-200'
+              } else {
+                return null
+              }
+
+              const nextNumber = String(parseInt(lastNumber || '0') + 1).padStart(8, '0')
+              const nextFormatted = `${salePoint}-${nextNumber}`
+
+              return (
+                <div className={`rounded-lg border ${borderColor} ${bgColor} px-3 py-2 flex items-center justify-between`}>
+                  <p className={`text-xs font-semibold ${labelColor}`}>{label}</p>
+                  <p className={`font-mono text-sm font-bold ${valueColor}`}>{nextFormatted}</p>
+                </div>
+              )
+            })()}
             <p className="mt-1 text-[11px] font-semibold tracking-wide text-gray-500 dark:text-gray-400">PRODUCTOS SELECCIONADOS</p>
             <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-600 dark:bg-gray-700">
               {items.length === 0 ? (
@@ -6104,6 +6207,8 @@ export default function Sales() {
         </div>
       </Modal>
 
+
+
       {showQrScanner && (
         <QrScanner
           onAddProduct={addScannedProduct}
@@ -6112,6 +6217,41 @@ export default function Sales() {
             if (items.length > 0) setMobileSection('summary')
           }}
         />
+      )}
+
+      {/* ARCA number mismatch modal */}
+      {arcaMismatch && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-800">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+                <span className="text-xl">⚠️</span>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-gray-100">Numeración desincronizada</p>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                  El número de factura no coincide con el de ARCA. ¿Querés sincronizarlo y reemitir automáticamente?
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleArcaSync(false)}
+                disabled={arcaSyncing}
+                className="flex-1 rounded-xl border border-gray-300 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                No, cancelar
+              </button>
+              <button
+                onClick={() => handleArcaSync(true)}
+                disabled={arcaSyncing}
+                className="flex-1 rounded-xl bg-primary-600 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+              >
+                {arcaSyncing ? 'Sincronizando...' : 'Sí, actualizar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
