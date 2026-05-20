@@ -54,6 +54,28 @@ class PdfService:
             traceback.print_exc()
             raise
 
+    def generate_comprobante_x_pdf(self, context: dict[str, Any]) -> bytes:
+        """
+        Genera un PDF de Comprobante X (sin validez fiscal, para SRX-User).
+
+        Args:
+            context: Diccionario con los datos del comprobante (mismo formato que generate_voucher_pdf).
+
+        Returns:
+            bytes: El contenido del archivo PDF.
+        """
+        try:
+            template = env.get_template("comprobante_x.html")
+            html_content = template.render(**context)
+            pdf_bytes = HTML(string=html_content).write_pdf()
+            return pdf_bytes
+        except Exception as e:
+            print(f"Error al generar PDF Comprobante X: {str(e)}")
+            import traceback
+
+            traceback.print_exc()
+            raise
+
     def generate_invoice_arca_pdf(self, context: dict[str, Any]) -> bytes:
         """
         Genera un PDF de factura electrónica ARCA/AFIP.

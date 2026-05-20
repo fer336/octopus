@@ -851,8 +851,18 @@ class VoucherService:
             last_number = int(business.last_invoice_c_number or "0")
             next_number = last_number + 1
             business.last_invoice_c_number = str(next_number).zfill(8)
+        elif voucher_type_str == "invoice_x":
+            last_number = int(business.last_invoice_x_number or "0")
+            next_number = last_number + 1
+            business.last_invoice_x_number = str(next_number).zfill(8)
         else:
             next_number = 1
+
+        voucher_sale_point = (
+            business.alternative_sale_point or "5001"
+            if data.voucher_type == VoucherType.INVOICE_X
+            else business.sale_point or "0001"
+        )
 
         voucher = Voucher(
             business_id=business_id,
@@ -860,7 +870,7 @@ class VoucherService:
             created_by=user_id,
             voucher_type=data.voucher_type,
             status=VoucherStatus.CONFIRMED,
-            sale_point=business.sale_point or "0001",
+            sale_point=voucher_sale_point,
             number=str(next_number).zfill(8),
             date=data.date,
             notes=data.notes,
@@ -1575,10 +1585,15 @@ class VoucherService:
             letter = "R"
 
         # Si es factura o NC con CAE, usar template ARCA
+        # INVOICE_X no va a ARCA: es un comprobante interno sin validez fiscal
         is_arca_document = (
-            "invoice" in voucher.voucher_type.value
-            or "credit_note" in voucher.voucher_type.value
-        ) and voucher.cae
+            (
+                "invoice" in voucher.voucher_type.value
+                and "invoice_x" not in voucher.voucher_type.value
+                or "credit_note" in voucher.voucher_type.value
+            )
+            and voucher.cae
+        )
 
         if is_arca_document:
             return self._generate_arca_pdf(voucher, letter)
@@ -1838,7 +1853,9 @@ class VoucherService:
         """Genera PDF de comprobante genérico (cotización, remito)."""
         # Nombre del tipo
         type_name = "COTIZACIÓN"
-        if "invoice" in voucher.voucher_type.value:
+        if "invoice_x" in voucher.voucher_type.value:
+            type_name = "COMPROBANTE X"
+        elif "invoice" in voucher.voucher_type.value:
             type_name = "FACTURA"
         elif "receipt" in voucher.voucher_type.value:
             type_name = "REMITO DE DEVOLUCIÓN" if voucher.is_return_receipt else "REMITO"
@@ -2006,6 +2023,8 @@ class VoucherService:
             },
         }
 
+        if type_name == "COMPROBANTE X":
+            return pdf_service.generate_comprobante_x_pdf(context)
         return pdf_service.generate_voucher_pdf(context)
 
     async def list_pending_quotations(

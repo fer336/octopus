@@ -26,6 +26,7 @@ class VoucherType(str, enum.Enum):
     DEBIT_NOTE_A = "debit_note_a"  # Nota de Débito A
     DEBIT_NOTE_B = "debit_note_b"  # Nota de Débito B
     DEBIT_NOTE_C = "debit_note_c"  # Nota de Débito C
+    INVOICE_X = "invoice_x"  # Comprobante X (sin validez fiscal)
 
 
 class VoucherStatus(str, enum.Enum):

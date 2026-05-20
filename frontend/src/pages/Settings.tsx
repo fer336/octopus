@@ -29,6 +29,9 @@ export default function Settings() {
     phone: '',
     email: '',
     sale_point: '0001',
+    electronic_sale_point: '0012',
+    alternative_sale_point: '5001',
+    srx_enabled: false,
   })
 
   // Cargar datos del negocio al montar
@@ -51,6 +54,9 @@ export default function Settings() {
         phone: data.phone || '',
         email: data.email || '',
         sale_point: data.sale_point || '0001',
+        electronic_sale_point: data.electronic_sale_point || '0012',
+        alternative_sale_point: data.alternative_sale_point || '5001',
+        srx_enabled: data.srx_enabled ?? false,
       })
 
       if (data.id) {
@@ -72,7 +78,7 @@ export default function Settings() {
     }
   }
 
-  const handleChange = (field: keyof typeof formData, value: string) => {
+  const handleChange = (field: keyof typeof formData, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
@@ -98,6 +104,9 @@ export default function Settings() {
         phone: formData.phone || undefined,
         email: formData.email || undefined,
         sale_point: formData.sale_point,
+        electronic_sale_point: formData.electronic_sale_point || '0012',
+        alternative_sale_point: formData.alternative_sale_point || '5001',
+        srx_enabled: formData.srx_enabled,
       }
 
       await businessService.updateMyBusiness(updateData)
@@ -251,6 +260,70 @@ export default function Settings() {
             className="w-32"
           />
         </div>
+      </div>
+
+      {/* Facturación Electrónica */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
+            <Shield className="text-primary-600" size={20} />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Facturación Electrónica
+          </h2>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input
+            label="Punto de Venta ARCA (Facturas electrónicas)"
+            placeholder="0012"
+            value={formData.electronic_sale_point}
+            onChange={(e) => handleChange('electronic_sale_point', e.target.value)}
+            className="w-40"
+          />
+
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-200">SRX-User</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Facturación alternativa sin validez fiscal (Comprobante X)
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={formData.srx_enabled}
+                onClick={() => handleChange('srx_enabled', !formData.srx_enabled)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                  formData.srx_enabled
+                    ? 'bg-red-500'
+                    : 'bg-gray-200 dark:bg-gray-700'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    formData.srx_enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {formData.srx_enabled && (
+              <Input
+                label="Punto de Venta Alternativo (SRX)"
+                placeholder="5001"
+                value={formData.alternative_sale_point}
+                onChange={(e) => handleChange('alternative_sale_point', e.target.value)}
+                className="w-40 mt-3"
+              />
+            )}
+          </div>
+
+          <Button type="submit" disabled={loading}>
+            {loading ? 'Guardando...' : 'Guardar configuración de facturación'}
+          </Button>
+        </form>
       </div>
 
       {/* Notificaciones */}

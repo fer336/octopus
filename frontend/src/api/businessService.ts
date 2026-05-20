@@ -40,6 +40,10 @@ export interface Business {
   last_invoice_a_number: string
   last_invoice_b_number: string
   last_invoice_c_number: string
+  electronic_sale_point?: string | null
+  alternative_sale_point?: string | null
+  srx_enabled?: boolean | null
+  last_invoice_x_number?: string | null
 }
 
 export interface BusinessUpdate {
@@ -58,6 +62,9 @@ export interface BusinessUpdate {
   logo_display_mode?: 'alongside_text' | 'replace_text'
   header_text?: string
   sale_point?: string
+  electronic_sale_point?: string | null
+  alternative_sale_point?: string | null
+  srx_enabled?: boolean | null
   whatsapp_instance_name?: string | null
 }
 

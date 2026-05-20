@@ -3,6 +3,8 @@ Schemas para Afip SDK y ARCA/AFIP.
 Define las estructuras de datos para facturación electrónica.
 """
 
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 # ============================================================================
@@ -38,7 +40,7 @@ class AfipSdkConfigResponse(BaseModel):
 
 class EmitInvoiceRequest(BaseModel):
     """Request desde el frontend para emitir factura."""
-    voucher_id: str = Field(..., description="ID del comprobante a emitir")
+    voucher_id: UUID = Field(..., description="ID del comprobante a emitir")
 
 
 class EmitInvoiceResponse(BaseModel):

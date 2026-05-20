@@ -456,7 +456,7 @@ async def sync_invoice_numbers(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Negocio no encontrado")
 
     service = AfipSdkService(business)
-    sale_point = int(business.sale_point or "1")
+    sale_point = int(business.electronic_sale_point or business.sale_point or "1")
 
     try:
         synced = {}

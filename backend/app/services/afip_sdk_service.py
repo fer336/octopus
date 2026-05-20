@@ -374,7 +374,7 @@ class AfipSdkService:
                 "success": True,
                 "CAE": result.get("CAE"),
                 "CAEFchVto": result.get("CAEFchVto"),
-                "voucherNumber": result.get("voucherNumber"),
+                "voucherNumber": result.get("voucher_number"),
             }
         except Exception as e:
             logger.error(f"Error al crear comprobante: {e}")
@@ -643,15 +643,9 @@ class AfipSdkService:
         # Desglose de IVA
         iva_breakdown = self._calculate_iva_breakdown(voucher)
 
-        # Obtener el último número autorizado directamente de ARCA para evitar
-        # el error 10016 causado por desincronía en el contador interno del SDK.
-        sale_point_int = int(voucher.sale_point)
-        last_result = await self.get_last_voucher(sale_point_int, cbte_tipo)
-        if not last_result["success"]:
-            raise ValueError(
-                f"No se pudo obtener el último comprobante de ARCA: {last_result.get('error')}"
-            )
-        next_number = last_result["lastVoucher"] + 1
+        sale_point_int = int(
+            voucher.business.electronic_sale_point or voucher.business.sale_point or "1"
+        )
 
         # Construir datos del comprobante
         data = {
@@ -661,8 +655,6 @@ class AfipSdkService:
             "Concepto": 1,  # 1 = Productos
             "DocTipo": doc_tipo,
             "DocNro": doc_nro,
-            "CbteDesde": next_number,
-            "CbteHasta": next_number,
             "CbteFch": cbte_fch,
             "ImpTotal": round(imp_total, 2),
             "ImpTotConc": 0,
@@ -676,26 +668,24 @@ class AfipSdkService:
             "Iva": iva_breakdown,
         }
 
-        logger.info(f"Emitiendo factura electrónica: {voucher.full_number} → número ARCA: {next_number}")
+        logger.info(f"Emitiendo factura electrónica: {voucher.full_number}")
         logger.info(f"Datos del comprobante: {data}")
 
-        result = await self.create_voucher(data)
+        result = await self.create_next_voucher(data)
 
         if not result["success"]:
             raise ValueError(f"Error de ARCA/AFIP: {result['error']}")
 
-        # create_voucher devuelve result["data"] con el CAE y número
-        arca_data = result.get("data") or {}
-        cae_fch_vto = arca_data.get("CAEFchVto")
+        cae_fch_vto = result.get("CAEFchVto")
         # Normalizar fecha: ARCA puede devolver YYYYMMDD o YYYY-MM-DD
         if cae_fch_vto and len(str(cae_fch_vto)) == 8 and "-" not in str(cae_fch_vto):
             cae_fch_vto = f"{str(cae_fch_vto)[:4]}-{str(cae_fch_vto)[4:6]}-{str(cae_fch_vto)[6:]}"
 
         return {
             "success": True,
-            "CAE": arca_data.get("CAE"),
+            "CAE": result.get("CAE"),
             "CAEFchVto": cae_fch_vto,
-            "voucherNumber": next_number,
+            "voucherNumber": result.get("voucherNumber"),
         }
 
     async def emit_credit_note(
@@ -792,14 +782,9 @@ class AfipSdkService:
             }
         ]
 
-        # Obtener el último número autorizado directamente de ARCA para evitar error 10016.
-        sale_point_int = int(credit_note.sale_point)
-        last_result = await self.get_last_voucher(sale_point_int, cbte_tipo)
-        if not last_result["success"]:
-            raise ValueError(
-                f"No se pudo obtener el último comprobante de ARCA: {last_result.get('error')}"
-            )
-        next_number = last_result["lastVoucher"] + 1
+        sale_point_int = int(
+            credit_note.business.electronic_sale_point or credit_note.business.sale_point or "1"
+        )
 
         # Construir datos del comprobante
         data = {
@@ -809,8 +794,6 @@ class AfipSdkService:
             "Concepto": 1,  # 1 = Productos
             "DocTipo": doc_tipo,
             "DocNro": doc_nro,
-            "CbteDesde": next_number,
-            "CbteHasta": next_number,
             "CbteFch": cbte_fch,
             "ImpTotal": round(imp_total, 2),
             "ImpTotConc": 0,
@@ -825,25 +808,24 @@ class AfipSdkService:
             "CbtesAsoc": cbtes_asoc,
         }
 
-        logger.info(f"Emitiendo Nota de Crédito electrónica: {credit_note.full_number} → número ARCA: {next_number}")
+        logger.info(f"Emitiendo Nota de Crédito electrónica: {credit_note.full_number}")
         logger.info(f"Referencia a factura original: {original_voucher.full_number}")
         logger.info(f"Datos del comprobante: {data}")
 
-        result = await self.create_voucher(data)
+        result = await self.create_next_voucher(data)
 
         if not result["success"]:
             raise ValueError(f"Error de ARCA/AFIP: {result['error']}")
 
-        arca_data = result.get("data") or {}
-        cae_fch_vto = arca_data.get("CAEFchVto")
+        cae_fch_vto = result.get("CAEFchVto")
         if cae_fch_vto and len(str(cae_fch_vto)) == 8 and "-" not in str(cae_fch_vto):
             cae_fch_vto = f"{str(cae_fch_vto)[:4]}-{str(cae_fch_vto)[4:6]}-{str(cae_fch_vto)[6:]}"
 
         return {
             "success": True,
-            "CAE": arca_data.get("CAE"),
+            "CAE": result.get("CAE"),
             "CAEFchVto": cae_fch_vto,
-            "voucherNumber": next_number,
+            "voucherNumber": result.get("voucherNumber"),
         }
 
     # ================================================================
@@ -952,7 +934,7 @@ class AfipSdkService:
             )
 
         # Check 5: Autenticación — verificar obteniendo último comprobante
-        sale_point = int(self.business.sale_point or "1")
+        sale_point = int(self.business.electronic_sale_point or self.business.sale_point or "1")
         try:
             last_voucher = await self.get_last_voucher(sale_point, 6)  # Factura B
             if last_voucher["success"]:
