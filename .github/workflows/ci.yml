@@ -11,13 +11,9 @@ on:
       - develop
 
 concurrency:
-  # When called via workflow_call (e.g. staging deploy), each caller gets its
-  # own group using run_id so they never cancel each other.
-  # Direct pushes/PRs share a group per ref so fast-forward cancellation works.
-  group: >-
-    ci-${{ github.ref }}-${{
-      github.event_name == 'workflow_call' && github.run_id || 'direct'
-    }}
+  # workflow_call runs get a unique group (run_id) so the staging deploy
+  # never cancels the direct CI push, and vice versa.
+  group: ci-${{ github.ref }}-${{ github.event_name == 'workflow_call' && github.run_id || 'direct' }}
   cancel-in-progress: true
 
 permissions:
