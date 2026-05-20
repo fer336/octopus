@@ -8,9 +8,12 @@ import { test, expect } from '@playwright/test'
  */
 
 test.describe('Sales page — unauthenticated', () => {
-  test('redirects to login when not authenticated', async ({ page }) => {
+  test('redirects to login when not authenticated',
+    { tag: ['@critical', '@e2e', '@sales', '@SALES-E2E-001'] },
+    async ({ page }) => {
     await page.goto('/sales')
-    await expect(page).not.toHaveURL(/\/sales/, { timeout: 5_000 })
+    await expect(page).toHaveURL(/#\/login/, { timeout: 5_000 })
+    await expect(page.getByRole('button', { name: /continuar con google/i })).toBeVisible()
   })
 })
 

@@ -29,8 +29,11 @@ test.describe('ARCA / Electronic Billing settings — authenticated', () => {
 })
 
 test.describe('ARCA settings — unauthenticated', () => {
-  test('redirects to login', async ({ page }) => {
+  test('redirects to login',
+    { tag: ['@critical', '@e2e', '@arca', '@ARCA-E2E-001'] },
+    async ({ page }) => {
     await page.goto('/settings')
-    await expect(page).not.toHaveURL(/\/settings/, { timeout: 5_000 })
+    await expect(page).toHaveURL(/#\/login/, { timeout: 5_000 })
+    await expect(page.getByRole('button', { name: /continuar con google/i })).toBeVisible()
   })
 })
