@@ -30,12 +30,10 @@ export default defineConfig({
     },
   ],
 
-  // Start the dev server before running E2E tests
-  // In CI: skip --open so vite doesn't try to launch a browser
+  // Start the dev server before running E2E tests.
+  // Linux/headless environments must not use Vite --open.
   webServer: {
-    command: process.env.CI
-      ? 'npx vite --config vite.config.ts --host --port 5173 --strictPort'
-      : 'npm run dev:tenant',
+    command: 'npx vite --config vite.config.ts --host --port 5173 --strictPort',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
