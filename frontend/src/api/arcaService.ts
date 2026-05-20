@@ -144,6 +144,14 @@ const arcaService = {
     const response = await httpClient.post('/arca/emit-invoice', request)
     return response.data
   },
+
+  /**
+   * Sincroniza los contadores de numeración local con ARCA (fix error 10016)
+   */
+  syncNumbers: async (): Promise<{ success: boolean; synced: Record<string, number> }> => {
+    const response = await httpClient.post('/arca/sync-numbers')
+    return response.data
+  },
 }
 
 export default arcaService

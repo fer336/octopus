@@ -386,6 +386,9 @@ class VoucherService:
                 # Flushear el item para obtener su ID antes de fifo_consume
                 self.db.add(voucher_item)
                 await self.db.flush()
+            else:
+                # Para cotizaciones: agregar a la sesión sin flush (no necesitan ID previo)
+                self.db.add(voucher_item)
 
                 if qty > 0:
                     # Determinar razón según tipo de comprobante
