@@ -25,6 +25,7 @@ MODULE_KEYS = [
     "reports",
     "feedback",
     "current_account",
+    "settings",
     "sql_backup",
 ]
 
