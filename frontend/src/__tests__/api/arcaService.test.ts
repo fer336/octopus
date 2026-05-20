@@ -10,11 +10,13 @@ vi.mock('../../api/httpClient', () => ({
   },
 }))
 
-const mockedClient = httpClient as {
+type MockedClient = {
   get: ReturnType<typeof vi.fn>
   post: ReturnType<typeof vi.fn>
   put: ReturnType<typeof vi.fn>
 }
+
+const mockedClient = httpClient as unknown as MockedClient
 
 const BUSINESS_ID = 'test-business-uuid-1234'
 

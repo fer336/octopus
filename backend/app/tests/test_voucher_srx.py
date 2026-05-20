@@ -106,4 +106,4 @@ class TestVoucherTypeInvoiceX:
             VoucherType.QUOTATION,
             VoucherType.RECEIPT,
         ]:
-            assert VoucherType.INVOICE_X != vt
+            assert vt != VoucherType.INVOICE_X

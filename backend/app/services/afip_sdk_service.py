@@ -646,7 +646,7 @@ class AfipSdkService:
         # Obtener el último número autorizado directamente de ARCA para evitar
         # el error 10016 causado por desincronía en el contador interno del SDK.
         sale_point_int = int(
-            (voucher.business.electronic_sale_point or voucher.business.sale_point or "1")
+            voucher.business.electronic_sale_point or voucher.business.sale_point or "1"
         )
         last_result = await self.get_last_voucher(sale_point_int, cbte_tipo)
         if not last_result["success"]:
@@ -796,7 +796,7 @@ class AfipSdkService:
 
         # Obtener el último número autorizado directamente de ARCA para evitar error 10016.
         sale_point_int = int(
-            (credit_note.business.electronic_sale_point or credit_note.business.sale_point or "1")
+            credit_note.business.electronic_sale_point or credit_note.business.sale_point or "1"
         )
         last_result = await self.get_last_voucher(sale_point_int, cbte_tipo)
         if not last_result["success"]:

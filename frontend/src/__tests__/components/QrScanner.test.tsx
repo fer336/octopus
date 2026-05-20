@@ -19,9 +19,6 @@ vi.mock('../../api/productsService', () => ({
 }))
 
 import QrScanner from '../../components/sales/QrScanner'
-import productsService from '../../api/productsService'
-
-const mockProductsService = productsService as { getById: ReturnType<typeof vi.fn> }
 
 const onAddProduct = vi.fn()
 const onClose = vi.fn()
