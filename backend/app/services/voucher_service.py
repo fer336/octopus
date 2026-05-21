@@ -378,49 +378,53 @@ class VoucherService:
                 voucher_item.voucher_id = voucher_id
             items_db.append(voucher_item)
 
-            # Las cotizaciones no modifican stock
-            if voucher_type != VoucherType.QUOTATION:
-                lot_service = ProductLotService(self.db)
-                qty = int(item_data.quantity)
-
-                # Flushear el item para obtener su ID antes de fifo_consume
+            if voucher_type == VoucherType.QUOTATION:
+                # Las cotizaciones no modifican stock ni generan consumos FIFO.
                 self.db.add(voucher_item)
+                continue
+
+            lot_service = ProductLotService(self.db)
+            qty = int(item_data.quantity)
+
+            # Flushear el item para obtener su ID antes de fifo_consume
+            self.db.add(voucher_item)
+            await self.db.flush()
+
+            if qty > 0:
+                # Determinar razón según tipo de comprobante
+                if voucher_type in (
+                    VoucherType.INVOICE_A,
+                    VoucherType.INVOICE_B,
+                    VoucherType.INVOICE_C,
+                ):
+                    reason = "Factura"
+                elif voucher_type == VoucherType.RECEIPT:
+                    reason = "Remito"
+                else:
+                    reason = "Venta"
+
+                last_lot_id, _consumptions = await lot_service.fifo_consume(
+                    product_id=product.id,
+                    business_id=business_id,
+                    quantity=qty,
+                    voucher_item_id=voucher_item.id,
+                    user_id=user_id,
+                    reason=reason,
+                )
+                voucher_item.product_lot_id = last_lot_id
+            elif qty < 0:
+                # Devolución: crear nuevo lote con la mercadería devuelta
+                from datetime import date as date_type
+                return_lot = ProductLot(
+                    product_id=product.id,
+                    business_id=business_id,
+                    quantity=abs(qty),
+                    initial_quantity=abs(qty),
+                    received_date=date_type.today(),
+                )
+                self.db.add(return_lot)
                 await self.db.flush()
-            else:
-                # Para cotizaciones: agregar a la sesión sin flush (no necesitan ID previo)
-                self.db.add(voucher_item)
-
-                if qty > 0:
-                    # Determinar razón según tipo de comprobante
-                    if voucher_type in (VoucherType.INVOICE_A, VoucherType.INVOICE_B, VoucherType.INVOICE_C):
-                        reason = "Factura"
-                    elif voucher_type == VoucherType.RECEIPT:
-                        reason = "Remito"
-                    else:
-                        reason = "Venta"
-
-                    last_lot_id, consumptions = await lot_service.fifo_consume(
-                        product_id=product.id,
-                        business_id=business_id,
-                        quantity=qty,
-                        voucher_item_id=voucher_item.id,
-                        user_id=user_id,
-                        reason=reason,
-                    )
-                    voucher_item.product_lot_id = last_lot_id
-                elif qty < 0:
-                    # Devolución: crear nuevo lote con la mercadería devuelta
-                    from datetime import date as date_type
-                    return_lot = ProductLot(
-                        product_id=product.id,
-                        business_id=business_id,
-                        quantity=abs(qty),
-                        initial_quantity=abs(qty),
-                        received_date=date_type.today(),
-                    )
-                    self.db.add(return_lot)
-                    await self.db.flush()
-                    voucher_item.product_lot_id = return_lot.id
+                voucher_item.product_lot_id = return_lot.id
 
         return items_db, total_subtotal, total_iva, total_final
 
@@ -812,6 +816,12 @@ class VoucherService:
         if not business:
             raise ValueError("Negocio no encontrado")
 
+        # Validar SRX: solo permitir INVOICE_X si srx_enabled está activo
+        if data.voucher_type == VoucherType.INVOICE_X and not getattr(business, "srx_enabled", False):
+            raise ValueError(
+                "Comprobante X no habilitado para este negocio. Activá SRX desde CMS o Configuración."
+            )
+
         if (
             data.voucher_type == VoucherType.RECEIPT
             and data.is_current_account
@@ -858,11 +868,18 @@ class VoucherService:
         else:
             next_number = 1
 
-        voucher_sale_point = (
-            business.alternative_sale_point or "5001"
-            if data.voucher_type == VoucherType.INVOICE_X
-            else business.sale_point or "0001"
-        )
+        if data.voucher_type == VoucherType.INVOICE_X:
+            voucher_sale_point = business.alternative_sale_point or "5001"
+        elif data.voucher_type in (
+            VoucherType.INVOICE_A,
+            VoucherType.INVOICE_B,
+            VoucherType.INVOICE_C,
+        ):
+            voucher_sale_point = (
+                business.electronic_sale_point or business.sale_point or "0001"
+            )
+        else:
+            voucher_sale_point = business.sale_point or "0001"
 
         voucher = Voucher(
             business_id=business_id,
@@ -1558,8 +1575,19 @@ class VoucherService:
         await self.db.refresh(auth_request)
         return auth_request
 
-    async def generate_pdf(self, voucher_id: UUID, business_id: UUID) -> bytes:
-        """Genera el PDF de un comprobante existente."""
+    async def generate_pdf(
+        self,
+        voucher_id: UUID,
+        business_id: UUID,
+        copy_type: str = "original",
+        hide_discount: bool = False,
+    ) -> bytes:
+        """Genera el PDF de un comprobante existente.
+
+        Args:
+            copy_type: 'original' (para el cliente) o 'duplicado' (para el comercio).
+            hide_discount: Si True, recalcula items sin descuentos (solo visual).
+        """
         voucher = await self.get_by_id(voucher_id, business_id)
         if not voucher:
             raise ValueError("Comprobante no encontrado")
@@ -1600,7 +1628,11 @@ class VoucherService:
         elif voucher.is_current_account_closure:
             return self._generate_closure_pdf(voucher, letter)
         else:
-            return self._generate_voucher_pdf(voucher, letter)
+            return self._generate_voucher_pdf(
+                voucher, letter,
+                copy_type=copy_type,
+                hide_discount=hide_discount,
+            )
 
     def _generate_arca_pdf(self, voucher, letter: str) -> bytes:
         """Genera PDF de factura electrónica ARCA con CAE, QR y formato fiscal."""
@@ -1692,6 +1724,20 @@ class VoucherService:
             except Exception as e:
                 print(f"Error al generar QR de AFIP: {e}")
 
+        arca_item_net = sum(Decimal(str(i.subtotal)) for i in voucher.items)
+        arca_item_gross = arca_item_net * Decimal("1.21")
+        arca_abs_total = abs(Decimal(str(voucher.total or 0)))
+        if arca_item_gross > 0 and arca_abs_total < arca_item_gross - Decimal("0.01"):
+            arca_discount_pct = round((1 - arca_abs_total / arca_item_gross) * Decimal("100"), 2)
+        else:
+            arca_discount_pct = Decimal("0")
+        arca_totals = {
+            "subtotal": f"{arca_item_gross:,.2f}",
+            "discount": f"{arca_discount_pct:g}%",
+            "iva": "21%",
+            "total": f"{arca_abs_total:,.2f}",
+        }
+
         context = {
             "business": {
                 "name": voucher.business.name,
@@ -1753,12 +1799,7 @@ class VoucherService:
                 }
                 for item in voucher.items
             ],
-            "totals": {
-                "subtotal": f"{voucher.subtotal:,.2f}",
-                "discount": f"{sum((item.unit_price * item.quantity * (item.discount_percent or 0) / 100) for item in voucher.items):,.2f}",
-                "iva": f"{voucher.iva_amount:,.2f}",
-                "total": f"{voucher.total:,.2f}",
-            },
+            "totals": arca_totals,
         }
 
         return pdf_service.generate_invoice_arca_pdf(context)
@@ -1849,8 +1890,19 @@ class VoucherService:
 
         return pdf_service.generate_closure_pdf(context)
 
-    def _generate_voucher_pdf(self, voucher, letter: str) -> bytes:
-        """Genera PDF de comprobante genérico (cotización, remito)."""
+    def _generate_voucher_pdf(
+        self,
+        voucher,
+        letter: str,
+        copy_type: str = "original",
+        hide_discount: bool = False,
+    ) -> bytes:
+        """Genera PDF de comprobante genérico (cotización, remito, SRX).
+
+        Args:
+            copy_type: 'original' (para el cliente) o 'duplicado' (para el comercio).
+            hide_discount: Si True, recalcula items sin descuentos (solo visual).
+        """
         # Nombre del tipo
         type_name = "COTIZACIÓN"
         if "invoice_x" in voucher.voucher_type.value:
@@ -1908,20 +1960,74 @@ class VoucherService:
             and len(getattr(voucher, "child_stockpiles", []) or []) > 0
         )
 
-        items_context = [
-            {
-                "code": item.code,
-                "description": item.description,
-                "quantity": f"{item.quantity:g}",
-                "unit_price": f"{item.unit_price:,.2f}",
-                "discount": f"{item.discount_percent:g}"
-                if hasattr(item, "discount_percent") and item.discount_percent
-                else "0",
-                "subtotal": f"{item.subtotal:,.2f}",
-                "is_return_item": Decimal(str(item.quantity)) < Decimal("0"),
-            }
-            for item in voucher.items
-        ]
+        # Calcular subtotales de referencia
+        # raw_subtotal: precio de lista (sin ningún descuento)
+        # item_subtotal_sum: solo con descuentos individuales (sin desc. general)
+        raw_subtotal = Decimal("0")
+        item_subtotal_sum = Decimal("0")
+        iva_no_discount = Decimal("0")
+        for item in voucher.items:
+            qty = Decimal(str(item.quantity))
+            raw_subtotal += item.unit_price * qty
+            # Descuento individual por item (si tiene)
+            item_disc_pct = Decimal(str(item.discount_percent)) if hasattr(item, "discount_percent") and item.discount_percent else Decimal("0")
+            item_subtotal_sum += item.unit_price * qty * (1 - item_disc_pct / Decimal("100"))
+            # IVA sin descuentos (para modo hide_discount)
+            iva_rate_item = Decimal(str(item.iva_rate)) if item.iva_rate else Decimal("21")
+            iva_no_discount += abs(item.unit_price * qty) * (iva_rate_item / Decimal("100"))
+
+        # Para notas de crédito los montos son negativos → usar absolutos
+        if voucher.is_return_receipt:
+            abs_raw = abs(raw_subtotal)
+            abs_item_sum = abs(item_subtotal_sum)
+            abs_subtotal = abs(Decimal(str(voucher.subtotal or 0)))
+        else:
+            abs_raw = raw_subtotal
+            abs_item_sum = item_subtotal_sum
+            abs_subtotal = Decimal(str(voucher.subtotal or 0))
+
+        # Calcular % de descuento general
+        if abs_item_sum > 0 and abs_subtotal < abs_item_sum:
+            general_discount_pct = (1 - abs_subtotal / abs_item_sum) * Decimal("100")
+            # Redondear a 2 decimales para evitar 9.99999999%
+            general_discount_pct_rounded = round(general_discount_pct, 2)
+        else:
+            general_discount_pct_rounded = Decimal("0")
+
+        # Usar valores almacenados en DB (calculados correctamente en _build_items_and_totals)
+        abs_iva = abs(Decimal(str(voucher.iva_amount or 0)))
+        abs_total = abs(Decimal(str(voucher.total or 0)))
+
+        if hide_discount:
+            # Modo ORIGINAL "sin descuento": precios completos, ni individual ni general
+            items_context = [
+                {
+                    "code": item.code,
+                    "description": item.description,
+                    "quantity": f"{item.quantity:g}",
+                    "unit_price": f"{item.unit_price:,.2f}",
+                    "discount": "0",
+                    "subtotal": f"{item.unit_price * item.quantity:,.2f}",
+                    "is_return_item": Decimal(str(item.quantity)) < Decimal("0"),
+                }
+                for item in voucher.items
+            ]
+        else:
+            # Modo DUPLICADO "con descuento": desc. individual en items, el general va en totales
+            items_context = [
+                {
+                    "code": item.code,
+                    "description": item.description,
+                    "quantity": f"{item.quantity:g}",
+                    "unit_price": f"{item.unit_price:,.2f}",
+                    "discount": f"{item.discount_percent:g}"
+                    if hasattr(item, "discount_percent") and item.discount_percent
+                    else "0",
+                    "subtotal": f"{item.unit_price * Decimal(str(item.quantity)) * (1 - (Decimal(str(item.discount_percent)) if hasattr(item, 'discount_percent') and item.discount_percent else Decimal('0')) / Decimal('100')):,.2f}",
+                    "is_return_item": Decimal(str(item.quantity)) < Decimal("0"),
+                }
+                for item in voucher.items
+            ]
 
         if is_stockpile_principal_receipt and not items_context:
             linked_stockpile = (voucher.child_stockpiles or [None])[0]
@@ -2007,19 +2113,25 @@ class VoucherService:
                 "seller_email": voucher.created_by_user.email if voucher.created_by_user else None,
             },
             "items": items_context,
-            "totals": {
-                "subtotal": f"{abs(Decimal(str(voucher.subtotal or 0))):,.2f}"
-                if voucher.is_return_receipt
-                else f"{voucher.subtotal:,.2f}",
-                "discount": f"{abs(sum((item.unit_price * item.quantity * (item.discount_percent or 0) / 100) for item in voucher.items)):,.2f}"
-                if voucher.is_return_receipt
-                else f"{sum((item.unit_price * item.quantity * (item.discount_percent or 0) / 100) for item in voucher.items):,.2f}",
-                "iva": f"{abs(Decimal(str(voucher.iva_amount or 0))):,.2f}"
-                if voucher.is_return_receipt
-                else f"{voucher.iva_amount:,.2f}",
-                "total": f"{abs(Decimal(str(voucher.total or 0))):,.2f}"
-                if voucher.is_return_receipt
-                else f"{voucher.total:,.2f}",
+            "totals": (
+                {
+                    "subtotal": f"{abs_raw:,.2f}",
+                    "discount": "0%",
+                    "iva": "21%",
+                    "total": f"{abs_raw:,.2f}",
+                }
+                if hide_discount
+                else {
+                    "subtotal": f"{abs_item_sum:,.2f}",
+                    "discount": f"{general_discount_pct_rounded:g}%",
+                    "iva": "21%",
+                    "total": f"{abs_item_sum * (1 - general_discount_pct_rounded / Decimal('100')):,.2f}",
+                }
+            ),
+            "copy": {
+                "type": copy_type,
+                "hide_discount": hide_discount,
+                "label": "DUPLICADO - Para el comercio" if copy_type == "duplicado" else "ORIGINAL - Para el cliente",
             },
         }
 
@@ -3003,7 +3115,7 @@ general_discount=general_discount,
             client_id=original_voucher.client_id,
             voucher_type=nc_type,
             status=VoucherStatus.CONFIRMED,
-            sale_point=business.sale_point or "0001",
+            sale_point=business.electronic_sale_point or business.sale_point or "0001",
             number=voucher_number,  # Temporal, será reemplazado por el número de AFIP
             date=date.today(),
             notes=f"NC de Factura {original_voucher.full_number}. Motivo: {reason}",

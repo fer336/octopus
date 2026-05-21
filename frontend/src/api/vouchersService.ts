@@ -239,16 +239,24 @@ const vouchersService = {
     return response.data
   },
 
-  getPdfUrl: (id: string): string => {
-    return `${getTenantApiUrl()}/vouchers/${id}/pdf`
+  getPdfUrl: (id: string, params?: { copy?: string; hide_discount?: boolean }): string => {
+    const base = `${getTenantApiUrl()}/vouchers/${id}/pdf`
+    if (params) {
+      const search = new URLSearchParams()
+      if (params.copy) search.set('copy', params.copy)
+      if (params.hide_discount) search.set('hide_discount', 'true')
+      return `${base}?${search.toString()}`
+    }
+    return `${base}?copy=original`
   },
 
   /**
    * Descarga el PDF de un comprobante (con autenticación).
    */
-  getPdf: async (id: string): Promise<Blob> => {
+  getPdf: async (id: string, params?: { copy?: string; hide_discount?: boolean }): Promise<Blob> => {
     const response = await httpClient.get(`/vouchers/${id}/pdf`, {
       responseType: 'blob',
+      params: params || { copy: 'original' },
     })
     return response.data
   },

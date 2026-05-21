@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Wifi, WifiOff, LogOut, RefreshCw, Smartphone } from 'lucide-react'
-import { listSessions, startSession, stopSession, createSession, deleteSession } from '../../api/whatsapp/service'
+import { Wifi, WifiOff, LogOut, RefreshCw, Smartphone, Trash2 } from 'lucide-react'
+import { listSessions, startSession, stopSession, createSession, deleteSession, getConnectionState } from '../../api/whatsapp/service'
 import { getProviderConfig } from '../../api/whatsapp/provider'
 import type { WhatsAppSession } from '../../types/whatsapp'
 import QRCode from './QRCode'
@@ -10,6 +10,8 @@ export default function WhatsAppStatusCard() {
   const [loading, setLoading] = useState(true)
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [refreshLoading, setRefreshLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const sessionId = getProviderConfig().defaultSessionId.trim() || 'octopustrack'
@@ -37,6 +39,36 @@ export default function WhatsAppStatusCard() {
       setSession(null)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleRefreshState() {
+    if (!session) return
+    setRefreshLoading(true)
+    setError(null)
+    try {
+      const updated = await getConnectionState(session.id)
+      setSession(updated)
+    } catch {
+      setError('No se pudo verificar el estado')
+    } finally {
+      setRefreshLoading(false)
+    }
+  }
+
+  async function handleDeleteInstance() {
+    if (!session) return
+    if (!window.confirm('¿Eliminar la instancia por completo? Tendrás que volver a crearla y escanear el QR.')) return
+    setDeleteLoading(true)
+    setError(null)
+    try {
+      await deleteSession(session.id)
+      setSession(null)
+      setPendingId(null)
+    } catch {
+      setError('Error al eliminar la instancia')
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
@@ -129,14 +161,32 @@ export default function WhatsAppStatusCard() {
               <p className="text-[10px] text-gray-400 dark:text-gray-500">{sessionId}</p>
             </div>
           </div>
-          <button
-            onClick={handleDisconnect}
-            disabled={actionLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 hover:text-white hover:bg-red-500 border border-red-300 hover:border-red-500 rounded-lg transition-colors disabled:opacity-50"
-          >
-            <LogOut size={12} />
-            {actionLoading ? 'Desconectando...' : 'Desconectar'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefreshState}
+              disabled={refreshLoading}
+              className="p-1.5 text-gray-400 hover:text-primary-500 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors disabled:opacity-50"
+              title="Verificar estado"
+            >
+              <RefreshCw size={12} className={refreshLoading ? 'animate-spin' : ''} />
+            </button>
+            <button
+              onClick={handleDisconnect}
+              disabled={actionLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 hover:text-white hover:bg-red-500 border border-red-300 hover:border-red-500 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <LogOut size={12} />
+              {actionLoading ? 'Desconectando...' : 'Desconectar'}
+            </button>
+            <button
+              onClick={handleDeleteInstance}
+              disabled={deleteLoading}
+              className="p-1.5 text-gray-400 hover:text-red-500 border border-gray-200 dark:border-gray-600 hover:border-red-300 rounded-lg transition-colors disabled:opacity-50"
+              title="Eliminar instancia"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -178,6 +228,17 @@ export default function WhatsAppStatusCard() {
             <RefreshCw size={12} className={actionLoading ? 'animate-spin' : ''} />
             {actionLoading ? 'Conectando...' : 'Conectar'}
           </button>
+          {session && (
+            <button
+              onClick={handleDeleteInstance}
+              disabled={deleteLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 hover:text-white hover:bg-red-500 border border-red-300 hover:border-red-500 rounded-lg transition-colors disabled:opacity-50"
+              title="Eliminar instancia por completo"
+            >
+              <Trash2 size={12} />
+              {deleteLoading ? 'Eliminando...' : 'Eliminar instancia'}
+            </button>
+          )}
         </div>
       </div>
     </div>

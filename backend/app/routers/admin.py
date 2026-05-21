@@ -130,6 +130,7 @@ class BrandingResponse(BaseModel):
     logo_display_mode: Literal["alongside_text", "replace_text"] = "alongside_text"
     header_text: str | None = None
     sale_point: str | None = None
+    electronic_sale_point: str | None = None
     arca_environment: str | None = None
 
 
@@ -151,6 +152,7 @@ class BrandingUpdate(BaseModel):
     logo_display_mode: Literal["alongside_text", "replace_text"] | None = None
     header_text: str | None = None
     sale_point: str | None = None
+    electronic_sale_point: str | None = None
     arca_environment: str | None = None
 
 
@@ -171,6 +173,7 @@ class FeatureFlagsResponse(BaseModel):
     price_update_enabled: bool
     reports_enabled: bool
     sql_backup_enabled: bool = False
+    srx_enabled: bool = False
 
 
 class FeatureFlagsUpdate(BaseModel):
@@ -189,6 +192,7 @@ class FeatureFlagsUpdate(BaseModel):
     price_update_enabled: bool | None = None
     reports_enabled: bool | None = None
     sql_backup_enabled: bool | None = None
+    srx_enabled: bool | None = None
 
 
 class TenantResponse(BaseModel):
@@ -1445,7 +1449,7 @@ async def test_arca_invoice(
             message="El CUIT del negocio no está configurado.",
         )
 
-    sale_point = int(business.sale_point or "1")
+    sale_point = int(business.electronic_sale_point or business.sale_point or "1")
     cbte_fch = datetime.now().strftime("%Y%m%d")
 
     test_data = {
@@ -1657,6 +1661,7 @@ async def get_feature_flags(
         price_update_enabled=bool(business.price_update_enabled),
         reports_enabled=bool(business.reports_enabled),
         sql_backup_enabled=bool(business.sql_backup_enabled),
+        srx_enabled=bool(getattr(business, "srx_enabled", False)),
     )
 
 
@@ -1722,6 +1727,7 @@ async def update_feature_flags(
         price_update_enabled=bool(business.price_update_enabled),
         reports_enabled=bool(business.reports_enabled),
         sql_backup_enabled=bool(business.sql_backup_enabled),
+        srx_enabled=bool(getattr(business, "srx_enabled", False)),
     )
 
 

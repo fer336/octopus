@@ -43,7 +43,7 @@ test.describe('Sales page — authenticated', () => {
   test('desktop view shows product search input', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto('/#/sales')
-    await expect(page.getByPlaceholder(/buscar producto/i)).toBeVisible({ timeout: 8_000 })
+    await expect(page.locator('[data-tour-sales-product-search]')).toBeVisible({ timeout: 8_000 })
   })
 
   test('SRX badge not visible by default', async ({ page }) => {
@@ -53,8 +53,10 @@ test.describe('Sales page — authenticated', () => {
 
   test('voucher type selector shows available types', async ({ page }) => {
     await page.goto('/#/sales')
-    // At minimum Factura B and Cotización should be available
-    const selector = page.getByRole('combobox').first()
-    await expect(selector).toBeVisible({ timeout: 8_000 })
+    // At minimum Cotización and Factura B should be available as buttons
+    const voucherTypes = page.locator('[data-tour-sales-voucher-types]')
+    await expect(voucherTypes).toBeVisible({ timeout: 8_000 })
+    await expect(voucherTypes.getByRole('button', { name: /cotización/i })).toBeVisible()
+    await expect(voucherTypes.getByRole('button', { name: /factura/i })).toBeVisible()
   })
 })

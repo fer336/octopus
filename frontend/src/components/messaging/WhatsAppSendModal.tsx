@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { MessageSquare, Loader2, Search, Phone, User } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { sendDocument, sendText, listSessions } from '../../api/whatsapp/service'
@@ -240,7 +241,7 @@ export default function WhatsAppSendModal({
     }
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-gray-700">
@@ -438,6 +439,7 @@ export default function WhatsAppSendModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

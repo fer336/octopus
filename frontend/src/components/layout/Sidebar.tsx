@@ -6,6 +6,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { version } from '../../../package.json'
 import { useCurrentCash } from '../../hooks/useCash'
 import { useAuthStore } from '../../stores/authStore'
 import { hasPathAccess } from '../../utils/acl'
@@ -142,6 +143,7 @@ export default function Sidebar({
       data-tour-nav-inventory={item.path === '/inventory' ? 'true' : undefined}
       data-tour-nav-clients={item.path === '/clients' ? 'true' : undefined}
       data-tour-nav-current-account={item.path === '/current-account' ? 'true' : undefined}
+      data-tour-nav-messaging={item.path === '/messaging' ? 'true' : undefined}
       className={({ isActive }) =>
         clsx(
           'flex items-center rounded-md px-2.5 py-1.5 text-[13px] text-primary-300 hover:bg-[#2b2340] hover:text-white transition-colors',
@@ -231,11 +233,17 @@ export default function Sidebar({
       </nav>
 
       {/* Footer */}
-      <div className="p-2.5 border-t border-[#2b2340]">
+      <div className="px-2.5 py-2 border-t border-[#2b2340]">
         {!isCollapsed && (
-          <p className="text-[10px] text-[#9d84bf] text-center">
-            OctopusTrack v1.0
-          </p>
+          <a
+            href="https://octopustrack.shop"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-[#1a1430] hover:bg-[#241d3a] border border-[#3a2d5a] px-2.5 py-1.5 text-[10px] text-[#9d84bf] hover:text-[#b8a0d8] shadow-sm hover:shadow-[0_2px_8px_rgba(107,74,140,0.25)] transition-all duration-200 group -translate-y-0.5 hover:-translate-y-1"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-[#6b4a8c] group-hover:bg-[#8b5cc0] transition-colors" />
+            OctopusTrack v{version}
+          </a>
         )}
       </div>
       </aside>

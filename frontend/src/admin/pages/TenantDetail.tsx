@@ -30,6 +30,7 @@ const permissionModules: Array<{ key: string; label: string }> = [
   { key: 'reports', label: 'Reportes' },
   { key: 'feedback', label: 'Feedback' },
   { key: 'current_account', label: 'Cuenta Corriente' },
+  { key: 'srx', label: 'SRX / Comprobante X' },
 ]
 
 function InfoField({ label, value }: { label: string; value: string | null | undefined }) {
@@ -66,6 +67,7 @@ function GeneralTab({ tenantId }: { tenantId: string }) {
         <InfoField label="CUIT" value={branding?.cuit} />
         <InfoField label="Condición Fiscal" value={branding?.tax_condition} />
         <InfoField label="Punto de Venta" value={branding?.sale_point} />
+        <InfoField label="Punto de Venta ARCA" value={branding?.electronic_sale_point} />
         <InfoField label="Email" value={branding?.email} />
         <InfoField label="Teléfono" value={branding?.phone} />
         <InfoField label="Dirección" value={branding?.address} />
@@ -157,6 +159,7 @@ function BrandingTab({ tenantId }: { tenantId: string }) {
     | 'email'
     | 'header_text'
     | 'sale_point'
+    | 'electronic_sale_point'
 
   const fields: { key: BrandingTextFieldKey; label: string; type?: string; placeholder?: string }[] = [
     { key: 'name', label: 'Nombre del negocio' },
@@ -169,7 +172,8 @@ function BrandingTab({ tenantId }: { tenantId: string }) {
     { key: 'phone', label: 'Teléfono' },
     { key: 'email', label: 'Email' },
     { key: 'header_text', label: 'Texto de Encabezado' },
-    { key: 'sale_point', label: 'Punto de Venta' },
+    { key: 'sale_point', label: 'Punto de Venta (int.)' },
+    { key: 'electronic_sale_point', label: 'Punto de Venta ARCA (fact. electrónica)' },
   ]
 
   return (
@@ -386,6 +390,9 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
       if (typeof payload.qr_scanner_enabled === 'boolean') {
         toast.success(payload.qr_scanner_enabled ? 'Scanner QR habilitado' : 'Scanner QR deshabilitado')
       }
+      if (typeof payload.srx_enabled === 'boolean') {
+        toast.success(payload.srx_enabled ? 'SRX / Comprobante X habilitado' : 'SRX / Comprobante X deshabilitado')
+      }
       queryClient.invalidateQueries({ queryKey: ['admin-feature-flags', tenantId] })
     },
     onError: (error: any) => {
@@ -440,6 +447,7 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
   const priceUpdateEnabled = flagsQuery.data?.price_update_enabled ?? true
   const reportsEnabled = flagsQuery.data?.reports_enabled ?? true
   const sqlBackupEnabled = flagsQuery.data?.sql_backup_enabled ?? false
+  const srxEnabled = flagsQuery.data?.srx_enabled ?? false
   const linearConfigured = Boolean(linearSecretsQuery.data?.secrets?.linear_api_key?.configured)
   const linearLast4 = linearSecretsQuery.data?.secrets?.linear_api_key?.last4
 
@@ -449,280 +457,28 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Agente IA</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              Controla si el tenant puede usar los endpoints del asistente inteligente.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            role="switch"
-            aria-checked={currentEnabled}
-            onClick={() => updateMutation.mutate({ ai_agent_enabled: !currentEnabled })}
-            disabled={updateMutation.isPending}
-            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-              currentEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                currentEnabled ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
-
-        <div className="mt-3">
-          <span
-            className={`inline-flex px-2 py-1 text-xs rounded-full ${
-              currentEnabled
-                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-            }`}
-          >
-            {currentEnabled ? 'Habilitado' : 'Deshabilitado'}
-          </span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Facturación</h3>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Agente IA</h3>
               <p className="text-sm text-gray-600 dark:text-gray-300">
-                Habilita emisión de facturas y operaciones fiscales.
+                Controla si el tenant puede usar los endpoints del asistente inteligente.
               </p>
             </div>
+
             <button
               type="button"
               role="switch"
-              aria-checked={invoicingEnabled}
-              onClick={() => updateMutation.mutate({ invoicing_enabled: !invoicingEnabled })}
+              aria-checked={currentEnabled}
+              onClick={() => updateMutation.mutate({ ai_agent_enabled: !currentEnabled })}
               disabled={updateMutation.isPending}
               className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-                invoicingEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                currentEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
               }`}
             >
               <span
                 className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  invoicingEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Cotizaciones</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Permite generar presupuestos/cotizaciones desde Ventas.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={quotationEnabled}
-              onClick={() => updateMutation.mutate({ quotation_enabled: !quotationEnabled })}
-              disabled={updateMutation.isPending}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-                quotationEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  quotationEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Inventario</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Habilita el módulo de inventario y órdenes de pedido.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={inventoryEnabled}
-              onClick={() => updateMutation.mutate({ inventory_enabled: !inventoryEnabled })}
-              disabled={updateMutation.isPending}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-                inventoryEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  inventoryEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Acopio</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Habilita el módulo de acopios/cuentas prepaid.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={stockpileEnabled}
-              onClick={() => {
-                const nextValue = !stockpileEnabled
-                updateMutation.mutate(
-                  nextValue
-                    ? { stockpile_enabled: true, receipts_enabled: true }
-                    : { stockpile_enabled: false },
-                )
-              }}
-              disabled={updateMutation.isPending}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-                stockpileEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  stockpileEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Remitos</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Permite generar y operar remitos desde Ventas.
-              </p>
-              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                Acopio y Cuenta Corriente dependen de Remitos. Si desactivás Remitos,
-                ambos módulos se deshabilitan automáticamente.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={receiptsEnabled}
-              onClick={() => {
-                const nextValue = !receiptsEnabled
-                updateMutation.mutate(
-                  nextValue
-                    ? { receipts_enabled: true }
-                    : {
-                        receipts_enabled: false,
-                        stockpile_enabled: false,
-                        current_account_mode: 'disabled',
-                      },
-                )
-              }}
-              disabled={updateMutation.isPending}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-                receiptsEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  receiptsEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Actualización de precios</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Activa el módulo de edición masiva de precios.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={priceUpdateEnabled}
-              onClick={() => updateMutation.mutate({ price_update_enabled: !priceUpdateEnabled })}
-              disabled={updateMutation.isPending}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-                priceUpdateEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  priceUpdateEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Reportes</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Habilita la sección de reportes y exportaciones.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={reportsEnabled}
-              onClick={() => updateMutation.mutate({ reports_enabled: !reportsEnabled })}
-              disabled={updateMutation.isPending}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-                reportsEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  reportsEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Backup SQL</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Permite exportar e importar la base de datos completa del tenant en formato SQL.
-                Funcionalidad premium.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={sqlBackupEnabled}
-              onClick={() => updateMutation.mutate({ sql_backup_enabled: !sqlBackupEnabled })}
-              disabled={updateMutation.isPending}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-                sqlBackupEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  sqlBackupEnabled ? 'translate-x-6' : 'translate-x-1'
+                  currentEnabled ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>
@@ -730,257 +486,552 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
 
           <div className="mt-3">
             <span
-              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                sqlBackupEnabled
-                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                  : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-              }`}
-            >
-              {sqlBackupEnabled ? 'Habilitado (Premium)' : 'Deshabilitado'}
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Scanner QR</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Habilita el scanner de QR en la versión móvil y la generación de QR en productos.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={qrScannerEnabled}
-              onClick={() => updateMutation.mutate({ qr_scanner_enabled: !qrScannerEnabled })}
-              disabled={updateMutation.isPending}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-                qrScannerEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  qrScannerEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">WhatsApp (Evolution API)</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Habilita el envío de documentos por WhatsApp desde la sección de ventas.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={whatsappEnabled}
-              onClick={() => updateMutation.mutate({ whatsapp_enabled: !whatsappEnabled })}
-              disabled={updateMutation.isPending}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-                whatsappEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  whatsappEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span
               className={`inline-flex px-2 py-1 text-xs rounded-full ${
-                linearSecretsQuery.data?.secrets?.evolution_api_key?.configured
-                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-              }`}
-            >
-              {linearSecretsQuery.data?.secrets?.evolution_api_key?.configured
-                ? `API Key configurada (${linearSecretsQuery.data.secrets.evolution_api_key.last4 ?? '****'})`
-                : 'API Key no configurada'}
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Evolution API Key
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="password"
-                value={evolutionApiKey}
-                onChange={(e) => setEvolutionApiKey(e.target.value)}
-                placeholder="Ingresá la API Key de Evolution..."
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  if (!evolutionApiKey.trim()) {
-                    toast.error('Ingresá una API Key válida')
-                    return
-                  }
-                  saveEvolutionKeyMutation.mutate(evolutionApiKey.trim())
-                }}
-                disabled={saveEvolutionKeyMutation.isPending}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-              >
-                {saveEvolutionKeyMutation.isPending ? 'Guardando...' : 'Guardar key'}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Cuenta Corriente</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Define si el tenant puede usar el módulo y en qué modalidad opera.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              role="switch"
-              aria-checked={currentAccountEnabled}
-              onClick={() =>
-                updateMutation.mutate({
-                  current_account_mode: currentAccountEnabled ? 'disabled' : 'automatic',
-                  ...(currentAccountEnabled ? {} : { receipts_enabled: true }),
-                })
-              }
-              disabled={updateMutation.isPending}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-                currentAccountEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  currentAccountEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span
-              className={`inline-flex px-2 py-1 text-xs rounded-full ${
-                currentAccountEnabled
+                currentEnabled
                   ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
                   : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
               }`}
             >
-              {currentAccountEnabled ? `Habilitada (${currentAccountMode === 'automatic' ? 'Automático' : 'Manual'})` : 'Deshabilitada'}
+              {currentEnabled ? 'Habilitado' : 'Deshabilitado'}
             </span>
           </div>
-
-          {currentAccountEnabled && (
-            <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <button
-                type="button"
-                onClick={() => updateMutation.mutate({ current_account_mode: 'automatic', receipts_enabled: true })}
-                disabled={updateMutation.isPending}
-                className={`px-3 py-1.5 text-sm transition-colors ${
-                  currentAccountMode === 'automatic'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-primary-900/20'
-                }`}
-              >
-                Modo automático
-              </button>
-              <button
-                type="button"
-                onClick={() => updateMutation.mutate({ current_account_mode: 'manual', receipts_enabled: true })}
-                disabled={updateMutation.isPending}
-                className={`px-3 py-1.5 text-sm transition-colors border-l border-gray-200 dark:border-gray-700 ${
-                  currentAccountMode === 'manual'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-primary-900/20'
-                }`}
-              >
-                Modo manual
-              </button>
-            </div>
-          )}
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Sincronización con Linear</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Cuando está activa, cada feedback nuevo intenta crearse también como issue en Linear.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              role="switch"
-              aria-checked={linearSyncEnabled}
-              onClick={() => updateMutation.mutate({ linear_sync_enabled: !linearSyncEnabled })}
-              disabled={updateMutation.isPending}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-                linearSyncEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  linearSyncEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span
-              className={`inline-flex px-2 py-1 text-xs rounded-full ${
-                linearConfigured
-                  ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-              }`}
-            >
-              {linearConfigured ? `API Key configurada (${linearLast4 ?? '****'})` : 'API Key no configurada'}
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Linear API Key
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="password"
-                value={linearApiKey}
-                onChange={(e) => setLinearApiKey(e.target.value)}
-                placeholder="lin_api_xxxxx..."
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Facturación</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Habilita emisión de facturas y operaciones fiscales.
+                </p>
+              </div>
               <button
                 type="button"
+                role="switch"
+                aria-checked={invoicingEnabled}
+                onClick={() => updateMutation.mutate({ invoicing_enabled: !invoicingEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  invoicingEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    invoicingEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Cotizaciones</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Permite generar presupuestos/cotizaciones desde Ventas.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={quotationEnabled}
+                onClick={() => updateMutation.mutate({ quotation_enabled: !quotationEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  quotationEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    quotationEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Inventario</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Habilita el módulo de inventario y órdenes de pedido.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={inventoryEnabled}
+                onClick={() => updateMutation.mutate({ inventory_enabled: !inventoryEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  inventoryEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    inventoryEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Acopio</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Habilita el módulo de acopios/cuentas prepaid.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={stockpileEnabled}
                 onClick={() => {
-                  if (!linearApiKey.trim()) {
-                    toast.error('Ingresá una API Key válida')
-                    return
-                  }
-                  saveLinearKeyMutation.mutate(linearApiKey.trim())
+                  const nextValue = !stockpileEnabled
+                  updateMutation.mutate(
+                    nextValue
+                      ? { stockpile_enabled: true, receipts_enabled: true }
+                      : { stockpile_enabled: false },
+                  )
                 }}
-                disabled={saveLinearKeyMutation.isPending}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  stockpileEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
               >
-                {saveLinearKeyMutation.isPending ? 'Guardando...' : 'Guardar key'}
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    stockpileEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
               </button>
             </div>
           </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Remitos</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Permite generar y operar remitos desde Ventas.
+                </p>
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                  Acopio y Cuenta Corriente dependen de Remitos. Si desactivás Remitos,
+                  ambos módulos se deshabilitan automáticamente.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={receiptsEnabled}
+                onClick={() => {
+                  const nextValue = !receiptsEnabled
+                  updateMutation.mutate(
+                    nextValue
+                      ? { receipts_enabled: true }
+                      : {
+                          receipts_enabled: false,
+                          stockpile_enabled: false,
+                          current_account_mode: 'disabled',
+                        },
+                  )
+                }}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  receiptsEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    receiptsEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Actualización de precios</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Activa el módulo de edición masiva de precios.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={priceUpdateEnabled}
+                onClick={() => updateMutation.mutate({ price_update_enabled: !priceUpdateEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  priceUpdateEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    priceUpdateEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Reportes</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Habilita la sección de reportes y exportaciones.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={reportsEnabled}
+                onClick={() => updateMutation.mutate({ reports_enabled: !reportsEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  reportsEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    reportsEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Backup SQL</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Permite exportar e importar la base de datos completa del tenant en formato SQL.
+                  Funcionalidad premium.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={sqlBackupEnabled}
+                onClick={() => updateMutation.mutate({ sql_backup_enabled: !sqlBackupEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  sqlBackupEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    sqlBackupEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="mt-3">
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  sqlBackupEnabled
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                }`}
+              >
+                {sqlBackupEnabled ? 'Habilitado (Premium)' : 'Deshabilitado'}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Scanner QR</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Habilita el scanner de QR en la versión móvil y la generación de QR en productos.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={qrScannerEnabled}
+                onClick={() => updateMutation.mutate({ qr_scanner_enabled: !qrScannerEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  qrScannerEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    qrScannerEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">SRX / Comprobante X</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Punto de venta fantasma para emisión de comprobantes locales sin factura
+                  electrónica. Se activa con Ctrl+Shift+Q desde la pantalla de Ventas.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={srxEnabled}
+                onClick={() => updateMutation.mutate({ srx_enabled: !srxEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  srxEnabled ? 'bg-violet-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    srxEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="mt-3">
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  srxEnabled
+                    ? 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400'
+                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                }`}
+              >
+                {srxEnabled ? 'Habilitado' : 'Deshabilitado'}
+              </span>
+              <span className="ml-2 text-xs text-gray-400">
+                Pto. Vta.: {flagsQuery.data?.srx_enabled ? '5001 (alternativo)' : '—'}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">WhatsApp (Evolution API)</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Habilita el envío de documentos por WhatsApp desde la sección de ventas.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={whatsappEnabled}
+                onClick={() => updateMutation.mutate({ whatsapp_enabled: !whatsappEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  whatsappEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    whatsappEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-flex px-2 py-1 text-xs rounded-full ${
+                  linearSecretsQuery.data?.secrets?.evolution_api_key?.configured
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                }`}
+              >
+                {linearSecretsQuery.data?.secrets?.evolution_api_key?.configured
+                  ? `API Key configurada (${linearSecretsQuery.data.secrets.evolution_api_key.last4 ?? '****'})`
+                  : 'API Key no configurada'}
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Evolution API Key
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={evolutionApiKey}
+                  onChange={(e) => setEvolutionApiKey(e.target.value)}
+                  placeholder="Ingresá la API Key de Evolution..."
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!evolutionApiKey.trim()) {
+                      toast.error('Ingresá una API Key válida')
+                      return
+                    }
+                    saveEvolutionKeyMutation.mutate(evolutionApiKey.trim())
+                  }}
+                  disabled={saveEvolutionKeyMutation.isPending}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                >
+                  {saveEvolutionKeyMutation.isPending ? 'Guardando...' : 'Guardar key'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Cuenta Corriente</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Define si el tenant puede usar el módulo y en qué modalidad opera.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={currentAccountEnabled}
+                onClick={() =>
+                  updateMutation.mutate({
+                    current_account_mode: currentAccountEnabled ? 'disabled' : 'automatic',
+                    ...(currentAccountEnabled ? {} : { receipts_enabled: true }),
+                  })
+                }
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  currentAccountEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    currentAccountEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-flex px-2 py-1 text-xs rounded-full ${
+                  currentAccountEnabled
+                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                    : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                }`}
+              >
+                {currentAccountEnabled ? `Habilitada (${currentAccountMode === 'automatic' ? 'Automático' : 'Manual'})` : 'Deshabilitada'}
+              </span>
+            </div>
+
+            {currentAccountEnabled && (
+              <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => updateMutation.mutate({ current_account_mode: 'automatic', receipts_enabled: true })}
+                  disabled={updateMutation.isPending}
+                  className={`px-3 py-1.5 text-sm transition-colors ${
+                    currentAccountMode === 'automatic'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-primary-900/20'
+                  }`}
+                >
+                  Modo automático
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateMutation.mutate({ current_account_mode: 'manual', receipts_enabled: true })}
+                  disabled={updateMutation.isPending}
+                  className={`px-3 py-1.5 text-sm transition-colors border-l border-gray-200 dark:border-gray-700 ${
+                    currentAccountMode === 'manual'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-primary-900/20'
+                  }`}
+                >
+                  Modo manual
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Sincronización con Linear</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Cuando está activa, cada feedback nuevo intenta crearse también como issue en Linear.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={linearSyncEnabled}
+                onClick={() => updateMutation.mutate({ linear_sync_enabled: !linearSyncEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  linearSyncEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    linearSyncEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-flex px-2 py-1 text-xs rounded-full ${
+                  linearConfigured
+                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                }`}
+              >
+                {linearConfigured ? `API Key configurada (${linearLast4 ?? '****'})` : 'API Key no configurada'}
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Linear API Key
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={linearApiKey}
+                  onChange={(e) => setLinearApiKey(e.target.value)}
+                  placeholder="lin_api_xxxxx..."
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!linearApiKey.trim()) {
+                      toast.error('Ingresá una API Key válida')
+                      return
+                    }
+                    saveLinearKeyMutation.mutate(linearApiKey.trim())
+                  }}
+                  disabled={saveLinearKeyMutation.isPending}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                >
+                  {saveLinearKeyMutation.isPending ? 'Guardando...' : 'Guardar key'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
     </div>
   )
 }

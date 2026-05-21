@@ -91,6 +91,9 @@ async def get_my_business(
         or "alongside_text",
         header_text=business.header_text,
         sale_point=business.sale_point,
+        electronic_sale_point=business.electronic_sale_point,
+        alternative_sale_point=business.alternative_sale_point,
+        srx_enabled=bool(getattr(business, "srx_enabled", False)),
         ai_agent_enabled=bool(business.ai_agent_enabled),
         whatsapp_enabled=bool(getattr(business, "whatsapp_enabled", False)),
         qr_scanner_enabled=bool(getattr(business, "qr_scanner_enabled", False)),
@@ -111,6 +114,7 @@ async def get_my_business(
         last_invoice_a_number=last_by_type.get(VoucherType.INVOICE_A) or "00000000",
         last_invoice_b_number=last_by_type.get(VoucherType.INVOICE_B) or "00000000",
         last_invoice_c_number=last_by_type.get(VoucherType.INVOICE_C) or "00000000",
+        last_invoice_x_number=last_by_type.get(VoucherType.INVOICE_X) or "00000000",
     )
 
 
@@ -177,6 +181,9 @@ async def update_my_business(
         or "alongside_text",
         header_text=business.header_text,
         sale_point=business.sale_point,
+        electronic_sale_point=business.electronic_sale_point,
+        alternative_sale_point=business.alternative_sale_point,
+        srx_enabled=bool(getattr(business, "srx_enabled", False)),
         ai_agent_enabled=bool(business.ai_agent_enabled),
         whatsapp_enabled=bool(getattr(business, "whatsapp_enabled", False)),
         qr_scanner_enabled=bool(getattr(business, "qr_scanner_enabled", False)),

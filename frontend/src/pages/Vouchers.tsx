@@ -15,6 +15,7 @@ import clientsService from '../api/clientsService'
 import { usePaymentMethods } from '../hooks/usePaymentMethods'
 import CreditNoteModal from '../components/vouchers/CreditNoteModal'
 import WhatsAppSendModal, { type PdfSpec } from '../components/messaging/WhatsAppSendModal'
+import WhatsAppSendPdfButton from '../components/messaging/WhatsAppSendPdfButton'
 import WhatsAppIcon from '../components/messaging/WhatsAppIcon'
 import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
@@ -66,6 +67,7 @@ const voucherTypeLabels: Record<string, { label: string; textClass: string; icon
   debit_note_a:   { label: 'Nota de Débito A',  textClass: 'text-primary-600 dark:text-primary-400', icon: FileMinus },
   debit_note_b:   { label: 'Nota de Débito B',  textClass: 'text-primary-600 dark:text-primary-400', icon: FileMinus },
   debit_note_c:   { label: 'Nota de Débito C',  textClass: 'text-primary-600 dark:text-primary-400', icon: FileMinus },
+  invoice_x:      { label: 'Comprobante X',      textClass: 'text-violet-600 dark:text-violet-400', icon: Receipt },
 }
 
 const statusLabels: Record<string, { label: string; className: string }> = {
@@ -186,6 +188,7 @@ export default function Vouchers() {
   const currentAccountEnabled =
     (business?.current_account_mode ?? 'disabled') !== 'disabled' &&
     hasModuleAccess(user, 'current_account')
+  const srxEnabled = (business?.srx_enabled ?? false) && hasModuleAccess(user, 'srx')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [filterType, setFilterType] = useState('')
@@ -1073,6 +1076,7 @@ export default function Vouchers() {
     {
       key: 'status',
       header: 'Estado',
+      className: 'w-[100px] max-w-[100px] align-top',
       render: (item: any) => {
         const statusInfo = statusLabels[item.status] || { label: item.status, className: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' }
         const parentNode = (
@@ -1119,7 +1123,7 @@ export default function Vouchers() {
     {
       key: 'actions',
       header: 'Acciones',
-      className: 'text-center w-[140px] max-w-[140px] align-top',
+      className: 'text-center w-[160px] max-w-[160px] align-top',
         render: (item: VoucherListItem) => {
           const isDeleted = !!item.deleted_at
           const closureLockInfo = getCurrentAccountClosureLockInfo(item)
@@ -1127,7 +1131,7 @@ export default function Vouchers() {
           const canPayCurrentAccountInvoice = currentAccountEnabled && isInvoiceVoucher(item) && !!item.is_current_account && !item.is_paid
 
         const parentActions = (
-          <div className="mx-auto flex w-[128px] -translate-x-px flex-nowrap items-center justify-center gap-1 overflow-x-auto whitespace-nowrap">
+          <div className="mx-auto flex w-[152px] flex-nowrap items-center justify-center gap-1 whitespace-nowrap">
             {!isDeleted && (
               <>
                 {item.voucher_type === 'quotation' && !item.invoiced_voucher_id && !item.is_current_account_closure && (
@@ -1153,6 +1157,16 @@ export default function Vouchers() {
                 >
                   <Download size={14} />
                 </button>
+
+                {whatsappEnabled && isInvoiceVoucher(item) && (
+                  <WhatsAppSendPdfButton
+                    getPdfBlob={() => vouchersService.getPdf(item.id)}
+                    filename={`comprobante-${item.sale_point}-${item.number}.pdf`}
+                    caption={`Comprobante ${item.sale_point}-${item.number}`}
+                    defaultClientId={item.billing_client_id || item.client_id || ''}
+                    size={14}
+                  />
+                )}
 
                 {canPayCurrentAccountInvoice && (
                   <button
@@ -1428,6 +1442,7 @@ export default function Vouchers() {
                       { value: 'credit_note_c', label: 'Notas de Crédito C' },
                     ]
                   : []),
+                ...(srxEnabled ? [{ value: 'invoice_x', label: 'Comprobantes X' }] : []),
               ]}
             />
 
@@ -1765,6 +1780,15 @@ export default function Vouchers() {
                       <button onClick={(e) => { animateButton(e); handleDownloadPdf(voucher.id, `${voucher.sale_point}-${voucher.number}`) }} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg" title="Descargar PDF">
                         <Download size={16} />
                       </button>
+                      {whatsappEnabled && isInvoiceVoucher(voucher) && (
+                        <WhatsAppSendPdfButton
+                          getPdfBlob={() => vouchersService.getPdf(voucher.id)}
+                          filename={`comprobante-${voucher.sale_point}-${voucher.number}.pdf`}
+                          caption={`Comprobante ${voucher.sale_point}-${voucher.number}`}
+                          defaultClientId={voucher.billing_client_id || voucher.client_id || ''}
+                          size={16}
+                        />
+                      )}
                       {canPayCurrentAccountInvoice && (
                         <button
                           onClick={(e) => {

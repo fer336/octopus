@@ -698,11 +698,21 @@ async def check_voucher_prices(
 @router.get("/{voucher_id}/pdf")
 async def get_voucher_pdf(
     voucher_id: UUID,
+    copy: str = Query("original", description="Tipo de copia: original (para el cliente) o duplicado (para el comercio)"),
+    hide_discount: bool = Query(False, description="Si es True, oculta los descuentos en items y totales (solo para copia original)"),
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
     current_user=Depends(get_current_user),
 ):
-    """Genera y devuelve el PDF inline de un comprobante."""
+    """Genera y devuelve el PDF inline de un comprobante.
+
+    Args:
+        copy: 'original' (para el cliente) o 'duplicado' (para el comercio).
+        hide_discount: Si True, recalcula items sin descuentos (solo afecta a la representación visual).
+    """
+    if copy not in ("original", "duplicado"):
+        raise HTTPException(status_code=400, detail="copy debe ser 'original' o 'duplicado'")
+
     service = VoucherService(db)
     try:
         voucher = await service.get_by_id(voucher_id, business_id)
@@ -711,7 +721,11 @@ async def get_voucher_pdf(
         if voucher.is_current_account or voucher.is_current_account_closure:
             await _ensure_current_account_user_access(db, business_id, current_user)
 
-        pdf_bytes = await service.generate_pdf(voucher_id, business_id)
+        pdf_bytes = await service.generate_pdf(
+            voucher_id, business_id,
+            copy_type=copy,
+            hide_discount=hide_discount,
+        )
 
         return StreamingResponse(
             io.BytesIO(pdf_bytes),
@@ -1772,6 +1786,11 @@ async def create_credit_note(
                 ).date()
 
         credit_note.number = str(afip_result.get("voucherNumber")).zfill(8)
+
+        # Actualizar sale_point con electronic_sale_point
+        electronic_sp = business.electronic_sale_point or business.sale_point or "0001"
+        if credit_note.sale_point != electronic_sp:
+            credit_note.sale_point = electronic_sp
 
         await db.commit()
         await db.refresh(credit_note)

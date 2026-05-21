@@ -3,7 +3,7 @@
  * Permite crear cotizaciones, remitos y facturas.
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings, MoreVertical, Archive, ScanLine } from 'lucide-react'
+import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings, MoreVertical, Archive, ScanLine, Copy } from 'lucide-react'
 import { Button, Modal, Select, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -23,6 +23,7 @@ import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { useSalesStore } from '../stores/salesStore'
 import { useAuthStore } from '../stores/authStore'
+import { readSalesDraft, writeSalesDraft, clearSalesDraft } from '../stores/salesDraftStore'
 import { hasModuleAccess } from '../utils/acl'
 import { TAX_CONDITIONS, getTaxConditionLabel } from '../types'
 import { isMobile } from '../utils/device'
@@ -52,9 +53,11 @@ const baseSalesMenuModes: Array<{ value: SalesMenuMode; label: string; icon: any
 interface Product {
   id: string
   code: string
+  supplier_code?: string
   description: string
   net_price: number // Precio sin IVA (para enviar al backend)
   sale_price: number // Precio de venta final (ya calculado con IVA)
+  current_stock?: number
   photo_url?: string
 }
 
@@ -316,7 +319,7 @@ export default function Sales() {
     (business?.current_account_mode ?? 'disabled') !== 'disabled' &&
     hasModuleAccess(user, 'current_account')
 
-  const srxEnabled = business?.srx_enabled ?? false
+  const srxEnabled = (business?.srx_enabled ?? false) && hasModuleAccess(user, 'srx')
   const [srxMode, setSrxMode] = useState(false)
 
   const voucherTypes = useMemo(
@@ -330,7 +333,7 @@ export default function Sales() {
         return true
       })
       if (srxMode && srxEnabled) {
-        base.push({ value: 'invoice_x', label: 'Comprobante X', icon: Receipt })
+        base.push({ value: 'invoice_x', label: 'SRX', icon: Receipt })
       }
       return base
     },
@@ -348,7 +351,7 @@ export default function Sales() {
         return true
       })
       if (srxMode && srxEnabled) {
-        base.push({ value: 'invoice_x' as SalesMenuMode, label: 'Comprobante X', icon: Receipt })
+        base.push({ value: 'invoice_x' as SalesMenuMode, label: 'SRX', icon: Receipt })
       }
       return base
     },
@@ -379,24 +382,32 @@ export default function Sales() {
   const allProducts = Array.isArray(productsData?.items) ? productsData.items : []
   const allClients = Array.isArray(clientsData?.items) ? clientsData.items : []
   const billingClients = allClients.filter((client) => (client.current_account_mode || 'disabled') !== 'disabled')
-  const [voucherType, setVoucherType] = useState<VoucherType>('quotation')
-  const [showPrices, setShowPrices] = useState(true)
+
+  // Draft persistence — read once on mount, scoped per user
+  const [_draft] = useState(() => {
+    const { user: storeUser } = useAuthStore.getState()
+    return readSalesDraft(storeUser?.id ?? null, null)
+  })
+  const _draftUserId = () => useAuthStore.getState().user?.id ?? null
+
+  const [voucherType, setVoucherType] = useState<VoucherType>(() => (_draft?.voucherType as VoucherType) ?? 'quotation')
+  const [showPrices, setShowPrices] = useState(() => _draft?.showPrices ?? true)
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null)
   const [editingVoucherDate, setEditingVoucherDate] = useState<string | null>(null)
   const [editingVoucherNotes, setEditingVoucherNotes] = useState<string | undefined>(undefined)
   const [clientSearch, setClientSearch] = useState('')
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
-  const [selectedOperatingClientId, setSelectedOperatingClientId] = useState<string>('')
+  const [selectedClient, setSelectedClient] = useState<Client | null>(() => (_draft?.selectedClient as Client | null) ?? null)
+  const [selectedOperatingClientId, setSelectedOperatingClientId] = useState<string>(() => _draft?.selectedOperatingClientId ?? '')
   const [productSearch, setProductSearch] = useState('')
   const [budgetCode, setBudgetCode] = useState('')
   const [isLoadingBudget, setIsLoadingBudget] = useState(false)
-  const [loadedBudgets, setLoadedBudgets] = useState<LoadedBudget[]>([])
-  const [loadedBudgetsPriceStrategy, setLoadedBudgetsPriceStrategy] = useState<PriceStrategy>('historical')
+  const [loadedBudgets, setLoadedBudgets] = useState<LoadedBudget[]>(() => (_draft?.loadedBudgets as LoadedBudget[]) ?? [])
+  const [loadedBudgetsPriceStrategy, setLoadedBudgetsPriceStrategy] = useState<PriceStrategy>(() => (_draft?.loadedBudgetsPriceStrategy as PriceStrategy) ?? 'historical')
   const [pendingBudgetData, setPendingBudgetData] = useState<{
     voucher: any
     priceCheck: any
   } | null>(null)
-  const [items, setItems] = useState<CartItem[]>([])
+  const [items, setItems] = useState<CartItem[]>(() => (_draft?.items as CartItem[]) ?? [])
   const [showQrScanner, setShowQrScanner] = useState(false)
   const [mobileSection, setMobileSection] = useState<MobileSalesSection>('items')
   const [mobileProductPage, setMobileProductPage] = useState(0)
@@ -409,19 +420,19 @@ export default function Sales() {
   const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null)
   const [zoomLevel, setZoomLevel] = useState(1)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [paymentSelections, setPaymentSelections] = useState<Record<string, PaymentSelectionState>>({})
+  const [paymentSelections, setPaymentSelections] = useState<Record<string, PaymentSelectionState>>(() => (_draft?.paymentSelections as Record<string, PaymentSelectionState>) ?? {})
   // Estado para pago en cuenta corriente
-  const [payInCurrentAccount, setPayInCurrentAccount] = useState(false)
-  const [currentAccountDays, setCurrentAccountDays] = useState(30)
+  const [payInCurrentAccount, setPayInCurrentAccount] = useState(() => _draft?.payInCurrentAccount ?? false)
+  const [currentAccountDays, setCurrentAccountDays] = useState(() => _draft?.currentAccountDays ?? 30)
 
   // Estado para Acopio (SALES-ACOPIO-02)
-  const [acopioName, setAcopioName] = useState('')
-  const [acopioDescription, setAcopioDescription] = useState('')
-  const [acopioAmount, setAcopioAmount] = useState('')
-  const [acopioDiscount, setAcopioDiscount] = useState(0)
-  const [acopioCurrency, setAcopioCurrency] = useState('ARS')
+  const [acopioName, setAcopioName] = useState(() => _draft?.acopioName ?? '')
+  const [acopioDescription, setAcopioDescription] = useState(() => _draft?.acopioDescription ?? '')
+  const [acopioAmount, setAcopioAmount] = useState(() => _draft?.acopioAmount ?? '')
+  const [acopioDiscount, setAcopioDiscount] = useState(() => _draft?.acopioDiscount ?? 0)
+  const [acopioCurrency, setAcopioCurrency] = useState(() => _draft?.acopioCurrency ?? 'ARS')
   // SALES-ACOPIO-02: replacing 'now/later' with explicit Yes/No for invoice
-  const [acopioGenerateInvoice, setAcopioGenerateInvoice] = useState(false)
+  const [acopioGenerateInvoice, setAcopioGenerateInvoice] = useState(() => _draft?.acopioGenerateInvoice ?? false)
 
   // SALES-ACOPIO-FRONTEND-03: state for linking receipt to acopio
   const [selectedStockpile, setSelectedStockpile] = useState<OpenStockpileItem | null>(null)
@@ -490,7 +501,40 @@ export default function Sales() {
   }, [authorizedOperatingClients, selectedClient])
   
   // Descuento general
-  const [generalDiscount, setGeneralDiscount] = useState(0) // Descuento % sobre subtotal
+  const [generalDiscount, setGeneralDiscount] = useState(() => _draft?.generalDiscount ?? 0)
+
+  // Auto-save draft — persists cart state on every meaningful change so navigation doesn't lose work
+  useEffect(() => {
+    // Don't persist while editing an existing voucher (that uses its own backend draft)
+    if (editingVoucherId) return
+    const isEmpty = items.length === 0 && selectedClient === null && voucherType === 'quotation' && generalDiscount === 0
+    if (isEmpty) {
+      clearSalesDraft(_draftUserId(), null)
+      return
+    }
+    const timer = window.setTimeout(() => {
+      writeSalesDraft({
+        items,
+        selectedClient,
+        selectedOperatingClientId,
+        voucherType,
+        generalDiscount,
+        showPrices,
+        paymentSelections,
+        payInCurrentAccount,
+        currentAccountDays,
+        acopioName,
+        acopioDescription,
+        acopioAmount,
+        acopioDiscount,
+        acopioCurrency,
+        acopioGenerateInvoice,
+        loadedBudgets,
+        loadedBudgetsPriceStrategy,
+      }, _draftUserId(), null)
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [items, selectedClient, selectedOperatingClientId, voucherType, generalDiscount, showPrices, paymentSelections, payInCurrentAccount, currentAccountDays, acopioName, acopioDescription, acopioAmount, acopioDiscount, acopioCurrency, acopioGenerateInvoice, loadedBudgets, loadedBudgetsPriceStrategy, editingVoucherId])
 
   const formatCurrentAccountErrorMessage = (error: unknown): string => {
     const defaultMessage = formatErrorMessage(error)
@@ -547,7 +591,8 @@ export default function Sales() {
       generate_invoice: boolean
     }) => stockpileService.createByAmount(data),
     onSuccess: async (data) => {
-      toast.success(`Acopio "${data.name}" creado correctamente`, { icon: '✅' })
+      const num = data.stockpile_number ? `#${data.stockpile_number} ` : ''
+      toast.success(`Acopio ${num}"${data.name}" creado correctamente`, { icon: '✅' })
       // Reset form
       setAcopioName('')
       setAcopioDescription('')
@@ -622,7 +667,7 @@ export default function Sales() {
         const pdfBlob = await vouchersService.getPdf(data.id)
         const blobUrl = URL.createObjectURL(pdfBlob)
         setPdfUrl(blobUrl)
-        setPdfVoucherInfo({ type: data.voucher_type, number: data.number })
+        setPdfVoucherInfo({ type: data.voucher_type, number: data.number, sale_point: data.sale_point })
         setPdfWhatsAppCtx({ voucherId: data.id, clientId: data.billing_client_id || data.client_id })
         setShowPdfModal(true)
       } catch (error) {
@@ -698,7 +743,7 @@ export default function Sales() {
         const pdfBlob = await vouchersService.getPdf(data.id)
         const blobUrl = URL.createObjectURL(pdfBlob)
         setPdfUrl(blobUrl)
-        setPdfVoucherInfo({ type: data.voucher_type, number: data.number })
+        setPdfVoucherInfo({ type: data.voucher_type, number: data.number, sale_point: data.sale_point })
         setPdfWhatsAppCtx({ voucherId: data.id, clientId: data.billing_client_id || data.client_id })
         setShowPdfModal(true)
       } catch (error) {
@@ -706,6 +751,7 @@ export default function Sales() {
       }
 
       // Limpiar todo
+      clearSalesDraft(_draftUserId(), null)
       setLoadedBudgets([])
       setItems([])
       setSelectedClient(null)
@@ -819,39 +865,67 @@ export default function Sales() {
           return
         }
       } else {
-        toast.success('Comprobante generado correctamente', { icon: '✅' })
+        const label = data.voucher_type === 'invoice_x' ? 'Comprobante X' : 'Comprobante'
+        const fullNumber = data.sale_point ? `${data.sale_point}-${data.number}` : data.number
+        toast.success(`${label} ${fullNumber} generado correctamente`, { icon: '✅' })
       }
       
-      // Descargar PDF con autenticación y abrirlo en modal
-      try {
-        console.log('🔍 Iniciando descarga de PDF para voucher:', data.id)
-        const pdfBlob = await vouchersService.getPdf(data.id)
-        console.log('✅ PDF descargado exitosamente. Tamaño:', pdfBlob.size, 'bytes')
-        console.log('📄 Tipo de blob:', pdfBlob.type)
-        
-        const blobUrl = URL.createObjectURL(pdfBlob)
-        console.log('🔗 Blob URL creada:', blobUrl)
-        
-        // Guardar la URL y la info del comprobante
-        setPdfUrl(blobUrl)
-        setPdfVoucherInfo({
-          type: data.voucher_type,
-          number: data.number
-        })
-        setPdfWhatsAppCtx({ voucherId: data.id, clientId: data.billing_client_id || data.client_id })
-        
-        console.log('📋 Información del voucher guardada:', { type: data.voucher_type, number: data.number })
-        
-        // Abrir modal con el PDF
-        setShowPdfModal(true)
-        console.log('✨ Modal de PDF abierto')
-        
-      } catch (error) {
-        console.error('❌ Error al descargar/abrir el PDF:', error)
-        toast.error('Error al abrir el PDF: ' + formatErrorMessage(error))
+      // Guardar contexto de WhatsApp (siempre con valores reales)
+      setPdfWhatsAppCtx({ voucherId: data.id, clientId: data.billing_client_id || data.client_id })
+      
+      // Para SRX con descuento: mostrar modal de opciones de impresión (doble copia)
+      if (data.voucher_type === 'invoice_x' && (generalDiscount > 0 || items.some(it => Number(it.discount) > 0))) {
+        try {
+          console.log('🔍 SRX con descuento — descargando duplicado de referencia:', data.id)
+          const duplicadoBlob = await vouchersService.getPdf(data.id, { copy: 'duplicado', hide_discount: false })
+          const duplicadoUrl = URL.createObjectURL(duplicadoBlob)
+          setSrxPdfDuplicadoUrl(duplicadoUrl)
+          setSrxPdfOriginalUrl(null)
+          setSrxPrintHideDiscount(true)
+          setSrxPdfActiveCopy('original')
+          setPdfVoucherInfo({ type: data.voucher_type, number: data.number, sale_point: data.sale_point })
+          setShowSrxPrintModal(true)
+        } catch (error) {
+          console.error('❌ Error al descargar PDF duplicado:', error)
+          // Fallback: mostrar PDF normal
+          try {
+            const pdfBlob = await vouchersService.getPdf(data.id)
+            const blobUrl = URL.createObjectURL(pdfBlob)
+            setPdfUrl(blobUrl)
+            setPdfVoucherInfo({ type: data.voucher_type, number: data.number, sale_point: data.sale_point })
+            setShowPdfModal(true)
+          } catch (_) { /* ignore */ }
+        }
+      } else {
+        // Sin descuento (o no es SRX): flujo normal, un solo PDF
+        try {
+          console.log('🔍 Iniciando descarga de PDF para voucher:', data.id)
+          const pdfBlob = await vouchersService.getPdf(data.id)
+          console.log('✅ PDF descargado exitosamente. Tamaño:', pdfBlob.size, 'bytes')
+          console.log('📄 Tipo de blob:', pdfBlob.type)
+          
+          const blobUrl = URL.createObjectURL(pdfBlob)
+          console.log('🔗 Blob URL creada:', blobUrl)
+          
+          setPdfUrl(blobUrl)
+          setPdfVoucherInfo({
+            type: data.voucher_type,
+            number: data.number
+          })
+          
+          console.log('📋 Información del voucher guardada:', { type: data.voucher_type, number: data.number })
+          
+          setShowPdfModal(true)
+          console.log('✨ Modal de PDF abierto')
+          
+        } catch (error) {
+          console.error('❌ Error al descargar/abrir el PDF:', error)
+          toast.error('Error al abrir el PDF: ' + formatErrorMessage(error))
+        }
       }
       
       // Limpiar
+      clearSalesDraft(_draftUserId(), null)
       setItems([])
       setSelectedClient(null)
       setSelectedOperatingClientId('')
@@ -860,7 +934,7 @@ export default function Sales() {
       setShowPrices(voucherType === 'receipt' || voucherType === 'current_account' ? false : true)
       setProductSearch('')
       resetPaymentSelections()
-      
+
       // Limpiar los borradores cargados (se convirtieron en documentos)
       if (loadedBudgets.length > 0) {
         setLoadedBudgets([])
@@ -912,6 +986,7 @@ export default function Sales() {
         })
       }
 
+      clearSalesDraft(_draftUserId(), null)
       setItems([])
       setSelectedClient(null)
       setSelectedOperatingClientId('')
@@ -941,6 +1016,7 @@ export default function Sales() {
       setEditingVoucherNotes(undefined)
       sessionStorage.removeItem('sales-edit-voucher')
 
+      clearSalesDraft(_draftUserId(), null)
       setItems([])
       setSelectedClient(null)
       setSelectedOperatingClientId('')
@@ -950,7 +1026,7 @@ export default function Sales() {
       setProductSearch('')
       resetPaymentSelections()
 
-      setPdfVoucherInfo({ type: data.voucher_type, number: data.number })
+      setPdfVoucherInfo({ type: data.voucher_type, number: data.number, sale_point: data.sale_point })
       setPdfWhatsAppCtx({ voucherId: data.id, clientId: data.billing_client_id || data.client_id })
     },
     onError: (error: any) => {
@@ -973,8 +1049,15 @@ export default function Sales() {
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null)
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
-  const [pdfVoucherInfo, setPdfVoucherInfo] = useState<{ type: string, number: string } | null>(null)
+  const [pdfVoucherInfo, setPdfVoucherInfo] = useState<{ type: string, number: string, sale_point?: string } | null>(null)
   const [pdfWhatsAppCtx, setPdfWhatsAppCtx] = useState<{ voucherId: string; clientId: string } | null>(null)
+
+  // === SRX double-copy print options ===
+  const [showSrxPrintModal, setShowSrxPrintModal] = useState(false)
+  const [srxPrintHideDiscount, setSrxPrintHideDiscount] = useState(true)
+  const [srxPdfOriginalUrl, setSrxPdfOriginalUrl] = useState<string | null>(null)
+  const [srxPdfDuplicadoUrl, setSrxPdfDuplicadoUrl] = useState<string | null>(null)
+  const [srxPdfActiveCopy, setSrxPdfActiveCopy] = useState<'original' | 'duplicado'>('original')
 
   // === Modal de desincronización de numeración ARCA ===
   const [arcaMismatch, setArcaMismatch] = useState<{ voucherId: string; errorMsg: string } | null>(null)
@@ -1098,13 +1181,16 @@ export default function Sales() {
     .map(p => ({
       id: p.id,
       code: safeText(p.code),
+      supplier_code: typeof p.supplier_code === 'string' ? p.supplier_code : undefined,
       description: safeText(p.description),
       net_price: safeNumber(p.net_price),
       sale_price: safeNumber(p.sale_price),
+      current_stock: typeof p.current_stock === 'number' ? p.current_stock : undefined,
       photo_url: typeof p.photo_url === 'string' ? p.photo_url : undefined,
     }))
     .filter(p =>
       p.code.toLowerCase().includes(normalizedProductSearch) ||
+      (p.supplier_code?.toLowerCase() ?? '').includes(normalizedProductSearch) ||
       p.description.toLowerCase().includes(normalizedProductSearch)
     )
 
@@ -1216,11 +1302,10 @@ export default function Sales() {
     }
   }, [voucherType, invoicingEnabled, receiptsEnabled, stockpileEnabled])
 
-  // SRX-User: toggle mode with Ctrl+D (only when srx_enabled for this tenant)
+  // SRX-User: toggle mode with Ctrl+Shift+Q (only when srx_enabled for this tenant)
   useEffect(() => {
-    if (!business?.srx_enabled) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === 'd') {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'q') {
         e.preventDefault()
         setSrxMode((prev) => {
           const next = !prev
@@ -1233,9 +1318,9 @@ export default function Sales() {
         })
       }
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [business?.srx_enabled])
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [srxEnabled])
 
   useEffect(() => {
     if (voucherType !== 'current_account') {
@@ -1548,6 +1633,7 @@ export default function Sales() {
   }
 
   const clearSalesScreen = () => {
+    clearSalesDraft(_draftUserId(), null)
     setItems([])
     setSelectedClient(null)
     setSelectedOperatingClientId('')
@@ -2167,9 +2253,12 @@ export default function Sales() {
 
   const handleDownloadPdf = () => {
     if (pdfUrl && pdfVoucherInfo) {
+      const fullNumber = pdfVoucherInfo.sale_point
+        ? `${pdfVoucherInfo.sale_point}-${pdfVoucherInfo.number}`
+        : pdfVoucherInfo.number
       const link = document.createElement('a')
       link.href = pdfUrl
-      link.download = `comprobante_${pdfVoucherInfo.type}_${pdfVoucherInfo.number}.pdf`
+      link.download = `comprobante_${pdfVoucherInfo.type}_${fullNumber}.pdf`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -2189,16 +2278,86 @@ export default function Sales() {
     }
   }
 
+  /**
+   * Genera ambos PDFs (original + duplicado) para SRX con descuento.
+   */
+  const handleSrxPrintConfirm = async () => {
+    const voucherId = pdfWhatsAppCtx?.voucherId
+    if (!voucherId) return
+
+    try {
+      // Generar original (con o sin descuento según elección)
+      const originalBlob = await vouchersService.getPdf(voucherId, {
+        copy: 'original',
+        hide_discount: srxPrintHideDiscount,
+      })
+      const originalUrl = URL.createObjectURL(originalBlob)
+
+      // Si ya tenemos el duplicado descargado, usarlo; si no, descargarlo
+      let duplicadoUrl = srxPdfDuplicadoUrl
+      if (!duplicadoUrl) {
+        const duplicadoBlob = await vouchersService.getPdf(voucherId, {
+          copy: 'duplicado',
+          hide_discount: false,
+        })
+        duplicadoUrl = URL.createObjectURL(duplicadoBlob)
+      }
+
+      setSrxPdfOriginalUrl(originalUrl)
+      setSrxPdfDuplicadoUrl(duplicadoUrl)
+
+      // Cerrar modal de opciones, abrir visor PDF
+      setShowSrxPrintModal(false)
+      setPdfUrl(originalUrl)
+      setSrxPdfActiveCopy('original')
+      setShowPdfModal(true)
+    } catch (error) {
+      console.error('❌ Error al generar PDFs SRX:', error)
+      toast.error('Error al generar los PDFs')
+    }
+  }
+
+  const handleCloseSrxPrintModal = () => {
+    setShowSrxPrintModal(false)
+    if (srxPdfOriginalUrl) {
+      URL.revokeObjectURL(srxPdfOriginalUrl)
+      setSrxPdfOriginalUrl(null)
+    }
+    if (srxPdfDuplicadoUrl) {
+      URL.revokeObjectURL(srxPdfDuplicadoUrl)
+      setSrxPdfDuplicadoUrl(null)
+    }
+  }
+
+  /**
+   * Cambia entre copia Original y Duplicado en el visor PDF (SRX).
+   */
+  const handleSwitchPdfCopy = (copy: 'original' | 'duplicado') => {
+    const url = copy === 'original' ? srxPdfOriginalUrl : srxPdfDuplicadoUrl
+    if (url) {
+      setPdfUrl(url)
+      setSrxPdfActiveCopy(copy)
+    }
+  }
+
   const handleClosePdfModal = () => {
     setShowPdfModal(false)
-    // Limpiar URL después de cerrar
-    if (pdfUrl) {
-      setTimeout(() => {
+    // Limpiar URLs después de cerrar
+    setTimeout(() => {
+      if (pdfUrl) {
         URL.revokeObjectURL(pdfUrl)
         setPdfUrl(null)
-        setPdfVoucherInfo(null)
-      }, 500)
-    }
+      }
+      if (srxPdfOriginalUrl) {
+        URL.revokeObjectURL(srxPdfOriginalUrl)
+        setSrxPdfOriginalUrl(null)
+      }
+      if (srxPdfDuplicadoUrl) {
+        URL.revokeObjectURL(srxPdfDuplicadoUrl)
+        setSrxPdfDuplicadoUrl(null)
+      }
+      setPdfVoucherInfo(null)
+    }, 500)
   }
 
   const handleCreateClient = () => {
@@ -2949,9 +3108,9 @@ export default function Sales() {
             )}
 
             {srxMode && srxEnabled && (
-              <div className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+              <div className="inline-flex items-center gap-1.5 rounded-xl border border-violet-700 bg-white px-2.5 py-1 text-xs font-bold text-violet-700 shadow-sm">
+                <img src="/images/logos/logo-header@2x.png" alt="" className="h-4 w-auto" />
                 <span>SRX</span>
-                <span className="text-red-200 text-[9px]">SIN VALIDEZ FISCAL</span>
               </div>
             )}
 
@@ -2982,7 +3141,11 @@ export default function Sales() {
                     data-tour-sales-mode-receipt={mode.value === 'receipt' ? 'true' : undefined}
                     data-tour-sales-mode-current-account={mode.value === 'current_account' ? 'true' : undefined}
                   >
-                    <Icon size={16} />
+                    {mode.value === 'invoice_x' ? (
+                      <img src="/images/logos/logo-header@2x.png" alt="" className="h-3.5 w-auto" />
+                    ) : (
+                      <Icon size={16} />
+                    )}
                     {mode.label}
                     {isComingSoon && (
                       <span className="ml-1 rounded-full bg-primary-200 px-1.5 py-[1px] text-[9px] font-bold uppercase text-primary-900 dark:bg-primary-800 dark:text-primary-100">
@@ -3465,7 +3628,12 @@ export default function Sales() {
                           <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">{product.code}</span>
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-xs font-semibold text-gray-800 dark:text-gray-100">{product.description}</p>
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400">${formatNumber(product.sale_price)}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-[11px] text-gray-500 dark:text-gray-400">${formatNumber(product.sale_price)}</p>
+                              {product.current_stock !== undefined && (
+                                <p className="text-[11px] text-gray-400 dark:text-gray-500">· Stock: {product.current_stock}</p>
+                              )}
+                            </div>
                           </div>
                           <span className={`flex h-6 w-6 items-center justify-center rounded-md text-sm font-semibold ${isSelected ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-primary-600 text-white'}`}>
                             {isSelected ? '✓' : '+'}
@@ -3532,7 +3700,11 @@ export default function Sales() {
           <div className="h-full space-y-2 overflow-auto rounded-lg border border-gray-200 bg-white py-2 px-4 pb-24 dark:border-gray-700 dark:bg-gray-800">
             {/* Voucher numbering — mobile */}
             {business && voucherType !== 'acopio' && voucherType !== 'current_account' && (() => {
-              const salePoint = business.sale_point?.padStart(4, '0') ?? '0001'
+              const salePoint = (
+                voucherType === 'invoice'
+                  ? (business.electronic_sale_point ?? business.sale_point ?? '0001')
+                  : (business.sale_point ?? '0001')
+              ).padStart(4, '0')
               let label = ''
               let lastNumber = ''
               let borderColor = 'border-gray-200 dark:border-gray-700'
@@ -4029,15 +4201,17 @@ export default function Sales() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-100 dark:bg-gray-900 sticky top-0">
                   <tr>
-                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Código</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Cód. Fábrica</th>
                     <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Descripción</th>
-                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Precio</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Stock</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Precio venta</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-3 py-6 text-center text-gray-400">
+                      <td colSpan={5} className="px-3 py-6 text-center text-gray-400">
                         <p className="text-sm">
                           {productSearch ? 'No se encontraron productos' : 'Busque productos para agregar'}
                         </p>
@@ -4052,8 +4226,8 @@ export default function Sales() {
                           ref={index === selectedProductIndex ? selectedRowRef : null}
                           data-tour-sales-product-row={index === selectedProductIndex ? 'true' : undefined}
                           className={`cursor-pointer ${
-                            isInTemp 
-                              ? 'bg-green-100 dark:bg-green-900' 
+                            isInTemp
+                              ? 'bg-green-100 dark:bg-green-900'
                               : index === selectedProductIndex
                                 ? 'bg-primary-100 dark:bg-primary-900'
                                 : 'hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -4064,12 +4238,14 @@ export default function Sales() {
                           }}
                           onDoubleClick={() => toggleProductInTemp(product)}
                         >
-                          <td className="px-3 py-2 font-medium">
+                          <td className="px-3 py-2 font-medium whitespace-nowrap">
                             {isInTemp && <span className="text-green-600 dark:text-green-400 mr-1 text-base">✓</span>}
                             {product.code}
                           </td>
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">{product.supplier_code || '—'}</td>
                           <td className="px-3 py-2 font-semibold">{product.description}</td>
-                          <td className="px-3 py-2 text-right">${formatNumber(product.sale_price)}</td>
+                          <td className="px-3 py-2 text-right whitespace-nowrap">{product.current_stock ?? '—'}</td>
+                          <td className="px-3 py-2 text-right whitespace-nowrap">${formatNumber(product.sale_price)}</td>
                         </tr>
                       )
                     })
@@ -4109,7 +4285,11 @@ export default function Sales() {
 
             {/* Numeración del comprobante — en el header, reemplaza el título "Resumen" */}
             {business && voucherType !== 'acopio' && voucherType !== 'current_account' && (() => {
-              const salePoint = business.sale_point?.padStart(4, '0') ?? '0001'
+              const salePoint = (
+                voucherType === 'invoice'
+                  ? (business.electronic_sale_point ?? business.sale_point ?? '0001')
+                  : (business.sale_point ?? '0001')
+              ).padStart(4, '0')
               let label = ''
               let lastNumber = ''
               let borderColor = 'border-gray-200 dark:border-gray-700'
@@ -6192,21 +6372,113 @@ export default function Sales() {
         )}
       </Modal>
 
+      {/* Modal de opciones de impresión SRX (doble copia) */}
+      <Modal
+        isOpen={showSrxPrintModal}
+        onClose={handleCloseSrxPrintModal}
+        title={`Comprobante X — ${pdfVoucherInfo?.sale_point || ''}-${pdfVoucherInfo?.number || ''}`}
+        size="md"
+      >
+        <div className="space-y-5">
+          <div className="bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-lg p-4">
+            <p className="text-sm text-violet-900 dark:text-violet-200">
+              Se van a generar <strong>dos copias</strong> de este comprobante:
+            </p>
+            <ul className="mt-2 text-sm text-violet-800 dark:text-violet-300 space-y-1 list-disc list-inside">
+              <li><strong>Original</strong> — para entregar al cliente</li>
+              <li><strong>Duplicado</strong> — para el comercio</li>
+            </ul>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              ¿El comprobante <strong>Original</strong> debe mostrar los descuentos aplicados?
+            </p>
+            <div className="space-y-2">
+              <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                <input
+                  type="radio"
+                  name="srx-print-mode"
+                  checked={!srxPrintHideDiscount}
+                  onChange={() => setSrxPrintHideDiscount(false)}
+                  className="h-4 w-4 text-primary-600"
+                />
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Sí, mostrar descuento</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">El original se imprime con los precios bonificados</p>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                <input
+                  type="radio"
+                  name="srx-print-mode"
+                  checked={srxPrintHideDiscount}
+                  onChange={() => setSrxPrintHideDiscount(true)}
+                  className="h-4 w-4 text-primary-600"
+                />
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">No, ocultar descuento</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">El original se imprime SIN descuento (precios completos)</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" onClick={handleCloseSrxPrintModal} className="flex-1">
+              Cancelar
+            </Button>
+            <Button variant="primary" onClick={handleSrxPrintConfirm} className="flex-1">
+              Generar PDFs
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Modal visor de PDF */}
       <Modal 
         isOpen={showPdfModal} 
         onClose={handleClosePdfModal}
-        title="Comprobante Generado"
+        title={pdfVoucherInfo ? `${pdfVoucherInfo.sale_point || ''}-${pdfVoucherInfo.number}` : 'Comprobante'}
         size="xl"
       >
         <div className="space-y-4">
           {pdfUrl && (
             <>
+              {/* Selector de copia Original/Duplicado (SRX doble copia) */}
+              {srxPdfOriginalUrl && srxPdfDuplicadoUrl && (
+                <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <button
+                    onClick={() => handleSwitchPdfCopy('original')}
+                    className={`flex-1 py-2 text-sm font-medium text-center transition-colors ${
+                      srxPdfActiveCopy === 'original'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <FileText size={14} className="inline mr-1" />
+                    Original
+                  </button>
+                  <div className="w-px bg-gray-200 dark:bg-gray-700" />
+                  <button
+                    onClick={() => handleSwitchPdfCopy('duplicado')}
+                    className={`flex-1 py-2 text-sm font-medium text-center transition-colors ${
+                      srxPdfActiveCopy === 'duplicado'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <Copy size={14} className="inline mr-1" />
+                    Duplicado
+                  </button>
+                </div>
+              )}
+
               {/* Visor de PDF con iframe */}
               <div className="bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600">
                 <iframe
                   src={pdfUrl}
-                  className="w-full h-[70vh]"
+                  className={`w-full ${srxPdfOriginalUrl && srxPdfDuplicadoUrl ? 'h-[55vh]' : 'h-[65vh]'}`}
                   title="Visor de PDF"
                 />
               </div>
@@ -6225,8 +6497,8 @@ export default function Sales() {
                   <WhatsAppSendPdfButton
                     defaultClientId={pdfWhatsAppCtx.clientId}
                     getPdfBlob={() => vouchersService.getPdf(pdfWhatsAppCtx.voucherId)}
-                    filename={`comprobante-${pdfVoucherInfo?.type}-${pdfVoucherInfo?.number}.pdf`}
-                    caption={`Comprobante ${pdfVoucherInfo?.type} ${pdfVoucherInfo?.number}`}
+                    filename={`comprobante-${pdfVoucherInfo?.type}-${pdfVoucherInfo?.sale_point || ''}-${pdfVoucherInfo?.number}.pdf`}
+                    caption={`Comprobante ${pdfVoucherInfo?.type} ${pdfVoucherInfo?.sale_point || ''}-${pdfVoucherInfo?.number}`}
                     fullButton
                   />
                 )}
