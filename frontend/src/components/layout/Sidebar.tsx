@@ -143,6 +143,7 @@ export default function Sidebar({
       data-tour-nav-inventory={item.path === '/inventory' ? 'true' : undefined}
       data-tour-nav-clients={item.path === '/clients' ? 'true' : undefined}
       data-tour-nav-current-account={item.path === '/current-account' ? 'true' : undefined}
+      data-tour-nav-messaging={item.path === '/messaging' ? 'true' : undefined}
       className={({ isActive }) =>
         clsx(
           'flex items-center rounded-md px-2.5 py-1.5 text-[13px] text-primary-300 hover:bg-[#2b2340] hover:text-white transition-colors',

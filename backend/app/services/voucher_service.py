@@ -1724,6 +1724,20 @@ class VoucherService:
             except Exception as e:
                 print(f"Error al generar QR de AFIP: {e}")
 
+        arca_item_net = sum(Decimal(str(i.subtotal)) for i in voucher.items)
+        arca_item_gross = arca_item_net * Decimal("1.21")
+        arca_abs_total = abs(Decimal(str(voucher.total or 0)))
+        if arca_item_gross > 0 and arca_abs_total < arca_item_gross - Decimal("0.01"):
+            arca_discount_pct = round((1 - arca_abs_total / arca_item_gross) * Decimal("100"), 2)
+        else:
+            arca_discount_pct = Decimal("0")
+        arca_totals = {
+            "subtotal": f"{arca_item_gross:,.2f}",
+            "discount": f"{arca_discount_pct:g}%",
+            "iva": "21%",
+            "total": f"{arca_abs_total:,.2f}",
+        }
+
         context = {
             "business": {
                 "name": voucher.business.name,
@@ -1785,12 +1799,7 @@ class VoucherService:
                 }
                 for item in voucher.items
             ],
-            "totals": {
-                "subtotal": f"{voucher.subtotal:,.2f}",
-                "discount": f"{sum((item.unit_price * item.quantity * (item.discount_percent or 0) / 100) for item in voucher.items):,.2f}",
-                "iva": f"{voucher.iva_amount:,.2f}",
-                "total": f"{voucher.total:,.2f}",
-            },
+            "totals": arca_totals,
         }
 
         return pdf_service.generate_invoice_arca_pdf(context)
@@ -1956,12 +1965,16 @@ class VoucherService:
         # item_subtotal_sum: solo con descuentos individuales (sin desc. general)
         raw_subtotal = Decimal("0")
         item_subtotal_sum = Decimal("0")
+        iva_no_discount = Decimal("0")
         for item in voucher.items:
             qty = Decimal(str(item.quantity))
             raw_subtotal += item.unit_price * qty
             # Descuento individual por item (si tiene)
             item_disc_pct = Decimal(str(item.discount_percent)) if hasattr(item, "discount_percent") and item.discount_percent else Decimal("0")
             item_subtotal_sum += item.unit_price * qty * (1 - item_disc_pct / Decimal("100"))
+            # IVA sin descuentos (para modo hide_discount)
+            iva_rate_item = Decimal(str(item.iva_rate)) if item.iva_rate else Decimal("21")
+            iva_no_discount += abs(item.unit_price * qty) * (iva_rate_item / Decimal("100"))
 
         # Para notas de crédito los montos son negativos → usar absolutos
         if voucher.is_return_receipt:
@@ -1981,13 +1994,9 @@ class VoucherService:
         else:
             general_discount_pct_rounded = Decimal("0")
 
-        # IVA sobre el neto descontado
-        iva_base = abs_item_sum  # con IVA, sin descuento general
-        absolute_iva = iva_base - iva_base / Decimal("1.21")  # IVA del monto total
-
-        # Importe a pagar = Importe total × (1 - bonificación%)
-        importe_a_pagar = abs_item_sum * (1 - general_discount_pct_rounded / Decimal("100"))
-        iva_descontado = importe_a_pagar - importe_a_pagar / Decimal("1.21")  # IVA del monto descontado
+        # Usar valores almacenados en DB (calculados correctamente en _build_items_and_totals)
+        abs_iva = abs(Decimal(str(voucher.iva_amount or 0)))
+        abs_total = abs(Decimal(str(voucher.total or 0)))
 
         if hide_discount:
             # Modo ORIGINAL "sin descuento": precios completos, ni individual ni general
@@ -2106,24 +2115,17 @@ class VoucherService:
             "items": items_context,
             "totals": (
                 {
-                    # ORIGINAL: sin descuentos, precios con IVA incluido
-                    # Importe total = items (con IVA), Bonif=0%, IVA discriminado
                     "subtotal": f"{abs_raw:,.2f}",
                     "discount": "0%",
-                    "iva": f"{abs_raw - abs_raw / Decimal('1.21'):,.2f}",
+                    "iva": "21%",
                     "total": f"{abs_raw:,.2f}",
                 }
                 if hide_discount
                 else {
-                    # DUPLICADO: desc. individual en items, desc. GENERAL en %
-                    # Importe total = items (con IVA)
-                    # Bonificación = % de descuento general
-                    # IVA = IVA sobre el monto descontado
-                    # Importe a pagar = Importe total × (1 - bonificación%)
                     "subtotal": f"{abs_item_sum:,.2f}",
                     "discount": f"{general_discount_pct_rounded:g}%",
-                    "iva": f"{iva_descontado:,.2f}",
-                    "total": f"{importe_a_pagar:,.2f}",
+                    "iva": "21%",
+                    "total": f"{abs_item_sum * (1 - general_discount_pct_rounded / Decimal('100')):,.2f}",
                 }
             ),
             "copy": {

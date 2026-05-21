@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Smartphone, Wifi, WifiOff, LogOut, CheckCircle, AlertCircle, RefreshCw, MessageCircle } from 'lucide-react'
+import { Smartphone, Wifi, WifiOff, LogOut, CheckCircle, AlertCircle, RefreshCw, MessageCircle, Trash2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import businessService from '../api/businessService'
-import { stopSession, createSession, getConnectionState } from '../api/whatsapp/service'
+import { stopSession, createSession, getConnectionState, deleteSession } from '../api/whatsapp/service'
 import { useMessagingStore } from '../stores/messagingStore'
 import QRCode from '../components/messaging/QRCode'
 import ConversationList from '../components/messaging/ConversationList'
@@ -136,6 +136,16 @@ export default function Messaging() {
     setActiveSessionId(null)
   }
 
+  async function handleDeleteInstance() {
+    if (!instanceName) return
+    if (!window.confirm(`¿Eliminar la instancia "${instanceName}" por completo? Tendrás que volver a crearla y escanear el QR.`)) return
+    try {
+      await deleteSession(instanceName)
+    } catch { /* best effort — eliminar igual si ya no existe en el server */ }
+    await handleChangeInstance()
+    toast.success('Instancia eliminada')
+  }
+
   // ── Loading business ──
   if (businessLoading) {
     return (
@@ -225,7 +235,7 @@ export default function Messaging() {
   if (pendingSessionId) {
     return (
       <div className="flex h-full flex-col gap-4">
-        <StatusBar instanceName={instanceName} status="scanning" />
+        <StatusBar instanceName={instanceName} status="scanning" onDeleteInstance={handleDeleteInstance} />
         <div className="flex flex-1 items-center justify-center">
           <div className="w-full max-w-sm overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
             <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-700">
@@ -236,6 +246,15 @@ export default function Messaging() {
             </div>
             <div className="p-5">
               <QRCode sessionId={pendingSessionId} onConnected={handleQRConnected} />
+            </div>
+            <div className="border-t border-gray-100 px-5 py-3 dark:border-gray-700">
+              <button
+                onClick={handleDeleteInstance}
+                className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Eliminar instancia
+              </button>
             </div>
           </div>
         </div>
@@ -313,6 +332,7 @@ function StatusBar({
   phone,
   onDisconnect,
   onChangeInstance,
+  onDeleteInstance,
   disconnecting,
 }: {
   instanceName: string
@@ -320,6 +340,7 @@ function StatusBar({
   phone?: string
   onDisconnect?: () => void
   onChangeInstance?: () => void
+  onDeleteInstance?: () => void
   disconnecting?: boolean
 }) {
   const badge = {
@@ -362,6 +383,15 @@ function StatusBar({
           >
             <LogOut className="h-3.5 w-3.5" />
             {disconnecting ? 'Desconectando…' : 'Desconectar'}
+          </button>
+        )}
+        {status === 'scanning' && onDeleteInstance && (
+          <button
+            onClick={onDeleteInstance}
+            className="flex items-center gap-1.5 rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:hover:bg-red-900/20"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Eliminar instancia
           </button>
         )}
         {(status === 'disconnected' || status === 'error') && onChangeInstance && (

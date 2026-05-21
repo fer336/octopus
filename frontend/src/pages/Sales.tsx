@@ -23,6 +23,7 @@ import toast from 'react-hot-toast'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { useSalesStore } from '../stores/salesStore'
 import { useAuthStore } from '../stores/authStore'
+import { readSalesDraft, writeSalesDraft, clearSalesDraft } from '../stores/salesDraftStore'
 import { hasModuleAccess } from '../utils/acl'
 import { TAX_CONDITIONS, getTaxConditionLabel } from '../types'
 import { isMobile } from '../utils/device'
@@ -52,9 +53,11 @@ const baseSalesMenuModes: Array<{ value: SalesMenuMode; label: string; icon: any
 interface Product {
   id: string
   code: string
+  supplier_code?: string
   description: string
   net_price: number // Precio sin IVA (para enviar al backend)
   sale_price: number // Precio de venta final (ya calculado con IVA)
+  current_stock?: number
   photo_url?: string
 }
 
@@ -379,24 +382,32 @@ export default function Sales() {
   const allProducts = Array.isArray(productsData?.items) ? productsData.items : []
   const allClients = Array.isArray(clientsData?.items) ? clientsData.items : []
   const billingClients = allClients.filter((client) => (client.current_account_mode || 'disabled') !== 'disabled')
-  const [voucherType, setVoucherType] = useState<VoucherType>('quotation')
-  const [showPrices, setShowPrices] = useState(true)
+
+  // Draft persistence — read once on mount, scoped per user
+  const [_draft] = useState(() => {
+    const { user: storeUser } = useAuthStore.getState()
+    return readSalesDraft(storeUser?.id ?? null, null)
+  })
+  const _draftUserId = () => useAuthStore.getState().user?.id ?? null
+
+  const [voucherType, setVoucherType] = useState<VoucherType>(() => (_draft?.voucherType as VoucherType) ?? 'quotation')
+  const [showPrices, setShowPrices] = useState(() => _draft?.showPrices ?? true)
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null)
   const [editingVoucherDate, setEditingVoucherDate] = useState<string | null>(null)
   const [editingVoucherNotes, setEditingVoucherNotes] = useState<string | undefined>(undefined)
   const [clientSearch, setClientSearch] = useState('')
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
-  const [selectedOperatingClientId, setSelectedOperatingClientId] = useState<string>('')
+  const [selectedClient, setSelectedClient] = useState<Client | null>(() => (_draft?.selectedClient as Client | null) ?? null)
+  const [selectedOperatingClientId, setSelectedOperatingClientId] = useState<string>(() => _draft?.selectedOperatingClientId ?? '')
   const [productSearch, setProductSearch] = useState('')
   const [budgetCode, setBudgetCode] = useState('')
   const [isLoadingBudget, setIsLoadingBudget] = useState(false)
-  const [loadedBudgets, setLoadedBudgets] = useState<LoadedBudget[]>([])
-  const [loadedBudgetsPriceStrategy, setLoadedBudgetsPriceStrategy] = useState<PriceStrategy>('historical')
+  const [loadedBudgets, setLoadedBudgets] = useState<LoadedBudget[]>(() => (_draft?.loadedBudgets as LoadedBudget[]) ?? [])
+  const [loadedBudgetsPriceStrategy, setLoadedBudgetsPriceStrategy] = useState<PriceStrategy>(() => (_draft?.loadedBudgetsPriceStrategy as PriceStrategy) ?? 'historical')
   const [pendingBudgetData, setPendingBudgetData] = useState<{
     voucher: any
     priceCheck: any
   } | null>(null)
-  const [items, setItems] = useState<CartItem[]>([])
+  const [items, setItems] = useState<CartItem[]>(() => (_draft?.items as CartItem[]) ?? [])
   const [showQrScanner, setShowQrScanner] = useState(false)
   const [mobileSection, setMobileSection] = useState<MobileSalesSection>('items')
   const [mobileProductPage, setMobileProductPage] = useState(0)
@@ -409,19 +420,19 @@ export default function Sales() {
   const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null)
   const [zoomLevel, setZoomLevel] = useState(1)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [paymentSelections, setPaymentSelections] = useState<Record<string, PaymentSelectionState>>({})
+  const [paymentSelections, setPaymentSelections] = useState<Record<string, PaymentSelectionState>>(() => (_draft?.paymentSelections as Record<string, PaymentSelectionState>) ?? {})
   // Estado para pago en cuenta corriente
-  const [payInCurrentAccount, setPayInCurrentAccount] = useState(false)
-  const [currentAccountDays, setCurrentAccountDays] = useState(30)
+  const [payInCurrentAccount, setPayInCurrentAccount] = useState(() => _draft?.payInCurrentAccount ?? false)
+  const [currentAccountDays, setCurrentAccountDays] = useState(() => _draft?.currentAccountDays ?? 30)
 
   // Estado para Acopio (SALES-ACOPIO-02)
-  const [acopioName, setAcopioName] = useState('')
-  const [acopioDescription, setAcopioDescription] = useState('')
-  const [acopioAmount, setAcopioAmount] = useState('')
-  const [acopioDiscount, setAcopioDiscount] = useState(0)
-  const [acopioCurrency, setAcopioCurrency] = useState('ARS')
+  const [acopioName, setAcopioName] = useState(() => _draft?.acopioName ?? '')
+  const [acopioDescription, setAcopioDescription] = useState(() => _draft?.acopioDescription ?? '')
+  const [acopioAmount, setAcopioAmount] = useState(() => _draft?.acopioAmount ?? '')
+  const [acopioDiscount, setAcopioDiscount] = useState(() => _draft?.acopioDiscount ?? 0)
+  const [acopioCurrency, setAcopioCurrency] = useState(() => _draft?.acopioCurrency ?? 'ARS')
   // SALES-ACOPIO-02: replacing 'now/later' with explicit Yes/No for invoice
-  const [acopioGenerateInvoice, setAcopioGenerateInvoice] = useState(false)
+  const [acopioGenerateInvoice, setAcopioGenerateInvoice] = useState(() => _draft?.acopioGenerateInvoice ?? false)
 
   // SALES-ACOPIO-FRONTEND-03: state for linking receipt to acopio
   const [selectedStockpile, setSelectedStockpile] = useState<OpenStockpileItem | null>(null)
@@ -490,7 +501,40 @@ export default function Sales() {
   }, [authorizedOperatingClients, selectedClient])
   
   // Descuento general
-  const [generalDiscount, setGeneralDiscount] = useState(0) // Descuento % sobre subtotal
+  const [generalDiscount, setGeneralDiscount] = useState(() => _draft?.generalDiscount ?? 0)
+
+  // Auto-save draft — persists cart state on every meaningful change so navigation doesn't lose work
+  useEffect(() => {
+    // Don't persist while editing an existing voucher (that uses its own backend draft)
+    if (editingVoucherId) return
+    const isEmpty = items.length === 0 && selectedClient === null && voucherType === 'quotation' && generalDiscount === 0
+    if (isEmpty) {
+      clearSalesDraft(_draftUserId(), null)
+      return
+    }
+    const timer = window.setTimeout(() => {
+      writeSalesDraft({
+        items,
+        selectedClient,
+        selectedOperatingClientId,
+        voucherType,
+        generalDiscount,
+        showPrices,
+        paymentSelections,
+        payInCurrentAccount,
+        currentAccountDays,
+        acopioName,
+        acopioDescription,
+        acopioAmount,
+        acopioDiscount,
+        acopioCurrency,
+        acopioGenerateInvoice,
+        loadedBudgets,
+        loadedBudgetsPriceStrategy,
+      }, _draftUserId(), null)
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [items, selectedClient, selectedOperatingClientId, voucherType, generalDiscount, showPrices, paymentSelections, payInCurrentAccount, currentAccountDays, acopioName, acopioDescription, acopioAmount, acopioDiscount, acopioCurrency, acopioGenerateInvoice, loadedBudgets, loadedBudgetsPriceStrategy, editingVoucherId])
 
   const formatCurrentAccountErrorMessage = (error: unknown): string => {
     const defaultMessage = formatErrorMessage(error)
@@ -707,6 +751,7 @@ export default function Sales() {
       }
 
       // Limpiar todo
+      clearSalesDraft(_draftUserId(), null)
       setLoadedBudgets([])
       setItems([])
       setSelectedClient(null)
@@ -880,6 +925,7 @@ export default function Sales() {
       }
       
       // Limpiar
+      clearSalesDraft(_draftUserId(), null)
       setItems([])
       setSelectedClient(null)
       setSelectedOperatingClientId('')
@@ -888,7 +934,7 @@ export default function Sales() {
       setShowPrices(voucherType === 'receipt' || voucherType === 'current_account' ? false : true)
       setProductSearch('')
       resetPaymentSelections()
-      
+
       // Limpiar los borradores cargados (se convirtieron en documentos)
       if (loadedBudgets.length > 0) {
         setLoadedBudgets([])
@@ -940,6 +986,7 @@ export default function Sales() {
         })
       }
 
+      clearSalesDraft(_draftUserId(), null)
       setItems([])
       setSelectedClient(null)
       setSelectedOperatingClientId('')
@@ -969,6 +1016,7 @@ export default function Sales() {
       setEditingVoucherNotes(undefined)
       sessionStorage.removeItem('sales-edit-voucher')
 
+      clearSalesDraft(_draftUserId(), null)
       setItems([])
       setSelectedClient(null)
       setSelectedOperatingClientId('')
@@ -1133,13 +1181,16 @@ export default function Sales() {
     .map(p => ({
       id: p.id,
       code: safeText(p.code),
+      supplier_code: typeof p.supplier_code === 'string' ? p.supplier_code : undefined,
       description: safeText(p.description),
       net_price: safeNumber(p.net_price),
       sale_price: safeNumber(p.sale_price),
+      current_stock: typeof p.current_stock === 'number' ? p.current_stock : undefined,
       photo_url: typeof p.photo_url === 'string' ? p.photo_url : undefined,
     }))
     .filter(p =>
       p.code.toLowerCase().includes(normalizedProductSearch) ||
+      (p.supplier_code?.toLowerCase() ?? '').includes(normalizedProductSearch) ||
       p.description.toLowerCase().includes(normalizedProductSearch)
     )
 
@@ -1582,6 +1633,7 @@ export default function Sales() {
   }
 
   const clearSalesScreen = () => {
+    clearSalesDraft(_draftUserId(), null)
     setItems([])
     setSelectedClient(null)
     setSelectedOperatingClientId('')
@@ -3576,7 +3628,12 @@ export default function Sales() {
                           <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">{product.code}</span>
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-xs font-semibold text-gray-800 dark:text-gray-100">{product.description}</p>
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400">${formatNumber(product.sale_price)}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-[11px] text-gray-500 dark:text-gray-400">${formatNumber(product.sale_price)}</p>
+                              {product.current_stock !== undefined && (
+                                <p className="text-[11px] text-gray-400 dark:text-gray-500">· Stock: {product.current_stock}</p>
+                              )}
+                            </div>
                           </div>
                           <span className={`flex h-6 w-6 items-center justify-center rounded-md text-sm font-semibold ${isSelected ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-primary-600 text-white'}`}>
                             {isSelected ? '✓' : '+'}
@@ -4144,15 +4201,17 @@ export default function Sales() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-100 dark:bg-gray-900 sticky top-0">
                   <tr>
-                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Código</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Cód. Fábrica</th>
                     <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Descripción</th>
-                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Precio</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Stock</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Precio venta</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-3 py-6 text-center text-gray-400">
+                      <td colSpan={5} className="px-3 py-6 text-center text-gray-400">
                         <p className="text-sm">
                           {productSearch ? 'No se encontraron productos' : 'Busque productos para agregar'}
                         </p>
@@ -4167,8 +4226,8 @@ export default function Sales() {
                           ref={index === selectedProductIndex ? selectedRowRef : null}
                           data-tour-sales-product-row={index === selectedProductIndex ? 'true' : undefined}
                           className={`cursor-pointer ${
-                            isInTemp 
-                              ? 'bg-green-100 dark:bg-green-900' 
+                            isInTemp
+                              ? 'bg-green-100 dark:bg-green-900'
                               : index === selectedProductIndex
                                 ? 'bg-primary-100 dark:bg-primary-900'
                                 : 'hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -4179,12 +4238,14 @@ export default function Sales() {
                           }}
                           onDoubleClick={() => toggleProductInTemp(product)}
                         >
-                          <td className="px-3 py-2 font-medium">
+                          <td className="px-3 py-2 font-medium whitespace-nowrap">
                             {isInTemp && <span className="text-green-600 dark:text-green-400 mr-1 text-base">✓</span>}
                             {product.code}
                           </td>
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">{product.supplier_code || '—'}</td>
                           <td className="px-3 py-2 font-semibold">{product.description}</td>
-                          <td className="px-3 py-2 text-right">${formatNumber(product.sale_price)}</td>
+                          <td className="px-3 py-2 text-right whitespace-nowrap">{product.current_stock ?? '—'}</td>
+                          <td className="px-3 py-2 text-right whitespace-nowrap">${formatNumber(product.sale_price)}</td>
                         </tr>
                       )
                     })
