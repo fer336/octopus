@@ -46,11 +46,15 @@ export function readSalesDraft(userId: string | null, businessId: string | null)
 export function writeSalesDraft(data: Omit<SalesDraftData, '_v'>, userId: string | null, businessId: string | null): void {
   try {
     localStorage.setItem(draftKey(userId, businessId), JSON.stringify({ ...data, _v: DRAFT_VERSION }))
-  } catch {}
+  } catch (_e) {
+    // localStorage unavailable (private mode / quota exceeded) — silently skip
+  }
 }
 
 export function clearSalesDraft(userId: string | null, businessId: string | null): void {
   try {
     localStorage.removeItem(draftKey(userId, businessId))
-  } catch {}
+  } catch (_e) {
+    // localStorage unavailable — silently skip
+  }
 }
