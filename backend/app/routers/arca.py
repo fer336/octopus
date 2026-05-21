@@ -361,6 +361,16 @@ async def emit_electronic_invoice(
                 ).date()
             voucher.status = VoucherStatus.CONFIRMED
 
+            # Sincronizar el punto de venta con electronic_sale_point
+            # El voucher pudo haber sido creado con sale_point interno (0001),
+            # pero ARCA emitió bajo electronic_sale_point (ej: 0012).
+            electronic_sp = business.electronic_sale_point or business.sale_point or "0001"
+            if voucher.sale_point != electronic_sp:
+                logger.info(
+                    f"Actualizando sale_point: local={voucher.sale_point}, ARCA={electronic_sp}"
+                )
+                voucher.sale_point = electronic_sp
+
             # Sincronizar el número local con el asignado por ARCA.
             # Pueden diferir si el contador local quedó desincronizado por emisiones fallidas previas.
             arca_number = arca_response.get("voucherNumber")

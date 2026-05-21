@@ -542,7 +542,7 @@ async def test_create_lot_without_user_id_keeps_created_by_null(
 # TASK 2.6: VoucherService flush ordering — LotConsumption persist
 # ════════════════════════════════════════════════════════════════
 
-from app.schemas.voucher import VoucherCreate, VoucherItemCreate
+from app.schemas.voucher import VoucherCreate, VoucherItemCreate, VoucherUpdate
 
 
 @pytest_asyncio.fixture
@@ -790,6 +790,79 @@ async def test_voucher_quotation_does_not_create_consumptions(
     lot_result = await db.execute(lot_query)
     lots = list(lot_result.scalars().all())
     total_stock = sum(lot.quantity for lot in lots)
+    assert total_stock == 50, "Cotización no debe modificar el stock disponible"
+
+
+@pytest.mark.asyncio
+async def test_update_quotation_does_not_create_consumptions(
+    db: AsyncSession,
+    business_a,
+    user_a: User,
+    voucher_test_product: Product,
+    voucher_test_client: Client,
+    membership_a,
+):
+    """Editar una cotización tampoco debe crear LotConsumption ni tocar stock."""
+    from app.models.lot_consumption import LotConsumption
+    from app.services.voucher_service import VoucherService
+
+    service = VoucherService(db)
+
+    voucher = await service.create(
+        business_id=business_a.id,
+        data=VoucherCreate(
+            client_id=voucher_test_client.id,
+            voucher_type=VoucherType.QUOTATION,
+            date=date.today(),
+            items=[
+                VoucherItemCreate(
+                    product_id=voucher_test_product.id,
+                    quantity=10,
+                    unit_price=Decimal("200.00"),
+                    discount_percent=Decimal("0"),
+                ),
+            ],
+            general_discount=Decimal("0"),
+            show_prices=True,
+        ),
+        user_id=user_a.id,
+    )
+
+    updated = await service.update_quotation(
+        voucher_id=voucher.id,
+        business_id=business_a.id,
+        data=VoucherUpdate(
+            client_id=voucher_test_client.id,
+            date=date.today(),
+            items=[
+                VoucherItemCreate(
+                    product_id=voucher_test_product.id,
+                    quantity=12,
+                    unit_price=Decimal("200.00"),
+                    discount_percent=Decimal("0"),
+                ),
+            ],
+            general_discount=Decimal("0"),
+            show_prices=True,
+        ),
+    )
+
+    assert updated.voucher_type == VoucherType.QUOTATION
+    assert len(updated.items) == 1
+    assert updated.items[0].quantity == Decimal("12")
+
+    result = await db.execute(select(LotConsumption))
+    assert list(result.scalars().all()) == []
+
+    lot_result = await db.execute(
+        select(ProductLot).where(
+            ProductLot.product_id == voucher_test_product.id,
+            ProductLot.business_id == business_a.id,
+            ProductLot.deleted_at.is_(None),
+        )
+    )
+    total_stock = sum(lot.quantity for lot in lot_result.scalars().all())
+    assert total_stock == 50, "Cotización no debe modificar el stock disponible"
 
 
 # ════════════════════════════════════════════════════════════════

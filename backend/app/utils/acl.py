@@ -27,6 +27,7 @@ MODULE_KEYS = [
     "current_account",
     "settings",
     "sql_backup",
+    "srx",
 ]
 
 

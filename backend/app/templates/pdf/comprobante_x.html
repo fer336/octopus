@@ -1,147 +1,114 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<meta charset="utf-8">
-	<title>COMPROBANTE X {{ voucher.sale_point }}-{{ voucher.comp_number }}</title>
-	<style type="text/css">
-		@page {
-			size: A4;
-			margin: 10mm;
-		}
-		* {
-			box-sizing: border-box;
-			margin: 0;
-			padding: 0;
-		}
-		body {
-			font-family: sans-serif;
-			font-size: 11px;
-			color: #000;
-			position: relative;
-		}
+    <meta charset="utf-8">
+    <title>SRX {{ voucher.sale_point }}-{{ voucher.comp_number }}</title>
+    <style type="text/css">
+        @page {
+            size: A4;
+            margin: 10mm;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: sans-serif;
+            font-size: 11px;
+            color: #000;
+            position: relative;
+        }
 
-		/* Watermark diagonal SIN VALIDEZ FISCAL */
-		.watermark {
-			position: fixed;
-			top: 50%;
-			left: 50%;
-			transform: translate(-50%, -50%) rotate(-45deg);
-			font-size: 72px;
-			font-weight: bold;
-			color: #d00;
-			opacity: 0.06;
-			white-space: nowrap;
-			pointer-events: none;
-			z-index: 0;
-		}
-
-		/* Contenedor principal */
-		.invoice {
-			width: 100%;
-			border: 1px solid #000;
-			position: relative;
-			z-index: 1;
-		}
-
-		/* === ENCABEZADO === */
-		.header-container {
-			width: 100%;
-			border-bottom: 1px solid #000;
-			position: relative;
-            min-height: 160px;
-		}
-
-        /* Línea vertical central absoluta */
-        .header-vertical-line {
-            position: absolute;
+        /* Marca de agua SIN VALIDEZ FISCAL */
+        .watermark {
+            position: fixed;
+            top: 50%;
             left: 50%;
-            top: 0;
-            bottom: 0;
-            width: 1px;
-            background-color: #000;
-            transform: translateX(-50%);
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 55px;
+            font-weight: bold;
+            color: rgba(107, 74, 140, 0.12);
+            letter-spacing: 8px;
+            white-space: nowrap;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Contenedor principal */
+        .invoice {
+            width: 100%;
+            border: 2px solid #6b4a8c;
+            position: relative;
             z-index: 1;
+            background: #fff;
+        }
+
+        /* === ENCABEZADO === */
+        .header-container {
+            width: 100%;
+            border-bottom: 2px solid #6b4a8c;
+            position: relative;
+            min-height: 150px;
         }
 
         .header-table {
             width: 100%;
             border-collapse: collapse;
-            position: relative;
-            z-index: 2;
         }
 
         .header-col-left {
             width: 50%;
             vertical-align: top;
-            padding: 15px 15px 10px 15px;
+            padding: 12px 12px 8px 12px;
         }
 
         .header-col-right {
             width: 50%;
             vertical-align: top;
-            padding: 15px 15px 10px 30px;
+            padding: 12px 12px 8px 20px;
         }
 
-		/* Letra del comprobante */
-		.letter-box-container {
-			position: absolute;
-			top: 0;
-			left: 50%;
-			transform: translate(-50%, -50%);
-            background-color: white;
-            padding: 0 5px;
-            z-index: 10;
-		}
-		.letter-box {
-			border: 2px solid #c00;
-			width: 40px;
-			height: 40px;
-			line-height: 38px;
-			font-size: 24px;
-			font-weight: bold;
-			text-align: center;
-			background: #fff;
-			color: #c00;
-		}
-
-		.business-name {
-			font-size: 20px;
-			font-weight: bold;
-			margin-bottom: 8px;
-		}
-
-        .invoice-title {
-			font-size: 20px;
-			font-weight: bold;
-			margin-bottom: 8px;
-            text-align: center;
-            color: #c00;
-		}
-
+        /* Sello SRX grande */
         .srx-badge {
-            display: inline-block;
-            background: #fef2f2;
-            border: 1px solid #fca5a5;
-            color: #b91c1c;
+            background: #6b4a8c;
+            color: #fff;
+            font-size: 36px;
+            font-weight: 900;
+            letter-spacing: 6px;
+            text-align: center;
+            padding: 4px 0 2px 0;
+            margin-bottom: 6px;
+            border-radius: 0;
+        }
+        .srx-subtitle {
+            text-align: center;
             font-size: 9px;
+            color: #6b4a8c;
             font-weight: bold;
-            padding: 2px 6px;
-            border-radius: 3px;
-            letter-spacing: 0.5px;
-            margin-bottom: 10px;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
         }
 
-		.info-line {
-			margin: 3px 0;
-			font-size: 11px;
+        .business-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #5c3a8c;
+            margin-bottom: 6px;
+        }
+
+        .info-line {
+            margin: 2px 0;
+            font-size: 10px;
             line-height: 1.3;
-		}
-		.info-line strong {
-			font-weight: bold;
-		}
+        }
+        .info-line strong {
+            font-weight: bold;
+        }
+
         .logo-img {
-            max-height: 50px;
-            max-width: 180px;
+            max-height: 55px;
+            max-width: 160px;
             display: block;
         }
 
@@ -149,136 +116,164 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
 
-		/* === CLIENTE === */
+        /* Sello SIN VALIDEZ FISCAL */
+        .no-fiscal-stamp {
+            display: inline-block;
+            border: 2px solid #6b4a8c;
+            color: #6b4a8c;
+            font-size: 8px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-top: 4px;
+        }
+
+        /* === CLIENTE === */
         .client-container {
-            border-bottom: 1px solid #000;
+            border-bottom: 1px solid #d0c0e0;
             position: relative;
         }
 
         .client-table {
             width: 100%;
             border-collapse: collapse;
-            position: relative;
-            z-index: 2;
         }
         .client-col-left {
             width: 50%;
             vertical-align: top;
-            padding: 10px 15px;
+            padding: 8px 12px;
         }
         .client-col-right {
             width: 50%;
             vertical-align: top;
-            padding: 10px 15px 10px 30px;
+            padding: 8px 12px 8px 20px;
         }
 
-		/* === TABLA DE ITEMS === */
-		.items-table {
-			width: 100%;
-			border-collapse: collapse;
-			table-layout: fixed;
-		}
-		.items-table th {
-			background: #c0c0c0;
-			border: 1px solid #000;
+        .client-label {
+            font-size: 9px;
+            color: #6b4a8c;
+            font-weight: bold;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        /* === TABLA DE ITEMS === */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+        .items-table th {
+            background: #6b4a8c;
+            color: #fff;
+            border: 1px solid #5c3a8c;
             border-top: none;
             border-left: none;
-            border-right: 1px solid #000;
-			padding: 5px 4px;
-			font-size: 10px;
-			text-align: center;
-			font-weight: bold;
-		}
+            border-right: 1px solid #7a5a9c;
+            padding: 5px 4px;
+            font-size: 9px;
+            text-align: center;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
         .items-table th:last-child {
             border-right: none;
         }
-		.items-table td {
-			border-right: 1px solid #000;
-            border-bottom: 1px solid #000;
-			padding: 5px 4px;
-			font-size: 10px;
-			text-align: center;
-		}
+        .items-table td {
+            border-right: 1px solid #d0c0e0;
+            border-bottom: 1px solid #d0c0e0;
+            padding: 5px 4px;
+            font-size: 10px;
+            text-align: center;
+        }
         .items-table td:last-child {
             border-right: none;
         }
-		.items-table td:nth-child(3) {
-			text-align: left;
-			word-break: break-word;
-		}
-		.items-table th:nth-child(1),
-		.items-table th:nth-child(2),
-		.items-table td:nth-child(1),
-		.items-table td:nth-child(2) {
-			padding-left: 2px;
-			padding-right: 2px;
-			white-space: nowrap;
-		}
+        .items-table td:nth-child(3) {
+            text-align: left;
+            word-break: break-word;
+        }
+        .items-table th:nth-child(1),
+        .items-table th:nth-child(2),
+        .items-table td:nth-child(1),
+        .items-table td:nth-child(2) {
+            padding-left: 2px;
+            padding-right: 2px;
+            white-space: nowrap;
+        }
 
-		/* === TOTALES === */
-		.totals-section {
-			width: 100%;
-			border-top: 2px solid #000;
-			border-bottom: 2px solid #000;
-		}
-		.totals-section td {
-			padding: 6px 4px;
-		}
-		.total-label-inline {
-			text-align: right;
-			width: auto;
-			font-weight: bold;
-			font-size: 12px;
-			white-space: nowrap;
+        /* === TOTALES === */
+        .totals-section {
+            width: 100%;
+            border-top: 2px solid #6b4a8c;
+            border-bottom: 2px solid #6b4a8c;
+        }
+        .totals-section td {
+            padding: 6px 4px;
+        }
+        .total-label-inline {
+            text-align: right;
+            width: auto;
+            font-weight: bold;
+            font-size: 11px;
+            white-space: nowrap;
             padding-left: 10px;
             padding-right: 4px;
-		}
-		.total-value-inline {
-			text-align: left;
-			width: auto;
-			font-weight: bold;
-			font-size: 12px;
+            color: #333;
+        }
+        .total-value-inline {
+            text-align: left;
+            width: auto;
+            font-weight: bold;
+            font-size: 11px;
             padding-right: 15px;
-		}
+        }
 
-		/* === DISCLAIMER === */
-		.disclaimer {
-			background: #fef2f2;
-			border: 1px solid #fca5a5;
-			margin: 8px;
-			padding: 8px 12px;
-			font-size: 10px;
-			color: #7f1d1d;
-			border-radius: 3px;
-		}
+        /* Importe a pagar destacado */
+        .total-final-label {
+            text-align: right;
+            font-weight: bold;
+            font-size: 13px;
+            white-space: nowrap;
+            padding-left: 10px;
+            padding-right: 4px;
+            color: #5c3a8c;
+        }
+        .total-final-value {
+            text-align: left;
+            font-weight: bold;
+            font-size: 13px;
+            padding-right: 15px;
+            color: #5c3a8c;
+        }
 
-		/* === FOOTER === */
-		.footer {
-			text-align: center;
-			padding: 8px;
-			font-size: 10px;
-			color: #666;
-		}
-	</style>
+        /* === FOOTER === */
+        .footer {
+            text-align: center;
+            padding: 8px;
+            font-size: 9px;
+            color: #888;
+        }
+        .footer .no-fiscal {
+            color: #6b4a8c;
+            font-weight: bold;
+            font-size: 10px;
+            letter-spacing: 1px;
+        }
+    </style>
 </head>
 <body>
 
-<!-- Watermark -->
+<!-- Marca de agua SIN VALIDEZ FISCAL -->
 <div class="watermark">SIN VALIDEZ FISCAL</div>
 
 <div class="invoice">
     <!-- Header -->
     <div class="header-container">
-        <!-- Línea vertical central absoluta -->
-        <div class="header-vertical-line"></div>
-
-        <div class="letter-box-container">
-            <div class="letter-box">X</div>
-        </div>
-
         <table class="header-table">
             <tr>
                 <td class="header-col-left">
@@ -295,23 +290,20 @@
                         {% endif %}
                     </div>
                     {% endif %}
-                    <div class="info-line"><strong>Domicilio Comercial:</strong> {{ business.address or 'Sin domicilio' }}</div>
-                    <div class="info-line"><strong>Condición Frente al IVA:</strong> {{ business.tax_condition }}</div>
-                    <br>
-                    <div class="info-line"><strong>Período Desde:</strong> {{ voucher.date }}</div>
-                    <div class="info-line"><strong>Hasta:</strong> {{ voucher.date }}</div>
+                    <div class="info-line"><strong>Domicilio:</strong> {{ business.address or 'Sin domicilio' }}</div>
+                    <div class="info-line"><strong>CUIT:</strong> {{ business.cuit }}</div>
+                    <div class="info-line"><strong>Cond. IVA:</strong> {{ business.tax_condition }}</div>
                     {% if voucher.seller %}
                     <div class="info-line"><strong>Vendedor:</strong> {{ voucher.seller }}</div>
                     {% endif %}
                 </td>
-                <td class="header-col-right">
-                    <div class="invoice-title">COMPROBANTE X</div>
-                    <div style="text-align: center; margin-bottom: 10px;">
-                        <span class="srx-badge">SIN VALIDEZ FISCAL</span>
-                    </div>
-                    <div class="info-line"><strong>Punto de Venta:</strong> {{ voucher.sale_point }}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>Comp. Nro:</strong> {{ voucher.comp_number }}</div>
+                <td class="header-col-right" style="text-align: center;">
+                    <div class="srx-badge">SRX</div>
+                    <div class="srx-subtitle">SISTEMA DE REGISTRO DE COMPROBANTES X</div>
+                    <div class="info-line"><strong>Punto de Venta:</strong> {{ voucher.sale_point }}</div>
+                    <div class="info-line"><strong>Comprobante N°:</strong> {{ voucher.comp_number }}</div>
                     <div class="info-line"><strong>Fecha de Emisión:</strong> {{ voucher.date }}</div>
-                    <div class="info-line"><strong>CUIT:</strong> {{ business.cuit }}</div>
+                    <div class="no-fiscal-stamp">SIN VALIDEZ FISCAL</div>
                 </td>
             </tr>
         </table>
@@ -322,12 +314,13 @@
         <table class="client-table">
             <tr>
                 <td class="client-col-left">
-                    <div class="info-line"><strong>Apellido y Nombre / Razón social:</strong> {{ client.name }}</div>
+                    <div class="client-label">DATOS DEL CLIENTE</div>
+                    <div class="info-line"><strong>Nombre / Razón social:</strong> {{ client.name }}</div>
                     <div class="info-line"><strong>Domicilio:</strong> {{ client.address or 'Sin domicilio' }}</div>
                 </td>
                 <td class="client-col-right">
                     <div class="info-line"><strong>CUIL/CUIT:</strong> {{ client.document_number or '-' }}</div>
-                    <div class="info-line"><strong>Condición Frente al IVA:</strong> {{ client.tax_condition or 'Consumidor Final' }}</div>
+                    <div class="info-line"><strong>Cond. IVA:</strong> {{ client.tax_condition or 'Consumidor Final' }}</div>
                 </td>
             </tr>
         </table>
@@ -337,12 +330,12 @@
     <table class="items-table">
         <thead>
             <tr>
-                <th style="width: 54px">Cantidad</th>
-                <th style="width: 54px">Código</th>
+                <th style="width: 48px">Cant.</th>
+                <th style="width: 48px">Código</th>
                 <th>Producto / Servicio</th>
-                <th style="width: 84px">Precio Unit.</th>
-                <th style="width: 60px">% Bonif.</th>
-                <th style="width: 90px">Subtotal</th>
+                <th style="width: 80px">P. Unit.</th>
+                <th style="width: 55px">% Bonif.</th>
+                <th style="width: 85px">Subtotal</th>
             </tr>
         </thead>
         <tbody>
@@ -362,28 +355,22 @@
     <!-- Totals -->
     <table class="totals-section" cellspacing="0" cellpadding="0" style="width: 100%; table-layout: auto;">
         <tr>
-            <td class="total-label-inline"><strong>Subtotal: $</strong></td>
+            <td class="total-label-inline"><strong>Importe total: $</strong></td>
             <td class="total-value-inline">{{ totals.subtotal }}</td>
 
-            <td class="total-label-inline"><strong>Bonificación: $</strong></td>
+            <td class="total-label-inline"><strong>Bonificación:</strong></td>
             <td class="total-value-inline">{{ totals.discount }}</td>
 
             <td class="total-label-inline"><strong>IVA: $</strong></td>
             <td class="total-value-inline">{{ totals.iva }}</td>
 
-            <td class="total-label-inline"><strong>Importe total: $</strong></td>
-            <td class="total-value-inline">{{ totals.total }}</td>
+            <td class="total-final-label"><strong>Importe a pagar: $</strong></td>
+            <td class="total-final-value">{{ totals.total }}</td>
         </tr>
     </table>
 
-    <!-- Disclaimer -->
-    <div class="disclaimer">
-        <strong>DOCUMENTO SIN VALIDEZ FISCAL.</strong> Este comprobante no reemplaza a una factura electrónica emitida ante ARCA/AFIP.
-        No es válido para deducciones impositivas ni como comprobante de respaldo fiscal.
-    </div>
-
     <div class="footer">
-        Comprobante X &bull; {{ voucher.sale_point }}-{{ voucher.comp_number }} &bull; {{ voucher.date }}
+        <span class="no-fiscal">SIN VALIDEZ FISCAL</span> &bull; SRX {{ voucher.sale_point }}-{{ voucher.comp_number }} &bull; {{ voucher.date }} &bull; Documento no válido como factura
     </div>
 </div>
 

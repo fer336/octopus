@@ -110,6 +110,7 @@ export interface BrandingResponse {
   logo_display_mode: 'alongside_text' | 'replace_text'
   header_text: string | null
   sale_point: string | null
+  electronic_sale_point: string | null
   arca_environment: string | null
 }
 
@@ -129,6 +130,7 @@ export interface BrandingUpdate {
   logo_display_mode?: 'alongside_text' | 'replace_text'
   header_text?: string
   sale_point?: string
+  electronic_sale_point?: string
   arca_environment?: string
 }
 
@@ -147,6 +149,7 @@ export interface FeatureFlagsResponse {
   price_update_enabled: boolean
   reports_enabled: boolean
   sql_backup_enabled?: boolean
+  srx_enabled?: boolean
 }
 
 export interface FeatureFlagsUpdate {
@@ -163,6 +166,7 @@ export interface FeatureFlagsUpdate {
   price_update_enabled?: boolean
   reports_enabled?: boolean
   sql_backup_enabled?: boolean
+  srx_enabled?: boolean
 }
 
 export type FeedbackType = 'bug' | 'feature'

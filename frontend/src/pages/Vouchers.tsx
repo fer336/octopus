@@ -66,6 +66,7 @@ const voucherTypeLabels: Record<string, { label: string; textClass: string; icon
   debit_note_a:   { label: 'Nota de Débito A',  textClass: 'text-primary-600 dark:text-primary-400', icon: FileMinus },
   debit_note_b:   { label: 'Nota de Débito B',  textClass: 'text-primary-600 dark:text-primary-400', icon: FileMinus },
   debit_note_c:   { label: 'Nota de Débito C',  textClass: 'text-primary-600 dark:text-primary-400', icon: FileMinus },
+  invoice_x:      { label: 'Comprobante X',      textClass: 'text-violet-600 dark:text-violet-400', icon: Receipt },
 }
 
 const statusLabels: Record<string, { label: string; className: string }> = {
@@ -186,6 +187,7 @@ export default function Vouchers() {
   const currentAccountEnabled =
     (business?.current_account_mode ?? 'disabled') !== 'disabled' &&
     hasModuleAccess(user, 'current_account')
+  const srxEnabled = (business?.srx_enabled ?? false) && hasModuleAccess(user, 'srx')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [filterType, setFilterType] = useState('')
@@ -1428,6 +1430,7 @@ export default function Vouchers() {
                       { value: 'credit_note_c', label: 'Notas de Crédito C' },
                     ]
                   : []),
+                ...(srxEnabled ? [{ value: 'invoice_x', label: 'Comprobantes X' }] : []),
               ]}
             />
 
