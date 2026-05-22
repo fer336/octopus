@@ -14,8 +14,6 @@ import MainLayout from './components/layout/MainLayout'
 // Páginas públicas (carga inmediata — necesarias antes de auth)
 import Login from './pages/Login'
 import AuthCallback from './pages/AuthCallback'
-import Landing from './pages/Landing'
-import ProductAccess from './pages/ProductAccess'
 import ProductPublicPage from './pages/ProductPublicPage'
 
 // Páginas protegidas con lazy load — cada una genera su propio chunk
@@ -118,9 +116,7 @@ export default function App() {
           <Routes>
             {/* Rutas públicas */}
             <Route path="/login" element={<Login />} />
-            <Route path="/acceder" element={<ProductAccess />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="/landing" element={<Landing />} />
             <Route path="/p/:id" element={<ProductPublicPage />} />
 
             {/* Rutas protegidas — cada página carga solo cuando se navega */}
