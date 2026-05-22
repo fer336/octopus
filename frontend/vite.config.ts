@@ -2,10 +2,22 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-const buildInput = {
-  tenant: path.resolve(__dirname, 'tenant.html'),
-  admin: path.resolve(__dirname, 'admin.html'),
-}
+const buildTarget = process.env.BUILD_APP ?? 'all'
+
+const buildInput =
+  buildTarget === 'landing'
+    ? {
+        landing: path.resolve(__dirname, 'landing.html'),
+        politicasPrivacidad: path.resolve(__dirname, 'politicas-privacidad.html'),
+        politicasSeguridad: path.resolve(__dirname, 'politicas-seguridad.html'),
+      }
+    : {
+        tenant: path.resolve(__dirname, 'tenant.html'),
+        admin: path.resolve(__dirname, 'admin.html'),
+        landing: path.resolve(__dirname, 'landing.html'),
+        politicasPrivacidad: path.resolve(__dirname, 'politicas-privacidad.html'),
+        politicasSeguridad: path.resolve(__dirname, 'politicas-seguridad.html'),
+      }
 
 export default defineConfig({
   plugins: [react()],

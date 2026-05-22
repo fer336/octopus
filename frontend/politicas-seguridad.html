@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Políticas de Seguridad | OctopusTrack</title>
+    <meta
+      name="description"
+      content="Conocé las prácticas de seguridad aplicadas en OctopusTrack para proteger operaciones y datos del negocio."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #05080f;
+        --bg-soft: #0b1322;
+        --card: #111b32;
+        --line: #2a416e;
+        --text: #e8f2ff;
+        --muted: #aac1df;
+        --accent: #3fd4a6;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: 'Manrope', system-ui, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(950px 480px at 15% -20%, rgba(63, 212, 166, 0.26), transparent 60%),
+          radial-gradient(950px 480px at 120% -20%, rgba(65, 129, 255, 0.2), transparent 60%),
+          linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
+      }
+
+      .wrap { max-width: 980px; margin: 0 auto; padding: 32px 20px 72px; }
+
+      .nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 26px; }
+      .back {
+        color: var(--text);
+        text-decoration: none;
+        font-weight: 700;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px 14px;
+        background: rgba(255,255,255,0.02);
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 28px;
+        background: linear-gradient(150deg, rgba(63, 212, 166, 0.12), rgba(17, 27, 50, 0.95));
+      }
+
+      .kicker { text-transform: uppercase; font-size: 12px; letter-spacing: .08em; font-weight: 800; color: #b5f8e4; }
+      h1 { margin: 8px 0 10px; font-size: clamp(1.85rem, 4vw, 2.8rem); line-height: 1.15; }
+      .lead { margin: 0; color: var(--muted); line-height: 1.7; }
+
+      .list {
+        margin-top: 22px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 14px;
+      }
+
+      article {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px;
+        background: rgba(17, 27, 50, 0.76);
+      }
+
+      h2 { margin: 0 0 8px; font-size: 1.05rem; }
+      p { margin: 0; color: var(--muted); line-height: 1.65; }
+
+      .full {
+        margin-top: 16px;
+        border: 1px dashed #4f7bc3;
+        border-radius: 14px;
+        padding: 16px;
+        background: rgba(17, 27, 50, 0.5);
+      }
+
+      footer {
+        margin-top: 24px;
+        color: #8eb0d9;
+        font-size: .92rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <nav class="nav">
+        <a class="back" href="/">← Volver al sitio</a>
+        <span class="kicker">OctopusTrack · Seguridad</span>
+      </nav>
+
+      <section class="panel">
+        <span class="kicker">Política de Seguridad</span>
+        <h1>La seguridad no es marketing. Es ingeniería aplicada todos los días.</h1>
+        <p class="lead">
+          En OctopusTrack aplicamos controles técnicos, operativos y de acceso para reducir riesgo y proteger la
+          continuidad del negocio de nuestros clientes.
+        </p>
+
+        <div class="list">
+          <article>
+            <h2>Autenticación y acceso</h2>
+            <p>Control de sesiones, validación de identidad y políticas de acceso basadas en permisos.</p>
+          </article>
+          <article>
+            <h2>Transmisión segura</h2>
+            <p>Comunicación cifrada en tránsito mediante HTTPS/TLS para proteger integridad y confidencialidad.</p>
+          </article>
+          <article>
+            <h2>Protección de infraestructura</h2>
+            <p>Monitoreo de eventos, segmentación de entornos y endurecimiento de configuración en servicios críticos.</p>
+          </article>
+          <article>
+            <h2>Backups y recuperación</h2>
+            <p>Estrategias de respaldo y recuperación ante incidentes para minimizar pérdida de información.</p>
+          </article>
+          <article>
+            <h2>Gestión de vulnerabilidades</h2>
+            <p>Revisión periódica de dependencias, parches de seguridad y mejora continua de controles.</p>
+          </article>
+          <article>
+            <h2>Registro y auditoría</h2>
+            <p>Trazabilidad técnica de eventos relevantes para investigar incidentes y mejorar respuesta operativa.</p>
+          </article>
+        </div>
+
+        <div class="full">
+          <h2>Reporte de incidentes</h2>
+          <p>
+            Si detectás una vulnerabilidad o comportamiento sospechoso, escribinos a
+            <strong>seguridad@octopustrack.shop</strong> con evidencia y contexto técnico para análisis prioritario.
+          </p>
+        </div>
+      </section>
+
+      <footer>
+        Última actualización: 2026-05-02 · Esta política evoluciona con mejoras de arquitectura, prácticas DevSecOps y
+        nuevos escenarios de amenaza.
+      </footer>
+    </main>
+  </body>
+</html>

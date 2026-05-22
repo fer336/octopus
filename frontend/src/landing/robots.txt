@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Sitemap de indexación
+Sitemap: https://octopustrack.shop/sitemap.xml
+
+# Evitar indexar paneles internos
+Disallow: /admin.html
+Disallow: /tenant.html
+Disallow: /acceder
