@@ -41,6 +41,7 @@ from app.services.ai_quote_service import (
     _search_candidates_in_memory,
     _thread_local,
 )
+from app.services.ai_memory_service import get_business_memory_context
 from app.services.llm_factory import LLMFactory
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,7 @@ class ChatState(TypedDict):
     message: str
     history: list[dict]
     user_name: str
+    memory_context: str
     db_products: list[dict]
 
     # Clientes IA
@@ -679,7 +681,7 @@ def _classify_heuristic(message: str, history: list[dict]) -> tuple[str, dict]:
 # ─────────────────────────────────────────────────────────────
 
 
-def _build_system_prompt(user_name: str = "") -> str:
+def _build_system_prompt(user_name: str = "", memory_context: str = "") -> str:
     name_ctx = (
         (
             f"El nombre del usuario es {user_name}. "
@@ -688,9 +690,17 @@ def _build_system_prompt(user_name: str = "") -> str:
         if user_name
         else ""
     )
+    memory_ctx = (
+        "\nContexto de memoria del negocio (Engram, no fuente de verdad):\n"
+        f"{memory_context}\n"
+        "Usalo solo como orientación semántica. Para precios, stock, saldos, comprobantes, pagos y datos fiscales, confiá únicamente en la base de datos y herramientas del sistema.\n"
+        if memory_context
+        else ""
+    )
     return f"""Sos Luci, la asistente del negocio en OctopusTrack. Hablás como una secretaria argentina: amigable, directa y eficiente.
 
 {name_ctx}
+{memory_ctx}
 
 Tu forma de hablar:
 - Español rioplatense con tuteo ("¿en qué te puedo ayudar?", "anotado", "dale", "perfecto", "¿algo más?")
@@ -1375,11 +1385,12 @@ def node_respond_llm(state: ChatState) -> dict:
     message = state["message"]
     history = state["history"]
     name = state["user_name"]
+    memory_context = state["memory_context"]
     client = state["ai_client"]
     model = state["ai_model"]
     n = f", {name}" if name else ""
 
-    system = _build_system_prompt(name)
+    system = _build_system_prompt(name, memory_context=memory_context)
     msgs: list[dict] = [{"role": "system", "content": system}]
     for h in history[-10:]:
         content = str(h.get("content", ""))
@@ -1635,6 +1646,11 @@ async def run_chat_agent(
     import asyncio
 
     db_products = await _load_catalog_products(db, business_id)
+    memory_context = await get_business_memory_context(
+        message,
+        business_id=business_id,
+        limit=5,
+    )
 
     # Intentar resolver el proveedor IA
     has_llm = True
@@ -1656,6 +1672,7 @@ async def run_chat_agent(
         "message": message,
         "history": history,
         "user_name": user_name,
+        "memory_context": memory_context,
         "db_products": db_products,
         "ai_client": ai_client,
         "ai_model": ai_model,
@@ -1715,6 +1732,11 @@ async def run_chat_agent_streaming(
     import queue as _queue
 
     db_products = await _load_catalog_products(db, business_id)
+    memory_context = await get_business_memory_context(
+        message,
+        business_id=business_id,
+        limit=5,
+    )
 
     has_llm = True
     ai_provider = ai_api_key = ai_model = ""
@@ -1735,6 +1757,7 @@ async def run_chat_agent_streaming(
         "message": message,
         "history": history,
         "user_name": user_name,
+        "memory_context": memory_context,
         "db_products": db_products,
         "ai_client": ai_client,
         "ai_model": ai_model,

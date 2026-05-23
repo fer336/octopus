@@ -71,6 +71,13 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4o"
     OPENAI_WHISPER_MODEL: str = "whisper-1"
 
+    # Engram — memoria semántica de Luci (PostgreSQL sigue siendo fuente de verdad)
+    ENGRAM_ENABLED: bool = False
+    ENGRAM_BASE_URL: str = "http://127.0.0.1:7437"
+    ENGRAM_PROJECT: str = "octopus"
+    ENGRAM_TIMEOUT_SECONDS: float = 2.0
+    ENGRAM_SESSION_ID_PREFIX: str = "octopustrack-luci"
+
     # Cifrado simétrico de API keys en base de datos
     # Generá la tuya con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     APP_ENCRYPTION_KEY: str = ""
