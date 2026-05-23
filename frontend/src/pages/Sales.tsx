@@ -4198,11 +4198,18 @@ export default function Sales() {
               </div>
             )}
             <div ref={productListRef} className="overflow-auto flex-1 min-h-0">
-              <table className="w-full text-sm">
+              <table className="w-full table-fixed text-sm">
+                <colgroup>
+                  <col className="w-16" />
+                  <col className="w-28" />
+                  <col />
+                  <col className="w-20" />
+                  <col className="w-28" />
+                </colgroup>
                 <thead className="bg-gray-100 dark:bg-gray-900 sticky top-0">
                   <tr>
-                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Código</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Cód. Fábrica</th>
+                    <th className="px-2 py-2 text-left font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Código</th>
+                    <th className="px-2 py-2 text-left font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Cód. Fábrica</th>
                     <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Descripción</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Stock</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Precio venta</th>
@@ -4238,12 +4245,12 @@ export default function Sales() {
                           }}
                           onDoubleClick={() => toggleProductInTemp(product)}
                         >
-                          <td className="px-3 py-2 font-medium whitespace-nowrap">
+                          <td className="px-2 py-2 font-medium whitespace-nowrap">
                             {isInTemp && <span className="text-green-600 dark:text-green-400 mr-1 text-base">✓</span>}
                             {product.code}
                           </td>
-                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">{product.supplier_code || '—'}</td>
-                          <td className="px-3 py-2 font-semibold">{product.description}</td>
+                          <td className="px-2 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap truncate" title={product.supplier_code || undefined}>{product.supplier_code || '—'}</td>
+                          <td className="px-3 py-2 font-semibold truncate" title={product.description}>{product.description}</td>
                           <td className="px-3 py-2 text-right whitespace-nowrap">{product.current_stock ?? '—'}</td>
                           <td className="px-3 py-2 text-right whitespace-nowrap">${formatNumber(product.sale_price)}</td>
                         </tr>
