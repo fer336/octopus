@@ -36,12 +36,29 @@ import dashboardService from '../api/dashboardService'
 import { Button } from '../components/ui'
 import WhatsAppStatusCard from '../components/messaging/WhatsAppStatusCard'
 
+interface ChartPayload {
+  name: string
+  color: string
+  value: number
+}
+
+interface ChartTooltipProps {
+  active?: boolean
+  payload?: ChartPayload[]
+  label?: string
+}
+
 const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
 const formatCurrency = (value: number) =>
   `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+const formatShortDate = (value: string) => {
+  const [year, month, day] = value.split('-')
+  return `${day}/${month}/${year}`
+}
 
 // ── Paleta de colores ───────────────────────────────────────────
 const COLORS = {
@@ -59,13 +76,13 @@ const PIE_COLORS = [COLORS.emerald, COLORS.cyan, COLORS.violet, COLORS.sky]
 const BAR_COLORS = { cash: '#3b82f6', sales: '#94a3b8' }
 
 // ── Tooltip personalizado ──────────────────────────────────────
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label }: ChartTooltipProps) {
   if (!active || !payload?.length) return null
   return (
     <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg shadow-lg px-4 py-3 text-sm">
       <p className="font-semibold text-gray-900 dark:text-white mb-1">{label}</p>
-      {payload.map((entry: any, i: number) => (
-        <p key={i} className="flex items-center gap-2" style={{ color: entry.color }}>
+      {payload.map(entry => (
+        <p key={entry.name} className="flex items-center gap-2" style={{ color: entry.color }}>
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
           {entry.name}: <strong className="ml-1">{formatCurrency(entry.value)}</strong>
         </p>
@@ -74,7 +91,7 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-function DonutTooltip({ active, payload }: any) {
+function DonutTooltip({ active, payload }: ChartTooltipProps) {
   if (!active || !payload?.length) return null
   const d = payload[0]
   return (
@@ -89,10 +106,18 @@ export default function Dashboard() {
   const today = new Date()
   const [filterMonth, setFilterMonth] = useState(today.getMonth() + 1)
   const [filterYear, setFilterYear] = useState(today.getFullYear())
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const hasDateRange = Boolean(dateFrom || dateTo)
 
   const { data: summary, isLoading, error } = useQuery({
-    queryKey: ['dashboard-summary', filterMonth, filterYear],
-    queryFn: () => dashboardService.getSummary({ month: filterMonth, year: filterYear }),
+    queryKey: ['dashboard-summary', filterMonth, filterYear, dateFrom, dateTo],
+    queryFn: () => dashboardService.getSummary({
+      month: filterMonth,
+      year: filterYear,
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+    }),
     retry: false,
   })
 
@@ -104,6 +129,8 @@ export default function Dashboard() {
 
   // ── Navegación de mes ──────────────────────────────────────
   const goPrevMonth = () => {
+    setDateFrom('')
+    setDateTo('')
     if (filterMonth === 1) {
       setFilterMonth(12)
       setFilterYear(y => y - 1)
@@ -113,6 +140,8 @@ export default function Dashboard() {
   }
   const goNextMonth = () => {
     if (filterMonth === today.getMonth() + 1 && filterYear === today.getFullYear()) return
+    setDateFrom('')
+    setDateTo('')
     if (filterMonth === 12) {
       setFilterMonth(1)
       setFilterYear(y => y + 1)
@@ -121,6 +150,9 @@ export default function Dashboard() {
     }
   }
   const isCurrentMonth = filterMonth === today.getMonth() + 1 && filterYear === today.getFullYear()
+  const periodLabel = hasDateRange && summary
+    ? `${formatShortDate(summary.filter_date_from)} al ${formatShortDate(summary.filter_date_to)}`
+    : `${MONTH_NAMES[filterMonth - 1]} ${filterYear}`
 
   // ── Datos para donut ───────────────────────────────────────
   const donutData = [
@@ -179,7 +211,26 @@ export default function Dashboard() {
             Resumen financiero basado en movimientos reales de caja
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={event => setDateFrom(event.target.value)}
+            className="h-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 text-xs text-gray-700 dark:text-gray-200"
+            aria-label="Fecha desde"
+          />
+          <input
+            type="date"
+            value={dateTo}
+            onChange={event => setDateTo(event.target.value)}
+            className="h-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 text-xs text-gray-700 dark:text-gray-200"
+            aria-label="Fecha hasta"
+          />
+          {hasDateRange && (
+            <Button variant="outline" size="sm" onClick={() => { setDateFrom(''); setDateTo('') }}>
+              Limpiar
+            </Button>
+          )}
           <button
             onClick={goPrevMonth}
             className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -188,8 +239,8 @@ export default function Dashboard() {
             <ChevronLeft size={16} className="text-gray-600 dark:text-gray-300" />
           </button>
           <div className="text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 min-w-[160px] text-center">
-            {MONTH_NAMES[filterMonth - 1]} {filterYear}
-            {isCurrentMonth && (
+            {periodLabel}
+            {isCurrentMonth && !hasDateRange && (
               <span className="ml-1.5 text-[10px] text-primary-600 dark:text-primary-400 font-semibold uppercase tracking-wide">actual</span>
             )}
           </div>
@@ -202,6 +253,45 @@ export default function Dashboard() {
             <ChevronRight size={16} className="text-gray-600 dark:text-gray-300" />
           </button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          {
+            title: 'Ventas de Hoy',
+            value: formatCurrency(summary?.today_sales || 0),
+            subtitle: 'Cobrado hoy por facturas confirmadas',
+            icon: Wallet,
+            bg: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400',
+          },
+          {
+            title: 'Facturado Hoy',
+            value: formatCurrency(summary?.today_invoiced || 0),
+            subtitle: 'Total de comprobantes confirmados hoy',
+            icon: ShoppingCart,
+            bg: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400',
+          },
+          {
+            title: 'Comprobantes Hoy',
+            value: String(summary?.today_vouchers_count || 0),
+            subtitle: 'Facturas A/B/C confirmadas',
+            icon: Receipt,
+            bg: 'bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400',
+          },
+        ].map(card => (
+          <div key={card.title} className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-[0_4px_12px_rgba(15,23,42,0.04)] border border-slate-200 dark:border-gray-700">
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`p-1.5 rounded-lg ${card.bg}`}>
+                <card.icon size={15} />
+              </div>
+              <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {card.title}
+              </span>
+            </div>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{card.value}</p>
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">{card.subtitle}</p>
+          </div>
+        ))}
       </div>
 
       {/* ═══ Hero + Donut ═══ */}
@@ -252,7 +342,7 @@ export default function Dashboard() {
                 Composición de Ingresos
               </h2>
             </div>
-            <span className="text-[10px] text-gray-400 dark:text-gray-500">{MONTH_NAMES[filterMonth - 1]} {filterYear}</span>
+            <span className="text-[10px] text-gray-400 dark:text-gray-500">{periodLabel}</span>
           </div>
           {donutData.length > 0 ? (
             <div className="flex items-center justify-center h-[200px]">

@@ -51,6 +51,7 @@ from app.schemas.voucher import (
 from app.services.afip_sdk_service import AfipSdkService
 from app.services.cash_register_service import (
     create_automatic_movement,
+    ensure_open_cash_register_for_billing,
     get_open_cash_register,
 )
 from app.services.pdf_service import pdf_service
@@ -391,20 +392,13 @@ async def create_voucher(
     if data.is_current_account:
         await _ensure_current_account_available(db, business_id, current_user)
 
-    # Validar caja abierta para facturas
+    open_register = None
+    # Validar caja abierta vigente para facturas. Cotizaciones/remitos conservan el alcance actual.
     if data.voucher_type in INVOICE_TYPES:
-        open_register = await get_open_cash_register(db, business_id)
-        if not open_register:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No hay una caja abierta. Debe abrir la caja antes de emitir facturas.",
-            )
+        open_register = await ensure_open_cash_register_for_billing(db, business_id)
 
     service = VoucherService(db)
     try:
-        # Obtener caja abierta para registrar movimientos
-        open_register = await get_open_cash_register(db, business_id) if data.voucher_type in INVOICE_TYPES else None
-
         voucher = await service.create(
             business_id,
             data,
@@ -1363,22 +1357,14 @@ async def convert_quotation_to_invoice(
     if data.is_current_account:
         await _ensure_current_account_available(db, business_id, current_user)
 
-    # Validar caja abierta antes de convertir
-    open_register = await get_open_cash_register(db, business_id)
-    if not open_register:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No hay una caja abierta. Debe abrir la caja antes de emitir facturas.",
-        )
+    # Validar caja abierta vigente antes de convertir
+    open_register = await ensure_open_cash_register_for_billing(db, business_id)
 
     service = VoucherService(db)
     try:
         payments_raw = None
         if data.payments:
             payments_raw = [p.model_dump() for p in data.payments]
-
-        # Obtener caja abierta para registrar movimientos
-        open_register = await get_open_cash_register(db, business_id)
 
         invoice = await service.convert_quotation_to_invoice(
             business_id=business_id,
@@ -1616,21 +1602,13 @@ async def compile_quotations_to_invoice(
     if data.is_current_account:
         await _ensure_current_account_available(db, business_id, current_user)
 
-    open_register = await get_open_cash_register(db, business_id)
-    if not open_register:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No hay una caja abierta. Debe abrir la caja antes de emitir facturas.",
-        )
+    open_register = await ensure_open_cash_register_for_billing(db, business_id)
 
     service = VoucherService(db)
     try:
         payments_raw = None
         if data.payments:
             payments_raw = [p.model_dump() for p in data.payments]
-
-        # Obtener caja abierta para registrar movimientos
-        open_register = await get_open_cash_register(db, business_id)
 
         invoice = await service.compile_quotations_to_invoice(
             business_id=business_id,
@@ -1713,13 +1691,12 @@ async def create_credit_note(
     """
     await _ensure_invoicing_enabled(db, business_id)
 
-    # Validar caja abierta antes de emitir NC
-    open_register = await get_open_cash_register(db, business_id)
-    if not open_register:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No hay una caja abierta. Debe abrir la caja antes de emitir Notas de Crédito.",
-        )
+    # Validar caja abierta vigente antes de emitir NC
+    open_register = await ensure_open_cash_register_for_billing(
+        db,
+        business_id,
+        missing_detail="No hay una caja abierta. Debe abrir la caja antes de emitir Notas de Crédito.",
+    )
 
     service = VoucherService(db)
 

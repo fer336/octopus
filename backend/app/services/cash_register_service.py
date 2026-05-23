@@ -61,6 +61,31 @@ async def get_open_cash_register(
     return result.scalar_one_or_none()
 
 
+async def ensure_open_cash_register_for_billing(
+    db: AsyncSession,
+    business_id: UUID,
+    missing_detail: str = "No hay una caja abierta. Debe abrir la caja antes de emitir facturas.",
+) -> CashRegister:
+    """Retorna la caja abierta válida para facturar o bloquea si no existe/venció."""
+    register = await get_open_cash_register(db, business_id)
+    if not register:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=missing_detail,
+        )
+
+    if _is_expired(register):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "La caja abierta está vencida (+24hs). Cerrá la caja vencida "
+                "y abrí una nueva antes de facturar."
+            ),
+        )
+
+    return register
+
+
 async def get_status(
     db: AsyncSession,
     business_id: UUID,

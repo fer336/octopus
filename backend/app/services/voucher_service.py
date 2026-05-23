@@ -2118,14 +2118,14 @@ class VoucherService:
                     "subtotal": f"{abs_raw:,.2f}",
                     "discount": "0%",
                     "iva": "21%",
-                    "total": f"{abs_raw:,.2f}",
+                    "total": f"{abs_raw + iva_no_discount:,.2f}",
                 }
                 if hide_discount
                 else {
                     "subtotal": f"{abs_item_sum:,.2f}",
                     "discount": f"{general_discount_pct_rounded:g}%",
                     "iva": "21%",
-                    "total": f"{abs_item_sum * (1 - general_discount_pct_rounded / Decimal('100')):,.2f}",
+                    "total": f"{abs_total:,.2f}",
                 }
             ),
             "copy": {

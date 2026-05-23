@@ -11,6 +11,9 @@ export interface DashboardSummary {
   total_value: number
   total_sales: number
   total_invoices: number
+  today_sales: number
+  today_invoiced: number
+  today_vouchers_count: number
   cash_income: number
   paid_invoices: number
   paid_stockpiles: number
@@ -21,11 +24,15 @@ export interface DashboardSummary {
   closed_current_accounts_total: number
   filter_month: number
   filter_year: number
+  filter_date_from: string
+  filter_date_to: string
 }
 
 export interface DashboardSummaryParams {
   month?: number
   year?: number
+  date_from?: string
+  date_to?: string
 }
 
 export interface MonthlyTrend {
@@ -39,7 +46,7 @@ export interface MonthlyTrend {
 
 export const dashboardService = {
   /**
-   * Obtiene el resumen del dashboard, opcionalmente filtrado por mes/año.
+   * Obtiene el resumen del dashboard, opcionalmente filtrado por mes/año o rango de fechas.
    */
   getSummary: async (params?: DashboardSummaryParams): Promise<DashboardSummary> => {
     const response = await httpClient.get('/dashboard/summary', { params })
