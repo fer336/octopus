@@ -1,7 +1,7 @@
 {
   "name": "octopustrack-frontend",
   "private": true,
-  "version": "1.4.5",
+  "version": "1.4.6",
   "type": "module",
   "scripts": {
     "dev": "npm run dev:tenant",
