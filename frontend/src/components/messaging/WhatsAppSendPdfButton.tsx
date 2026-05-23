@@ -4,8 +4,8 @@ import 'driver.js/dist/driver.css'
 import toast from 'react-hot-toast'
 import WhatsAppSendModal from './WhatsAppSendModal'
 import WhatsAppIcon from './WhatsAppIcon'
-import { listSessions } from '../../api/whatsapp/service'
-import { getProviderConfig } from '../../api/whatsapp/provider'
+import { getConnectionState, listSessions } from '../../api/whatsapp/service'
+import { useMessagingStore } from '../../stores/messagingStore'
 
 interface Props {
   getPdfBlob: () => Promise<Blob>
@@ -63,15 +63,48 @@ export default function WhatsAppSendPdfButton({
 }: Props) {
   const [open, setOpen] = useState(false)
   const [checking, setChecking] = useState(false)
+  const { sessions, activeSessionId, setSessions, setActiveSessionId } = useMessagingStore()
+
+  async function hasReadySession(): Promise<boolean> {
+    const readyStoreSession =
+      sessions.find((session) => session.status === 'ready' && session.id === activeSessionId) ??
+      sessions.find((session) => session.status === 'ready')
+
+    if (readyStoreSession) {
+      setActiveSessionId(readyStoreSession.id)
+      return true
+    }
+
+    if (activeSessionId) {
+      try {
+        const session = await getConnectionState(activeSessionId)
+        setSessions([session])
+        if (session.status === 'ready') {
+          setActiveSessionId(session.id)
+          return true
+        }
+      } catch {
+        // stale activeSessionId — fall through to listSessions()
+      }
+    }
+
+    const remoteSessions = await listSessions()
+    setSessions(remoteSessions)
+    const anyReady = remoteSessions.find((session) => session.status === 'ready')
+
+    if (anyReady) {
+      setActiveSessionId(anyReady.id)
+      return true
+    }
+
+    return false
+  }
 
   async function handleClick() {
     if (checking) return
     setChecking(true)
     try {
-      const sessionId = getProviderConfig().defaultSessionId.trim() || 'octopustrack'
-      const sessions = await listSessions()
-      const active = sessions.find((s) => s.id === sessionId && s.status === 'ready')
-      if (active) {
+      if (await hasReadySession()) {
         setOpen(true)
       } else {
         toast.error('WhatsApp no está conectado. Emparejá tu dispositivo primero.', { duration: 4000 })
