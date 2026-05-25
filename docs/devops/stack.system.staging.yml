@@ -12,7 +12,7 @@ version: "3.9"
 
 services:
   backend:
-    image: ghcr.io/fer336/octopustrack-backend:${IMAGE_TAG:-staging-a66dbac}
+    image: ghcr.io/fer336/octopustrack-backend:${IMAGE_TAG:-staging-8c2b576}
     networks:
       - network_public
       - octopus-staging-internal
@@ -66,7 +66,7 @@ services:
         - "traefik.http.services.octopus-staging-backend.loadbalancer.server.port=8000"
 
   frontend:
-    image: ghcr.io/fer336/octopustrack-frontend:${IMAGE_TAG:-staging-a66dbac}
+    image: ghcr.io/fer336/octopustrack-frontend:${IMAGE_TAG:-staging-8c2b576}
     networks:
       - network_public
       - octopus-staging-internal
