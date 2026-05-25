@@ -68,7 +68,9 @@ class Product(BaseModel):
 
     # Precios base
     cost_price = Column(Numeric(12, 2), default=0, nullable=False)  # Precio de costo
-    list_price = Column(Numeric(12, 2), default=0, nullable=False)  # Precio de lista
+    list_price = Column(Numeric(12, 2), default=0, nullable=False)  # Precio de lista (siempre ARS)
+    price_currency = Column(String(10), nullable=False, server_default="ARS")
+    list_price_usd = Column(Numeric(12, 2), nullable=True)
 
     # Bonificaciones en cadena
     discount_1 = Column(Numeric(5, 2), default=0, nullable=False)

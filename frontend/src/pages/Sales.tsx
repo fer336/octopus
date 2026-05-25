@@ -29,7 +29,8 @@ import { hasModuleAccess } from '../utils/acl'
 import { TAX_CONDITIONS, getTaxConditionLabel } from '../types'
 import { isMobile } from '../utils/device'
 import QrScanner from '../components/sales/QrScanner'
-import WhatsAppSendPdfButton from '../components/messaging/WhatsAppSendPdfButton'
+import WhatsAppSendModal from '../components/messaging/WhatsAppSendModal'
+import WhatsAppIcon from '../components/messaging/WhatsAppIcon'
 
 type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'invoice_x' | 'current_account' | 'acopio'
 type SalesMenuMode = VoucherType
@@ -400,7 +401,7 @@ export default function Sales() {
   })
   const _draftUserId = () => useAuthStore.getState().user?.id ?? null
 
-  const [voucherType, setVoucherType] = useState<VoucherType>(() => (_draft?.voucherType as VoucherType) ?? 'quotation')
+  const [voucherType, setVoucherType] = useState<VoucherType>('quotation')
   const [showPrices, setShowPrices] = useState(() => _draft?.showPrices ?? true)
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null)
   const [editingVoucherDate, setEditingVoucherDate] = useState<string | null>(null)
@@ -1082,6 +1083,7 @@ export default function Sales() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [pdfVoucherInfo, setPdfVoucherInfo] = useState<{ type: string, number: string, sale_point?: string } | null>(null)
   const [pdfWhatsAppCtx, setPdfWhatsAppCtx] = useState<{ voucherId: string; clientId: string } | null>(null)
+  const [whatsAppPdfOpen, setWhatsAppPdfOpen] = useState(false)
 
   // === SRX double-copy print options ===
   const [showSrxPrintModal, setShowSrxPrintModal] = useState(false)
@@ -2414,6 +2416,7 @@ export default function Sales() {
   }
 
   const handleClosePdfModal = () => {
+    setWhatsAppPdfOpen(false)
     setShowPdfModal(false)
     // Limpiar URLs después de cerrar
     setTimeout(() => {
@@ -2726,7 +2729,7 @@ export default function Sales() {
         }, 0)
 
         // Total alineado con backend para evitar discrepancias por redondeo
-        const total = calculateBackendCompatibleTotalFromCart(items, generalDiscount)
+        const total = Number(totalsPreviewQuery.data?.total) || calculateBackendCompatibleTotalFromCart(items, generalDiscount)
 
         // La diferencia (lo que falta pagar)
         const difference = Math.max(0, total - currentlyAssigned)
@@ -2762,7 +2765,7 @@ export default function Sales() {
   const handlePaymentAmountChange = (methodId: string, value: string) => {
     setPaymentSelections((prev) => {
       // 1. Calculamos el total de la factura alineado con backend
-      const total = calculateBackendCompatibleTotalFromCart(items, generalDiscount)
+      const total = Number(totalsPreviewQuery.data?.total) || calculateBackendCompatibleTotalFromCart(items, generalDiscount)
 
       // 2. Buscamos si hay OTROS métodos seleccionados (que no sean el actual)
       const otherSelectedMethods = Object.entries(prev).filter(([id, data]) => id !== methodId && data.selected)
@@ -6574,13 +6577,14 @@ export default function Sales() {
                   <span className="hidden sm:inline">Descargar PDF</span>
                 </Button>
                 {pdfWhatsAppCtx && business?.whatsapp_enabled && (
-                  <WhatsAppSendPdfButton
-                    defaultClientId={pdfWhatsAppCtx.clientId}
-                    getPdfBlob={() => vouchersService.getPdf(pdfWhatsAppCtx.voucherId)}
-                    filename={`comprobante-${pdfVoucherInfo?.type}-${pdfVoucherInfo?.sale_point || ''}-${pdfVoucherInfo?.number}.pdf`}
-                    caption={`Comprobante ${pdfVoucherInfo?.type} ${pdfVoucherInfo?.sale_point || ''}-${pdfVoucherInfo?.number}`}
-                    fullButton
-                  />
+                  <button
+                    onClick={() => setWhatsAppPdfOpen(true)}
+                    title="Enviar por WhatsApp"
+                    className="w-full min-w-0 inline-flex items-center justify-center gap-2 text-sm font-medium rounded-lg border border-green-400 text-green-700 hover:bg-green-50 dark:border-green-600 dark:text-green-400 dark:hover:bg-green-900/30 px-4 py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  >
+                    <WhatsAppIcon size={16} />
+                    <span className="hidden sm:inline">WhatsApp</span>
+                  </button>
                 )}
                 <Button
                   variant="outline"
@@ -6680,6 +6684,17 @@ export default function Sales() {
       </Modal>
 
 
+
+      {pdfWhatsAppCtx && (
+        <WhatsAppSendModal
+          isOpen={whatsAppPdfOpen}
+          onClose={() => setWhatsAppPdfOpen(false)}
+          getPdfBlob={() => vouchersService.getPdf(pdfWhatsAppCtx.voucherId)}
+          filename={`comprobante-${pdfVoucherInfo?.type}-${pdfVoucherInfo?.sale_point || ''}-${pdfVoucherInfo?.number}.pdf`}
+          caption={`Comprobante ${pdfVoucherInfo?.type} ${pdfVoucherInfo?.sale_point || ''}-${pdfVoucherInfo?.number}`}
+          defaultClientId={pdfWhatsAppCtx.clientId}
+        />
+      )}
 
       {showQrScanner && (
         <QrScanner

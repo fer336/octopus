@@ -43,6 +43,8 @@ class ProductCreate(BaseSchema):
 
     cost_price: Decimal = Field(default=Decimal("0"), ge=0)
     list_price: Decimal = Field(default=Decimal("0"), ge=0)
+    price_currency: str = Field(default="ARS", max_length=10)
+    list_price_usd: Decimal | None = Field(None, ge=0)
 
     discount_1: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     discount_2: Decimal = Field(default=Decimal("0"), ge=0, le=100)
@@ -89,6 +91,8 @@ class ProductUpdate(BaseSchema):
 
     cost_price: Decimal | None = Field(None, ge=0)
     list_price: Decimal | None = Field(None, ge=0)
+    price_currency: str | None = Field(None, max_length=10)
+    list_price_usd: Decimal | None = Field(None, ge=0)
 
     discount_1: Decimal | None = Field(None, ge=0, le=100)
     discount_2: Decimal | None = Field(None, ge=0, le=100)
@@ -142,6 +146,8 @@ class ProductResponse(BaseResponse):
 
     cost_price: Decimal
     list_price: Decimal
+    price_currency: str
+    list_price_usd: Decimal | None
 
     discount_1: Decimal
     discount_2: Decimal

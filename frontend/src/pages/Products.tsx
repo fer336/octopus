@@ -17,6 +17,7 @@ import ImportPreviewModal from '../components/products/ImportPreviewModal'
 import QrPrintPreview from '../components/products/QrPrintPreview'
 import BulkDeleteModal from '../components/products/BulkDeleteModal'
 import ImportProgressModal from '../components/products/ImportProgressModal'
+import exchangeRateService from '../api/exchangeRateService'
 
 type ProductFormData = Partial<Product> & {
   expiration_date?: string
@@ -112,6 +113,13 @@ export default function Products() {
   })
   const sqlBackupEnabled = business?.sql_backup_enabled ?? false
   const qrScannerEnabled = business?.qr_scanner_enabled ?? true
+
+  const { data: exchangeRates } = useQuery({
+    queryKey: ['exchange-rates'],
+    queryFn: () => exchangeRateService.getRates(),
+    staleTime: 10 * 60 * 1000,
+  })
+  const blueRate = exchangeRates?.blue.promedio ?? 0
 
   // Valores seguros con fallback a array vacío
   const categories = Array.isArray(categoriesData) ? categoriesData : []
@@ -581,6 +589,8 @@ export default function Products() {
   })
 
   const [discountsInput, setDiscountsInput] = useState('')
+  const [priceCurrency, setPriceCurrency] = useState<'ARS' | 'USD'>('ARS')
+  const [listPriceUsd, setListPriceUsd] = useState<string>('')
   const [selectedPhotoFile, setSelectedPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
 
@@ -623,6 +633,8 @@ export default function Products() {
       is_active: true,
     })
     setDiscountsInput('')
+    setPriceCurrency('ARS')
+    setListPriceUsd('')
     setSelectedPhotoFile(null)
     setPhotoPreview(null)
   }
@@ -745,6 +757,8 @@ export default function Products() {
       // Construir el string de descuentos
       const discounts = [product.discount_1, product.discount_2, product.discount_3].filter(d => d > 0)
       setDiscountsInput(discounts.join('+'))
+      setPriceCurrency(product.price_currency ?? 'ARS')
+      setListPriceUsd(product.list_price_usd?.toString() ?? '')
       setSelectedPhotoFile(null)
       setPhotoPreview(null)
     } else {
@@ -769,7 +783,17 @@ export default function Products() {
       return
     }
 
-    if ((formData.list_price ?? 0) <= 0) {
+    const resolvedListPrice = priceCurrency === 'USD' && blueRate > 0
+      ? Math.round(Number(listPriceUsd) * blueRate * 100) / 100
+      : (formData.list_price ?? 0)
+
+    if (priceCurrency === 'USD' && Number(listPriceUsd) <= 0) {
+      toast.error('El precio en USD debe ser mayor a 0')
+      listPriceRef.current?.focus()
+      return
+    }
+
+    if (priceCurrency === 'ARS' && resolvedListPrice <= 0) {
       toast.error('El precio de lista debe ser mayor a 0')
       listPriceRef.current?.focus()
       return
@@ -785,7 +809,9 @@ export default function Products() {
         customer_terms: formData.customer_terms?.trim() || undefined,
         category_id: formData.category_id || undefined,
         supplier_id: formData.supplier_id || undefined,
-        list_price: formData.list_price!,
+        list_price: resolvedListPrice,
+        price_currency: priceCurrency,
+        list_price_usd: priceCurrency === 'USD' ? Number(listPriceUsd) : null,
         discount_1: formData.discount_1 || 0,
         discount_2: formData.discount_2 || 0,
         discount_3: formData.discount_3 || 0,
@@ -806,7 +832,9 @@ export default function Products() {
         customer_terms: formData.customer_terms?.trim() || undefined,
         category_id: formData.category_id || undefined,
         supplier_id: formData.supplier_id || undefined,
-        list_price: formData.list_price!,
+        list_price: resolvedListPrice,
+        price_currency: priceCurrency,
+        list_price_usd: priceCurrency === 'USD' ? Number(listPriceUsd) : null,
         discount_1: formData.discount_1 || 0,
         discount_2: formData.discount_2 || 0,
         discount_3: formData.discount_3 || 0,
@@ -1096,8 +1124,11 @@ export default function Products() {
 
                       <div>{renderExpirationBadge(item)}</div>
 
-                      <span className="font-mono text-xs text-gray-700 dark:text-gray-300">
+                      <span className="font-mono text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1">
                         ${item.list_price.toLocaleString('es-AR')}
+                        {item.price_currency === 'USD' && (
+                          <span className="text-[9px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-1 rounded">USD</span>
+                        )}
                       </span>
                       <span className="font-mono text-sm font-semibold text-primary-700 dark:text-primary-300">
                         ${item.sale_price.toLocaleString('es-AR')}
@@ -1263,8 +1294,15 @@ export default function Products() {
 
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                   <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400">Lista</p>
-                    <p className="font-medium text-gray-800 dark:text-gray-200">${item.list_price.toLocaleString()}</p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                      Lista {item.price_currency === 'USD' && <span className="text-blue-600 dark:text-blue-400">(USD)</span>}
+                    </p>
+                    <p className="font-medium text-gray-800 dark:text-gray-200">
+                      ${item.list_price.toLocaleString()}
+                      {item.price_currency === 'USD' && item.list_price_usd && (
+                        <span className="ml-1 text-[10px] text-blue-600 dark:text-blue-400">= U${item.list_price_usd}</span>
+                      )}
+                    </p>
                   </div>
                   <div className="rounded-lg border border-primary-200 bg-primary-50 px-2 py-1.5 dark:border-primary-800 dark:bg-primary-900/20">
                     <p className="text-[10px] text-primary-700 dark:text-primary-300">Venta</p>
@@ -1501,21 +1539,64 @@ export default function Products() {
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5 lg:gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  P. Lista *
-                </label>
-                <input
-                  ref={listPriceRef}
-                  type="number"
-                  value={formData.list_price}
-                  onChange={(e) => setFormData({ ...formData, list_price: parseFloat(e.target.value) || 0 })}
-                  onFocus={handleNumericFocus}
-                  onKeyDown={(e) => handleNumericKeyDown(e, 'list_price', discountsRef)}
-                  placeholder="0.00"
-                  step="0.01"
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-green-500"
-                  required
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                    P. Lista *
+                  </label>
+                  <div className="flex rounded overflow-hidden border border-gray-300 dark:border-gray-600 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => { setPriceCurrency('ARS'); setListPriceUsd('') }}
+                      className={`px-1.5 py-0.5 font-medium transition-colors ${priceCurrency === 'ARS' ? 'bg-green-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                    >
+                      ARS
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPriceCurrency('USD')}
+                      className={`px-1.5 py-0.5 font-medium transition-colors ${priceCurrency === 'USD' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                    >
+                      USD
+                    </button>
+                  </div>
+                </div>
+                {priceCurrency === 'ARS' ? (
+                  <input
+                    ref={listPriceRef}
+                    type="number"
+                    value={formData.list_price}
+                    onChange={(e) => setFormData({ ...formData, list_price: parseFloat(e.target.value) || 0 })}
+                    onFocus={handleNumericFocus}
+                    onKeyDown={(e) => handleNumericKeyDown(e, 'list_price', discountsRef)}
+                    placeholder="0.00"
+                    step="0.01"
+                    className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-green-500"
+                    required
+                  />
+                ) : (
+                  <div className="space-y-1">
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-blue-600 dark:text-blue-400 font-bold">USD</span>
+                      <input
+                        ref={listPriceRef}
+                        type="number"
+                        value={listPriceUsd}
+                        onChange={(e) => setListPriceUsd(e.target.value)}
+                        onFocus={handleNumericFocus}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); discountsRef.current?.focus() } }}
+                        placeholder="0.00"
+                        step="0.01"
+                        className="w-full pl-10 pr-2 py-1.5 text-sm border border-blue-300 dark:border-blue-600 rounded-lg dark:bg-gray-700 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    {blueRate > 0 && Number(listPriceUsd) > 0 && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        = ${(Math.round(Number(listPriceUsd) * blueRate * 100) / 100).toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS
+                        <span className="ml-1 text-gray-400">(blue ${blueRate.toLocaleString('es-AR', { minimumFractionDigits: 2 })})</span>
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1582,8 +1663,10 @@ export default function Products() {
             </div>
 
             {/* Cálculo de precio final - Desglose completo */}
-            {((formData.list_price ?? 0) > 0) && (() => {
-              const listPrice = formData.list_price || 0
+            {((priceCurrency === 'USD' ? Number(listPriceUsd) > 0 && blueRate > 0 : (formData.list_price ?? 0) > 0)) && (() => {
+              const listPrice = priceCurrency === 'USD' && blueRate > 0
+                ? Math.round(Number(listPriceUsd) * blueRate * 100) / 100
+                : (formData.list_price || 0)
               const d1 = formData.discount_1 || 0
               const d2 = formData.discount_2 || 0
               const d3 = formData.discount_3 || 0

@@ -26,6 +26,7 @@ from app.routers import (
     clients,
     dashboard,
     drafts,
+    exchange_rate,
     feedback,
     payment_methods,
     pdf_test,
@@ -104,6 +105,7 @@ app.include_router(suppliers.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(categories.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(dashboard.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(drafts.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(exchange_rate.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(pdf_test.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(vouchers.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(whatsapp.router, prefix=settings.API_TENANT_PREFIX)
