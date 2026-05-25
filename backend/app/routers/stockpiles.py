@@ -2,23 +2,26 @@
 Router de Acopio (Stockpile).
 Endoints REST para gestionar acopios.
 """
+import hmac
 import io
 import logging
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
+from app.config import get_settings
 from app.database import get_db
 from app.models import Business, Stockpile, StockpileItem, StockpilePriceSnapshot, StockpileStatus, Voucher, VoucherStatus, VoucherType, Product
 from app.models.client import Client
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.utils.security import get_current_business, require_module_access
+from app.utils.security import get_current_business, require_module_access, security
 from app.schemas.base import PaginatedResponse
 from app.schemas.stockpile import (
     StockpileCreate,
@@ -49,6 +52,42 @@ router = APIRouter(
     tags=["stockpiles"],
     dependencies=[Depends(require_module_access("stockpiles"))],
 )
+
+internal_router = APIRouter(
+    prefix="/stockpiles",
+    tags=["stockpiles"],
+)
+
+
+async def authorize_price_snapshot_download(
+    stockpile: Stockpile,
+    db: AsyncSession,
+    credentials: HTTPAuthorizationCredentials | None,
+    n8n_api_key: str | None,
+) -> None:
+    """Autoriza descarga por JWT normal o API key interna de n8n."""
+    settings = get_settings()
+
+    if (
+        n8n_api_key
+        and settings.N8N_STOCKPILE_SNAPSHOT_API_KEY
+        and hmac.compare_digest(n8n_api_key, settings.N8N_STOCKPILE_SNAPSHOT_API_KEY)
+    ):
+        return
+
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales no proporcionadas",
+        )
+
+    current_user = await get_current_user(credentials=credentials, db=db)
+    business_id = await get_current_business(db=db, current_user=current_user)
+    if stockpile.business_id != business_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Acopio no encontrado",
+        )
 
 
 def serialize_stockpile_item(item) -> StockpileItemResponse:
@@ -376,6 +415,8 @@ async def create_stockpile_by_amount(
     asyncio.create_task(
         snapshot_service.dispatch_webhook(
             stockpile_id=stockpile.id,
+            stockpile_name=stockpile.name,
+            stockpile_number=stockpile.stockpile_number,
             client_email=client.email if client else None,
             client_name=client.name if client else None,
             business_name=business_name,
@@ -995,21 +1036,21 @@ async def get_frozen_items(
     return result
 
 
-@router.get("/{stockpile_id}/price-snapshot/excel")
+@internal_router.get("/{stockpile_id}/price-snapshot/excel")
 async def download_price_snapshot_excel(
     stockpile_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    business_id: UUID = Depends(get_current_business),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    n8n_api_key: str | None = Header(None, alias="X-N8N-Stockpile-API-Key"),
 ):
     """Descarga el Excel de precios congelados de un acopio por monto."""
-    # Verificar que el acopio existe y pertenece al negocio
     stockpile = await db.get(Stockpile, stockpile_id)
-    if not stockpile or stockpile.business_id != business_id:
+    if not stockpile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Acopio no encontrado",
         )
+    await authorize_price_snapshot_download(stockpile, db, credentials, n8n_api_key)
 
     snapshot_service = StockpileSnapshotService(db)
     snapshots = await snapshot_service.get_snapshots(stockpile_id)

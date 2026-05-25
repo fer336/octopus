@@ -159,6 +159,8 @@ class StockpileSnapshotService:
     async def dispatch_webhook(
         self,
         stockpile_id: UUID,
+        stockpile_name: str | None,
+        stockpile_number: str | None,
         client_email: str | None,
         client_name: str | None,
         business_name: str,
@@ -178,12 +180,15 @@ class StockpileSnapshotService:
 
         api_key = settings.N8N_STOCKPILE_SNAPSHOT_API_KEY
         snapshot_url = (
-            f"{base_url.rstrip('/')}/stockpiles/{stockpile_id}/price-snapshot/excel"
+            f"{base_url.rstrip('/')}{settings.API_TENANT_PREFIX}"
+            f"/stockpiles/{stockpile_id}/price-snapshot/excel"
         )
 
         payload = {
             "event": "stockpile_created",
             "stockpile_id": str(stockpile_id),
+            "stockpile_name": stockpile_name or "",
+            "stockpile_number": stockpile_number or "",
             "client_email": client_email or "",
             "client_name": client_name or "",
             "business_name": business_name,

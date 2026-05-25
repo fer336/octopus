@@ -9,11 +9,13 @@ Cubre:
 - Resolución de precios desde snapshots en retiros (voucher_service)
 - Legacy fallback para acopios sin snapshots
 """
+import asyncio
 import io
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
+import httpx
 import openpyxl
 import pytest
 from httpx import AsyncClient
@@ -555,6 +557,230 @@ class TestExcelEndpoint:
         # user_a no tiene negocio asociado, obtiene 403
         assert response.status_code in (403, 404), (
             f"Expected 403 or 404, got {response.status_code}: {response.text[:200]}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_download_excel_accepts_internal_n8n_api_key(
+        self,
+        client: AsyncClient,
+        db: AsyncSession,
+        user_a: User,
+        business_a: Business,
+        monkeypatch,
+    ):
+        """n8n puede descargar el Excel sin sesión usando la API key interna."""
+        from app.services.stockpile_service import StockpileService
+
+        monkeypatch.setenv("N8N_STOCKPILE_SNAPSHOT_API_KEY", "test-stockpile-key")
+        await _create_products(db, business_a.id)
+        client_entity = await _create_client(db, business_a.id)
+
+        service = StockpileService(db)
+        stockpile, _ = await service.create_by_amount(
+            business_id=business_a.id,
+            client_id=client_entity.id,
+            created_by=user_a.id,
+            name="Acopio API Key",
+            currency="ARS",
+            exchange_rate=Decimal("1.00"),
+            amount=Decimal("5000.00"),
+            discount_percent=Decimal("0"),
+        )
+
+        response = await client.get(
+            f"/api/tenant/stockpiles/{stockpile.id}/price-snapshot/excel",
+            headers={"X-N8N-Stockpile-API-Key": "test-stockpile-key"},
+        )
+        assert response.status_code == 200
+        assert response.headers["content-type"] == (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Tests: n8n webhook dispatch
+# ---------------------------------------------------------------------------
+
+
+class TestStockpileWebhookDispatch:
+    """Webhook fire-and-forget para envío de resumen de acopio por n8n."""
+
+    @pytest.mark.asyncio
+    async def test_dispatch_webhook_posts_expected_payload(
+        self,
+        db: AsyncSession,
+        monkeypatch,
+    ):
+        """El servicio POSTea el contrato esperado hacia n8n."""
+        from app.services.stockpile_snapshot_service import StockpileSnapshotService
+
+        calls = []
+
+        class MockAsyncClient:
+            def __init__(self, timeout):
+                self.timeout = timeout
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return None
+
+            async def post(self, url, json):
+                calls.append({"url": url, "json": json, "timeout": self.timeout})
+                return httpx.Response(
+                    202,
+                    request=httpx.Request("POST", url),
+                )
+
+        monkeypatch.setenv("N8N_STOCKPILE_WEBHOOK_URL", "https://n8n.test/webhook/acopio")
+        monkeypatch.setenv("N8N_STOCKPILE_SNAPSHOT_API_KEY", "snapshot-secret")
+        monkeypatch.setattr(
+            "app.services.stockpile_snapshot_service.httpx.AsyncClient",
+            MockAsyncClient,
+        )
+
+        stockpile_id = UUID("00000000-0000-0000-0000-000000000123")
+        service = StockpileSnapshotService(db)
+        result = await service.dispatch_webhook(
+            stockpile_id=stockpile_id,
+            stockpile_name="Obra Centro",
+            stockpile_number="AC-0001",
+            client_email="cliente@example.com",
+            client_name="Juan Perez",
+            business_name="Mi Ferretería",
+            base_url="https://api.example.com/",
+        )
+
+        assert result == {"sent": True, "status_code": 202}
+        assert len(calls) == 1
+        assert calls[0]["url"] == "https://n8n.test/webhook/acopio"
+        assert calls[0]["timeout"] == 5.0
+        assert calls[0]["json"] == {
+            "event": "stockpile_created",
+            "stockpile_id": str(stockpile_id),
+            "stockpile_name": "Obra Centro",
+            "stockpile_number": "AC-0001",
+            "client_email": "cliente@example.com",
+            "client_name": "Juan Perez",
+            "business_name": "Mi Ferretería",
+            "snapshot_url": (
+                f"https://api.example.com/api/tenant/stockpiles/{stockpile_id}"
+                "/price-snapshot/excel"
+            ),
+            "auth_token": "snapshot-secret",
+        }
+
+    @pytest.mark.asyncio
+    async def test_dispatch_webhook_timeout_does_not_crash(
+        self,
+        db: AsyncSession,
+        monkeypatch,
+    ):
+        """Un timeout de n8n no debe romper la creación del acopio."""
+        from app.services.stockpile_snapshot_service import StockpileSnapshotService
+
+        class TimeoutAsyncClient:
+            def __init__(self, timeout):
+                self.timeout = timeout
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return None
+
+            async def post(self, url, json):
+                raise httpx.TimeoutException("timeout")
+
+        monkeypatch.setenv("N8N_STOCKPILE_WEBHOOK_URL", "https://n8n.test/webhook/acopio")
+        monkeypatch.setattr(
+            "app.services.stockpile_snapshot_service.httpx.AsyncClient",
+            TimeoutAsyncClient,
+        )
+
+        service = StockpileSnapshotService(db)
+        result = await service.dispatch_webhook(
+            stockpile_id=UUID("00000000-0000-0000-0000-000000000124"),
+            stockpile_name="Obra Timeout",
+            stockpile_number="AC-0002",
+            client_email="cliente@example.com",
+            client_name="Juan Perez",
+            business_name="Mi Ferretería",
+            base_url="https://api.example.com",
+        )
+
+        assert result == {"sent": False, "reason": "timeout"}
+
+    @pytest.mark.asyncio
+    async def test_create_by_amount_schedules_webhook_after_success(
+        self,
+        client: AsyncClient,
+        db: AsyncSession,
+        user_a: User,
+        business_a: Business,
+        membership_a: TenantMembership,
+        monkeypatch,
+    ):
+        """El endpoint crea el acopio y dispara POST fire-and-forget a n8n."""
+        calls = []
+
+        class MockAsyncClient:
+            def __init__(self, timeout):
+                self.timeout = timeout
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return None
+
+            async def post(self, url, json):
+                calls.append({"url": url, "json": json})
+                return httpx.Response(200, request=httpx.Request("POST", url))
+
+        monkeypatch.setenv("N8N_STOCKPILE_WEBHOOK_URL", "https://n8n.test/webhook/acopio")
+        monkeypatch.setenv("N8N_STOCKPILE_SNAPSHOT_API_KEY", "snapshot-secret")
+        monkeypatch.setattr(
+            "app.services.stockpile_snapshot_service.httpx.AsyncClient",
+            MockAsyncClient,
+        )
+
+        await _create_products(db, business_a.id)
+        client_entity = await _create_client(db, business_a.id)
+        headers = make_auth_header(user_a)
+
+        response = await client.post(
+            "/api/tenant/stockpiles/by-amount",
+            json={
+                "client_id": str(client_entity.id),
+                "name": "Acopio Webhook Endpoint",
+                "currency": "ARS",
+                "exchange_rate": 1.0,
+                "amount": 10000.0,
+                "discount_percent": 0,
+            },
+            headers=headers,
+        )
+        assert response.status_code == 201, response.text[:500]
+
+        for _ in range(10):
+            if calls:
+                break
+            await asyncio.sleep(0.01)
+
+        assert len(calls) == 1
+        payload = calls[0]["json"]
+        assert payload["event"] == "stockpile_created"
+        assert payload["stockpile_id"] == response.json()["id"]
+        assert payload["stockpile_name"] == "Acopio Webhook Endpoint"
+        assert payload["stockpile_number"].startswith("AC-")
+        assert payload["client_email"] == "cliente@test.com"
+        assert payload["client_name"] == "Cliente Test"
+        assert payload["business_name"] == "Tenant A"
+        assert payload["auth_token"] == "snapshot-secret"
+        assert payload["snapshot_url"].endswith(
+            f"/api/tenant/stockpiles/{response.json()['id']}/price-snapshot/excel"
         )
 
 
