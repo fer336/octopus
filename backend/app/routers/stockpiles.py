@@ -9,7 +9,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,6 +41,7 @@ from app.schemas.stockpile import (
     ValidateWithdrawalRequest,
     ValidateWithdrawalResponse,
     StockpileOpenItem,
+    StockpilePriceSnapshotEmailRequest,
     StockpilePriceSnapshotEmailResponse,
 )
 from app.services.stockpile_service import StockpileService
@@ -244,7 +245,7 @@ async def list_stockpiles_tree(
     """Lista acopios como árbol: acopio/remito principal → remitos parciales."""
 
     query = (
-        select(Stockpile, Client.name, Voucher.sale_point, Voucher.number)
+        select(Stockpile, Client.name, Client.email, Voucher.sale_point, Voucher.number)
         .join(Client, Client.id == Stockpile.client_id)
         .outerjoin(Voucher, Voucher.id == Stockpile.principal_voucher_id)
         .where(Stockpile.business_id == business_id)
@@ -290,7 +291,7 @@ async def list_stockpiles_tree(
         snapshot_stockpile_ids = set(snapshot_result.scalars().all())
 
     items: list[StockpileTreeItem] = []
-    for stockpile, client_name, sale_point, number in rows:
+    for stockpile, client_name, client_email, sale_point, number in rows:
         child_vouchers = [
             StockpileTreeChildVoucher(
                 id=child.id,
@@ -312,6 +313,7 @@ async def list_stockpiles_tree(
                 stockpile_number=stockpile.stockpile_number,
                 description=stockpile.description,
                 client_name=client_name,
+                client_email=client_email,
                 status=stockpile.status,
                 created_at=stockpile.created_at,
                 principal_voucher_id=stockpile.principal_voucher_id,
@@ -379,7 +381,6 @@ async def create_stockpile(
 )
 async def create_stockpile_by_amount(
     data: StockpileCreateByAmount,
-    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     business_id: UUID = Depends(get_current_business),
@@ -419,24 +420,6 @@ async def create_stockpile_by_amount(
         await db.get(Voucher, stockpile.principal_voucher_id)
         if stockpile.principal_voucher_id
         else None
-    )
-
-    # Disparar webhook a n8n (fire-and-forget) para envío de Excel
-    snapshot_service = StockpileSnapshotService(db)
-    business = await db.get(Business, business_id)
-    business_name = business.name if business else ""
-    base_url = str(request.base_url).rstrip("/")
-    import asyncio
-    asyncio.create_task(
-        snapshot_service.dispatch_webhook(
-            stockpile_id=stockpile.id,
-            stockpile_name=stockpile.name,
-            stockpile_number=stockpile.stockpile_number,
-            client_email=client.email if client else None,
-            client_name=client.name if client else None,
-            business_name=business_name,
-            base_url=base_url,
-        )
     )
 
     return serialize_stockpile(
@@ -718,6 +701,7 @@ async def archive_cancelled_stockpiles(
 async def send_price_snapshot_email(
     stockpile_id: UUID,
     request: Request,
+    data: StockpilePriceSnapshotEmailRequest | None = Body(default=None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     business_id: UUID = Depends(get_current_business),
@@ -745,11 +729,13 @@ async def send_price_snapshot_email(
 
     client = await db.get(Client, stockpile.client_id)
     business = await db.get(Business, business_id)
+    recipient_email = str(data.recipient_email) if data and data.recipient_email else None
     dispatch_result = await snapshot_service.dispatch_webhook(
         stockpile_id=stockpile.id,
+        business_id=stockpile.business_id,
         stockpile_name=stockpile.name,
         stockpile_number=stockpile.stockpile_number,
-        client_email=client.email if client else None,
+        client_email=recipient_email or (client.email if client else None),
         client_name=client.name if client else None,
         business_name=business.name if business else "",
         base_url=str(request.base_url).rstrip("/"),

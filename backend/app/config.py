@@ -95,10 +95,10 @@ class Settings(BaseSettings):
     # n8n webhook para envío de resumen de acopio por email
     N8N_STOCKPILE_WEBHOOK_URL: str = ""
 
-    # API key para que n8n descargue el Excel de snapshots de acopio
+    # API key legacy para descargas internas del Excel de snapshots de acopio
     N8N_STOCKPILE_SNAPSHOT_API_KEY: str = ""
 
-    # MinIO / S3 compatible (logos branding)
+    # MinIO / S3 compatible (logos branding y snapshots privados de acopio)
     MINIO_ENDPOINT: str = ""
     MINIO_ACCESS_KEY: str = ""
     MINIO_SECRET_KEY: str = ""
@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     MINIO_SECURE: bool = True
     MINIO_REGION: str = "us-east-1"
     MINIO_PUBLIC_BASE_URL: str = ""
+    MINIO_STOCKPILE_SNAPSHOT_BUCKET_NAME: str = "stockpile-snapshots"
+    STOCKPILE_SNAPSHOT_PRESIGNED_URL_EXPIRE_SECONDS: int = 1800
+    # Configurar lifecycle del bucket privado en MinIO para borrar snapshots en <=24h.
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

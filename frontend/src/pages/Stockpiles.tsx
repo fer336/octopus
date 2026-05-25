@@ -41,6 +41,8 @@ export default function Stockpiles() {
   const [voucherToCancel, setVoucherToCancel] = useState<{ id: string; number: string; stockpileId: string; stockpileName: string } | null>(null)
   const [confirmArchiveCancelled, setConfirmArchiveCancelled] = useState(false)
   const [downloadingSnapshotId, setDownloadingSnapshotId] = useState<string | null>(null)
+  const [emailModalStockpile, setEmailModalStockpile] = useState<StockpileTreeItem | null>(null)
+  const [emailRecipient, setEmailRecipient] = useState('')
 
   const archiveCancelledMutation = useMutation({
     mutationFn: () => stockpileService.archiveCancelledStockpiles(),
@@ -75,10 +77,13 @@ export default function Stockpiles() {
   })()
 
   const sendPriceSnapshotEmailMutation = useMutation({
-    mutationFn: (stockpileId: string) => stockpileService.sendPriceSnapshotEmail(stockpileId),
+    mutationFn: ({ stockpileId, recipientEmail }: { stockpileId: string; recipientEmail: string }) =>
+      stockpileService.sendPriceSnapshotEmail(stockpileId, recipientEmail),
     onSuccess: (result) => {
       if (result.sent) {
         toast.success('Email enviado', { duration: 2500, icon: '✅' })
+        setEmailModalStockpile(null)
+        setEmailRecipient('')
         return
       }
 
@@ -209,6 +214,26 @@ export default function Stockpiles() {
     } finally {
       setDownloadingSnapshotId(null)
     }
+  }
+
+  const openEmailModal = (item: StockpileTreeItem) => {
+    setEmailModalStockpile(item)
+    setEmailRecipient(item.client_email || '')
+  }
+
+  const isEmailLike = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+
+  const handleSendPriceSnapshotEmail = () => {
+    if (!emailModalStockpile) return
+    if (!isEmailLike(emailRecipient)) {
+      toast.error('Ingresá un email válido')
+      return
+    }
+
+    sendPriceSnapshotEmailMutation.mutate({
+      stockpileId: emailModalStockpile.id,
+      recipientEmail: emailRecipient,
+    })
   }
 
   // Eliminar remito hijo mutation
@@ -438,11 +463,11 @@ export default function Stockpiles() {
                         <Button
                           variant="secondary"
                           size="sm"
-                          onClick={(e) => { e.stopPropagation(); sendPriceSnapshotEmailMutation.mutate(item.id) }}
-                          disabled={sendPriceSnapshotEmailMutation.isPending && sendPriceSnapshotEmailMutation.variables === item.id}
+                          onClick={(e) => { e.stopPropagation(); openEmailModal(item) }}
+                          disabled={sendPriceSnapshotEmailMutation.isPending && sendPriceSnapshotEmailMutation.variables?.stockpileId === item.id}
                         >
                           <Mail size={14} />
-                          {sendPriceSnapshotEmailMutation.isPending && sendPriceSnapshotEmailMutation.variables === item.id
+                          {sendPriceSnapshotEmailMutation.isPending && sendPriceSnapshotEmailMutation.variables?.stockpileId === item.id
                             ? 'Enviando...'
                             : 'Enviar por Email'}
                         </Button>
@@ -736,6 +761,70 @@ export default function Stockpiles() {
         confirmText="Sí, cancelar"
         variant="danger"
       />
+
+      <Modal
+        isOpen={!!emailModalStockpile}
+        onClose={() => {
+          if (sendPriceSnapshotEmailMutation.isPending) return
+          setEmailModalStockpile(null)
+          setEmailRecipient('')
+        }}
+        title="Enviar Excel por email"
+        size="md"
+      >
+        {emailModalStockpile && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-900/40">
+              <p className="font-medium text-gray-900 dark:text-gray-100">
+                {emailModalStockpile.stockpile_number || 'Acopio sin número'} · {emailModalStockpile.name}
+              </p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Archivo: {getSnapshotFilename(emailModalStockpile)}
+              </p>
+            </div>
+
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">Destinatario</span>
+              <input
+                type="email"
+                value={emailRecipient}
+                onChange={(e) => setEmailRecipient(e.target.value)}
+                placeholder="cliente@ejemplo.com"
+                className="w-full rounded-lg border px-3 py-2 dark:border-gray-700 dark:bg-gray-800"
+              />
+            </label>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                onClick={() => handleDownloadPriceSnapshot(emailModalStockpile)}
+                disabled={downloadingSnapshotId === emailModalStockpile.id}
+              >
+                <Download size={16} />
+                {downloadingSnapshotId === emailModalStockpile.id ? 'Descargando...' : 'Descargar Excel'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setEmailModalStockpile(null)
+                  setEmailRecipient('')
+                }}
+                disabled={sendPriceSnapshotEmailMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleSendPriceSnapshotEmail}
+                disabled={sendPriceSnapshotEmailMutation.isPending}
+              >
+                <Mail size={16} />
+                {sendPriceSnapshotEmailMutation.isPending ? 'Enviando...' : 'Enviar'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Modal para ver remito hijo */}
       <Modal

@@ -5,7 +5,7 @@ from decimal import Decimal
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 
 # ──────────────────────────────────────────────────────────
@@ -312,6 +312,7 @@ class StockpileTreeItem(BaseModel):
     stockpile_number: str | None
     description: str | None
     client_name: str
+    client_email: str | None = None
     status: str
     created_at: datetime
     principal_voucher_id: UUID | None
@@ -330,6 +331,12 @@ class StockpilePriceSnapshotEmailResponse(BaseModel):
     status_code: int | None = None
     reason: str | None = None
     message: str
+
+
+class StockpilePriceSnapshotEmailRequest(BaseModel):
+    """Destinatario opcional para enviar el Excel de precios congelados."""
+
+    recipient_email: EmailStr | None = None
 
 
 class StockpileTreeResponse(BaseModel):

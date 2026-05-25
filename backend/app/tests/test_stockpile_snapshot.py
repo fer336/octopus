@@ -9,7 +9,6 @@ Cubre:
 - Resolución de precios desde snapshots en retiros (voucher_service)
 - Legacy fallback para acopios sin snapshots
 """
-import asyncio
 import io
 from datetime import date
 from decimal import Decimal
@@ -611,7 +610,7 @@ class TestStockpileWebhookDispatch:
         db: AsyncSession,
         monkeypatch,
     ):
-        """El servicio POSTea el contrato esperado hacia n8n."""
+        """El servicio POSTea a n8n una URL presignada sin token de descarga."""
         from app.services.stockpile_snapshot_service import StockpileSnapshotService
 
         calls = []
@@ -634,14 +633,22 @@ class TestStockpileWebhookDispatch:
                 )
 
         monkeypatch.setenv("N8N_STOCKPILE_WEBHOOK_URL", "https://n8n.test/webhook/acopio")
-        monkeypatch.setenv("N8N_STOCKPILE_SNAPSHOT_API_KEY", "snapshot-secret")
         monkeypatch.setattr(
             "app.services.stockpile_snapshot_service.httpx.AsyncClient",
             MockAsyncClient,
         )
+        monkeypatch.setattr(
+            "app.services.stockpile_snapshot_service.upload_stockpile_snapshot_excel",
+            lambda **kwargs: ("https://minio.test/presigned-snapshot.xlsx?X-Amz-Signature=abc", "object.xlsx"),
+        )
 
         stockpile_id = UUID("00000000-0000-0000-0000-000000000123")
         service = StockpileSnapshotService(db)
+        async def fake_get_snapshots(_stockpile_id):
+            return [object()]
+
+        service.get_snapshots = fake_get_snapshots
+        service.generate_excel = lambda snapshots, stockpile_name: io.BytesIO(b"excel-bytes")
         result = await service.dispatch_webhook(
             stockpile_id=stockpile_id,
             stockpile_name="Obra Centro",
@@ -650,6 +657,7 @@ class TestStockpileWebhookDispatch:
             client_name="Juan Perez",
             business_name="Mi Ferretería",
             base_url="https://api.example.com/",
+            business_id=UUID("00000000-0000-0000-0000-000000000999"),
         )
 
         assert result == {"sent": True, "status_code": 202}
@@ -664,12 +672,43 @@ class TestStockpileWebhookDispatch:
             "client_email": "cliente@example.com",
             "client_name": "Juan Perez",
             "business_name": "Mi Ferretería",
-            "snapshot_url": (
-                f"https://api.example.com/api/tenant/stockpiles/{stockpile_id}"
-                "/price-snapshot/excel"
-            ),
-            "auth_token": "snapshot-secret",
+            "snapshot_url": "https://minio.test/presigned-snapshot.xlsx?X-Amz-Signature=abc",
         }
+        assert "auth_token" not in calls[0]["json"]
+
+    @pytest.mark.asyncio
+    async def test_dispatch_webhook_minio_not_configured_does_not_crash(
+        self,
+        db: AsyncSession,
+        monkeypatch,
+    ):
+        """Si MinIO no está configurado, el dispatch informa estado seguro."""
+        from app.services.stockpile_snapshot_service import StockpileSnapshotService
+
+        monkeypatch.setenv("N8N_STOCKPILE_WEBHOOK_URL", "https://n8n.test/webhook/acopio")
+        monkeypatch.setattr(
+            "app.services.stockpile_snapshot_service.upload_stockpile_snapshot_excel",
+            lambda **kwargs: (_ for _ in ()).throw(ValueError("missing MinIO config")),
+        )
+
+        service = StockpileSnapshotService(db)
+        async def fake_get_snapshots(_stockpile_id):
+            return [object()]
+
+        service.get_snapshots = fake_get_snapshots
+        service.generate_excel = lambda snapshots, stockpile_name: io.BytesIO(b"excel-bytes")
+
+        result = await service.dispatch_webhook(
+            stockpile_id=UUID("00000000-0000-0000-0000-000000000125"),
+            stockpile_name="Obra Sin MinIO",
+            stockpile_number="AC-0003",
+            client_email="cliente@example.com",
+            client_name="Juan Perez",
+            business_name="Mi Ferretería",
+            base_url="https://api.example.com",
+        )
+
+        assert result == {"sent": False, "reason": "minio_not_configured"}
 
     @pytest.mark.asyncio
     async def test_dispatch_webhook_timeout_does_not_crash(
@@ -698,8 +737,17 @@ class TestStockpileWebhookDispatch:
             "app.services.stockpile_snapshot_service.httpx.AsyncClient",
             TimeoutAsyncClient,
         )
+        monkeypatch.setattr(
+            "app.services.stockpile_snapshot_service.upload_stockpile_snapshot_excel",
+            lambda **kwargs: ("https://minio.test/presigned.xlsx", "object.xlsx"),
+        )
 
         service = StockpileSnapshotService(db)
+        async def fake_get_snapshots(_stockpile_id):
+            return [object()]
+
+        service.get_snapshots = fake_get_snapshots
+        service.generate_excel = lambda snapshots, stockpile_name: io.BytesIO(b"excel-bytes")
         result = await service.dispatch_webhook(
             stockpile_id=UUID("00000000-0000-0000-0000-000000000124"),
             stockpile_name="Obra Timeout",
@@ -713,7 +761,7 @@ class TestStockpileWebhookDispatch:
         assert result == {"sent": False, "reason": "timeout"}
 
     @pytest.mark.asyncio
-    async def test_create_by_amount_schedules_webhook_after_success(
+    async def test_create_by_amount_does_not_dispatch_webhook(
         self,
         client: AsyncClient,
         db: AsyncSession,
@@ -722,7 +770,7 @@ class TestStockpileWebhookDispatch:
         membership_a: TenantMembership,
         monkeypatch,
     ):
-        """El endpoint crea el acopio y dispara POST fire-and-forget a n8n."""
+        """El endpoint crea el acopio sin enviar email automáticamente."""
         calls = []
 
         class MockAsyncClient:
@@ -745,6 +793,10 @@ class TestStockpileWebhookDispatch:
             "app.services.stockpile_snapshot_service.httpx.AsyncClient",
             MockAsyncClient,
         )
+        monkeypatch.setattr(
+            "app.services.stockpile_snapshot_service.upload_stockpile_snapshot_excel",
+            lambda **kwargs: ("https://minio.test/presigned.xlsx", "object.xlsx"),
+        )
 
         await _create_products(db, business_a.id)
         client_entity = await _create_client(db, business_a.id)
@@ -764,24 +816,7 @@ class TestStockpileWebhookDispatch:
         )
         assert response.status_code == 201, response.text[:500]
 
-        for _ in range(10):
-            if calls:
-                break
-            await asyncio.sleep(0.01)
-
-        assert len(calls) == 1
-        payload = calls[0]["json"]
-        assert payload["event"] == "stockpile_created"
-        assert payload["stockpile_id"] == response.json()["id"]
-        assert payload["stockpile_name"] == "Acopio Webhook Endpoint"
-        assert payload["stockpile_number"].startswith("AC-")
-        assert payload["client_email"] == "cliente@test.com"
-        assert payload["client_name"] == "Cliente Test"
-        assert payload["business_name"] == "Tenant A"
-        assert payload["auth_token"] == "snapshot-secret"
-        assert payload["snapshot_url"].endswith(
-            f"/api/tenant/stockpiles/{response.json()['id']}/price-snapshot/excel"
-        )
+        assert calls == []
 
     @pytest.mark.asyncio
     async def test_send_price_snapshot_email_endpoint_dispatches_webhook(
@@ -818,6 +853,10 @@ class TestStockpileWebhookDispatch:
             "app.services.stockpile_snapshot_service.httpx.AsyncClient",
             MockAsyncClient,
         )
+        monkeypatch.setattr(
+            "app.services.stockpile_snapshot_service.upload_stockpile_snapshot_excel",
+            lambda **kwargs: ("https://minio.test/presigned.xlsx", "object.xlsx"),
+        )
 
         await _create_products(db, business_a.id)
         client_entity = await _create_client(db, business_a.id)
@@ -849,6 +888,101 @@ class TestStockpileWebhookDispatch:
         assert calls[0]["json"]["client_email"] == "cliente@test.com"
 
     @pytest.mark.asyncio
+    async def test_send_price_snapshot_email_endpoint_uses_explicit_recipient(
+        self,
+        client: AsyncClient,
+        db: AsyncSession,
+        user_a: User,
+        business_a: Business,
+        membership_a: TenantMembership,
+        monkeypatch,
+    ):
+        """El endpoint permite sobreescribir el destinatario del cliente."""
+        from app.services.stockpile_service import StockpileService
+
+        calls = []
+
+        class MockAsyncClient:
+            def __init__(self, timeout):
+                self.timeout = timeout
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return None
+
+            async def post(self, url, json):
+                calls.append({"url": url, "json": json})
+                return httpx.Response(202, request=httpx.Request("POST", url))
+
+        monkeypatch.setenv("N8N_STOCKPILE_WEBHOOK_URL", "https://n8n.test/webhook/acopio")
+        monkeypatch.setattr(
+            "app.services.stockpile_snapshot_service.httpx.AsyncClient",
+            MockAsyncClient,
+        )
+        monkeypatch.setattr(
+            "app.services.stockpile_snapshot_service.upload_stockpile_snapshot_excel",
+            lambda **kwargs: ("https://minio.test/presigned.xlsx", "object.xlsx"),
+        )
+
+        await _create_products(db, business_a.id)
+        client_entity = await _create_client(db, business_a.id)
+        stockpile, _ = await StockpileService(db).create_by_amount(
+            business_id=business_a.id,
+            client_id=client_entity.id,
+            created_by=user_a.id,
+            name="Acopio Email Custom",
+            currency="ARS",
+            exchange_rate=Decimal("1.00"),
+            amount=Decimal("5000.00"),
+            discount_percent=Decimal("0"),
+        )
+
+        response = await client.post(
+            f"/api/tenant/stockpiles/{stockpile.id}/price-snapshot/send-email",
+            headers=make_auth_header(user_a),
+            json={"recipient_email": "obra@example.com"},
+        )
+
+        assert response.status_code == 200, response.text[:500]
+        assert len(calls) == 1
+        assert calls[0]["json"]["client_email"] == "obra@example.com"
+
+    @pytest.mark.asyncio
+    async def test_send_price_snapshot_email_endpoint_rejects_invalid_recipient(
+        self,
+        client: AsyncClient,
+        db: AsyncSession,
+        user_a: User,
+        business_a: Business,
+        membership_a: TenantMembership,
+    ):
+        """El destinatario explícito debe tener formato de email."""
+        from app.services.stockpile_service import StockpileService
+
+        await _create_products(db, business_a.id)
+        client_entity = await _create_client(db, business_a.id)
+        stockpile, _ = await StockpileService(db).create_by_amount(
+            business_id=business_a.id,
+            client_id=client_entity.id,
+            created_by=user_a.id,
+            name="Acopio Email Inválido",
+            currency="ARS",
+            exchange_rate=Decimal("1.00"),
+            amount=Decimal("5000.00"),
+            discount_percent=Decimal("0"),
+        )
+
+        response = await client.post(
+            f"/api/tenant/stockpiles/{stockpile.id}/price-snapshot/send-email",
+            headers=make_auth_header(user_a),
+            json={"recipient_email": "sin-email"},
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
     async def test_send_price_snapshot_email_endpoint_returns_status_when_n8n_fails(
         self,
         client: AsyncClient,
@@ -878,6 +1012,10 @@ class TestStockpileWebhookDispatch:
         monkeypatch.setattr(
             "app.services.stockpile_snapshot_service.httpx.AsyncClient",
             TimeoutAsyncClient,
+        )
+        monkeypatch.setattr(
+            "app.services.stockpile_snapshot_service.upload_stockpile_snapshot_excel",
+            lambda **kwargs: ("https://minio.test/presigned.xlsx", "object.xlsx"),
         )
 
         await _create_products(db, business_a.id)

@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models.stockpile import Stockpile, StockpilePriceSnapshot, StockpileStatus
+from app.services.stockpile_snapshot_storage_service import upload_stockpile_snapshot_excel
 
 logger = logging.getLogger("uvicorn")
 
@@ -165,6 +166,7 @@ class StockpileSnapshotService:
         client_name: str | None,
         business_name: str,
         base_url: str,
+        business_id: UUID | None = None,
     ) -> dict[str, Any]:
         """
         Dispara webhook a n8n para envío de email con Excel adjunto.
@@ -178,11 +180,26 @@ class StockpileSnapshotService:
             logger.debug("N8N_STOCKPILE_WEBHOOK_URL not configured, skipping webhook dispatch")
             return {"sent": False, "reason": "webhook_url_not_configured"}
 
-        api_key = settings.N8N_STOCKPILE_SNAPSHOT_API_KEY
-        snapshot_url = (
-            f"{base_url.rstrip('/')}{settings.API_TENANT_PREFIX}"
-            f"/stockpiles/{stockpile_id}/price-snapshot/excel"
-        )
+        snapshots = await self.get_snapshots(stockpile_id)
+        if not snapshots:
+            return {"sent": False, "reason": "no_price_snapshots"}
+
+        excel_file = self.generate_excel(snapshots, stockpile_name or "Acopio")
+        try:
+            snapshot_url, _object_name = upload_stockpile_snapshot_excel(
+                stockpile_id=stockpile_id,
+                business_id=business_id,
+                excel_bytes=excel_file.getvalue(),
+            )
+        except ValueError:
+            logger.warning("MinIO not configured for stockpile snapshot email dispatch")
+            return {"sent": False, "reason": "minio_not_configured"}
+        except RuntimeError as exc:
+            logger.error(f"MinIO unavailable for stockpile snapshot email dispatch: {exc}")
+            return {"sent": False, "reason": "minio_unavailable"}
+        except Exception as exc:
+            logger.error(f"Stockpile snapshot upload failed: {exc}")
+            return {"sent": False, "reason": "snapshot_upload_failed"}
 
         payload = {
             "event": "stockpile_created",
@@ -193,7 +210,6 @@ class StockpileSnapshotService:
             "client_name": client_name or "",
             "business_name": business_name,
             "snapshot_url": snapshot_url,
-            "auth_token": api_key,
         }
 
         try:

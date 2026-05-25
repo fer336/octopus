@@ -3,7 +3,7 @@
  * Permite crear cotizaciones, remitos y facturas.
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings, MoreVertical, Archive, ScanLine, Copy } from 'lucide-react'
+import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings, MoreVertical, Archive, ScanLine, Copy, Mail } from 'lucide-react'
 import { Button, Modal, Select, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -13,6 +13,7 @@ import clientAuthorizationsService from '../api/clientAuthorizationsService'
 import vouchersService, { VoucherCreate, VoucherUpdate, VoucherPayment, Voucher as VoucherType2, type PriceStrategy, type VoucherTotalsPreviewRequest } from '../api/vouchersService'
 import stockpileService, {
   OpenStockpileItem,
+  StockpileResponse,
   StockpileSummary,
 } from '../api/stockpileService'
 import draftsService from '../api/draftsService'
@@ -433,6 +434,9 @@ export default function Sales() {
   const [acopioCurrency, setAcopioCurrency] = useState(() => _draft?.acopioCurrency ?? 'ARS')
   // SALES-ACOPIO-02: replacing 'now/later' with explicit Yes/No for invoice
   const [acopioGenerateInvoice, setAcopioGenerateInvoice] = useState(() => _draft?.acopioGenerateInvoice ?? false)
+  const [createdAcopio, setCreatedAcopio] = useState<StockpileResponse | null>(null)
+  const [createdAcopioEmail, setCreatedAcopioEmail] = useState('')
+  const [downloadingAcopioSnapshot, setDownloadingAcopioSnapshot] = useState(false)
 
   // SALES-ACOPIO-FRONTEND-03: state for linking receipt to acopio
   const [selectedStockpile, setSelectedStockpile] = useState<OpenStockpileItem | null>(null)
@@ -593,6 +597,8 @@ export default function Sales() {
     onSuccess: async (data) => {
       const num = data.stockpile_number ? `#${data.stockpile_number} ` : ''
       toast.success(`Acopio ${num}"${data.name}" creado correctamente`, { icon: '✅' })
+      setCreatedAcopio(data)
+      setCreatedAcopioEmail(selectedClient?.email || '')
       // Reset form
       setAcopioName('')
       setAcopioDescription('')
@@ -608,6 +614,22 @@ export default function Sales() {
     },
     onError: (error: any) => {
       toast.error('Error al crear acopio: ' + formatErrorMessage(error))
+    },
+  })
+
+  const sendCreatedAcopioEmailMutation = useMutation({
+    mutationFn: ({ stockpileId, recipientEmail }: { stockpileId: string; recipientEmail: string }) =>
+      stockpileService.sendPriceSnapshotEmail(stockpileId, recipientEmail),
+    onSuccess: (result) => {
+      if (result.sent) {
+        toast.success('Email enviado', { duration: 2500, icon: '✅' })
+        return
+      }
+
+      toast.error(result.reason ? `No se pudo enviar: ${result.reason}` : 'No se pudo enviar el email')
+    },
+    onError: (error: unknown) => {
+      toast.error(formatErrorMessage(error))
     },
   })
 
@@ -2264,6 +2286,48 @@ export default function Sales() {
       document.body.removeChild(link)
       toast.success('PDF descargado correctamente')
     }
+  }
+
+  const getAcopioSnapshotFilename = (stockpile: StockpileResponse) => {
+    const identifier = stockpile.stockpile_number || stockpile.id
+    return `precios-congelados-${identifier.replace(/[^a-zA-Z0-9_-]/g, '-')}.xlsx`
+  }
+
+  const isEmailLike = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+
+  const handleDownloadCreatedAcopioSnapshot = async () => {
+    if (!createdAcopio) return
+
+    try {
+      setDownloadingAcopioSnapshot(true)
+      const blob = await stockpileService.downloadPriceSnapshot(createdAcopio.id)
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = getAcopioSnapshotFilename(createdAcopio)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success('Excel descargado', { duration: 2000, icon: '✅' })
+    } catch (error: unknown) {
+      toast.error(formatErrorMessage(error))
+    } finally {
+      setDownloadingAcopioSnapshot(false)
+    }
+  }
+
+  const handleSendCreatedAcopioEmail = () => {
+    if (!createdAcopio) return
+    if (!isEmailLike(createdAcopioEmail)) {
+      toast.error('Ingresá un email válido')
+      return
+    }
+
+    sendCreatedAcopioEmailMutation.mutate({
+      stockpileId: createdAcopio.id,
+      recipientEmail: createdAcopioEmail,
+    })
   }
 
   const handlePrintPdf = () => {
@@ -6533,6 +6597,77 @@ export default function Sales() {
             </>
           )}
         </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!createdAcopio}
+        onClose={() => {
+          if (sendCreatedAcopioEmailMutation.isPending) return
+          setCreatedAcopio(null)
+          setCreatedAcopioEmail('')
+        }}
+        title="Acopio creado"
+        size="md"
+      >
+        {createdAcopio && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-900/50 dark:bg-green-900/20">
+              <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+                {createdAcopio.stockpile_number || 'Acopio sin número'} · {createdAcopio.name}
+              </p>
+              <p className="mt-1 text-xs text-green-700 dark:text-green-300">
+                El Excel de precios congelados ya está disponible. No se envió ningún email automáticamente.
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-900/40">
+              <p className="font-medium text-gray-900 dark:text-gray-100">Referencia del Excel</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {getAcopioSnapshotFilename(createdAcopio)}
+              </p>
+            </div>
+
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">Destinatario</span>
+              <input
+                type="email"
+                value={createdAcopioEmail}
+                onChange={(event) => setCreatedAcopioEmail(event.target.value)}
+                placeholder="cliente@ejemplo.com"
+                className="w-full rounded-lg border px-3 py-2 dark:border-gray-700 dark:bg-gray-800"
+              />
+            </label>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                onClick={handleDownloadCreatedAcopioSnapshot}
+                disabled={downloadingAcopioSnapshot}
+              >
+                <Download size={16} />
+                {downloadingAcopioSnapshot ? 'Descargando...' : 'Descargar Excel'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setCreatedAcopio(null)
+                  setCreatedAcopioEmail('')
+                }}
+                disabled={sendCreatedAcopioEmailMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleSendCreatedAcopioEmail}
+                disabled={sendCreatedAcopioEmailMutation.isPending}
+              >
+                <Mail size={16} />
+                {sendCreatedAcopioEmailMutation.isPending ? 'Enviando...' : 'Enviar por Email'}
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
 

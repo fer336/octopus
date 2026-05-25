@@ -20,7 +20,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $json.body || $json;\nconst required = ['event', 'stockpile_id', 'snapshot_url', 'auth_token'];\nconst missing = required.filter((field) => !body[field]);\nif (missing.length) {\n  throw new Error(`Payload incompleto. Faltan: ${missing.join(', ')}`);\n}\nif (body.event !== 'stockpile_created') {\n  throw new Error(`Evento no soportado: ${body.event}`);\n}\nreturn [{\n  json: {\n    stockpileId: body.stockpile_id,\n    stockpileName: body.stockpile_name || 'Acopio',\n    stockpileNumber: body.stockpile_number || '',\n    clientEmail: body.client_email || '',\n    clientName: body.client_name || 'cliente',\n    businessName: body.business_name || 'OctopusTrack',\n    snapshotUrl: body.snapshot_url,\n    authToken: body.auth_token,\n    logoUrl: body.logo_url || '',\n    footerText: body.footer_text || 'Este correo fue generado automáticamente por OctopusTrack.'\n  }\n}];"
+        "jsCode": "const body = $json.body || $json;\nconst required = ['event', 'stockpile_id', 'snapshot_url'];\nconst missing = required.filter((field) => !body[field]);\nif (missing.length) {\n  throw new Error(`Payload incompleto. Faltan: ${missing.join(', ')}`);\n}\nif (body.event !== 'stockpile_created') {\n  throw new Error(`Evento no soportado: ${body.event}`);\n}\nreturn [{\n  json: {\n    stockpileId: body.stockpile_id,\n    stockpileName: body.stockpile_name || 'Acopio',\n    stockpileNumber: body.stockpile_number || '',\n    clientEmail: body.client_email || '',\n    clientName: body.client_name || 'cliente',\n    businessName: body.business_name || 'OctopusTrack',\n    snapshotUrl: body.snapshot_url,\n    logoUrl: body.logo_url || '',\n    footerText: body.footer_text || 'Este correo fue generado automáticamente por OctopusTrack.'\n  }\n}];"
       },
       "id": "d3519d2f-1b76-4db5-885d-87b79f110002",
       "name": "Validar y normalizar payload",
@@ -34,15 +34,6 @@
     {
       "parameters": {
         "url": "={{ $json.snapshotUrl }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-N8N-Stockpile-API-Key",
-              "value": "={{ $json.authToken }}"
-            }
-          ]
-        },
         "options": {
           "response": {
             "response": {
@@ -63,7 +54,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const data = $('Validar y normalizar payload').first().json;\nconst numberSuffix = data.stockpileNumber ? ` ${data.stockpileNumber}` : '';\nconst subject = `Resumen de Acopio — ${data.stockpileName}`;\nconst logo = data.logoUrl\n  ? `<img src=\"${data.logoUrl}\" alt=\"${data.businessName}\" style=\"max-height:56px;margin-bottom:16px;\" />`\n  : '';\nconst downloadLink = `<a href=\"${data.snapshotUrl}\" style=\"color:#2563eb;text-decoration:none;\">descargar el Excel de precios congelados</a>`;\nconst html = `\n<div style=\"font-family:Arial,Helvetica,sans-serif;color:#1f2937;line-height:1.5;max-width:640px;margin:0 auto;\">\n  ${logo}\n  <h1 style=\"font-size:22px;margin:0 0 12px;color:#111827;\">Resumen de acopio${numberSuffix}</h1>\n  <p>Hola ${data.clientName},</p>\n  <p>Te enviamos el resumen del acopio <strong>${data.stockpileName}</strong> de <strong>${data.businessName}</strong>.</p>\n  <p>Adjuntamos el Excel con la lista de precios congelados al momento de crear el acopio. Si el adjunto no está disponible, también podés ${downloadLink}.</p>\n  <table style=\"width:100%;border-collapse:collapse;margin:20px 0;background:#f9fafb;border:1px solid #e5e7eb;\">\n    <tr><td style=\"padding:10px;font-weight:bold;\">Acopio</td><td style=\"padding:10px;\">${data.stockpileName}</td></tr>\n    <tr><td style=\"padding:10px;font-weight:bold;\">Número</td><td style=\"padding:10px;\">${data.stockpileNumber || 'Sin número informado'}</td></tr>\n    <tr><td style=\"padding:10px;font-weight:bold;\">Comercio</td><td style=\"padding:10px;\">${data.businessName}</td></tr>\n  </table>\n  <p style=\"font-size:13px;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:16px;\">${data.footerText}</p>\n</div>`;\nreturn [{ json: { ...data, subject, html }, binary: $input.first().binary }];"
+        "jsCode": "const data = $('Validar y normalizar payload').first().json;\nconst numberSuffix = data.stockpileNumber ? ` ${data.stockpileNumber}` : '';\nconst subject = `Resumen de Acopio — ${data.stockpileName}`;\nconst logo = data.logoUrl\n  ? `<img src=\"${data.logoUrl}\" alt=\"${data.businessName}\" style=\"max-height:56px;margin-bottom:16px;\" />`\n  : '';\nconst html = `\n<div style=\"font-family:Arial,Helvetica,sans-serif;color:#1f2937;line-height:1.5;max-width:640px;margin:0 auto;\">\n  ${logo}\n  <h1 style=\"font-size:22px;margin:0 0 12px;color:#111827;\">Resumen de acopio${numberSuffix}</h1>\n  <p>Hola ${data.clientName},</p>\n  <p>Te enviamos adjunto el Excel con los precios congelados del acopio <strong>${data.stockpileName}</strong> de <strong>${data.businessName}</strong>.</p>\n  <p>Estos precios corresponden al momento de creación del acopio y se usarán como referencia para los retiros posteriores.</p>\n  <table style=\"width:100%;border-collapse:collapse;margin:20px 0;background:#f9fafb;border:1px solid #e5e7eb;\">\n    <tr><td style=\"padding:10px;font-weight:bold;\">Acopio</td><td style=\"padding:10px;\">${data.stockpileName}</td></tr>\n    <tr><td style=\"padding:10px;font-weight:bold;\">Número</td><td style=\"padding:10px;\">${data.stockpileNumber || 'Sin número informado'}</td></tr>\n    <tr><td style=\"padding:10px;font-weight:bold;\">Comercio</td><td style=\"padding:10px;\">${data.businessName}</td></tr>\n  </table>\n  <p>Si necesitás reenviar el archivo, podés hacerlo desde la pantalla de Acopios en OctopusTrack.</p>\n  <p style=\"font-size:13px;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:16px;\">${data.footerText}</p>\n</div>`;\nreturn [{ json: { ...data, subject, html }, binary: $input.first().binary }];"
       },
       "id": "a074507b-d130-44f1-86f2-3e2e44a90004",
       "name": "Construir email HTML",
@@ -76,7 +67,7 @@
     },
     {
       "parameters": {
-        "fromEmail": "={{ $env.OCTOPUSTRACK_STOCKPILE_EMAIL_FROM || 'no-reply@example.com' }}",
+        "fromEmail": "OctopusTrack <no-reply@octopustrack.shop>",
         "toEmail": "={{ $json.clientEmail }}",
         "subject": "={{ $json.subject }}",
         "emailFormat": "html",
@@ -163,6 +154,6 @@
   "active": false,
   "versionId": "stockpile-email-workflow-template-v1",
   "meta": {
-    "description": "Webhook -> validación -> descarga HTTP del Excel con X-N8N-Stockpile-API-Key -> HTML email -> envío SMTP. Reemplazar credencial SMTP y configurar OCTOPUSTRACK_STOCKPILE_EMAIL_FROM en n8n."
+    "description": "Webhook -> validación -> descarga HTTP del Excel desde URL presignada MinIO -> HTML email -> envío SMTP con Excel adjunto. Reemplazar la credencial SMTP antes de activar."
   }
 }

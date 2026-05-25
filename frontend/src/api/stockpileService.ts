@@ -105,6 +105,7 @@ export interface StockpileTreeItem {
   stockpile_number: string | null
   description: string | null
   client_name: string
+  client_email: string | null
   status: string
   created_at: string
   principal_voucher_id: string | null
@@ -329,8 +330,12 @@ const stockpileService = {
   /**
    * Reenvía por email el Excel de precios congelados usando n8n.
    */
-  sendPriceSnapshotEmail: async (stockpileId: string): Promise<StockpilePriceSnapshotEmailResponse> => {
-    const response = await httpClient.post(`/stockpiles/${stockpileId}/price-snapshot/send-email`)
+  sendPriceSnapshotEmail: async (
+    stockpileId: string,
+    recipientEmail?: string
+  ): Promise<StockpilePriceSnapshotEmailResponse> => {
+    const payload = recipientEmail?.trim() ? { recipient_email: recipientEmail.trim() } : {}
+    const response = await httpClient.post(`/stockpiles/${stockpileId}/price-snapshot/send-email`, payload)
     return response.data
   },
 
