@@ -352,8 +352,8 @@ function StatusBar({
   }[status]
 
   return (
-    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-      <div className="flex items-center gap-3">
+    <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div className="flex min-w-0 items-center gap-3">
         <div className={`rounded-lg p-2 ${status === 'connected' ? 'bg-green-50 dark:bg-green-900/20' : 'bg-gray-100 dark:bg-gray-700'}`}>
           {status === 'connected' ? (
             <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
@@ -361,25 +361,25 @@ function StatusBar({
             <Smartphone className="h-4 w-4 text-gray-400" />
           )}
         </div>
-        <div>
-          <div className="flex items-center gap-2">
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-gray-900 dark:text-white">WhatsApp</span>
-            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${badge.cls}`}>
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${badge.cls}`}>
               {badge.label}
             </span>
           </div>
-          <p className="text-xs text-gray-400 dark:text-gray-500">
+          <p className="truncate text-xs text-gray-400 dark:text-gray-500">
             {phone ? `${phone} · ${instanceName}` : instanceName}
           </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
         {status === 'connected' && onDisconnect && (
           <button
             onClick={onDisconnect}
             disabled={disconnecting}
-            className="flex items-center gap-1.5 rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:border-red-700 dark:hover:bg-red-900/20"
+            className="flex min-h-9 items-center gap-1.5 rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:border-red-700 dark:hover:bg-red-900/20"
           >
             <LogOut className="h-3.5 w-3.5" />
             {disconnecting ? 'Desconectando…' : 'Desconectar'}
@@ -388,7 +388,7 @@ function StatusBar({
         {status === 'scanning' && onDeleteInstance && (
           <button
             onClick={onDeleteInstance}
-            className="flex items-center gap-1.5 rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:hover:bg-red-900/20"
+            className="flex min-h-9 items-center gap-1.5 rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:hover:bg-red-900/20"
           >
             <Trash2 className="h-3.5 w-3.5" />
             Eliminar instancia
@@ -397,7 +397,7 @@ function StatusBar({
         {(status === 'disconnected' || status === 'error') && onChangeInstance && (
           <button
             onClick={onChangeInstance}
-            className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            className="min-h-9 rounded-lg px-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
           >
             Cambiar instancia
           </button>

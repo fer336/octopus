@@ -10,16 +10,18 @@ export interface PdfSpec {
   getPdfBlob: () => Promise<Blob>
   filename?: string
   caption?: string
+  mimetype?: string
 }
 
 interface Props {
   isOpen: boolean
   onClose: () => void
-  // Single PDF
+  // Single file
   getPdfBlob?: () => Promise<Blob>
   filename?: string
   caption?: string
-  // Multiple PDFs (bulk mode) — takes priority if provided
+  mimetype?: string
+  // Multiple files (bulk mode) — takes priority if provided
   pdfs?: PdfSpec[]
   defaultClientId?: string
 }
@@ -75,12 +77,19 @@ async function blobToBase64(blob: Blob): Promise<string> {
   })
 }
 
+function defaultFilename(mimetype?: string): string {
+  if (mimetype?.includes('spreadsheet')) return 'reporte.xlsx'
+  if (mimetype?.includes('pdf')) return 'documento.pdf'
+  return 'archivo.pdf'
+}
+
 export default function WhatsAppSendModal({
   isOpen,
   onClose,
   getPdfBlob,
-  filename = 'documento.pdf',
+  filename,
   caption,
+  mimetype,
   pdfs,
   defaultClientId,
 }: Props) {
@@ -193,6 +202,14 @@ export default function WhatsAppSendModal({
   const chatId = buildWhatsAppId(recipientPhone)
   const valid = !!chatId && isValidArgentina(recipientPhone)
 
+  function resolveMimetype(file?: PdfSpec): string {
+    return file?.mimetype ?? mimetype ?? 'application/pdf'
+  }
+
+  function resolveFilename(file?: PdfSpec): string {
+    return file?.filename ?? filename ?? defaultFilename(resolveMimetype(file))
+  }
+
   async function handleSend() {
     if (!activeSessionId) {
       toast.error('No hay sesión de WhatsApp activa. Abrí el CRM y conectá tu cuenta.')
@@ -205,20 +222,20 @@ export default function WhatsAppSendModal({
 
     setSending(true)
     try {
-      const pdfList: PdfSpec[] = pdfs ?? (getPdfBlob ? [{ getPdfBlob, filename, caption }] : [])
+      const pdfList: PdfSpec[] = pdfs ?? (getPdfBlob ? [{ getPdfBlob, filename, caption, mimetype }] : [])
 
       if (message.trim()) {
         await sendText(activeSessionId, chatId, message.trim())
       }
 
-      for (const pdf of pdfList) {
-        const blob = await pdf.getPdfBlob()
+      for (const file of pdfList) {
+        const blob = await file.getPdfBlob()
         const base64 = await blobToBase64(blob)
         await sendDocument(activeSessionId, chatId, {
           base64,
-          mimetype: 'application/pdf',
-          filename: pdf.filename ?? 'documento.pdf',
-          caption: pdf.caption,
+          mimetype: resolveMimetype(file),
+          filename: resolveFilename(file),
+          caption: file.caption,
         })
       }
 
@@ -228,8 +245,8 @@ export default function WhatsAppSendModal({
       const count = pdfList.length
       toast.success(
         count > 1
-          ? `Mensaje y ${count} PDFs enviados a ${label} por WhatsApp`
-          : `Mensaje y PDF enviados a ${label} por WhatsApp`,
+          ? `Mensaje y ${count} archivos enviados a ${label} por WhatsApp`
+          : `Archivo enviado a ${label} por WhatsApp`,
       )
       onClose()
     } catch (err: unknown) {
@@ -413,7 +430,7 @@ export default function WhatsAppSendModal({
               rows={3}
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-300 resize-none"
             />
-            <p className="text-xs text-gray-400">Se envía primero el mensaje y luego el PDF.</p>
+            <p className="text-xs text-gray-400">Se envía primero el mensaje y luego el archivo.</p>
           </div>
         </div>
 
@@ -435,7 +452,7 @@ export default function WhatsAppSendModal({
             ) : (
               <MessageSquare className="w-4 h-4" />
             )}
-            {sending ? 'Enviando...' : 'Enviar PDF'}
+            {sending ? 'Enviando...' : 'Enviar'}
           </button>
         </div>
       </div>

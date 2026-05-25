@@ -245,7 +245,7 @@ async def list_stockpiles_tree(
     """Lista acopios como árbol: acopio/remito principal → remitos parciales."""
 
     query = (
-        select(Stockpile, Client.name, Client.email, Voucher.sale_point, Voucher.number)
+        select(Stockpile, Client.name, Client.email, Client.phone, Voucher.sale_point, Voucher.number)
         .join(Client, Client.id == Stockpile.client_id)
         .outerjoin(Voucher, Voucher.id == Stockpile.principal_voucher_id)
         .where(Stockpile.business_id == business_id)
@@ -291,7 +291,7 @@ async def list_stockpiles_tree(
         snapshot_stockpile_ids = set(snapshot_result.scalars().all())
 
     items: list[StockpileTreeItem] = []
-    for stockpile, client_name, client_email, sale_point, number in rows:
+    for stockpile, client_name, client_email, client_phone, sale_point, number in rows:
         child_vouchers = [
             StockpileTreeChildVoucher(
                 id=child.id,
@@ -314,6 +314,7 @@ async def list_stockpiles_tree(
                 description=stockpile.description,
                 client_name=client_name,
                 client_email=client_email,
+                client_phone=client_phone,
                 status=stockpile.status,
                 created_at=stockpile.created_at,
                 principal_voucher_id=stockpile.principal_voucher_id,

@@ -40,6 +40,7 @@ class StockpileSnapshotService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.settings = get_settings()
 
     async def get_snapshots(
         self, stockpile_id: UUID
@@ -210,6 +211,7 @@ class StockpileSnapshotService:
             "client_name": client_name or "",
             "business_name": business_name,
             "snapshot_url": snapshot_url,
+            "auth_token": self.settings.N8N_STOCKPILE_SNAPSHOT_API_KEY,
         }
 
         try:
@@ -234,3 +236,5 @@ class StockpileSnapshotService:
                 f"Webhook dispatch failed for stockpile {stockpile_id}: {e}"
             )
             return {"sent": False, "reason": str(e)}
+
+

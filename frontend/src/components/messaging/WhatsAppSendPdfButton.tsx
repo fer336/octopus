@@ -11,6 +11,7 @@ interface Props {
   getPdfBlob: () => Promise<Blob>
   filename?: string
   caption?: string
+  mimetype?: string
   defaultClientId?: string
   size?: number
   className?: string
@@ -56,6 +57,7 @@ export default function WhatsAppSendPdfButton({
   getPdfBlob,
   filename = 'documento.pdf',
   caption,
+  mimetype,
   defaultClientId,
   size = 16,
   className = '',
@@ -146,6 +148,7 @@ export default function WhatsAppSendPdfButton({
         getPdfBlob={getPdfBlob}
         filename={filename}
         caption={caption}
+        mimetype={mimetype}
         defaultClientId={defaultClientId}
       />
     </>

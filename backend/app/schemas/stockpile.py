@@ -313,6 +313,7 @@ class StockpileTreeItem(BaseModel):
     description: str | None
     client_name: str
     client_email: str | None = None
+    client_phone: str | None = None
     status: str
     created_at: datetime
     principal_voucher_id: UUID | None
@@ -337,6 +338,9 @@ class StockpilePriceSnapshotEmailRequest(BaseModel):
     """Destinatario opcional para enviar el Excel de precios congelados."""
 
     recipient_email: EmailStr | None = None
+
+
+
 
 
 class StockpileTreeResponse(BaseModel):

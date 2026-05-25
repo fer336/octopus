@@ -106,6 +106,7 @@ export interface StockpileTreeItem {
   description: string | null
   client_name: string
   client_email: string | null
+  client_phone: string | null
   status: string
   created_at: string
   principal_voucher_id: string | null
