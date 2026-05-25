@@ -306,6 +306,8 @@ class StockpileTreeItem(BaseModel):
     """Nodo principal del árbol de acopios."""
 
     id: UUID
+    client_id: UUID
+    billing_client_id: UUID | None
     name: str
     stockpile_number: str | None
     description: str | None
@@ -317,7 +319,17 @@ class StockpileTreeItem(BaseModel):
     initial_amount: Decimal
     withdrawn_amount: Decimal
     remaining_amount: Decimal
+    has_price_snapshot: bool = False
     child_vouchers: list[StockpileTreeChildVoucher]
+
+
+class StockpilePriceSnapshotEmailResponse(BaseModel):
+    """Resultado del reenvío del Excel de precios congelados por n8n."""
+
+    sent: bool
+    status_code: int | None = None
+    reason: str | None = None
+    message: str
 
 
 class StockpileTreeResponse(BaseModel):

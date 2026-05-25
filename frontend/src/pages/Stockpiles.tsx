@@ -2,13 +2,13 @@
  * Página de Acopios (Stockpiles).
  * Vista de solo consulta - la creación es exclusivamente desde Ventas.
  */
-import { useState, useMemo } from 'react'
-import { Search, Package, ChevronRight, ChevronDown, FileText, Trash2, Eye, Download } from 'lucide-react'
+import { useState } from 'react'
+import { Search, Package, ChevronRight, ChevronDown, FileText, Trash2, Eye, Download, Mail } from 'lucide-react'
 import { Button, Modal, ConfirmModal } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import toast from 'react-hot-toast'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import stockpileService, { StockpileResponse, StockpileItemResponse } from '../api/stockpileService'
+import stockpileService, { type StockpileResponse, type StockpileItemResponse, type StockpileTreeItem } from '../api/stockpileService'
 import WhatsAppSendPdfButton from '../components/messaging/WhatsAppSendPdfButton'
 
 // Estados del acopio
@@ -40,6 +40,7 @@ export default function Stockpiles() {
   const [stockpileToDelete, setStockpileToDelete] = useState<{ id: string; name: string } | null>(null)
   const [voucherToCancel, setVoucherToCancel] = useState<{ id: string; number: string; stockpileId: string; stockpileName: string } | null>(null)
   const [confirmArchiveCancelled, setConfirmArchiveCancelled] = useState(false)
+  const [downloadingSnapshotId, setDownloadingSnapshotId] = useState<string | null>(null)
 
   const archiveCancelledMutation = useMutation({
     mutationFn: () => stockpileService.archiveCancelledStockpiles(),
@@ -60,7 +61,7 @@ export default function Stockpiles() {
   })
 
   // Filtrar por búsqueda
-  const filteredItems = useMemo(() => {
+  const filteredItems = (() => {
     if (!stockpilesTreeData?.items) return []
     if (!search) return stockpilesTreeData.items
     
@@ -71,7 +72,22 @@ export default function Stockpiles() {
       (item.name || '').toLowerCase().includes(searchLower) ||
       (item.description || '').toLowerCase().includes(searchLower)
     )
-  }, [stockpilesTreeData?.items, search])
+  })()
+
+  const sendPriceSnapshotEmailMutation = useMutation({
+    mutationFn: (stockpileId: string) => stockpileService.sendPriceSnapshotEmail(stockpileId),
+    onSuccess: (result) => {
+      if (result.sent) {
+        toast.success('Email enviado', { duration: 2500, icon: '✅' })
+        return
+      }
+
+      toast.error(result.reason ? `No se pudo enviar: ${result.reason}` : 'No se pudo enviar el email')
+    },
+    onError: (error: unknown) => {
+      toast.error(formatErrorMessage(error))
+    },
+  })
 
   // Toggle expand
   const toggleExpand = (id: string) => {
@@ -167,6 +183,31 @@ export default function Stockpiles() {
       toast.success('PDF descargado', { duration: 2000, icon: '✅' })
     } catch {
       toast.error('Error al descargar PDF')
+    }
+  }
+
+  const getSnapshotFilename = (item: StockpileTreeItem) => {
+    const identifier = item.stockpile_number || item.id
+    return `precios-congelados-${identifier.replace(/[^a-zA-Z0-9_-]/g, '-')}.xlsx`
+  }
+
+  const handleDownloadPriceSnapshot = async (item: StockpileTreeItem) => {
+    try {
+      setDownloadingSnapshotId(item.id)
+      const blob = await stockpileService.downloadPriceSnapshot(item.id)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = getSnapshotFilename(item)
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success('Excel descargado', { duration: 2000, icon: '✅' })
+    } catch (error: unknown) {
+      toast.error(formatErrorMessage(error))
+    } finally {
+      setDownloadingSnapshotId(null)
     }
   }
 
@@ -382,7 +423,31 @@ export default function Stockpiles() {
                   </div>
 
                   {/* Acciones */}
-                  <div className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center justify-end gap-1">
+                    {item.has_price_snapshot && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => { e.stopPropagation(); handleDownloadPriceSnapshot(item) }}
+                          disabled={downloadingSnapshotId === item.id}
+                        >
+                          <Download size={14} />
+                          {downloadingSnapshotId === item.id ? 'Descargando...' : 'Descargar Excel'}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={(e) => { e.stopPropagation(); sendPriceSnapshotEmailMutation.mutate(item.id) }}
+                          disabled={sendPriceSnapshotEmailMutation.isPending && sendPriceSnapshotEmailMutation.variables === item.id}
+                        >
+                          <Mail size={14} />
+                          {sendPriceSnapshotEmailMutation.isPending && sendPriceSnapshotEmailMutation.variables === item.id
+                            ? 'Enviando...'
+                            : 'Enviar por Email'}
+                        </Button>
+                      </>
+                    )}
                     {item.status === 'open' && (
                       <button
                         onClick={(e) => { e.stopPropagation(); setStockpileToDelete({ id: item.id, name: item.name }) }}

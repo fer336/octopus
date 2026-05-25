@@ -41,6 +41,7 @@ from app.schemas.stockpile import (
     ValidateWithdrawalRequest,
     ValidateWithdrawalResponse,
     StockpileOpenItem,
+    StockpilePriceSnapshotEmailResponse,
 )
 from app.services.stockpile_service import StockpileService
 from app.services.stockpile_snapshot_service import StockpileSnapshotService
@@ -261,6 +262,7 @@ async def list_stockpiles_tree(
 
     stockpile_ids = [stockpile.id for stockpile, *_ in rows]
     children_by_stockpile: dict[UUID, list[Voucher]] = {}
+    snapshot_stockpile_ids: set[UUID] = set()
     if stockpile_ids:
         child_result = await db.execute(
             select(Voucher)
@@ -276,6 +278,16 @@ async def list_stockpiles_tree(
             if sid not in children_by_stockpile:
                 children_by_stockpile[sid] = []
             children_by_stockpile[sid].append(child)
+
+        snapshot_result = await db.execute(
+            select(StockpilePriceSnapshot.stockpile_id)
+            .where(
+                StockpilePriceSnapshot.stockpile_id.in_(stockpile_ids),
+                StockpilePriceSnapshot.deleted_at.is_(None),
+            )
+            .group_by(StockpilePriceSnapshot.stockpile_id)
+        )
+        snapshot_stockpile_ids = set(snapshot_result.scalars().all())
 
     items: list[StockpileTreeItem] = []
     for stockpile, client_name, sale_point, number in rows:
@@ -294,6 +306,8 @@ async def list_stockpiles_tree(
         items.append(
             StockpileTreeItem(
                 id=stockpile.id,
+                client_id=stockpile.client_id,
+                billing_client_id=stockpile.billing_client_id,
                 name=stockpile.name,
                 stockpile_number=stockpile.stockpile_number,
                 description=stockpile.description,
@@ -305,6 +319,7 @@ async def list_stockpiles_tree(
                 initial_amount=stockpile.initial_amount,
                 withdrawn_amount=stockpile.withdrawn_amount,
                 remaining_amount=stockpile.remaining_amount,
+                has_price_snapshot=stockpile.id in snapshot_stockpile_ids,
                 child_vouchers=child_vouchers,
             )
         )
@@ -694,6 +709,60 @@ async def archive_cancelled_stockpiles(
         sp.status = StockpileStatus.ARCHIVED
     await db.commit()
     return {"message": "Acopios cancelados archivados", "count": len(rows)}
+
+
+@router.post(
+    "/{stockpile_id}/price-snapshot/send-email",
+    response_model=StockpilePriceSnapshotEmailResponse,
+)
+async def send_price_snapshot_email(
+    stockpile_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    business_id: UUID = Depends(get_current_business),
+):
+    """Reenvía por n8n el Excel de precios congelados de un acopio por monto."""
+    stockpile = (
+        await db.execute(
+            select(Stockpile).where(
+                Stockpile.id == stockpile_id,
+                Stockpile.business_id == business_id,
+            )
+        )
+    ).scalar_one_or_none()
+
+    if not stockpile:
+        raise HTTPException(status_code=404, detail="Acopio no encontrado")
+
+    snapshot_service = StockpileSnapshotService(db)
+    snapshots = await snapshot_service.get_snapshots(stockpile_id)
+    if not snapshots:
+        raise HTTPException(
+            status_code=404,
+            detail="No hay snapshots de precios para este acopio",
+        )
+
+    client = await db.get(Client, stockpile.client_id)
+    business = await db.get(Business, business_id)
+    dispatch_result = await snapshot_service.dispatch_webhook(
+        stockpile_id=stockpile.id,
+        stockpile_name=stockpile.name,
+        stockpile_number=stockpile.stockpile_number,
+        client_email=client.email if client else None,
+        client_name=client.name if client else None,
+        business_name=business.name if business else "",
+        base_url=str(request.base_url).rstrip("/"),
+    )
+
+    return StockpilePriceSnapshotEmailResponse(
+        sent=bool(dispatch_result.get("sent")),
+        status_code=dispatch_result.get("status_code"),
+        reason=dispatch_result.get("reason"),
+        message=(
+            "Email enviado" if dispatch_result.get("sent") else "No se pudo enviar el email"
+        ),
+    )
 
 
 @router.get("/{stockpile_id}", response_model=StockpileResponse)

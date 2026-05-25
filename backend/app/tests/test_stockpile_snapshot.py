@@ -783,6 +783,129 @@ class TestStockpileWebhookDispatch:
             f"/api/tenant/stockpiles/{response.json()['id']}/price-snapshot/excel"
         )
 
+    @pytest.mark.asyncio
+    async def test_send_price_snapshot_email_endpoint_dispatches_webhook(
+        self,
+        client: AsyncClient,
+        db: AsyncSession,
+        user_a: User,
+        business_a: Business,
+        membership_a: TenantMembership,
+        monkeypatch,
+    ):
+        """El endpoint POST reenvía el webhook de n8n para un acopio con snapshots."""
+        from app.services.stockpile_service import StockpileService
+
+        calls = []
+
+        class MockAsyncClient:
+            def __init__(self, timeout):
+                self.timeout = timeout
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return None
+
+            async def post(self, url, json):
+                calls.append({"url": url, "json": json})
+                return httpx.Response(202, request=httpx.Request("POST", url))
+
+        monkeypatch.setenv("N8N_STOCKPILE_WEBHOOK_URL", "https://n8n.test/webhook/acopio")
+        monkeypatch.setenv("N8N_STOCKPILE_SNAPSHOT_API_KEY", "snapshot-secret")
+        monkeypatch.setattr(
+            "app.services.stockpile_snapshot_service.httpx.AsyncClient",
+            MockAsyncClient,
+        )
+
+        await _create_products(db, business_a.id)
+        client_entity = await _create_client(db, business_a.id)
+        stockpile, _ = await StockpileService(db).create_by_amount(
+            business_id=business_a.id,
+            client_id=client_entity.id,
+            created_by=user_a.id,
+            name="Acopio Email Manual",
+            currency="ARS",
+            exchange_rate=Decimal("1.00"),
+            amount=Decimal("5000.00"),
+            discount_percent=Decimal("0"),
+        )
+
+        response = await client.post(
+            f"/api/tenant/stockpiles/{stockpile.id}/price-snapshot/send-email",
+            headers=make_auth_header(user_a),
+        )
+
+        assert response.status_code == 200, response.text[:500]
+        assert response.json() == {
+            "sent": True,
+            "status_code": 202,
+            "reason": None,
+            "message": "Email enviado",
+        }
+        assert len(calls) == 1
+        assert calls[0]["json"]["stockpile_id"] == str(stockpile.id)
+        assert calls[0]["json"]["client_email"] == "cliente@test.com"
+
+    @pytest.mark.asyncio
+    async def test_send_price_snapshot_email_endpoint_returns_status_when_n8n_fails(
+        self,
+        client: AsyncClient,
+        db: AsyncSession,
+        user_a: User,
+        business_a: Business,
+        membership_a: TenantMembership,
+        monkeypatch,
+    ):
+        """Una falla de n8n devuelve estado de dispatch sin modificar el acopio."""
+        from app.services.stockpile_service import StockpileService
+
+        class TimeoutAsyncClient:
+            def __init__(self, timeout):
+                self.timeout = timeout
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return None
+
+            async def post(self, url, json):
+                raise httpx.TimeoutException("timeout")
+
+        monkeypatch.setenv("N8N_STOCKPILE_WEBHOOK_URL", "https://n8n.test/webhook/acopio")
+        monkeypatch.setattr(
+            "app.services.stockpile_snapshot_service.httpx.AsyncClient",
+            TimeoutAsyncClient,
+        )
+
+        await _create_products(db, business_a.id)
+        client_entity = await _create_client(db, business_a.id)
+        stockpile, _ = await StockpileService(db).create_by_amount(
+            business_id=business_a.id,
+            client_id=client_entity.id,
+            created_by=user_a.id,
+            name="Acopio Email Timeout",
+            currency="ARS",
+            exchange_rate=Decimal("1.00"),
+            amount=Decimal("5000.00"),
+            discount_percent=Decimal("0"),
+        )
+
+        response = await client.post(
+            f"/api/tenant/stockpiles/{stockpile.id}/price-snapshot/send-email",
+            headers=make_auth_header(user_a),
+        )
+
+        assert response.status_code == 200, response.text[:500]
+        assert response.json() == {
+            "sent": False,
+            "status_code": None,
+            "reason": "timeout",
+            "message": "No se pudo enviar el email",
+        }
+
 
 # ---------------------------------------------------------------------------
 # Tests: Withdrawal price resolution from snapshots
