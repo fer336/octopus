@@ -185,6 +185,14 @@ async def _ensure_voucher_type_feature_enabled(
             detail="Cotizaciones deshabilitadas para este tenant desde CMS.",
         )
 
+    if voucher_type == VoucherType.INVOICE_X and not bool(
+        getattr(business, "srx_enabled", False)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Comprobante SRX deshabilitado para este negocio.",
+        )
+
 
 async def _ensure_invoicing_enabled(db: AsyncSession, business_id: UUID) -> None:
     """Valida que la funcionalidad de facturación esté activa para el tenant."""
@@ -393,8 +401,9 @@ async def create_voucher(
         await _ensure_current_account_available(db, business_id, current_user)
 
     open_register = None
-    # Validar caja abierta vigente para facturas. Cotizaciones/remitos conservan el alcance actual.
-    if data.voucher_type in INVOICE_TYPES:
+    # Validar caja abierta vigente para facturas ARCA y SRX.
+    # Para INVOICE_X, srx_enabled ya fue validado por _ensure_voucher_type_feature_enabled.
+    if data.voucher_type in INVOICE_TYPES or data.voucher_type == VoucherType.INVOICE_X:
         open_register = await ensure_open_cash_register_for_billing(db, business_id)
 
     service = VoucherService(db)

@@ -1047,9 +1047,15 @@ class VoucherService:
             VoucherType.INVOICE_A,
             VoucherType.INVOICE_B,
             VoucherType.INVOICE_C,
+            VoucherType.INVOICE_X,
         }
         require_payments = is_invoice and not data.is_current_account
-        
+
+        _full_number = (
+            f"[SRX] {voucher.full_number}"
+            if data.voucher_type == VoucherType.INVOICE_X
+            else voucher.full_number
+        )
         await self._create_voucher_payments(
             voucher_id=voucher.id,
             business_id=business_id,
@@ -1058,7 +1064,7 @@ class VoucherService:
             require_payments=require_payments,
             cash_register_id=cash_register_id,
             user_id=user_id,
-            voucher_full_number=voucher.full_number,
+            voucher_full_number=_full_number,
         )
 
         # Actualizar montos del acopio si es un retiro parcial

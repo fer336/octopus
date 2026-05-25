@@ -431,6 +431,7 @@ async def generate_closure_pdf(
     from weasyprint import HTML
 
     from app.models.voucher import Voucher
+    from app.models.voucher_payment import VoucherPayment
 
     # Obtener la caja con sus movimientos
     result = await db.execute(
@@ -503,34 +504,81 @@ async def generate_closure_pdf(
     )
     difference = register.difference or Decimal("0")
 
-    # Movimientos
-    movements_data = []
-    for mv in sorted(register.movements, key=lambda m: m.created_at):
-        is_expense = mv.type.value == "EXPENSE"
-        movements_data.append({
-            "time": mv.created_at.strftime("%H:%M"),
-            "description": mv.description,
-            "type_label": TYPE_LABELS.get(mv.type.value, mv.type.value),
-            "method_label": PAYMENT_LABELS.get(mv.payment_method.value, mv.payment_method.value),
-            "amount_fmt": fmt(mv.amount),
-            "is_expense": is_expense,
-        })
+    VOUCHER_TYPE_LABELS = {
+        "invoice_a": "Factura A",
+        "invoice_b": "Factura B",
+        "invoice_c": "Factura C",
+        "invoice_x": "Comp. X",
+        "receipt": "Remito",
+        "quotation": "Cotización",
+        "credit_note_a": "NC A",
+        "credit_note_b": "NC B",
+        "credit_note_c": "NC C",
+        "debit_note_a": "ND A",
+        "debit_note_b": "ND B",
+        "debit_note_c": "ND C",
+    }
+    ARCA_TYPES = {
+        "invoice_a", "invoice_b", "invoice_c",
+        "credit_note_a", "credit_note_b", "credit_note_c",
+        "debit_note_a", "debit_note_b", "debit_note_c",
+    }
+    SRX_TYPES = {"invoice_x"}
+
+    srx_enabled = bool(getattr(business, "srx_enabled", False))
 
     # Obtener comprobantes únicos emitidos
     voucher_ids = list(set(m.voucher_id for m in register.movements if m.voucher_id))
-    vouchers_data = []
+    arca_vouchers: list[dict] = []
+    srx_vouchers: list[dict] = []
+    other_vouchers: list[dict] = []
+    total_arca = Decimal("0")
+    total_srx = Decimal("0")
+    total_other_vouchers = Decimal("0")
+
     if voucher_ids:
         for vid in voucher_ids:
-            voucher = await db.get(Voucher, vid)
+            result_v = await db.execute(
+                select(Voucher)
+                .options(
+                    selectinload(Voucher.voucher_payments)
+                    .selectinload(VoucherPayment.payment_method_catalog)
+                )
+                .where(Voucher.id == vid)
+            )
+            voucher = result_v.scalar_one_or_none()
             if voucher:
                 client = await db.get(Client, voucher.client_id)
-                vouchers_data.append({
+                vtype = voucher.voucher_type.value
+                payments_list = [
+                    vp.payment_method_catalog.name
+                    for vp in (voucher.voucher_payments or [])
+                    if vp.payment_method_catalog
+                ]
+                row = {
                     "number": voucher.full_number,
-                    "type": voucher.voucher_type.value,
+                    "type_label": VOUCHER_TYPE_LABELS.get(vtype, vtype),
                     "client_name": client.name if client else "—",
                     "total_fmt": fmt(voucher.total),
+                    "total": voucher.total,
                     "date": voucher.date.strftime("%d/%m/%Y"),
-                })
+                    "payment_str": " + ".join(payments_list) if payments_list else "—",
+                }
+                if vtype in ARCA_TYPES:
+                    arca_vouchers.append(row)
+                    total_arca += voucher.total
+                elif vtype in SRX_TYPES:
+                    srx_vouchers.append(row)
+                    total_srx += voucher.total
+                else:
+                    other_vouchers.append(row)
+                    total_other_vouchers += voucher.total
+
+    arca_vouchers.sort(key=lambda v: v["date"])
+    srx_vouchers.sort(key=lambda v: v["date"])
+    other_vouchers.sort(key=lambda v: v["date"])
+
+    all_vouchers = arca_vouchers + srx_vouchers + other_vouchers
 
     def fmt_dt(dt) -> str:
         if not dt:
@@ -567,8 +615,14 @@ async def generate_closure_pdf(
         "difference": float(difference),
         "difference_fmt": fmt(difference),
         "difference_reason": register.difference_reason or "",
-        "movements": movements_data,
-        "vouchers": vouchers_data,
+        "srx_enabled": srx_enabled,
+        "arca_vouchers": arca_vouchers,
+        "srx_vouchers": srx_vouchers,
+        "other_vouchers": other_vouchers,
+        "all_vouchers": all_vouchers,
+        "total_arca_fmt": fmt(total_arca),
+        "total_srx_fmt": fmt(total_srx),
+        "has_vouchers": bool(all_vouchers),
     }
 
     # Renderizar
@@ -592,6 +646,7 @@ async def generate_sales_pdf(
     from weasyprint import HTML
 
     from app.models.voucher import Voucher
+    from app.models.voucher_payment import VoucherPayment
 
     # Obtener la caja
     result = await db.execute(
@@ -616,21 +671,19 @@ async def generate_sales_pdf(
     # Obtener IDs de vouchers únicos
     voucher_ids = list(set(m.voucher_id for m in register.movements if m.voucher_id))
 
-    vouchers = []
-    total_vendido = Decimal("0")
-    if voucher_ids:
-        for vid in voucher_ids:
-            voucher = await db.get(Voucher, vid)
-            if voucher:
-                vouchers.append(voucher)
-                total_vendido += voucher.total
-
     TYPE_LABELS = {
-        "QUOTATION": "Cotización",
-        "RECEIPT": "Remito",
-        "INVOICE_A": "Factura A",
-        "INVOICE_B": "Factura B",
-        "INVOICE_C": "Factura C",
+        "quotation":     "Cotización",
+        "receipt":       "Remito",
+        "invoice_a":     "Factura A",
+        "invoice_b":     "Factura B",
+        "invoice_c":     "Factura C",
+        "invoice_x":     "Comp. X",
+        "credit_note_a": "NC A",
+        "credit_note_b": "NC B",
+        "credit_note_c": "NC C",
+        "debit_note_a":  "ND A",
+        "debit_note_b":  "ND B",
+        "debit_note_c":  "ND C",
     }
 
     def fmt(value) -> str:
@@ -641,18 +694,51 @@ async def generate_sales_pdf(
             return "—"
         return dt.strftime("%d/%m/%Y %H:%M")
 
+    vouchers = []
+    total_vendido = Decimal("0")
+    if voucher_ids:
+        for vid in voucher_ids:
+            result_v = await db.execute(
+                select(Voucher)
+                .options(
+                    selectinload(Voucher.voucher_payments)
+                    .selectinload(VoucherPayment.payment_method_catalog),
+                    selectinload(Voucher.items),
+                )
+                .where(Voucher.id == vid)
+            )
+            voucher = result_v.scalar_one_or_none()
+            if voucher:
+                vouchers.append(voucher)
+                total_vendido += voucher.total
+
     # Preparar datos de vouchers
     vouchers_data = []
     for v in vouchers:
         client = await db.get(Client, v.client_id) if v.client_id else None
+        payments_list = [
+            vp.payment_method_catalog.name
+            for vp in (v.voucher_payments or [])
+            if vp.payment_method_catalog
+        ]
+        payment_str = " + ".join(payments_list) if payments_list else "—"
+        items_data = [
+            {
+                "description": item.description or "—",
+                "qty": f"{float(item.quantity):g}",
+                "subtotal_fmt": fmt(item.subtotal),
+            }
+            for item in (v.items or [])
+        ]
         vouchers_data.append({
-            "number": v.full_number,
-            "type": TYPE_LABELS.get(v.voucher_type.value, v.voucher_type.value),
+            "number":      v.full_number,
+            "type":        TYPE_LABELS.get(v.voucher_type.value, v.voucher_type.value),
             "client_name": client.name if client else "—",
-            "client_doc": client.document_number if client else "—",
-            "total_fmt": fmt(v.total),
-            "date": v.date.strftime("%d/%m/%Y"),
-            "time": v.created_at.strftime("%H:%M") if v.created_at else "—",
+            "payment_str": payment_str,
+            "total_fmt":   fmt(v.total),
+            "date":        v.date.strftime("%d/%m/%Y"),
+            "time":        v.created_at.strftime("%H:%M") if v.created_at else "—",
+            "line_items":  items_data,
         })
 
     vouchers_data.sort(key=lambda x: (x["date"], x["time"]), reverse=True)

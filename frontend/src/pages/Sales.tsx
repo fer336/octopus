@@ -35,6 +35,15 @@ type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'invoice_x' | 'current_
 type SalesMenuMode = VoucherType
 type MobileSalesSection = 'items' | 'products' | 'summary'
 
+const VOUCHER_TYPE_LABEL: Record<string, string> = {
+  quotation: 'Cotización',
+  receipt: 'Remito',
+  invoice: 'Factura',
+  current_account: 'Cta Cte',
+  acopio: 'Acopio',
+  invoice_x: 'SRX',
+}
+
 const baseVoucherTypes = [
   { value: 'quotation', label: 'Cotización', icon: FileText },
   { value: 'receipt', label: 'Remito', icon: Truck },
@@ -1951,7 +1960,7 @@ export default function Sales() {
       return
     }
 
-    if (voucherType === 'invoice' && totalRounded <= 0 && !isCustomerCreditReturn) {
+    if ((voucherType === 'invoice' || voucherType === 'invoice_x') && totalRounded <= 0 && !isCustomerCreditReturn) {
       toast.error('El total de la factura debe ser mayor a $0')
       return
     }
@@ -1992,7 +2001,7 @@ export default function Sales() {
       return
     }
 
-    if (voucherType === 'invoice' && voucherTotalsPreviewPayload) {
+    if ((voucherType === 'invoice' || voucherType === 'invoice_x') && voucherTotalsPreviewPayload) {
       const previewResult = await totalsPreviewQuery.refetch()
       if (previewResult.error) {
         toast.error('No se pudo validar el total con backend. Reintentá en unos segundos.')
@@ -2885,7 +2894,7 @@ export default function Sales() {
       return { valid: true }
     }
 
-    if (voucherType === 'invoice' && assignedTotal <= 0) {
+    if ((voucherType === 'invoice' || voucherType === 'invoice_x') && assignedTotal <= 0) {
       return { valid: false, message: 'Debe cargar al menos un método de pago para facturas' }
     }
 
@@ -3935,9 +3944,9 @@ export default function Sales() {
               >
                 {isGenerating 
                   ? 'Procesando...' 
-                  : voucherType === 'invoice' 
-                    ? 'Emitir' 
-                    : `Generar ${voucherTypes.find(v => v.value === voucherType)?.label}`
+                  : voucherType === 'invoice'
+                    ? 'Emitir'
+                    : `Generar ${VOUCHER_TYPE_LABEL[voucherType] ?? voucherType}`
                 }
               </button>
             </div>
@@ -4615,9 +4624,9 @@ export default function Sales() {
                     ? 'Actualizar Cotización'
                   : voucherType === 'acopio'
                     ? 'Generar Acopio'
-                  : voucherType === 'invoice' 
-                    ? 'Emitir Factura Electrónica' 
-                    : `Generar ${voucherTypes.find(v => v.value === voucherType)?.label}`
+                  : voucherType === 'invoice'
+                    ? 'Emitir Factura Electrónica'
+                    : `Generar ${VOUCHER_TYPE_LABEL[voucherType] ?? voucherType}`
                 }
               </Button>
               <Button variant="outline" size="sm" className="w-full text-xs" onClick={handleSaveDraft} data-tour-sales-save-draft>
@@ -5260,12 +5269,12 @@ export default function Sales() {
       <Modal 
         isOpen={showConfirmModal} 
         onClose={() => setShowConfirmModal(false)} 
-        title={voucherType === 'invoice' ? 'Confirmar Emisión de Factura Electrónica' : `Confirmar ${voucherTypes.find(v => v.value === voucherType)?.label}`}
-        size={voucherType === 'invoice' ? 'xl' : 'lg'}
-        containerClassName={voucherType === 'invoice' ? 'max-h-[95vh]' : undefined}
-        headerClassName={voucherType === 'invoice' ? 'px-4 py-2' : undefined}
-        contentClassName={voucherType === 'invoice' ? 'p-0' : undefined}
-        titleClassName={voucherType === 'invoice' ? 'text-sm' : undefined}
+        title={voucherType === 'invoice' ? 'Confirmar Emisión de Factura Electrónica' : voucherType === 'invoice_x' ? 'Confirmar Comprobante SRX' : `Confirmar ${VOUCHER_TYPE_LABEL[voucherType] ?? voucherType}`}
+        size={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'xl' : 'lg'}
+        containerClassName={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'max-h-[95vh]' : undefined}
+        headerClassName={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'px-4 py-2' : undefined}
+        contentClassName={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'p-0' : undefined}
+        titleClassName={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'text-sm' : undefined}
       >
         <div className={voucherType === 'invoice' ? 'flex flex-col max-h-[80vh] overflow-hidden' : 'space-y-4'}>
           {/* Body scrolleable (solo invoice) */}
@@ -5281,7 +5290,7 @@ export default function Sales() {
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Tipo:</span>
                   <span className="font-medium text-gray-900 dark:text-white">
-                    {voucherTypes.find(v => v.value === voucherType)?.label}
+                    {VOUCHER_TYPE_LABEL[voucherType] ?? voucherType}
                   </span>
                 </div>
                 {/* SALES-ACOPIO-FRONTEND-03: Mostrar acopio vinculado en confirmación */}
@@ -5441,8 +5450,8 @@ export default function Sales() {
               </div>
             </div>
 
-            {/* Métodos de pago — solo para facturas */}
-            {voucherType === 'invoice' && !isCustomerCreditReturn && (
+            {/* Métodos de pago — facturas ARCA y SRX */}
+            {(voucherType === 'invoice' || voucherType === 'invoice_x') && !isCustomerCreditReturn && (
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-2 bg-white dark:bg-gray-800">
             <div className="flex items-start justify-between gap-3">
               <div>
