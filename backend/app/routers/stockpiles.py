@@ -8,13 +8,13 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.database import get_db
-from app.models import Stockpile, StockpileItem, StockpileStatus, Voucher, VoucherStatus, VoucherType, Product
+from app.models import Business, Stockpile, StockpileItem, StockpilePriceSnapshot, StockpileStatus, Voucher, VoucherStatus, VoucherType, Product
 from app.models.client import Client
 from app.models.user import User
 from app.routers.auth import get_current_user
@@ -40,6 +40,7 @@ from app.schemas.stockpile import (
     StockpileOpenItem,
 )
 from app.services.stockpile_service import StockpileService
+from app.services.stockpile_snapshot_service import StockpileSnapshotService
 
 logger = logging.getLogger("uvicorn")
 
@@ -324,6 +325,7 @@ async def create_stockpile(
 )
 async def create_stockpile_by_amount(
     data: StockpileCreateByAmount,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     business_id: UUID = Depends(get_current_business),
@@ -363,6 +365,22 @@ async def create_stockpile_by_amount(
         await db.get(Voucher, stockpile.principal_voucher_id)
         if stockpile.principal_voucher_id
         else None
+    )
+
+    # Disparar webhook a n8n (fire-and-forget) para envío de Excel
+    snapshot_service = StockpileSnapshotService(db)
+    business = await db.get(Business, business_id)
+    business_name = business.name if business else ""
+    base_url = str(request.base_url).rstrip("/")
+    import asyncio
+    asyncio.create_task(
+        snapshot_service.dispatch_webhook(
+            stockpile_id=stockpile.id,
+            client_email=client.email if client else None,
+            client_name=client.name if client else None,
+            business_name=business_name,
+            base_url=base_url,
+        )
     )
 
     return serialize_stockpile(
@@ -975,3 +993,42 @@ async def get_frozen_items(
         )
 
     return result
+
+
+@router.get("/{stockpile_id}/price-snapshot/excel")
+async def download_price_snapshot_excel(
+    stockpile_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    business_id: UUID = Depends(get_current_business),
+):
+    """Descarga el Excel de precios congelados de un acopio por monto."""
+    # Verificar que el acopio existe y pertenece al negocio
+    stockpile = await db.get(Stockpile, stockpile_id)
+    if not stockpile or stockpile.business_id != business_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Acopio no encontrado",
+        )
+
+    snapshot_service = StockpileSnapshotService(db)
+    snapshots = await snapshot_service.get_snapshots(stockpile_id)
+
+    if not snapshots:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No hay snapshots de precios para este acopio. "
+                   "Solo los acopios por monto generan snapshots.",
+        )
+
+    excel_bytes = snapshot_service.generate_excel(snapshots, stockpile.name or "Acopio")
+
+    filename = f"precios_congelados_{stockpile.stockpile_number or stockpile_id}_{datetime.utcnow().strftime('%Y_%m_%d')}.xlsx"
+
+    return StreamingResponse(
+        iter([excel_bytes.getvalue()]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+        },
+    )
