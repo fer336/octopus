@@ -2,13 +2,13 @@
  * Página de Acopios (Stockpiles).
  * Vista de solo consulta - la creación es exclusivamente desde Ventas.
  */
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Search, Package, ChevronRight, ChevronDown, FileText, Trash2, Eye, Download } from 'lucide-react'
 import { Button, Modal, ConfirmModal } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import toast from 'react-hot-toast'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import stockpileService, { StockpileResponse, StockpileItemResponse } from '../api/stockpileService'
+import stockpileService, { type StockpileResponse, type StockpileItemResponse, type StockpileTreeItem } from '../api/stockpileService'
 import WhatsAppSendPdfButton from '../components/messaging/WhatsAppSendPdfButton'
 
 // Estados del acopio
@@ -40,6 +40,7 @@ export default function Stockpiles() {
   const [stockpileToDelete, setStockpileToDelete] = useState<{ id: string; name: string } | null>(null)
   const [voucherToCancel, setVoucherToCancel] = useState<{ id: string; number: string; stockpileId: string; stockpileName: string } | null>(null)
   const [confirmArchiveCancelled, setConfirmArchiveCancelled] = useState(false)
+  const [downloadingSnapshotId, setDownloadingSnapshotId] = useState<string | null>(null)
 
   const archiveCancelledMutation = useMutation({
     mutationFn: () => stockpileService.archiveCancelledStockpiles(),
@@ -60,7 +61,7 @@ export default function Stockpiles() {
   })
 
   // Filtrar por búsqueda
-  const filteredItems = useMemo(() => {
+  const filteredItems = (() => {
     if (!stockpilesTreeData?.items) return []
     if (!search) return stockpilesTreeData.items
     
@@ -71,7 +72,7 @@ export default function Stockpiles() {
       (item.name || '').toLowerCase().includes(searchLower) ||
       (item.description || '').toLowerCase().includes(searchLower)
     )
-  }, [stockpilesTreeData?.items, search])
+  })()
 
   // Toggle expand
   const toggleExpand = (id: string) => {
@@ -167,6 +168,31 @@ export default function Stockpiles() {
       toast.success('PDF descargado', { duration: 2000, icon: '✅' })
     } catch {
       toast.error('Error al descargar PDF')
+    }
+  }
+
+  const getSnapshotFilename = (item: StockpileTreeItem) => {
+    const identifier = item.stockpile_number || item.id
+    return `precios-congelados-${identifier.replace(/[^a-zA-Z0-9_-]/g, '-')}.xlsx`
+  }
+
+  const handleDownloadPriceSnapshot = async (item: StockpileTreeItem) => {
+    try {
+      setDownloadingSnapshotId(item.id)
+      const blob = await stockpileService.downloadPriceSnapshot(item.id)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = getSnapshotFilename(item)
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success('Excel descargado', { duration: 2000, icon: '✅' })
+    } catch (error: unknown) {
+      toast.error(formatErrorMessage(error))
+    } finally {
+      setDownloadingSnapshotId(null)
     }
   }
 
@@ -382,7 +408,28 @@ export default function Stockpiles() {
                   </div>
 
                   {/* Acciones */}
-                  <div className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center justify-end gap-1">
+                    {item.has_price_snapshot && (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDownloadPriceSnapshot(item) }}
+                          disabled={downloadingSnapshotId === item.id}
+                          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors disabled:opacity-50"
+                          title="Descargar Excel"
+                        >
+                          <Download size={16} />
+                        </button>
+                        <span onClick={(e) => e.stopPropagation()}>
+                          <WhatsAppSendPdfButton
+                            getPdfBlob={() => stockpileService.downloadPriceSnapshot(item.id)}
+                            filename={getSnapshotFilename(item)}
+                            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            defaultClientId={item.client_id}
+                            size={16}
+                          />
+                        </span>
+                      </>
+                    )}
                     {item.status === 'open' && (
                       <button
                         onClick={(e) => { e.stopPropagation(); setStockpileToDelete({ id: item.id, name: item.name }) }}

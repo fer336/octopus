@@ -306,10 +306,14 @@ class StockpileTreeItem(BaseModel):
     """Nodo principal del árbol de acopios."""
 
     id: UUID
+    client_id: UUID
+    billing_client_id: UUID | None
     name: str
     stockpile_number: str | None
     description: str | None
     client_name: str
+    client_email: str | None = None
+    client_phone: str | None = None
     status: str
     created_at: datetime
     principal_voucher_id: UUID | None
@@ -317,6 +321,7 @@ class StockpileTreeItem(BaseModel):
     initial_amount: Decimal
     withdrawn_amount: Decimal
     remaining_amount: Decimal
+    has_price_snapshot: bool = False
     child_vouchers: list[StockpileTreeChildVoucher]
 
 

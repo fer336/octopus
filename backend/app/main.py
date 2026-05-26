@@ -26,6 +26,7 @@ from app.routers import (
     clients,
     dashboard,
     drafts,
+    exchange_rate,
     feedback,
     payment_methods,
     pdf_test,
@@ -39,7 +40,6 @@ from app.routers import (
     stockpiles,
     vouchers,
     whatsapp,
-    whatsapp_auth,
 )
 from app.services.pdf_service import PdfService
 
@@ -104,11 +104,10 @@ app.include_router(suppliers.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(categories.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(dashboard.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(drafts.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(exchange_rate.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(pdf_test.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(vouchers.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(whatsapp.router, prefix=settings.API_TENANT_PREFIX)
-app.include_router(whatsapp_auth.router, prefix=settings.API_TENANT_PREFIX)
-app.include_router(whatsapp_auth.webhook_router)
 app.include_router(arca.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(business.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(payment_methods.router, prefix=settings.API_TENANT_PREFIX)
@@ -119,6 +118,7 @@ app.include_router(ai.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(ai_config.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(feedback.tenant_router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(reports.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(stockpiles.internal_router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(stockpiles.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(audit_logs.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(admin.router)  # /api/admin/* (prefijo interno)

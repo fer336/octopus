@@ -5,6 +5,7 @@ Maneja la creación de ventas, cálculo de totales y generación de PDF.
 from __future__ import annotations
 
 import builtins
+import logging
 from datetime import date as date_type, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Literal
@@ -26,7 +27,7 @@ from app.models.product_lot import ProductLot
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
 from app.models.voucher_payment import VoucherPayment
-from app.models.stockpile import Stockpile, StockpileStatus
+from app.models.stockpile import Stockpile, StockpilePriceSnapshot, StockpileStatus
 from app.schemas.voucher import (
     CurrentAccountCloseHistoryResponse,
     CurrentAccountCloseItemPreview,
@@ -38,6 +39,9 @@ from app.schemas.voucher import (
 )
 from app.services.pdf_service import pdf_service
 from app.services.product_lot_service import ProductLotService
+
+
+logger = logging.getLogger("uvicorn")
 
 
 class VoucherService:
@@ -319,6 +323,7 @@ class VoucherService:
         voucher_type: VoucherType,
         user_id: UUID | None = None,
         voucher_id: UUID | None = None,
+        stockpile_id: UUID | None = None,
     ) -> tuple[list[VoucherItem], Decimal, Decimal, Decimal]:
         """Construye items del comprobante y recalcula totales.
 
@@ -326,11 +331,26 @@ class VoucherService:
         atribución de usuario y persistencia de LotConsumption.
         Si se provee voucher_id, se asigna a los VoucherItem antes
         del flush para respetar la constraint NOT NULL.
+        Si se provee stockpile_id, para acopios por monto los precios
+        se resuelven desde StockpilePriceSnapshot (precios congelados).
         """
         total_subtotal = Decimal(0)
         total_iva = Decimal(0)
         total_final = Decimal(0)
         general_discount_factor = Decimal("1") - (general_discount / Decimal("100"))
+
+        # Para acopios por monto: precargar snapshots si hay stockpile_id
+        snapshot_map: dict[UUID, StockpilePriceSnapshot] = {}
+        if stockpile_id:
+            # Cargar snapshots si existen (acopios por monto)
+            snap_result = await self.db.execute(
+                select(StockpilePriceSnapshot).where(
+                    StockpilePriceSnapshot.stockpile_id == stockpile_id,
+                    StockpilePriceSnapshot.deleted_at.is_(None),
+                )
+            )
+            for sp in snap_result.scalars().all():
+                snapshot_map[sp.product_id] = sp
 
         items_db: list[VoucherItem] = []
         for i, item_data in enumerate(items_data):
@@ -338,8 +358,21 @@ class VoucherService:
             if not product or product.business_id != business_id:
                 raise ValueError(f"Producto {item_data.product_id} no encontrado")
 
-            # Usar el unit_price que envía el frontend (precio SIN IVA)
-            unit_price = item_data.unit_price if item_data.unit_price else product.net_price
+            # Resolver precio desde snapshot (acopio por monto) o desde catálogo
+            if stockpile_id and product.id in snapshot_map:
+                sp = snapshot_map[product.id]
+                unit_price = sp.price_without_iva
+                iva_rate = sp.iva_rate
+            else:
+                unit_price = item_data.unit_price if item_data.unit_price else product.net_price
+                iva_rate = product.iva_rate or Decimal("21")
+                # Log warning for legacy amount stockpiles without snapshot
+                if stockpile_id and unit_price == product.net_price:
+                    logger.warning(
+                        f"No snapshot for stockpile {stockpile_id}, "
+                        f"product {item_data.product_id}: using catalog price"
+                    )
+
             item_discount_factor = Decimal("1") - (item_data.discount_percent / Decimal("100"))
             subtotal_line = (
                 unit_price
@@ -347,7 +380,6 @@ class VoucherService:
                 * item_discount_factor
                 * general_discount_factor
             )
-            iva_rate = product.iva_rate or Decimal("21")
             iva_line = subtotal_line * (iva_rate / Decimal("100"))
             total_line = subtotal_line + iva_line
 
@@ -912,6 +944,7 @@ class VoucherService:
             voucher_type=data.voucher_type,
             user_id=user_id,
             voucher_id=voucher.id,
+            stockpile_id=data.stockpile_id,
         )
 
         # Asignar totales al voucher
@@ -1014,9 +1047,15 @@ class VoucherService:
             VoucherType.INVOICE_A,
             VoucherType.INVOICE_B,
             VoucherType.INVOICE_C,
+            VoucherType.INVOICE_X,
         }
         require_payments = is_invoice and not data.is_current_account
-        
+
+        _full_number = (
+            f"[SRX] {voucher.full_number}"
+            if data.voucher_type == VoucherType.INVOICE_X
+            else voucher.full_number
+        )
         await self._create_voucher_payments(
             voucher_id=voucher.id,
             business_id=business_id,
@@ -1025,7 +1064,7 @@ class VoucherService:
             require_payments=require_payments,
             cash_register_id=cash_register_id,
             user_id=user_id,
-            voucher_full_number=voucher.full_number,
+            voucher_full_number=_full_number,
         )
 
         # Actualizar montos del acopio si es un retiro parcial
@@ -2118,14 +2157,14 @@ class VoucherService:
                     "subtotal": f"{abs_raw:,.2f}",
                     "discount": "0%",
                     "iva": "21%",
-                    "total": f"{abs_raw:,.2f}",
+                    "total": f"{abs_raw + iva_no_discount:,.2f}",
                 }
                 if hide_discount
                 else {
                     "subtotal": f"{abs_item_sum:,.2f}",
                     "discount": f"{general_discount_pct_rounded:g}%",
                     "iva": "21%",
-                    "total": f"{abs_item_sum * (1 - general_discount_pct_rounded / Decimal('100')):,.2f}",
+                    "total": f"{abs_total:,.2f}",
                 }
             ),
             "copy": {

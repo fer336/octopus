@@ -99,12 +99,14 @@ export interface StockpileTreeChildVoucher {
 
 export interface StockpileTreeItem {
   id: string
+  client_id: string
+  billing_client_id: string | null
   name: string
   stockpile_number: string | null
   description: string | null
-  client_id?: string
-  billing_client_id?: string | null
   client_name: string
+  client_email: string | null
+  client_phone: string | null
   status: string
   created_at: string
   principal_voucher_id: string | null
@@ -112,6 +114,7 @@ export interface StockpileTreeItem {
   initial_amount: number
   withdrawn_amount: number
   remaining_amount: number
+  has_price_snapshot: boolean
   child_vouchers: StockpileTreeChildVoucher[]
 }
 
@@ -305,6 +308,16 @@ const stockpileService = {
    */
   getFrozenItems: async (stockpileId: string): Promise<FrozenItem[]> => {
     const response = await httpClient.get(`/stockpiles/${stockpileId}/frozen-items`)
+    return response.data
+  },
+
+  /**
+   * Descarga el Excel de precios congelados de un acopio por monto.
+   */
+  downloadPriceSnapshot: async (stockpileId: string): Promise<Blob> => {
+    const response = await httpClient.get(`/stockpiles/${stockpileId}/price-snapshot/excel`, {
+      responseType: 'blob',
+    })
     return response.data
   },
 

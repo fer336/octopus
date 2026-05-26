@@ -7,12 +7,14 @@ import { useState, type MouseEvent } from 'react'
 import { TrendingUp, Search, Filter, DollarSign, FolderOpen, Trash2, ChevronUp, Clock, Package, RefreshCw } from 'lucide-react'
 import { Button, ConfirmModal, Pagination } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import productsService, { Product, ProductBulkUpdateItem, ProductUpdate } from '../api/productsService'
+import productsService, { Product, ProductBulkUpdateItem } from '../api/productsService'
 import categoriesService from '../api/categoriesService'
 import suppliersService from '../api/suppliersService'
 import priceUpdateDraftsService, { DraftSummary } from '../api/priceUpdateDraftsService'
-import BulkEditProductsModal from '../components/prices/BulkEditProductsModal'
+import exchangeRateService from '../api/exchangeRateService'
+import BulkEditProductsModal, { type EditableProduct } from '../components/prices/BulkEditProductsModal'
 import ExcelMassPriceUpdateModal from '../components/prices/ExcelMassPriceUpdateModal'
+import { buildProductPriceUpdatePayload, formatSourceListPrice, isUsdPricedProduct } from '../utils/productPricing'
 import toast from 'react-hot-toast'
 
 const EMPTY_PRODUCTS: Product[] = []
@@ -22,24 +24,6 @@ const toNonNegativeNumber = (value: unknown, fallback = 0) => {
   if (!Number.isFinite(parsed)) return fallback
   return Math.max(0, parsed)
 }
-
-const buildPriceUpdatePayload = (product: {
-  list_price?: unknown
-  discount_1?: unknown
-  discount_2?: unknown
-  discount_3?: unknown
-  extra_cost?: unknown
-  profit_margin?: unknown
-  current_stock?: unknown
-}): ProductUpdate => ({
-  list_price: toNonNegativeNumber(product.list_price),
-  discount_1: Math.min(100, toNonNegativeNumber(product.discount_1)),
-  discount_2: Math.min(100, toNonNegativeNumber(product.discount_2)),
-  discount_3: Math.min(100, toNonNegativeNumber(product.discount_3)),
-  extra_cost: toNonNegativeNumber(product.extra_cost),
-  profit_margin: toNonNegativeNumber(product.profit_margin),
-  current_stock: Math.floor(toNonNegativeNumber(product.current_stock)),
-})
 
 const formatMoney = (value: unknown) => `$${toNonNegativeNumber(value).toFixed(2)}`
 
@@ -94,7 +78,7 @@ export default function PriceUpdate() {
   // Panel de borradores
   const [showDrafts, setShowDrafts] = useState(false)
   // Productos cargados desde un borrador (sobreescribe la selección de la tabla)
-  const [draftProducts, setDraftProducts] = useState<any[] | null>(null)
+  const [draftProducts, setDraftProducts] = useState<EditableProduct[] | null>(null)
 
   // Queries
   const { data: productsData, isLoading } = useQuery({
@@ -124,6 +108,14 @@ export default function PriceUpdate() {
     queryFn: () => priceUpdateDraftsService.list(),
     retry: false,
   })
+
+  const { data: exchangeRates } = useQuery({
+    queryKey: ['exchange-rates'],
+    queryFn: () => exchangeRateService.getRates(),
+    staleTime: 10 * 60 * 1000,
+  })
+
+  const activeExchangeRate = exchangeRates?.blue.promedio ?? 0
 
   const products = productsData?.items ?? EMPTY_PRODUCTS
   const categories = Array.isArray(categoriesData) ? categoriesData : []
@@ -191,7 +183,7 @@ export default function PriceUpdate() {
     void refetchDrafts()
   }
 
-  const handleCloseBulkEdit = (draftId?: string, products?: any[]) => {
+  const handleCloseBulkEdit = (draftId?: string, products?: EditableProduct[]) => {
     setShowBulkEditModal(false)
 
     if (draftId && products) {
@@ -232,14 +224,18 @@ export default function PriceUpdate() {
 
   // ─── Guardar cambios ────────────────────────────────────────────────────────
 
-  const handleSaveBulkEdit = async (editedProducts: any[], draftId?: string) => {
+  const handleSaveBulkEdit = async (editedProducts: EditableProduct[], draftId?: string) => {
     try {
+      if (editedProducts.some(isUsdPricedProduct) && activeExchangeRate <= 0) {
+        throw new Error('No se pudo obtener la cotización blue para convertir precios USD')
+      }
+
       const payload: ProductBulkUpdateItem[] = editedProducts.map((product) => ({
         id: product.id,
-          description: product.description,
-          ...(product.category_id ? { category_id: product.category_id } : {}),
-          ...(product.supplier_id ? { supplier_id: product.supplier_id } : {}),
-          ...buildPriceUpdatePayload(product),
+        description: product.description,
+        ...(product.category_id ? { category_id: product.category_id } : {}),
+        ...(product.supplier_id ? { supplier_id: product.supplier_id } : {}),
+        ...buildProductPriceUpdatePayload(product, activeExchangeRate),
       }))
 
       const result = await productsService.bulkUpdate(payload)
@@ -589,7 +585,21 @@ export default function PriceUpdate() {
                       <td className="px-3 py-2 align-middle">
                         {supplierName ? <span className="text-xs text-gray-600 dark:text-gray-300">{supplierName}</span> : <span className="text-xs text-gray-400">-</span>}
                       </td>
-                      <td className="px-3 py-2 align-middle text-center font-semibold text-gray-900 dark:text-gray-100">{formatMoney(item.list_price)}</td>
+                      <td className="px-3 py-2 align-middle text-center">
+                        <span className="inline-flex flex-col items-center gap-0.5 font-semibold text-gray-900 dark:text-gray-100">
+                          <span className="flex items-center gap-1">
+                            {formatSourceListPrice(item)}
+                            {isUsdPricedProduct(item) && (
+                              <span className="rounded bg-blue-100 px-1 text-[9px] font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">USD</span>
+                            )}
+                          </span>
+                          {isUsdPricedProduct(item) && (
+                            <span className="text-[10px] font-normal text-gray-400 dark:text-gray-500">
+                              {formatMoney(item.list_price)} calc.
+                            </span>
+                          )}
+                        </span>
+                      </td>
                       <td className="px-3 py-2 align-middle text-center text-gray-700 dark:text-gray-300">{getDiscountDisplay(item)}</td>
                       <td className="px-3 py-2 align-middle text-center text-gray-700 dark:text-gray-300">{formatNumber(item.extra_cost)}</td>
                       <td className="px-3 py-2 align-middle text-center text-gray-700 dark:text-gray-300">{formatNumber(item.profit_margin)}</td>
@@ -674,7 +684,15 @@ export default function PriceUpdate() {
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
                       <p className="text-[10px] text-gray-500 dark:text-gray-400">P. Lista</p>
-                      <p className="mt-1 font-semibold text-gray-900 dark:text-gray-100">{formatMoney(item.list_price)}</p>
+                      <p className="mt-1 font-semibold text-gray-900 dark:text-gray-100">
+                        {formatSourceListPrice(item)}
+                        {isUsdPricedProduct(item) && <span className="ml-1 text-[10px] text-blue-600 dark:text-blue-400">USD</span>}
+                      </p>
+                      {isUsdPricedProduct(item) && (
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                          {formatMoney(item.list_price)} calc.
+                        </p>
+                      )}
                     </div>
                     <div className="rounded-lg border border-orange-200 bg-orange-50 px-2 py-1.5 dark:border-orange-800 dark:bg-orange-900/20">
                       <p className="text-[10px] text-orange-700 dark:text-orange-300">P. Venta</p>
@@ -745,6 +763,7 @@ export default function PriceUpdate() {
         onSave={handleSaveBulkEdit}
         onDraftSaved={handleDraftSaved}
         products={draftProducts ?? products.filter(p => selectedProducts.has(p.id))}
+        exchangeRate={activeExchangeRate}
         categories={categories}
         suppliers={suppliers}
         draftFilters={{

@@ -164,8 +164,14 @@ export async function listSessions(): Promise<WhatsAppSession[]> {
     const res = await client().get('/instance/fetchInstances', { params: { instanceName } })
     return normalizeEvolutionSessions(res.data)
   } catch (error: unknown) {
-    if (getHttpStatus(error) === 404) return []
-    throw error
+    if (getHttpStatus(error) !== 404) throw error
+    // Instance not found by name — fall back to all instances
+    try {
+      const res = await client().get('/instance/fetchInstances')
+      return normalizeEvolutionSessions(res.data)
+    } catch {
+      return []
+    }
   }
 }
 

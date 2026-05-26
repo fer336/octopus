@@ -3,7 +3,7 @@ Modelo de Acopio (Stockpile).
 Pago anticipado con retiro escalonado de productos a precios congelados.
 """
 from decimal import Decimal
-from datetime import date as date_type
+from datetime import date as date_type, datetime
 
 from sqlalchemy import Column, DateTime, Date, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
@@ -198,3 +198,48 @@ class StockpileItem(BaseModel):
 
     def __repr__(self) -> str:
         return f"<StockpileItem {self.product_code}: {self.quantity_remaining}/{self.quantity_initial}>"
+
+
+class StockpilePriceSnapshot(BaseModel):
+    """
+    Snapshot de precios de productos activos al momento de crear un acopio por monto.
+
+    Se genera en create_by_amount() para preservar los precios del catálogo
+    vigentes al momento de la creación del acopio. Los retiros posteriores
+    resuelven precios desde esta tabla.
+    """
+
+    __tablename__ = "stockpile_price_snapshots"
+
+    stockpile_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("stockpiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    product_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("products.id"),
+        nullable=False,
+        index=True,
+    )
+
+    # Snapshot de metadata del producto
+    code = Column(String(50), nullable=False)
+    description = Column(String(500), nullable=False)
+
+    # Snapshot de precios (sin IVA)
+    price_without_iva = Column(Numeric(12, 2), nullable=False)
+    iva_rate = Column(Numeric(5, 2), nullable=False)
+    iva_amount = Column(Numeric(12, 2), nullable=False)
+    price_with_iva = Column(Numeric(12, 2), nullable=False)
+
+    # Fecha de congelamiento (cuándo se tomó el snapshot)
+    frozen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relaciones
+    stockpile = relationship("Stockpile")
+    product = relationship("Product")
+
+    def __repr__(self) -> str:
+        return f"<StockpilePriceSnapshot {self.code}: ${self.price_with_iva}>"

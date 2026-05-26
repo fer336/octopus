@@ -163,6 +163,23 @@
       color: #000;
     }
 
+    /* ─── Items detail ─────────────────────────────────── */
+    .items-detail {
+      padding: 2px 6px 4px 16px;
+      background: #f9f9f9;
+    }
+    .items-detail table {
+      width: 100%;
+      font-size: 8.5px;
+      border-collapse: collapse;
+    }
+    .items-detail table td {
+      padding: 1.5px 4px;
+      border: none;
+      color: #333;
+    }
+    .items-detail table td.right { text-align: right; }
+
     /* ─── Footer ───────────────────────────────────────── */
     .footer {
       margin-top: 20px;
@@ -242,7 +259,7 @@
         <th>Comprobante</th>
         <th>Tipo</th>
         <th>Cliente</th>
-        <th>Documento</th>
+        <th>Método</th>
         <th class="right">Total</th>
       </tr>
     </thead>
@@ -254,9 +271,26 @@
         <td>{{ v.number }}</td>
         <td>{{ v.type }}</td>
         <td>{{ v.client_name }}</td>
-        <td>{{ v.client_doc }}</td>
+        <td>{{ v.payment_str }}</td>
         <td class="right">{{ v.total_fmt }}</td>
       </tr>
+      {% if v.line_items %}
+      <tr>
+        <td colspan="7" style="padding: 0; border-top: none;">
+          <div class="items-detail">
+            <table>
+              {% for item in v.line_items %}
+              <tr>
+                <td>{{ item.qty }}x</td>
+                <td>{{ item.description }}</td>
+                <td class="right">{{ item.subtotal_fmt }}</td>
+              </tr>
+              {% endfor %}
+            </table>
+          </div>
+        </td>
+      </tr>
+      {% endif %}
       {% endfor %}
     </tbody>
     <tfoot>

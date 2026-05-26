@@ -7,6 +7,13 @@ import { TrendingUp, TrendingDown, RotateCcw, Save, X, Zap, BookmarkCheck, Check
 import { Button } from '../ui'
 import toast from 'react-hot-toast'
 import priceUpdateDraftsService from '../../api/priceUpdateDraftsService'
+import {
+  convertSourcePriceToArs,
+  getSourceListPrice,
+  isUsdPricedProduct,
+  PRODUCT_PRICE_CURRENCY,
+  type ProductPriceCurrency,
+} from '../../utils/productPricing'
 
 interface Category {
   id: string
@@ -20,7 +27,7 @@ interface Supplier {
 
 type EditableNumber = number | ''
 
-interface EditableProduct {
+export interface EditableProduct {
   id: string
   code: string
   description: string
@@ -29,6 +36,8 @@ interface EditableProduct {
   supplier_id?: string
   supplier_name?: string
   list_price: EditableNumber
+  price_currency?: ProductPriceCurrency
+  list_price_usd?: EditableNumber | null
   discount_1: EditableNumber
   discount_2: EditableNumber
   discount_3: EditableNumber
@@ -86,6 +95,7 @@ interface BulkEditProductsModalProps {
   suppliers: Supplier[]
   draftFilters?: DraftFilters  // filtros activos al abrir el modal
   existingDraftId?: string     // si se cargó desde un borrador, su ID para actualizarlo
+  exchangeRate: number
 }
 
 export default function BulkEditProductsModal({
@@ -98,6 +108,7 @@ export default function BulkEditProductsModal({
   suppliers,
   draftFilters,
   existingDraftId,
+  exchangeRate,
 }: BulkEditProductsModalProps) {
   const [products, setProducts] = useState<EditableProduct[]>([])
   const [isSaving, setIsSaving] = useState(false)
@@ -116,18 +127,27 @@ export default function BulkEditProductsModal({
 
       if (lastHydrationKey.current === hydrationKey) return
 
-      const hydratedProducts = initialProducts.map(p => ({
-        ...p,
-        list_price: Number(p.list_price),
-        discount_1: Number(p.discount_1),
-        discount_2: Number(p.discount_2),
-        discount_3: Number(p.discount_3),
-        extra_cost: Number(p.extra_cost),
-        profit_margin: Number(p.profit_margin ?? 0),
-        sale_price: Number(p.sale_price),
-        current_stock: Number(p.current_stock),
-        is_pending: Boolean(p.is_pending),
-      }))
+      const hydratedProducts = initialProducts.map(p => {
+        const priceCurrency = p.price_currency === PRODUCT_PRICE_CURRENCY.USD
+          ? PRODUCT_PRICE_CURRENCY.USD
+          : PRODUCT_PRICE_CURRENCY.ARS
+        const sourceListPrice = getSourceListPrice(p)
+
+        return {
+          ...p,
+          price_currency: priceCurrency,
+          list_price: sourceListPrice,
+          list_price_usd: priceCurrency === PRODUCT_PRICE_CURRENCY.USD ? sourceListPrice : null,
+          discount_1: Number(p.discount_1),
+          discount_2: Number(p.discount_2),
+          discount_3: Number(p.discount_3),
+          extra_cost: Number(p.extra_cost),
+          profit_margin: Number(p.profit_margin ?? 0),
+          sale_price: Number(p.sale_price),
+          current_stock: Number(p.current_stock),
+          is_pending: Boolean(p.is_pending),
+        }
+      })
 
       setProducts(hydratedProducts)
       setPendingRows(buildPendingRowsFromProducts(hydratedProducts))
@@ -162,7 +182,7 @@ export default function BulkEditProductsModal({
     }
 
     setProducts(prev => prev.map(p => {
-      const currentListPrice = toCalculationNumber(p.list_price)
+      const currentListPrice = getSourceListPrice(p)
       let newPrice = currentListPrice
       
       if (type === 'increase') {
@@ -176,6 +196,7 @@ export default function BulkEditProductsModal({
       return {
         ...p,
         list_price: Math.round(newPrice * 100) / 100,
+        list_price_usd: isUsdPricedProduct(p) ? Math.round(newPrice * 100) / 100 : p.list_price_usd,
       }
     }))
     markAllRowsPending()
@@ -186,7 +207,7 @@ export default function BulkEditProductsModal({
   // Calcular precio final con IVA (aplicando bonificaciones EN CADENA)
   const calculateFinalPrice = (product: EditableProduct): number => {
     // Precio con bonificaciones aplicadas en cadena
-    let price = toCalculationNumber(product.list_price)
+    let price = convertSourcePriceToArs(product, exchangeRate)
     const discount1 = toCalculationNumber(product.discount_1)
     const discount2 = toCalculationNumber(product.discount_2)
     const discount3 = toCalculationNumber(product.discount_3)
@@ -299,7 +320,7 @@ export default function BulkEditProductsModal({
     toast.success(`Stock ${stock} aplicado a ${products.length} productos`, { icon: '📦' })
   }
 
-  const updateProduct = (index: number, field: keyof EditableProduct, value: any) => {
+  const updateProduct = (index: number, field: keyof EditableProduct, value: EditableProduct[keyof EditableProduct]) => {
     const productId = products[index]?.id
     if (productId) {
       setPendingRows(prev => ({ ...prev, [productId]: true }))
@@ -309,10 +330,14 @@ export default function BulkEditProductsModal({
       if (i !== index) return p
       
       const updated = { ...p, [field]: value }
+
+      if (field === 'list_price' && isUsdPricedProduct(updated)) {
+        updated.list_price_usd = value as EditableNumber
+      }
       
       // Si cambia bonificaciones, parsear
       if (field === 'discount_display') {
-        const discounts = value.split('+').map((d: string) => parseFloat(d.trim()) || 0).filter((d: number) => d > 0)
+        const discounts = String(value ?? '').split('+').map((d: string) => parseFloat(d.trim()) || 0).filter((d: number) => d > 0)
         updated.discount_1 = discounts[0] || 0
         updated.discount_2 = discounts[1] || 0
         updated.discount_3 = discounts[2] || 0
@@ -389,6 +414,20 @@ export default function BulkEditProductsModal({
   })
 
   const [isSavingDraft, setIsSavingDraft] = useState(false)
+
+  const renderCalculatedArsPrice = (product: EditableProduct) => {
+    if (!isUsdPricedProduct(product)) return null
+
+    if (exchangeRate <= 0) {
+      return <span className="text-[10px] text-gray-400 dark:text-gray-500">Cotización pendiente</span>
+    }
+
+    return (
+      <span className="text-[10px] text-gray-400 dark:text-gray-500">
+        ${convertSourcePriceToArs(product, exchangeRate).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} calc.
+      </span>
+    )
+  }
 
   const getDraftPayload = () => {
     const nameParts = [
@@ -726,7 +765,15 @@ export default function BulkEditProductsModal({
                       </select>
                     </td>
                     <td className="px-3 py-2.5 text-center">
-                      <input {...bindEnterField(product, index, 'list_price')} type="number" value={product.list_price} onChange={(e) => updateProduct(index, 'list_price', parseEditableNumber(e.target.value))} className="w-full px-2 py-1.5 text-xs border rounded dark:bg-gray-700 dark:border-gray-600 text-center font-medium" step="0.01" />
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-center gap-1">
+                          {isUsdPricedProduct(product) && (
+                            <span className="rounded bg-blue-100 px-1 text-[9px] font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">USD</span>
+                          )}
+                          <input {...bindEnterField(product, index, 'list_price')} type="number" value={product.list_price} onChange={(e) => updateProduct(index, 'list_price', parseEditableNumber(e.target.value))} className="w-full px-2 py-1.5 text-xs border rounded dark:bg-gray-700 dark:border-gray-600 text-center font-medium" step="0.01" />
+                        </div>
+                        {renderCalculatedArsPrice(product)}
+                      </div>
                     </td>
                     <td className="px-3 py-2.5 text-center">
                       <input {...bindEnterField(product, index, 'discount_display')} type="text" value={product.discount_display || ''} onChange={(e) => updateProduct(index, 'discount_display', e.target.value)} placeholder="10+5" className="w-full px-2 py-1.5 text-xs border rounded dark:bg-gray-700 dark:border-gray-600 text-center" />
@@ -793,8 +840,11 @@ export default function BulkEditProductsModal({
 
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <div>
-                    <label className="mb-1 block text-[10px] font-medium text-gray-600 dark:text-gray-300">P. Lista</label>
+                    <label className="mb-1 block text-[10px] font-medium text-gray-600 dark:text-gray-300">
+                      P. Lista {isUsdPricedProduct(product) && <span className="text-blue-600 dark:text-blue-400">(USD)</span>}
+                    </label>
                     <input {...bindEnterField(product, index, 'list_price', 'mobile')} type="number" value={product.list_price} onChange={(e) => updateProduct(index, 'list_price', parseEditableNumber(e.target.value))} className="w-full rounded-lg border px-2 py-1.5 text-xs text-center font-medium dark:bg-gray-700 dark:border-gray-600" step="0.01" />
+                    {renderCalculatedArsPrice(product)}
                   </div>
                   <div>
                     <label className="mb-1 block text-[10px] font-medium text-gray-600 dark:text-gray-300">Bonif.</label>
@@ -828,7 +878,7 @@ export default function BulkEditProductsModal({
           <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 rounded-xl p-3" data-tour-price-modal-formula>
             <p className="text-xs text-primary-800 dark:text-primary-300">
               💡 Fórmula de precio final: <span className="font-bold">Lista → Bonificaciones en cadena → Cargo Extra → Ganancia → IVA 21%</span>.
-              Las Acciones Rápidas aplican sobre el conjunto abierto en este modal.
+              Las Acciones Rápidas aplican sobre el precio fuente mostrado ({products.some(isUsdPricedProduct) ? 'USD para productos dolarizados, ARS para el resto' : 'ARS'}).
             </p>
           </div>
         </div>

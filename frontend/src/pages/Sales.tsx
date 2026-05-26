@@ -13,6 +13,7 @@ import clientAuthorizationsService from '../api/clientAuthorizationsService'
 import vouchersService, { VoucherCreate, VoucherUpdate, VoucherPayment, Voucher as VoucherType2, type PriceStrategy, type VoucherTotalsPreviewRequest } from '../api/vouchersService'
 import stockpileService, {
   OpenStockpileItem,
+  StockpileResponse,
   StockpileSummary,
 } from '../api/stockpileService'
 import draftsService from '../api/draftsService'
@@ -28,11 +29,21 @@ import { hasModuleAccess } from '../utils/acl'
 import { TAX_CONDITIONS, getTaxConditionLabel } from '../types'
 import { isMobile } from '../utils/device'
 import QrScanner from '../components/sales/QrScanner'
-import WhatsAppSendPdfButton from '../components/messaging/WhatsAppSendPdfButton'
+import WhatsAppSendModal from '../components/messaging/WhatsAppSendModal'
+import WhatsAppIcon from '../components/messaging/WhatsAppIcon'
 
 type VoucherType = 'quotation' | 'receipt' | 'invoice' | 'invoice_x' | 'current_account' | 'acopio'
 type SalesMenuMode = VoucherType
 type MobileSalesSection = 'items' | 'products' | 'summary'
+
+const VOUCHER_TYPE_LABEL: Record<string, string> = {
+  quotation: 'Cotización',
+  receipt: 'Remito',
+  invoice: 'Factura',
+  current_account: 'Cta Cte',
+  acopio: 'Acopio',
+  invoice_x: 'SRX',
+}
 
 const baseVoucherTypes = [
   { value: 'quotation', label: 'Cotización', icon: FileText },
@@ -390,7 +401,7 @@ export default function Sales() {
   })
   const _draftUserId = () => useAuthStore.getState().user?.id ?? null
 
-  const [voucherType, setVoucherType] = useState<VoucherType>(() => (_draft?.voucherType as VoucherType) ?? 'quotation')
+  const [voucherType, setVoucherType] = useState<VoucherType>('quotation')
   const [showPrices, setShowPrices] = useState(() => _draft?.showPrices ?? true)
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null)
   const [editingVoucherDate, setEditingVoucherDate] = useState<string | null>(null)
@@ -433,6 +444,8 @@ export default function Sales() {
   const [acopioCurrency, setAcopioCurrency] = useState(() => _draft?.acopioCurrency ?? 'ARS')
   // SALES-ACOPIO-02: replacing 'now/later' with explicit Yes/No for invoice
   const [acopioGenerateInvoice, setAcopioGenerateInvoice] = useState(() => _draft?.acopioGenerateInvoice ?? false)
+  const [createdAcopio, setCreatedAcopio] = useState<StockpileResponse | null>(null)
+  const [downloadingAcopioSnapshot, setDownloadingAcopioSnapshot] = useState(false)
 
   // SALES-ACOPIO-FRONTEND-03: state for linking receipt to acopio
   const [selectedStockpile, setSelectedStockpile] = useState<OpenStockpileItem | null>(null)
@@ -593,6 +606,7 @@ export default function Sales() {
     onSuccess: async (data) => {
       const num = data.stockpile_number ? `#${data.stockpile_number} ` : ''
       toast.success(`Acopio ${num}"${data.name}" creado correctamente`, { icon: '✅' })
+      setCreatedAcopio(data)
       // Reset form
       setAcopioName('')
       setAcopioDescription('')
@@ -606,7 +620,7 @@ export default function Sales() {
       // For now, if generate_invoice was true, we inform the user Phase 2 is pending
       // The actual invoice flow for acopios is handled in a future phase
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error('Error al crear acopio: ' + formatErrorMessage(error))
     },
   })
@@ -1051,6 +1065,7 @@ export default function Sales() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [pdfVoucherInfo, setPdfVoucherInfo] = useState<{ type: string, number: string, sale_point?: string } | null>(null)
   const [pdfWhatsAppCtx, setPdfWhatsAppCtx] = useState<{ voucherId: string; clientId: string } | null>(null)
+  const [whatsAppPdfOpen, setWhatsAppPdfOpen] = useState(false)
 
   // === SRX double-copy print options ===
   const [showSrxPrintModal, setShowSrxPrintModal] = useState(false)
@@ -1929,7 +1944,7 @@ export default function Sales() {
       return
     }
 
-    if (voucherType === 'invoice' && totalRounded <= 0 && !isCustomerCreditReturn) {
+    if ((voucherType === 'invoice' || voucherType === 'invoice_x') && totalRounded <= 0 && !isCustomerCreditReturn) {
       toast.error('El total de la factura debe ser mayor a $0')
       return
     }
@@ -1970,7 +1985,7 @@ export default function Sales() {
       return
     }
 
-    if (voucherType === 'invoice' && voucherTotalsPreviewPayload) {
+    if ((voucherType === 'invoice' || voucherType === 'invoice_x') && voucherTotalsPreviewPayload) {
       const previewResult = await totalsPreviewQuery.refetch()
       if (previewResult.error) {
         toast.error('No se pudo validar el total con backend. Reintentá en unos segundos.')
@@ -2266,6 +2281,33 @@ export default function Sales() {
     }
   }
 
+  const getAcopioSnapshotFilename = (stockpile: StockpileResponse) => {
+    const identifier = stockpile.stockpile_number || stockpile.id
+    return `precios-congelados-${identifier.replace(/[^a-zA-Z0-9_-]/g, '-')}.xlsx`
+  }
+
+  const handleDownloadCreatedAcopioSnapshot = async () => {
+    if (!createdAcopio) return
+
+    try {
+      setDownloadingAcopioSnapshot(true)
+      const blob = await stockpileService.downloadPriceSnapshot(createdAcopio.id)
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = getAcopioSnapshotFilename(createdAcopio)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success('Excel descargado', { duration: 2000, icon: '✅' })
+    } catch (error: unknown) {
+      toast.error(formatErrorMessage(error))
+    } finally {
+      setDownloadingAcopioSnapshot(false)
+    }
+  }
+
   const handlePrintPdf = () => {
     if (pdfUrl) {
       // Abrir en nueva ventana para imprimir
@@ -2341,6 +2383,7 @@ export default function Sales() {
   }
 
   const handleClosePdfModal = () => {
+    setWhatsAppPdfOpen(false)
     setShowPdfModal(false)
     // Limpiar URLs después de cerrar
     setTimeout(() => {
@@ -2653,7 +2696,7 @@ export default function Sales() {
         }, 0)
 
         // Total alineado con backend para evitar discrepancias por redondeo
-        const total = calculateBackendCompatibleTotalFromCart(items, generalDiscount)
+        const total = Number(totalsPreviewQuery.data?.total) || calculateBackendCompatibleTotalFromCart(items, generalDiscount)
 
         // La diferencia (lo que falta pagar)
         const difference = Math.max(0, total - currentlyAssigned)
@@ -2689,7 +2732,7 @@ export default function Sales() {
   const handlePaymentAmountChange = (methodId: string, value: string) => {
     setPaymentSelections((prev) => {
       // 1. Calculamos el total de la factura alineado con backend
-      const total = calculateBackendCompatibleTotalFromCart(items, generalDiscount)
+      const total = Number(totalsPreviewQuery.data?.total) || calculateBackendCompatibleTotalFromCart(items, generalDiscount)
 
       // 2. Buscamos si hay OTROS métodos seleccionados (que no sean el actual)
       const otherSelectedMethods = Object.entries(prev).filter(([id, data]) => id !== methodId && data.selected)
@@ -2821,7 +2864,7 @@ export default function Sales() {
       return { valid: true }
     }
 
-    if (voucherType === 'invoice' && assignedTotal <= 0) {
+    if ((voucherType === 'invoice' || voucherType === 'invoice_x') && assignedTotal <= 0) {
       return { valid: false, message: 'Debe cargar al menos un método de pago para facturas' }
     }
 
@@ -3871,9 +3914,9 @@ export default function Sales() {
               >
                 {isGenerating 
                   ? 'Procesando...' 
-                  : voucherType === 'invoice' 
-                    ? 'Emitir' 
-                    : `Generar ${voucherTypes.find(v => v.value === voucherType)?.label}`
+                  : voucherType === 'invoice'
+                    ? 'Emitir'
+                    : `Generar ${VOUCHER_TYPE_LABEL[voucherType] ?? voucherType}`
                 }
               </button>
             </div>
@@ -4551,9 +4594,9 @@ export default function Sales() {
                     ? 'Actualizar Cotización'
                   : voucherType === 'acopio'
                     ? 'Generar Acopio'
-                  : voucherType === 'invoice' 
-                    ? 'Emitir Factura Electrónica' 
-                    : `Generar ${voucherTypes.find(v => v.value === voucherType)?.label}`
+                  : voucherType === 'invoice'
+                    ? 'Emitir Factura Electrónica'
+                    : `Generar ${VOUCHER_TYPE_LABEL[voucherType] ?? voucherType}`
                 }
               </Button>
               <Button variant="outline" size="sm" className="w-full text-xs" onClick={handleSaveDraft} data-tour-sales-save-draft>
@@ -5196,12 +5239,12 @@ export default function Sales() {
       <Modal 
         isOpen={showConfirmModal} 
         onClose={() => setShowConfirmModal(false)} 
-        title={voucherType === 'invoice' ? 'Confirmar Emisión de Factura Electrónica' : `Confirmar ${voucherTypes.find(v => v.value === voucherType)?.label}`}
-        size={voucherType === 'invoice' ? 'xl' : 'lg'}
-        containerClassName={voucherType === 'invoice' ? 'max-h-[95vh]' : undefined}
-        headerClassName={voucherType === 'invoice' ? 'px-4 py-2' : undefined}
-        contentClassName={voucherType === 'invoice' ? 'p-0' : undefined}
-        titleClassName={voucherType === 'invoice' ? 'text-sm' : undefined}
+        title={voucherType === 'invoice' ? 'Confirmar Emisión de Factura Electrónica' : voucherType === 'invoice_x' ? 'Confirmar Comprobante SRX' : `Confirmar ${VOUCHER_TYPE_LABEL[voucherType] ?? voucherType}`}
+        size={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'xl' : 'lg'}
+        containerClassName={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'max-h-[95vh]' : undefined}
+        headerClassName={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'px-4 py-2' : undefined}
+        contentClassName={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'p-0' : undefined}
+        titleClassName={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'text-sm' : undefined}
       >
         <div className={voucherType === 'invoice' ? 'flex flex-col max-h-[80vh] overflow-hidden' : 'space-y-4'}>
           {/* Body scrolleable (solo invoice) */}
@@ -5217,7 +5260,7 @@ export default function Sales() {
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Tipo:</span>
                   <span className="font-medium text-gray-900 dark:text-white">
-                    {voucherTypes.find(v => v.value === voucherType)?.label}
+                    {VOUCHER_TYPE_LABEL[voucherType] ?? voucherType}
                   </span>
                 </div>
                 {/* SALES-ACOPIO-FRONTEND-03: Mostrar acopio vinculado en confirmación */}
@@ -5377,8 +5420,8 @@ export default function Sales() {
               </div>
             </div>
 
-            {/* Métodos de pago — solo para facturas */}
-            {voucherType === 'invoice' && !isCustomerCreditReturn && (
+            {/* Métodos de pago — facturas ARCA y SRX */}
+            {(voucherType === 'invoice' || voucherType === 'invoice_x') && !isCustomerCreditReturn && (
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-2 bg-white dark:bg-gray-800">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -6501,13 +6544,14 @@ export default function Sales() {
                   <span className="hidden sm:inline">Descargar PDF</span>
                 </Button>
                 {pdfWhatsAppCtx && business?.whatsapp_enabled && (
-                  <WhatsAppSendPdfButton
-                    defaultClientId={pdfWhatsAppCtx.clientId}
-                    getPdfBlob={() => vouchersService.getPdf(pdfWhatsAppCtx.voucherId)}
-                    filename={`comprobante-${pdfVoucherInfo?.type}-${pdfVoucherInfo?.sale_point || ''}-${pdfVoucherInfo?.number}.pdf`}
-                    caption={`Comprobante ${pdfVoucherInfo?.type} ${pdfVoucherInfo?.sale_point || ''}-${pdfVoucherInfo?.number}`}
-                    fullButton
-                  />
+                  <button
+                    onClick={() => setWhatsAppPdfOpen(true)}
+                    title="Enviar por WhatsApp"
+                    className="w-full min-w-0 inline-flex items-center justify-center gap-2 text-sm font-medium rounded-lg border border-green-400 text-green-700 hover:bg-green-50 dark:border-green-600 dark:text-green-400 dark:hover:bg-green-900/30 px-4 py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  >
+                    <WhatsAppIcon size={16} />
+                    <span className="hidden sm:inline">WhatsApp</span>
+                  </button>
                 )}
                 <Button
                   variant="outline"
@@ -6535,7 +6579,66 @@ export default function Sales() {
         </div>
       </Modal>
 
+      <Modal
+        isOpen={!!createdAcopio}
+        onClose={() => {
+          setCreatedAcopio(null)
+        }}
+        title="Acopio creado"
+        size="md"
+      >
+        {createdAcopio && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-900/50 dark:bg-green-900/20">
+              <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+                {createdAcopio.stockpile_number || 'Acopio sin número'} · {createdAcopio.name}
+              </p>
+              <p className="mt-1 text-xs text-green-700 dark:text-green-300">
+                El Excel de precios congelados ya está disponible para descargar.
+              </p>
+            </div>
 
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-900/40">
+              <p className="font-medium text-gray-900 dark:text-gray-100">Referencia del Excel</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {getAcopioSnapshotFilename(createdAcopio)}
+              </p>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                onClick={handleDownloadCreatedAcopioSnapshot}
+                disabled={downloadingAcopioSnapshot}
+              >
+                <Download size={16} />
+                {downloadingAcopioSnapshot ? 'Descargando...' : 'Descargar Excel'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setCreatedAcopio(null)
+                }}
+              >
+                Cerrar
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+
+
+      {pdfWhatsAppCtx && (
+        <WhatsAppSendModal
+          isOpen={whatsAppPdfOpen}
+          onClose={() => setWhatsAppPdfOpen(false)}
+          getPdfBlob={() => vouchersService.getPdf(pdfWhatsAppCtx.voucherId)}
+          filename={`comprobante-${pdfVoucherInfo?.type}-${pdfVoucherInfo?.sale_point || ''}-${pdfVoucherInfo?.number}.pdf`}
+          caption={`Comprobante ${pdfVoucherInfo?.type} ${pdfVoucherInfo?.sale_point || ''}-${pdfVoucherInfo?.number}`}
+          defaultClientId={pdfWhatsAppCtx.clientId}
+        />
+      )}
 
       {showQrScanner && (
         <QrScanner

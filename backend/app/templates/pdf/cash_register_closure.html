@@ -167,8 +167,30 @@
     }
     .cash-value { font-family: "Courier New", Courier, monospace; }
 
-    /* ─── Tabla de movimientos ───────────────────────────── */
-    .movements-table tbody td { font-size: 9.5px; }
+    /* ─── Totales SRX ───────────────────────────────────── */
+    .srx-totals {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .srx-total-card {
+      border: 1px solid #000;
+      padding: 6px 10px;
+    }
+    .srx-total-card-title {
+      font-size: 9px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #000;
+      margin-bottom: 3px;
+    }
+    .srx-total-card-value {
+      font-size: 13px;
+      font-weight: bold;
+      font-family: "Courier New", Courier, monospace;
+    }
 
     /* ─── Motivo de diferencia ──────────────────────────── */
     .difference-reason {
@@ -317,59 +339,121 @@
   {% endif %}
 
   <!-- ── Comprobantes emitidos ─────────────────────────────── -->
-  {% if vouchers %}
-  <div class="section-title">Comprobantes Emitidos</div>
-  <table class="vouchers-table">
-    <thead>
-      <tr>
-        <th>Fecha</th>
-        <th>Comprobante</th>
-        <th>Tipo</th>
-        <th>Cliente</th>
-        <th class="right">Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for v in vouchers %}
-      <tr>
-        <td>{{ v.date }}</td>
-        <td>{{ v.number }}</td>
-        <td>{{ v.type }}</td>
-        <td>{{ v.client_name }}</td>
-        <td class="right">{{ v.total_fmt }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% if has_vouchers %}
+
+  {% if srx_enabled %}
+
+    {% if arca_vouchers %}
+    <div class="section-title">Facturación Electrónica (ARCA)</div>
+    <table class="vouchers-table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Comprobante</th>
+          <th>Tipo</th>
+          <th>Cliente</th>
+          <th>Método</th>
+          <th class="right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in arca_vouchers %}
+        <tr>
+          <td>{{ v.date }}</td>
+          <td>{{ v.number }}</td>
+          <td>{{ v.type_label }}</td>
+          <td>{{ v.client_name }}</td>
+          <td>{{ v.payment_str }}</td>
+          <td class="right">{{ v.total_fmt }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="5">TOTAL ARCA</td>
+          <td class="right">{{ total_arca_fmt }}</td>
+        </tr>
+      </tfoot>
+    </table>
+    {% endif %}
+
+    {% if srx_vouchers %}
+    <div class="section-title">Comprobantes SRX</div>
+    <table class="vouchers-table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Comprobante</th>
+          <th>Tipo</th>
+          <th>Cliente</th>
+          <th>Método</th>
+          <th class="right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in srx_vouchers %}
+        <tr>
+          <td>{{ v.date }}</td>
+          <td>{{ v.number }}</td>
+          <td>{{ v.type_label }}</td>
+          <td>{{ v.client_name }}</td>
+          <td>{{ v.payment_str }}</td>
+          <td class="right">{{ v.total_fmt }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="5">TOTAL SRX</td>
+          <td class="right">{{ total_srx_fmt }}</td>
+        </tr>
+      </tfoot>
+    </table>
+    {% endif %}
+
+    {% if arca_vouchers or srx_vouchers %}
+    <div class="srx-totals">
+      <div class="srx-total-card">
+        <div class="srx-total-card-title">Total Facturado ARCA</div>
+        <div class="srx-total-card-value">{{ total_arca_fmt }}</div>
+      </div>
+      <div class="srx-total-card">
+        <div class="srx-total-card-title">Total Facturado SRX</div>
+        <div class="srx-total-card-value">{{ total_srx_fmt }}</div>
+      </div>
+    </div>
+    {% endif %}
+
+  {% else %}
+
+    <div class="section-title">Comprobantes Emitidos</div>
+    <table class="vouchers-table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Comprobante</th>
+          <th>Tipo</th>
+          <th>Cliente</th>
+          <th>Método</th>
+          <th class="right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in all_vouchers %}
+        <tr>
+          <td>{{ v.date }}</td>
+          <td>{{ v.number }}</td>
+          <td>{{ v.type_label }}</td>
+          <td>{{ v.client_name }}</td>
+          <td>{{ v.payment_str }}</td>
+          <td class="right">{{ v.total_fmt }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
   {% endif %}
 
-  <!-- ── Movimientos del día ───────────────────────────────── -->
-  {% if movements %}
-  <div class="section-title">Movimientos del Día</div>
-  <table class="movements-table">
-    <thead>
-      <tr>
-        <th>Hora</th>
-        <th>Descripción</th>
-        <th>Tipo</th>
-        <th>Método</th>
-        <th class="right">Monto</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for mv in movements %}
-      <tr>
-        <td>{{ mv.time }}</td>
-        <td>{{ mv.description }}</td>
-        <td>{{ mv.type_label }}</td>
-        <td>{{ mv.method_label }}</td>
-        <td class="right">
-          {% if mv.is_expense %}-{% else %}+{% endif %}{{ mv.amount_fmt }}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
   {% endif %}
 
   <!-- ── Footer ─────────────────────────────────────────────── -->

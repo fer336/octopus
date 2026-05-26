@@ -23,6 +23,8 @@ export interface Product {
   customer_terms?: string
   cost_price: number
   list_price: number
+  price_currency: 'ARS' | 'USD'
+  list_price_usd?: number | null
   discount_1: number
   discount_2: number
   discount_3: number
@@ -57,6 +59,8 @@ export interface ProductCreate {
   category_id?: string
   supplier_id?: string
   list_price: number
+  price_currency?: 'ARS' | 'USD'
+  list_price_usd?: number | null
   discount_1?: number
   discount_2?: number
   discount_3?: number
@@ -85,6 +89,8 @@ export interface ProductUpdate {
   category_id?: string
   supplier_id?: string
   list_price?: number
+  price_currency?: 'ARS' | 'USD'
+  list_price_usd?: number | null
   discount_1?: number
   discount_2?: number
   discount_3?: number

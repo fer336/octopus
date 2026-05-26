@@ -10,15 +10,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.database import get_db
-from app.models import Stockpile, StockpileItem, StockpileStatus, Voucher, VoucherStatus, VoucherType, Product
+from app.models import Stockpile, StockpileItem, StockpilePriceSnapshot, StockpileStatus, Voucher, VoucherStatus, VoucherType, Product
 from app.models.client import Client
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.utils.security import get_current_business, require_module_access
+from app.utils.security import get_current_business, require_module_access, security
 from app.schemas.base import PaginatedResponse
 from app.schemas.stockpile import (
     StockpileCreate,
@@ -40,6 +41,7 @@ from app.schemas.stockpile import (
     StockpileOpenItem,
 )
 from app.services.stockpile_service import StockpileService
+from app.services.stockpile_snapshot_service import StockpileSnapshotService
 
 logger = logging.getLogger("uvicorn")
 
@@ -48,6 +50,32 @@ router = APIRouter(
     tags=["stockpiles"],
     dependencies=[Depends(require_module_access("stockpiles"))],
 )
+
+internal_router = APIRouter(
+    prefix="/stockpiles",
+    tags=["stockpiles"],
+)
+
+
+async def authorize_price_snapshot_download(
+    stockpile: Stockpile,
+    db: AsyncSession,
+    credentials: HTTPAuthorizationCredentials | None,
+) -> None:
+    """Autoriza descarga por JWT del frontend."""
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales no proporcionadas",
+        )
+
+    current_user = await get_current_user(credentials=credentials, db=db)
+    business_id = await get_current_business(db=db, current_user=current_user)
+    if stockpile.business_id != business_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Acopio no encontrado",
+        )
 
 
 def serialize_stockpile_item(item) -> StockpileItemResponse:
@@ -203,7 +231,7 @@ async def list_stockpiles_tree(
     """Lista acopios como árbol: acopio/remito principal → remitos parciales."""
 
     query = (
-        select(Stockpile, Client.name, Voucher.sale_point, Voucher.number)
+        select(Stockpile, Client.name, Client.email, Client.phone, Voucher.sale_point, Voucher.number)
         .join(Client, Client.id == Stockpile.client_id)
         .outerjoin(Voucher, Voucher.id == Stockpile.principal_voucher_id)
         .where(Stockpile.business_id == business_id)
@@ -221,6 +249,7 @@ async def list_stockpiles_tree(
 
     stockpile_ids = [stockpile.id for stockpile, *_ in rows]
     children_by_stockpile: dict[UUID, list[Voucher]] = {}
+    snapshot_stockpile_ids: set[UUID] = set()
     if stockpile_ids:
         child_result = await db.execute(
             select(Voucher)
@@ -237,8 +266,18 @@ async def list_stockpiles_tree(
                 children_by_stockpile[sid] = []
             children_by_stockpile[sid].append(child)
 
+        snapshot_result = await db.execute(
+            select(StockpilePriceSnapshot.stockpile_id)
+            .where(
+                StockpilePriceSnapshot.stockpile_id.in_(stockpile_ids),
+                StockpilePriceSnapshot.deleted_at.is_(None),
+            )
+            .group_by(StockpilePriceSnapshot.stockpile_id)
+        )
+        snapshot_stockpile_ids = set(snapshot_result.scalars().all())
+
     items: list[StockpileTreeItem] = []
-    for stockpile, client_name, sale_point, number in rows:
+    for stockpile, client_name, client_email, client_phone, sale_point, number in rows:
         child_vouchers = [
             StockpileTreeChildVoucher(
                 id=child.id,
@@ -254,10 +293,14 @@ async def list_stockpiles_tree(
         items.append(
             StockpileTreeItem(
                 id=stockpile.id,
+                client_id=stockpile.client_id,
+                billing_client_id=stockpile.billing_client_id,
                 name=stockpile.name,
                 stockpile_number=stockpile.stockpile_number,
                 description=stockpile.description,
                 client_name=client_name,
+                client_email=client_email,
+                client_phone=client_phone,
                 status=stockpile.status,
                 created_at=stockpile.created_at,
                 principal_voucher_id=stockpile.principal_voucher_id,
@@ -265,6 +308,7 @@ async def list_stockpiles_tree(
                 initial_amount=stockpile.initial_amount,
                 withdrawn_amount=stockpile.withdrawn_amount,
                 remaining_amount=stockpile.remaining_amount,
+                has_price_snapshot=stockpile.id in snapshot_stockpile_ids,
                 child_vouchers=child_vouchers,
             )
         )
@@ -975,3 +1019,41 @@ async def get_frozen_items(
         )
 
     return result
+
+
+@internal_router.get("/{stockpile_id}/price-snapshot/excel")
+async def download_price_snapshot_excel(
+    stockpile_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+):
+    """Descarga el Excel de precios congelados de un acopio por monto."""
+    stockpile = await db.get(Stockpile, stockpile_id)
+    if not stockpile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Acopio no encontrado",
+        )
+    await authorize_price_snapshot_download(stockpile, db, credentials)
+
+    snapshot_service = StockpileSnapshotService(db)
+    snapshots = await snapshot_service.get_snapshots(stockpile_id)
+
+    if not snapshots:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No hay snapshots de precios para este acopio. "
+                   "Solo los acopios por monto generan snapshots.",
+        )
+
+    excel_bytes = snapshot_service.generate_excel(snapshots, stockpile.name or "Acopio")
+
+    filename = f"precios_congelados_{stockpile.stockpile_number or stockpile_id}_{datetime.utcnow().strftime('%Y_%m_%d')}.xlsx"
+
+    return StreamingResponse(
+        iter([excel_bytes.getvalue()]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+        },
+    )

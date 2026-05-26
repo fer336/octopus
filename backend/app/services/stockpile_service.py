@@ -14,7 +14,16 @@ from uuid import UUID, uuid4
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Business, Stockpile, StockpileItem, StockpileStatus, Voucher, VoucherStatus, VoucherType
+from app.models import (
+    Business,
+    Stockpile,
+    StockpileItem,
+    StockpilePriceSnapshot,
+    StockpileStatus,
+    Voucher,
+    VoucherStatus,
+    VoucherType,
+)
 from app.models.client import Client
 from app.models.product import Product
 
@@ -76,6 +85,54 @@ class StockpileService:
         
         # Fallback: use UUID if cannot find unique number after attempts
         return f"AC-{uuid4().hex[:8].upper()}"
+
+    async def _create_price_snapshots(
+        self, stockpile_id: UUID, business_id: UUID
+    ) -> list[StockpilePriceSnapshot]:
+        """
+        Crea snapshots de precios para todos los productos activos del negocio
+        al momento de crear un acopio por monto (create_by_amount).
+
+        Itera sobre productos activos no eliminados, calcula sus precios
+        y persiste el snapshot en `stockpile_price_snapshots`.
+        """
+        result = await self.db.execute(
+            select(Product).where(
+                Product.business_id == business_id,
+                Product.is_active == True,
+                Product.deleted_at.is_(None),
+            )
+        )
+        products = list(result.scalars().all())
+
+        snapshots: list[StockpilePriceSnapshot] = []
+        for product in products:
+            product.calculate_prices()
+            unit_price = product.net_price or Decimal("0")
+            iva_rate = product.iva_rate or Decimal("21")
+            iva_amount = (unit_price * iva_rate / 100).quantize(Decimal("0.01"))
+            price_with_iva = (unit_price + iva_amount).quantize(Decimal("0.01"))
+
+            snapshot = StockpilePriceSnapshot(
+                stockpile_id=stockpile_id,
+                product_id=product.id,
+                code=product.code,
+                description=product.description,
+                price_without_iva=unit_price,
+                iva_rate=iva_rate,
+                iva_amount=iva_amount,
+                price_with_iva=price_with_iva,
+            )
+            self.db.add(snapshot)
+            snapshots.append(snapshot)
+
+        if snapshots:
+            await self.db.flush()
+
+        logger.info(
+            f"Created {len(snapshots)} price snapshots for stockpile {stockpile_id}"
+        )
+        return snapshots
 
     async def _create_principal_receipt(
         self,
@@ -349,6 +406,9 @@ class StockpileService:
             product_description=item_description,
         )
         self.db.add(item)
+
+        # Snapshot de precios activos para acopios por monto
+        await self._create_price_snapshots(stockpile.id, business_id)
 
         await self.db.commit()
         await self.db.refresh(stockpile)

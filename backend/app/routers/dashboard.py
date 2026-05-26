@@ -5,9 +5,10 @@ Endpoints para estadísticas y resumen del negocio.
 
 from calendar import monthrange
 from datetime import date, datetime, time
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,6 +41,9 @@ class DashboardSummary(BaseSchema):
     total_value: float  # Valor total del inventario (costo)
     total_sales: float  # Suma de facturas emitidas en el período
     total_invoices: int  # Cantidad de facturas en el período
+    today_sales: float  # Ventas cobradas hoy desde comprobantes confirmados
+    today_invoiced: float  # Facturado hoy en comprobantes confirmados
+    today_vouchers_count: int  # Cantidad de comprobantes confirmados del día
     cash_income: float  # Plata real ingresada en caja en el período
     paid_invoices: float  # Cobros de facturas/ventas de contado en caja
     paid_stockpiles: float  # Cobros de acopios en caja
@@ -50,6 +54,8 @@ class DashboardSummary(BaseSchema):
     closed_current_accounts_total: float  # Monto total de cierres de cuenta corriente
     filter_month: int  # Mes filtrado (1-12)
     filter_year: int  # Año filtrado
+    filter_date_from: date  # Inicio efectivo del período filtrado
+    filter_date_to: date  # Fin efectivo del período filtrado
 
 
 @router.get("/summary", response_model=DashboardSummary)
@@ -60,17 +66,34 @@ async def get_dashboard_summary(
     year: int | None = Query(
         default=None, ge=2000, le=2100, description="Año. Por defecto: año actual"
     ),
+    date_from: Annotated[
+        date | None,
+        Query(description="Fecha desde opcional"),
+    ] = None,
+    date_to: Annotated[
+        date | None,
+        Query(description="Fecha hasta opcional"),
+    ] = None,
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
 ):
-    """Obtiene un resumen estadístico para el dashboard con filtro por mes/año."""
+    """Obtiene un resumen estadístico para el dashboard con filtro por mes/año o rango."""
     today = date.today()
     filter_month = month or today.month
     filter_year = year or today.year
     first_day = date(filter_year, filter_month, 1)
     last_day = date(filter_year, filter_month, monthrange(filter_year, filter_month)[1])
-    period_start = datetime.combine(first_day, time.min)
-    period_end = datetime.combine(last_day, time.max)
+    period_date_from = date_from or first_day
+    period_date_to = date_to or last_day
+    if period_date_from > period_date_to:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La fecha desde no puede ser posterior a la fecha hasta.",
+        )
+    period_start = datetime.combine(period_date_from, time.min)
+    period_end = datetime.combine(period_date_to, time.max)
+    today_start = datetime.combine(today, time.min)
+    today_end = datetime.combine(today, time.max)
 
     # Total de productos
     products_query = select(func.count(Product.id)).where(
@@ -122,14 +145,14 @@ async def get_dashboard_summary(
     )
     total_value = (await db.execute(value_query)).scalar() or 0.0
 
-    # Suma de ventas: solo facturas (A, B, C) confirmadas en el mes/año indicado
+    # Suma de ventas: solo facturas (A, B, C) confirmadas en el período indicado
     sales_query = select(func.sum(Voucher.total)).where(
         Voucher.business_id == business_id,
         Voucher.deleted_at.is_(None),
         Voucher.status == VoucherStatus.CONFIRMED,
         Voucher.voucher_type.in_(INVOICE_TYPES),
-        extract("month", Voucher.date) == filter_month,
-        extract("year", Voucher.date) == filter_year,
+        Voucher.date >= period_date_from,
+        Voucher.date <= period_date_to,
     )
     total_sales = (await db.execute(sales_query)).scalar() or 0.0
 
@@ -139,10 +162,28 @@ async def get_dashboard_summary(
         Voucher.deleted_at.is_(None),
         Voucher.status == VoucherStatus.CONFIRMED,
         Voucher.voucher_type.in_(INVOICE_TYPES),
-        extract("month", Voucher.date) == filter_month,
-        extract("year", Voucher.date) == filter_year,
+        Voucher.date >= period_date_from,
+        Voucher.date <= period_date_to,
     )
     total_invoices = (await db.execute(invoices_count_query)).scalar() or 0
+
+    today_invoiced_query = select(func.sum(Voucher.total)).where(
+        Voucher.business_id == business_id,
+        Voucher.deleted_at.is_(None),
+        Voucher.status == VoucherStatus.CONFIRMED,
+        Voucher.voucher_type.in_(INVOICE_TYPES),
+        Voucher.date == today,
+    )
+    today_invoiced = (await db.execute(today_invoiced_query)).scalar() or 0.0
+
+    today_vouchers_count_query = select(func.count(Voucher.id)).where(
+        Voucher.business_id == business_id,
+        Voucher.deleted_at.is_(None),
+        Voucher.status == VoucherStatus.CONFIRMED,
+        Voucher.voucher_type.in_(INVOICE_TYPES),
+        Voucher.date == today,
+    )
+    today_vouchers_count = (await db.execute(today_vouchers_count_query)).scalar() or 0
 
     income_types = [
         CashMovementType.SALE,
@@ -178,6 +219,24 @@ async def get_dashboard_summary(
         )
     )
     paid_invoices = (await db.execute(paid_invoices_query)).scalar() or 0.0
+
+    today_sales_query = (
+        select(func.sum(CashMovement.amount))
+        .join(CashMovement.cash_register)
+        .outerjoin(Voucher, CashMovement.voucher_id == Voucher.id)
+        .where(
+            CashMovement.deleted_at.is_(None),
+            CashMovement.type == CashMovementType.SALE,
+            CashMovement.created_at >= today_start,
+            CashMovement.created_at <= today_end,
+            CashMovement.cash_register.has(business_id=business_id),
+            Voucher.business_id == business_id,
+            Voucher.status == VoucherStatus.CONFIRMED,
+            Voucher.voucher_type.in_(INVOICE_TYPES),
+            Voucher.stockpile_id.is_(None),
+        )
+    )
+    today_sales = (await db.execute(today_sales_query)).scalar() or 0.0
 
     paid_stockpiles_query = (
         select(func.sum(CashMovement.amount))
@@ -226,8 +285,8 @@ async def get_dashboard_summary(
         Voucher.deleted_at.is_(None),
         Voucher.is_current_account_closure == True,  # noqa: E712
         Voucher.status == VoucherStatus.CONFIRMED,
-        extract("month", Voucher.date) == filter_month,
-        extract("year", Voucher.date) == filter_year,
+        Voucher.date >= period_date_from,
+        Voucher.date <= period_date_to,
     )
     closed_current_accounts = (await db.execute(closure_count_query)).scalar() or 0
 
@@ -236,8 +295,8 @@ async def get_dashboard_summary(
         Voucher.deleted_at.is_(None),
         Voucher.is_current_account_closure == True,  # noqa: E712
         Voucher.status == VoucherStatus.CONFIRMED,
-        extract("month", Voucher.date) == filter_month,
-        extract("year", Voucher.date) == filter_year,
+        Voucher.date >= period_date_from,
+        Voucher.date <= period_date_to,
     )
     closed_current_accounts_total = (await db.execute(closure_total_query)).scalar() or 0.0
 
@@ -260,6 +319,9 @@ async def get_dashboard_summary(
         total_value=float(total_value),
         total_sales=float(total_sales),
         total_invoices=int(total_invoices),
+        today_sales=float(today_sales),
+        today_invoiced=float(today_invoiced),
+        today_vouchers_count=int(today_vouchers_count),
         cash_income=float(cash_income),
         paid_invoices=float(paid_invoices),
         paid_stockpiles=float(paid_stockpiles),
@@ -270,6 +332,8 @@ async def get_dashboard_summary(
         closed_current_accounts_total=float(closed_current_accounts_total),
         filter_month=filter_month,
         filter_year=filter_year,
+        filter_date_from=period_date_from,
+        filter_date_to=period_date_to,
     )
 
 

@@ -47,7 +47,7 @@ from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
 from app.models.voucher_payment import VoucherPayment
 from app.models.product_lot import ProductLot
-from app.models.stockpile import Stockpile, StockpileItem, StockpileStatus
+from app.models.stockpile import Stockpile, StockpileItem, StockpilePriceSnapshot, StockpileStatus
 
 __all__ = [
     # Base
@@ -103,6 +103,7 @@ __all__ = [
     # Acopio
     "Stockpile",
     "StockpileItem",
+    "StockpilePriceSnapshot",
     "StockpileStatus",
     # Lotes
     "ProductLot",

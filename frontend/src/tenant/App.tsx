@@ -33,7 +33,6 @@ const Feedback   = lazy(() => import('../pages/Feedback'))
 const CurrentAccount = lazy(() => import('../pages/CurrentAccount'))
 const Stockpiles = lazy(() => import('../pages/Stockpiles'))
 const Messaging     = lazy(() => import('../pages/Messaging'))
-const WhatsAppAuth  = lazy(() => import('../pages/WhatsAppAuth'))
 const Settings      = lazy(() => import('../pages/Settings'))
 
 // Error boundary para capturar crashes de páginas individuales
@@ -209,9 +208,6 @@ export default function App() {
               } />
               <Route path="messaging" element={
                 <Suspense fallback={<PageLoader />}><Messaging /></Suspense>
-              } />
-              <Route path="whatsapp-auth" element={
-                <Suspense fallback={<PageLoader />}><WhatsAppAuth /></Suspense>
               } />
               <Route path="settings" element={
                 <Suspense fallback={<PageLoader />}><Settings /></Suspense>

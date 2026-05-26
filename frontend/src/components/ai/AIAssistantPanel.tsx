@@ -264,7 +264,7 @@ export default function AIAssistantPanel() {
       ref={panelRef}
       tabIndex={-1}
       className={`
-        fixed right-0 top-16 bottom-0 z-30
+        fixed right-0 top-16 bottom-0 z-[400]
         w-full sm:w-96
         border-l border-gray-200 dark:border-gray-700
         bg-white dark:bg-gray-900

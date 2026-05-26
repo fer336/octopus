@@ -79,11 +79,7 @@ export default function MainLayout() {
       return
     }
 
-    if (
-      (location.pathname.startsWith('/messaging') || location.pathname.startsWith('/whatsapp-auth')) &&
-      business !== undefined &&
-      !whatsappEnabled
-    ) {
+    if (location.pathname.startsWith('/messaging') && business !== undefined && !whatsappEnabled) {
       navigate('/', { replace: true })
       return
     }

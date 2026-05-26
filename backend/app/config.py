@@ -71,6 +71,13 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4o"
     OPENAI_WHISPER_MODEL: str = "whisper-1"
 
+    # Engram — memoria semántica de Luci (PostgreSQL sigue siendo fuente de verdad)
+    ENGRAM_ENABLED: bool = False
+    ENGRAM_BASE_URL: str = "http://127.0.0.1:7437"
+    ENGRAM_PROJECT: str = "octopus"
+    ENGRAM_TIMEOUT_SECONDS: float = 2.0
+    ENGRAM_SESSION_ID_PREFIX: str = "octopustrack-luci"
+
     # Cifrado simétrico de API keys en base de datos
     # Generá la tuya con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     APP_ENCRYPTION_KEY: str = ""
@@ -85,7 +92,7 @@ class Settings(BaseSettings):
     # n8n webhook para auditoría de logins (Google OAuth)
     N8N_LOGIN_AUDIT_WEBHOOK_URL: str = ""
 
-    # MinIO / S3 compatible (logos branding)
+    # MinIO / S3 compatible (logos branding y snapshots privados de acopio)
     MINIO_ENDPOINT: str = ""
     MINIO_ACCESS_KEY: str = ""
     MINIO_SECRET_KEY: str = ""
@@ -93,6 +100,9 @@ class Settings(BaseSettings):
     MINIO_SECURE: bool = True
     MINIO_REGION: str = "us-east-1"
     MINIO_PUBLIC_BASE_URL: str = ""
+    MINIO_STOCKPILE_SNAPSHOT_BUCKET_NAME: str = "stockpile-snapshots"
+    STOCKPILE_SNAPSHOT_PRESIGNED_URL_EXPIRE_SECONDS: int = 1800
+    # Configurar lifecycle del bucket privado en MinIO para borrar snapshots en <=24h.
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

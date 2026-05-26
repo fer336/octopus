@@ -17,6 +17,7 @@ import ImportPreviewModal from '../components/products/ImportPreviewModal'
 import QrPrintPreview from '../components/products/QrPrintPreview'
 import BulkDeleteModal from '../components/products/BulkDeleteModal'
 import ImportProgressModal from '../components/products/ImportProgressModal'
+import exchangeRateService from '../api/exchangeRateService'
 
 type ProductFormData = Partial<Product> & {
   expiration_date?: string
@@ -54,6 +55,7 @@ export default function Products() {
   const lotReceivedDateRef = useRef<HTMLInputElement>(null)
   const lotExpirationDateRef = useRef<HTMLInputElement>(null)
   const lotSubmitRef = useRef<HTMLButtonElement>(null)
+  const [rateType, setRateType] = useState<'blue' | 'oficial'>('blue')
 
   // Estado del modal de lotes
   const [showLotModal, setShowLotModal] = useState(false)
@@ -112,6 +114,14 @@ export default function Products() {
   })
   const sqlBackupEnabled = business?.sql_backup_enabled ?? false
   const qrScannerEnabled = business?.qr_scanner_enabled ?? true
+
+  const { data: exchangeRates } = useQuery({
+    queryKey: ['exchange-rates'],
+    queryFn: () => exchangeRateService.getRates(),
+    staleTime: 10 * 60 * 1000,
+  })
+  const blueRate = exchangeRates?.blue.promedio ?? 0
+  const activeRate = rateType === 'blue' ? blueRate : (exchangeRates?.oficial.promedio ?? 0)
 
   // Valores seguros con fallback a array vacío
   const categories = Array.isArray(categoriesData) ? categoriesData : []
@@ -581,6 +591,8 @@ export default function Products() {
   })
 
   const [discountsInput, setDiscountsInput] = useState('')
+  const [priceCurrency, setPriceCurrency] = useState<'ARS' | 'USD'>('ARS')
+  const [listPriceUsd, setListPriceUsd] = useState<string>('')
   const [selectedPhotoFile, setSelectedPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
 
@@ -623,6 +635,9 @@ export default function Products() {
       is_active: true,
     })
     setDiscountsInput('')
+    setPriceCurrency('ARS')
+    setRateType('blue')
+    setListPriceUsd('')
     setSelectedPhotoFile(null)
     setPhotoPreview(null)
   }
@@ -745,6 +760,9 @@ export default function Products() {
       // Construir el string de descuentos
       const discounts = [product.discount_1, product.discount_2, product.discount_3].filter(d => d > 0)
       setDiscountsInput(discounts.join('+'))
+      setPriceCurrency(product.price_currency ?? 'ARS')
+      setRateType('blue')
+      setListPriceUsd(product.list_price_usd?.toString() ?? '')
       setSelectedPhotoFile(null)
       setPhotoPreview(null)
     } else {
@@ -769,7 +787,17 @@ export default function Products() {
       return
     }
 
-    if ((formData.list_price ?? 0) <= 0) {
+    const resolvedListPrice = priceCurrency === 'USD' && activeRate > 0
+      ? Math.round(Number(listPriceUsd) * activeRate * 100) / 100
+      : (formData.list_price ?? 0)
+
+    if (priceCurrency === 'USD' && Number(listPriceUsd) <= 0) {
+      toast.error('El precio en USD debe ser mayor a 0')
+      listPriceRef.current?.focus()
+      return
+    }
+
+    if (priceCurrency === 'ARS' && resolvedListPrice <= 0) {
       toast.error('El precio de lista debe ser mayor a 0')
       listPriceRef.current?.focus()
       return
@@ -785,7 +813,9 @@ export default function Products() {
         customer_terms: formData.customer_terms?.trim() || undefined,
         category_id: formData.category_id || undefined,
         supplier_id: formData.supplier_id || undefined,
-        list_price: formData.list_price!,
+        list_price: resolvedListPrice,
+        price_currency: priceCurrency,
+        list_price_usd: priceCurrency === 'USD' ? Number(listPriceUsd) : null,
         discount_1: formData.discount_1 || 0,
         discount_2: formData.discount_2 || 0,
         discount_3: formData.discount_3 || 0,
@@ -806,7 +836,9 @@ export default function Products() {
         customer_terms: formData.customer_terms?.trim() || undefined,
         category_id: formData.category_id || undefined,
         supplier_id: formData.supplier_id || undefined,
-        list_price: formData.list_price!,
+        list_price: resolvedListPrice,
+        price_currency: priceCurrency,
+        list_price_usd: priceCurrency === 'USD' ? Number(listPriceUsd) : null,
         discount_1: formData.discount_1 || 0,
         discount_2: formData.discount_2 || 0,
         discount_3: formData.discount_3 || 0,
@@ -834,6 +866,15 @@ export default function Products() {
   const formatUnit = (item: Product) => (
     item.unit === 'pack' && item.units_per_pack ? `Pack x${item.units_per_pack}` : item.unit
   )
+
+  const formatMoney = (value: number | null | undefined, currency: 'ARS' | 'USD') => {
+    const amount = Number(value ?? 0)
+    const prefix = currency === 'USD' ? 'U$S ' : '$'
+
+    return `${prefix}${amount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
+
+  const isDollarPricedProduct = (item: Product) => item.price_currency === 'USD' && item.list_price_usd != null
 
   const renderExpirationBadge = (item: Product) => {
     if (!item.next_expiration) {
@@ -1096,8 +1137,20 @@ export default function Products() {
 
                       <div>{renderExpirationBadge(item)}</div>
 
-                      <span className="font-mono text-xs text-gray-700 dark:text-gray-300">
-                        ${item.list_price.toLocaleString('es-AR')}
+                      <span className="flex flex-col items-end gap-0.5 font-mono text-xs text-gray-700 dark:text-gray-300">
+                        <span className="flex items-center gap-1">
+                          {isDollarPricedProduct(item)
+                            ? formatMoney(item.list_price_usd, 'USD')
+                            : formatMoney(item.list_price, 'ARS')}
+                          {isDollarPricedProduct(item) && (
+                            <span className="rounded bg-blue-100 px-1 text-[9px] font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">USD</span>
+                          )}
+                        </span>
+                        {isDollarPricedProduct(item) && (
+                          <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                            {formatMoney(item.list_price, 'ARS')} calc.
+                          </span>
+                        )}
                       </span>
                       <span className="font-mono text-sm font-semibold text-primary-700 dark:text-primary-300">
                         ${item.sale_price.toLocaleString('es-AR')}
@@ -1263,8 +1316,19 @@ export default function Products() {
 
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                   <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/30">
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400">Lista</p>
-                    <p className="font-medium text-gray-800 dark:text-gray-200">${item.list_price.toLocaleString()}</p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                      Lista {isDollarPricedProduct(item) && <span className="text-blue-600 dark:text-blue-400">(USD)</span>}
+                    </p>
+                    <p className="font-medium text-gray-800 dark:text-gray-200">
+                      {isDollarPricedProduct(item)
+                        ? formatMoney(item.list_price_usd, 'USD')
+                        : formatMoney(item.list_price, 'ARS')}
+                    </p>
+                    {isDollarPricedProduct(item) && (
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                        {formatMoney(item.list_price, 'ARS')} calc.
+                      </p>
+                    )}
                   </div>
                   <div className="rounded-lg border border-primary-200 bg-primary-50 px-2 py-1.5 dark:border-primary-800 dark:bg-primary-900/20">
                     <p className="text-[10px] text-primary-700 dark:text-primary-300">Venta</p>
@@ -1491,31 +1555,120 @@ export default function Products() {
           </div>
 
           <div className="space-y-3">
-          {/* Sección 2: Precios - responsive (mobile primero) */}
-          <div className="bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 p-2.5 rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
+          {/* Sección 2: Precios */}
+          <div className="bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 p-3 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
               <Calculator className="text-green-600" size={16} />
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                 Configuración de Precios
               </h3>
             </div>
+
+            {/* Moneda selector */}
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 shrink-0">Moneda:</span>
+              <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 p-0.5 gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => setPriceCurrency('ARS')}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                    priceCurrency === 'ARS'
+                      ? 'bg-green-600 text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}
+                >
+                  $ Pesos ARS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPriceCurrency('USD')
+                    if (!listPriceUsd && activeRate > 0 && (formData.list_price ?? 0) > 0) {
+                      setListPriceUsd(String(Math.round(((formData.list_price ?? 0) / activeRate) * 100) / 100))
+                    }
+                  }}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                    priceCurrency === 'USD'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}
+                >
+                  U$ Dólares USD
+                </button>
+              </div>
+            </div>
+
+            {/* Cotización selector — solo cuando USD */}
+            {priceCurrency === 'USD' && (
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 shrink-0">Cotización:</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRateType('blue')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                      rateType === 'blue'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-500'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${rateType === 'blue' ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                    Blue
+                    {exchangeRates && (
+                      <span className="font-mono">${exchangeRates.blue.promedio.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRateType('oficial')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                      rateType === 'oficial'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-500'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${rateType === 'oficial' ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                    Oficial
+                    {exchangeRates && (
+                      <span className="font-mono">${exchangeRates.oficial.promedio.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Inputs de precios */}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5 lg:gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  P. Lista *
+                  {priceCurrency === 'USD' ? 'Precio USD *' : 'P. Lista *'}
                 </label>
-                <input
-                  ref={listPriceRef}
-                  type="number"
-                  value={formData.list_price}
-                  onChange={(e) => setFormData({ ...formData, list_price: parseFloat(e.target.value) || 0 })}
-                  onFocus={handleNumericFocus}
-                  onKeyDown={(e) => handleNumericKeyDown(e, 'list_price', discountsRef)}
-                  placeholder="0.00"
-                  step="0.01"
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-green-500"
-                  required
-                />
+                {priceCurrency === 'ARS' ? (
+                  <input
+                    ref={listPriceRef}
+                    type="number"
+                    value={formData.list_price}
+                    onChange={(e) => setFormData({ ...formData, list_price: parseFloat(e.target.value) || 0 })}
+                    onFocus={handleNumericFocus}
+                    onKeyDown={(e) => handleNumericKeyDown(e, 'list_price', discountsRef)}
+                    placeholder="0.00"
+                    step="0.01"
+                    className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-green-500"
+                    required
+                  />
+                ) : (
+                  <input
+                    ref={listPriceRef}
+                    type="number"
+                    value={listPriceUsd}
+                    onChange={(e) => setListPriceUsd(e.target.value)}
+                    onFocus={handleNumericFocus}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); discountsRef.current?.focus() } }}
+                    placeholder="0.00"
+                    step="0.01"
+                    className="w-full px-2 py-1.5 text-sm border border-blue-300 dark:border-blue-600 rounded-lg dark:bg-gray-700 focus:ring-2 focus:ring-blue-500"
+                  />
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1581,9 +1734,28 @@ export default function Products() {
               </div>
             </div>
 
+            {/* Banner de conversión USD → ARS */}
+            {priceCurrency === 'USD' && activeRate > 0 && Number(listPriceUsd) > 0 && (
+              <div className="mt-2.5 flex items-center gap-2.5 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <span className="text-base">💱</span>
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  <span className="font-mono font-semibold">U$S {Number(listPriceUsd).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                  <span className="mx-1.5 opacity-60">×</span>
+                  <span className="font-mono">${activeRate.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                  <span className="mx-1 opacity-60">({rateType})</span>
+                  <span className="mx-1.5 opacity-60">=</span>
+                  <span className="font-mono font-bold text-blue-800 dark:text-blue-100">
+                    ${(Math.round(Number(listPriceUsd) * activeRate * 100) / 100).toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS
+                  </span>
+                </p>
+              </div>
+            )}
+
             {/* Cálculo de precio final - Desglose completo */}
-            {((formData.list_price ?? 0) > 0) && (() => {
-              const listPrice = formData.list_price || 0
+            {((priceCurrency === 'USD' ? Number(listPriceUsd) > 0 && activeRate > 0 : (formData.list_price ?? 0) > 0)) && (() => {
+              const listPrice = priceCurrency === 'USD' && activeRate > 0
+                ? Math.round(Number(listPriceUsd) * activeRate * 100) / 100
+                : (formData.list_price || 0)
               const d1 = formData.discount_1 || 0
               const d2 = formData.discount_2 || 0
               const d3 = formData.discount_3 || 0
