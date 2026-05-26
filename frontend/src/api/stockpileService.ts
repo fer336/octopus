@@ -180,13 +180,6 @@ export interface ValidateWithdrawalResponse {
   message: string
 }
 
-export interface StockpilePriceSnapshotEmailResponse {
-  sent: boolean
-  status_code: number | null
-  reason: string | null
-  message: string
-}
-
 const stockpileService = {
   /**
    * Lista todos los acopios del negocio.
@@ -325,18 +318,6 @@ const stockpileService = {
     const response = await httpClient.get(`/stockpiles/${stockpileId}/price-snapshot/excel`, {
       responseType: 'blob',
     })
-    return response.data
-  },
-
-  /**
-   * Reenvía por email el Excel de precios congelados usando n8n.
-   */
-  sendPriceSnapshotEmail: async (
-    stockpileId: string,
-    recipientEmail?: string
-  ): Promise<StockpilePriceSnapshotEmailResponse> => {
-    const payload = recipientEmail?.trim() ? { recipient_email: recipientEmail.trim() } : {}
-    const response = await httpClient.post(`/stockpiles/${stockpileId}/price-snapshot/send-email`, payload)
     return response.data
   },
 

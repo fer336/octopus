@@ -16,7 +16,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.middleware.tenant_resolver import AdminContext, require_superadmin
-from app.models.ai_provider_config import AIProviderConfig
+from app.models.ai_provider_config import AIProvider, AIProviderConfig
 from app.models.business import Business
 from app.models.cash_register import CashRegister
 from app.models.client import Client
@@ -30,7 +30,15 @@ from app.models.tenant_membership import (
 from app.models.tenant_secret import TenantSecret
 from app.models.user import PlatformRole, User
 from app.models.voucher import Voucher
+from app.schemas.ai_provider_schemas import (
+    PROVIDER_MODELS,
+    AIConfigSummaryResponse,
+    AIProviderConfigResponse,
+    AIProviderUpsertRequest,
+    AIProviderValidateResponse,
+)
 from app.services.afip_sdk_service import AfipSdkService
+from app.services.llm_factory import LLMFactory
 from app.services.logo_storage_service import upload_logo_to_storage
 from app.utils.acl import (
     MODULE_KEYS,
@@ -40,7 +48,7 @@ from app.utils.acl import (
     parse_module_permissions,
 )
 from app.utils.audit import log_audit
-from app.utils.crypto import encrypt_api_key, get_last4
+from app.utils.crypto import decrypt_api_key, encrypt_api_key, get_last4
 from app.utils.security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -455,6 +463,23 @@ def _mask_secrets(secrets: list[TenantSecret]) -> dict[str, SecretStatus]:
                 type=stype,
             )
     return result
+
+
+def _ai_provider_to_response(config: AIProviderConfig) -> AIProviderConfigResponse:
+    """Convierte una config IA a respuesta segura sin exponer la API key."""
+    return AIProviderConfigResponse(
+        id=str(config.id),
+        provider=config.provider,
+        display_name=config.display_name,
+        api_key_last4=config.api_key_last4,
+        api_key_configured=bool(config.api_key_encrypted),
+        default_model=config.default_model,
+        base_url=config.base_url,
+        is_active=config.is_active,
+        is_valid=config.is_valid,
+        validated_at=config.validated_at,
+        validation_error=config.validation_error,
+    )
 
 
 async def _upsert_secret(
@@ -1729,6 +1754,377 @@ async def update_feature_flags(
         sql_backup_enabled=bool(business.sql_backup_enabled),
         srx_enabled=bool(getattr(business, "srx_enabled", False)),
     )
+
+
+@router.get(
+    "/tenants/{tenant_id}/ai-config/models/catalog",
+)
+async def get_tenant_ai_models_catalog(
+    tenant_id: UUID,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retorna el catálogo estático de modelos IA para configurar desde CMS."""
+    await get_business_or_404(tenant_id, db)
+    return {provider: models for provider, models in PROVIDER_MODELS.items()}
+
+
+@router.get(
+    "/tenants/{tenant_id}/ai-config",
+    response_model=AIConfigSummaryResponse,
+)
+async def get_tenant_ai_config(
+    tenant_id: UUID,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Obtiene la configuración IA de un tenant desde CMS sin exponer secretos."""
+    await get_business_or_404(tenant_id, db)
+    result = await db.execute(
+        select(AIProviderConfig).where(
+            AIProviderConfig.business_id == tenant_id,
+            AIProviderConfig.deleted_at.is_(None),
+        )
+    )
+    configs = result.scalars().all()
+    active = next((config for config in configs if config.is_active), None)
+    return AIConfigSummaryResponse(
+        providers=[_ai_provider_to_response(config) for config in configs],
+        active_provider=active.provider if active else None,
+        active_model=active.default_model if active else None,
+    )
+
+
+@router.put(
+    "/tenants/{tenant_id}/ai-config/{provider}",
+    response_model=AIProviderConfigResponse,
+)
+async def upsert_tenant_ai_provider(
+    tenant_id: UUID,
+    provider: AIProvider,
+    body: AIProviderUpsertRequest,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Crea o actualiza un proveedor IA del tenant cifrando la API key si se envía."""
+    await get_business_or_404(tenant_id, db)
+
+    result = await db.execute(
+        select(AIProviderConfig).where(
+            AIProviderConfig.business_id == tenant_id,
+            AIProviderConfig.provider == provider.value,
+        )
+    )
+    config = result.scalar_one_or_none()
+
+    if config is None:
+        config = AIProviderConfig(
+            business_id=tenant_id,
+            provider=provider.value,
+            is_active=False,
+            is_valid=False,
+        )
+        db.add(config)
+    elif config.deleted_at is not None:
+        config.deleted_at = None
+
+    if body.api_key is not None:
+        config.api_key_encrypted = encrypt_api_key(body.api_key)
+        config.api_key_last4 = get_last4(body.api_key)
+        config.is_valid = False
+        config.validated_at = None
+        config.validation_error = None
+    if body.default_model is not None:
+        config.default_model = body.default_model
+    if body.base_url is not None:
+        config.base_url = body.base_url
+    if body.display_name is not None:
+        config.display_name = body.display_name
+
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        result = await db.execute(
+            select(AIProviderConfig).where(
+                AIProviderConfig.business_id == tenant_id,
+                AIProviderConfig.provider == provider.value,
+            )
+        )
+        config = result.scalar_one()
+        if config.deleted_at is not None:
+            config.deleted_at = None
+        if body.api_key is not None:
+            config.api_key_encrypted = encrypt_api_key(body.api_key)
+            config.api_key_last4 = get_last4(body.api_key)
+            config.is_valid = False
+            config.validated_at = None
+            config.validation_error = None
+        if body.default_model is not None:
+            config.default_model = body.default_model
+        if body.base_url is not None:
+            config.base_url = body.base_url
+        if body.display_name is not None:
+            config.display_name = body.display_name
+        await db.flush()
+
+    await log_audit(
+        db=db,
+        user_id=admin.user_id,
+        business_id=tenant_id,
+        action="upsert",
+        resource_type="ai_provider_config",
+        resource_id=config.id,
+        details={
+            "provider": provider.value,
+            "updated_fields": list(body.model_dump(exclude_unset=True, exclude={"api_key"}).keys()),
+            "api_key_updated": body.api_key is not None,
+        },
+    )
+    await db.commit()
+    await db.refresh(config)
+
+    return _ai_provider_to_response(config)
+
+
+@router.post(
+    "/tenants/{tenant_id}/ai-config/{provider}/validate",
+    response_model=AIProviderValidateResponse,
+)
+async def validate_tenant_ai_provider(
+    tenant_id: UUID,
+    provider: AIProvider,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Valida la API key guardada del proveedor IA del tenant."""
+    await get_business_or_404(tenant_id, db)
+    result = await db.execute(
+        select(AIProviderConfig).where(
+            AIProviderConfig.business_id == tenant_id,
+            AIProviderConfig.provider == provider.value,
+            AIProviderConfig.deleted_at.is_(None),
+        )
+    )
+    config = result.scalar_one_or_none()
+    if config is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Proveedor '{provider.value}' no configurado. Guardá la API key primero.",
+        )
+    if not config.api_key_encrypted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No hay API key guardada para este proveedor.",
+        )
+
+    try:
+        api_key = decrypt_api_key(config.api_key_encrypted)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+
+    is_valid, message = await LLMFactory.validate_key(
+        provider=provider.value,
+        api_key=api_key,
+        base_url=config.base_url,
+        model=config.default_model,
+    )
+    await LLMFactory.update_validation_result(
+        config,
+        is_valid,
+        message if not is_valid else None,
+        db,
+    )
+    await log_audit(
+        db=db,
+        user_id=admin.user_id,
+        business_id=tenant_id,
+        action="validate",
+        resource_type="ai_provider_config",
+        resource_id=config.id,
+        details={"provider": provider.value, "is_valid": is_valid},
+    )
+    await db.commit()
+
+    return AIProviderValidateResponse(
+        provider=provider.value,
+        is_valid=is_valid,
+        message=message,
+        validated_at=config.validated_at or datetime.utcnow(),
+        suggested_models=[model["id"] for model in PROVIDER_MODELS.get(provider.value, [])],
+    )
+
+
+@router.patch(
+    "/tenants/{tenant_id}/ai-config/{provider}/activate",
+    response_model=AIProviderConfigResponse,
+)
+async def activate_tenant_ai_provider(
+    tenant_id: UUID,
+    provider: AIProvider,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Activa un proveedor IA para el tenant. Requiere API key guardada."""
+    await get_business_or_404(tenant_id, db)
+    result = await db.execute(
+        select(AIProviderConfig).where(
+            AIProviderConfig.business_id == tenant_id,
+            AIProviderConfig.deleted_at.is_(None),
+        )
+    )
+    configs = result.scalars().all()
+    target = next((config for config in configs if config.provider == provider.value), None)
+    if target is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Proveedor '{provider.value}' no configurado. Guardá la API key primero.",
+        )
+    if not target.api_key_encrypted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No podés activar un proveedor sin API key configurada.",
+        )
+
+    for config in configs:
+        config.is_active = config.provider == provider.value
+
+    await log_audit(
+        db=db,
+        user_id=admin.user_id,
+        business_id=tenant_id,
+        action="activate",
+        resource_type="ai_provider_config",
+        resource_id=target.id,
+        details={"provider": provider.value},
+    )
+    await db.commit()
+    await db.refresh(target)
+
+    return _ai_provider_to_response(target)
+
+
+@router.delete(
+    "/tenants/{tenant_id}/ai-config/{provider}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_tenant_ai_provider(
+    tenant_id: UUID,
+    provider: AIProvider,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Elimina por soft delete una configuración IA del tenant."""
+    await get_business_or_404(tenant_id, db)
+    result = await db.execute(
+        select(AIProviderConfig).where(
+            AIProviderConfig.business_id == tenant_id,
+            AIProviderConfig.provider == provider.value,
+            AIProviderConfig.deleted_at.is_(None),
+        )
+    )
+    config = result.scalar_one_or_none()
+    if config is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Proveedor '{provider.value}' no encontrado.",
+        )
+
+    config.soft_delete()
+    config.is_active = False
+    await log_audit(
+        db=db,
+        user_id=admin.user_id,
+        business_id=tenant_id,
+        action="delete",
+        resource_type="ai_provider_config",
+        resource_id=config.id,
+        details={"provider": provider.value},
+    )
+    await db.commit()
+    return None
+
+
+@router.post("/tenants/{tenant_id}/ai-config/{provider}/fetch-models")
+async def fetch_tenant_ai_provider_models(
+    tenant_id: UUID,
+    provider: AIProvider,
+    body: AIProviderUpsertRequest,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Consulta modelos disponibles con una API key enviada sin guardarla."""
+    await get_business_or_404(tenant_id, db)
+    if not body.api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Se requiere api_key para consultar los modelos.",
+        )
+    try:
+        models = await LLMFactory.fetch_models(
+            provider=provider.value,
+            api_key=body.api_key,
+            base_url=body.base_url,
+        )
+        return {"provider": provider.value, "models": models}
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post("/tenants/{tenant_id}/ai-config/{provider}/fetch-models-saved")
+async def fetch_tenant_ai_provider_models_saved(
+    tenant_id: UUID,
+    provider: AIProvider,
+    admin: AdminContext = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Consulta modelos disponibles usando la API key cifrada ya guardada."""
+    await get_business_or_404(tenant_id, db)
+    result = await db.execute(
+        select(AIProviderConfig).where(
+            AIProviderConfig.business_id == tenant_id,
+            AIProviderConfig.provider == provider.value,
+            AIProviderConfig.deleted_at.is_(None),
+        )
+    )
+    config = result.scalar_one_or_none()
+    if config is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No hay configuración guardada para el proveedor '{provider.value}'.",
+        )
+    if not config.api_key_encrypted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El proveedor no tiene API key guardada.",
+        )
+
+    try:
+        api_key = decrypt_api_key(config.api_key_encrypted)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo recuperar la API key guardada.",
+        ) from exc
+
+    try:
+        models = await LLMFactory.fetch_models(
+            provider=provider.value,
+            api_key=api_key,
+            base_url=config.base_url,
+        )
+        return {"provider": provider.value, "models": models}
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @router.put("/tenants/{tenant_id}/branding", response_model=BrandingResponse)

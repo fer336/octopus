@@ -1,6 +1,6 @@
 """
 Servicio de Snapshots de Precios de Acopio.
-Generación de Excel de precios congelados y helper de webhook para n8n.
+Generación de Excel de precios congelados.
 """
 from __future__ import annotations
 
@@ -8,19 +8,15 @@ import io
 import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
 from uuid import UUID
 
-import httpx
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings
-from app.models.stockpile import Stockpile, StockpilePriceSnapshot, StockpileStatus
-from app.services.stockpile_snapshot_storage_service import upload_stockpile_snapshot_excel
+from app.models.stockpile import StockpilePriceSnapshot
 
 logger = logging.getLogger("uvicorn")
 
@@ -40,7 +36,6 @@ class StockpileSnapshotService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.settings = get_settings()
 
     async def get_snapshots(
         self, stockpile_id: UUID
@@ -157,84 +152,3 @@ class StockpileSnapshotService:
         wb.save(output)
         output.seek(0)
         return output
-
-    async def dispatch_webhook(
-        self,
-        stockpile_id: UUID,
-        stockpile_name: str | None,
-        stockpile_number: str | None,
-        client_email: str | None,
-        client_name: str | None,
-        business_name: str,
-        base_url: str,
-        business_id: UUID | None = None,
-    ) -> dict[str, Any]:
-        """
-        Dispara webhook a n8n para envío de email con Excel adjunto.
-        Fire-and-forget con timeout de 5 segundos.
-        Retorna {"sent": True} si se envió, {"sent": False, "reason": "..."} si no.
-        """
-        settings = get_settings()
-        webhook_url = settings.N8N_STOCKPILE_WEBHOOK_URL
-
-        if not webhook_url:
-            logger.debug("N8N_STOCKPILE_WEBHOOK_URL not configured, skipping webhook dispatch")
-            return {"sent": False, "reason": "webhook_url_not_configured"}
-
-        snapshots = await self.get_snapshots(stockpile_id)
-        if not snapshots:
-            return {"sent": False, "reason": "no_price_snapshots"}
-
-        excel_file = self.generate_excel(snapshots, stockpile_name or "Acopio")
-        try:
-            snapshot_url, _object_name = upload_stockpile_snapshot_excel(
-                stockpile_id=stockpile_id,
-                business_id=business_id,
-                excel_bytes=excel_file.getvalue(),
-            )
-        except ValueError:
-            logger.warning("MinIO not configured for stockpile snapshot email dispatch")
-            return {"sent": False, "reason": "minio_not_configured"}
-        except RuntimeError as exc:
-            logger.error(f"MinIO unavailable for stockpile snapshot email dispatch: {exc}")
-            return {"sent": False, "reason": "minio_unavailable"}
-        except Exception as exc:
-            logger.error(f"Stockpile snapshot upload failed: {exc}")
-            return {"sent": False, "reason": "snapshot_upload_failed"}
-
-        payload = {
-            "event": "stockpile_created",
-            "stockpile_id": str(stockpile_id),
-            "stockpile_name": stockpile_name or "",
-            "stockpile_number": stockpile_number or "",
-            "client_email": client_email or "",
-            "client_name": client_name or "",
-            "business_name": business_name,
-            "snapshot_url": snapshot_url,
-            "auth_token": self.settings.N8N_STOCKPILE_SNAPSHOT_API_KEY,
-        }
-
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.post(webhook_url, json=payload)
-                response.raise_for_status()
-                logger.info(
-                    f"Webhook dispatched for stockpile {stockpile_id}: "
-                    f"status={response.status_code}"
-                )
-                return {"sent": True, "status_code": response.status_code}
-        except httpx.TimeoutException:
-            logger.warning(f"Webhook timeout for stockpile {stockpile_id}")
-            return {"sent": False, "reason": "timeout"}
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                f"Webhook HTTP error for stockpile {stockpile_id}: {e}"
-            )
-            return {"sent": False, "reason": f"http_{e.response.status_code}"}
-        except Exception as e:
-            logger.error(
-                f"Webhook dispatch failed for stockpile {stockpile_id}: {e}"
-            )
-            return {"sent": False, "reason": str(e)}
-
-

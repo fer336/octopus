@@ -5,7 +5,7 @@ from decimal import Decimal
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 
 # ──────────────────────────────────────────────────────────
@@ -323,24 +323,6 @@ class StockpileTreeItem(BaseModel):
     remaining_amount: Decimal
     has_price_snapshot: bool = False
     child_vouchers: list[StockpileTreeChildVoucher]
-
-
-class StockpilePriceSnapshotEmailResponse(BaseModel):
-    """Resultado del reenvío del Excel de precios congelados por n8n."""
-
-    sent: bool
-    status_code: int | None = None
-    reason: str | None = None
-    message: str
-
-
-class StockpilePriceSnapshotEmailRequest(BaseModel):
-    """Destinatario opcional para enviar el Excel de precios congelados."""
-
-    recipient_email: EmailStr | None = None
-
-
-
 
 
 class StockpileTreeResponse(BaseModel):

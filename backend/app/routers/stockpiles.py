@@ -2,22 +2,20 @@
 Router de Acopio (Stockpile).
 Endoints REST para gestionar acopios.
 """
-import hmac
 import io
 import logging
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
-from app.config import get_settings
 from app.database import get_db
-from app.models import Business, Stockpile, StockpileItem, StockpilePriceSnapshot, StockpileStatus, Voucher, VoucherStatus, VoucherType, Product
+from app.models import Stockpile, StockpileItem, StockpilePriceSnapshot, StockpileStatus, Voucher, VoucherStatus, VoucherType, Product
 from app.models.client import Client
 from app.models.user import User
 from app.routers.auth import get_current_user
@@ -41,8 +39,6 @@ from app.schemas.stockpile import (
     ValidateWithdrawalRequest,
     ValidateWithdrawalResponse,
     StockpileOpenItem,
-    StockpilePriceSnapshotEmailRequest,
-    StockpilePriceSnapshotEmailResponse,
 )
 from app.services.stockpile_service import StockpileService
 from app.services.stockpile_snapshot_service import StockpileSnapshotService
@@ -65,18 +61,8 @@ async def authorize_price_snapshot_download(
     stockpile: Stockpile,
     db: AsyncSession,
     credentials: HTTPAuthorizationCredentials | None,
-    n8n_api_key: str | None,
 ) -> None:
-    """Autoriza descarga por JWT normal o API key interna de n8n."""
-    settings = get_settings()
-
-    if (
-        n8n_api_key
-        and settings.N8N_STOCKPILE_SNAPSHOT_API_KEY
-        and hmac.compare_digest(n8n_api_key, settings.N8N_STOCKPILE_SNAPSHOT_API_KEY)
-    ):
-        return
-
+    """Autoriza descarga por JWT del frontend."""
     if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -695,63 +681,6 @@ async def archive_cancelled_stockpiles(
     return {"message": "Acopios cancelados archivados", "count": len(rows)}
 
 
-@router.post(
-    "/{stockpile_id}/price-snapshot/send-email",
-    response_model=StockpilePriceSnapshotEmailResponse,
-)
-async def send_price_snapshot_email(
-    stockpile_id: UUID,
-    request: Request,
-    data: StockpilePriceSnapshotEmailRequest | None = Body(default=None),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    business_id: UUID = Depends(get_current_business),
-):
-    """Reenvía por n8n el Excel de precios congelados de un acopio por monto."""
-    stockpile = (
-        await db.execute(
-            select(Stockpile).where(
-                Stockpile.id == stockpile_id,
-                Stockpile.business_id == business_id,
-            )
-        )
-    ).scalar_one_or_none()
-
-    if not stockpile:
-        raise HTTPException(status_code=404, detail="Acopio no encontrado")
-
-    snapshot_service = StockpileSnapshotService(db)
-    snapshots = await snapshot_service.get_snapshots(stockpile_id)
-    if not snapshots:
-        raise HTTPException(
-            status_code=404,
-            detail="No hay snapshots de precios para este acopio",
-        )
-
-    client = await db.get(Client, stockpile.client_id)
-    business = await db.get(Business, business_id)
-    recipient_email = str(data.recipient_email) if data and data.recipient_email else None
-    dispatch_result = await snapshot_service.dispatch_webhook(
-        stockpile_id=stockpile.id,
-        business_id=stockpile.business_id,
-        stockpile_name=stockpile.name,
-        stockpile_number=stockpile.stockpile_number,
-        client_email=recipient_email or (client.email if client else None),
-        client_name=client.name if client else None,
-        business_name=business.name if business else "",
-        base_url=str(request.base_url).rstrip("/"),
-    )
-
-    return StockpilePriceSnapshotEmailResponse(
-        sent=bool(dispatch_result.get("sent")),
-        status_code=dispatch_result.get("status_code"),
-        reason=dispatch_result.get("reason"),
-        message=(
-            "Email enviado" if dispatch_result.get("sent") else "No se pudo enviar el email"
-        ),
-    )
-
-
 @router.get("/{stockpile_id}", response_model=StockpileResponse)
 async def get_stockpile(
     stockpile_id: UUID,
@@ -1097,7 +1026,6 @@ async def download_price_snapshot_excel(
     stockpile_id: UUID,
     db: AsyncSession = Depends(get_db),
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
-    n8n_api_key: str | None = Header(None, alias="X-N8N-Stockpile-API-Key"),
 ):
     """Descarga el Excel de precios congelados de un acopio por monto."""
     stockpile = await db.get(Stockpile, stockpile_id)
@@ -1106,7 +1034,7 @@ async def download_price_snapshot_excel(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Acopio no encontrado",
         )
-    await authorize_price_snapshot_download(stockpile, db, credentials, n8n_api_key)
+    await authorize_price_snapshot_download(stockpile, db, credentials)
 
     snapshot_service = StockpileSnapshotService(db)
     snapshots = await snapshot_service.get_snapshots(stockpile_id)

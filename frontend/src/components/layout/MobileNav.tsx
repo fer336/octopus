@@ -61,7 +61,7 @@ export default function MobileNav({
     if (item.path === '/reports' && !reportsEnabled) return false
     if (item.path === '/inventory' && !inventoryEnabled) return false
     if (item.path === '/stockpiles' && !stockpileEnabled) return false
-    if ((item.path === '/messaging' || item.path === '/whatsapp-auth') && !whatsappEnabled) return false
+    if (item.path === '/messaging' && !whatsappEnabled) return false
     return hasPathAccess(user, item.path)
   })
 

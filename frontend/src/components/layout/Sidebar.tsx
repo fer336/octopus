@@ -84,7 +84,7 @@ export default function Sidebar({
         if (item.path === '/stockpiles' && !stockpileEnabled) {
           return false
         }
-        if ((item.path === '/messaging' || item.path === '/whatsapp-auth') && !whatsappEnabled) {
+        if (item.path === '/messaging' && !whatsappEnabled) {
           return false
         }
         return hasPathAccess(user, item.path)

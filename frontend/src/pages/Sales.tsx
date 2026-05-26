@@ -3,7 +3,7 @@
  * Permite crear cotizaciones, remitos y facturas.
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings, MoreVertical, Archive, ScanLine, Copy, Mail } from 'lucide-react'
+import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings, MoreVertical, Archive, ScanLine, Copy } from 'lucide-react'
 import { Button, Modal, Select, Input } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -445,7 +445,6 @@ export default function Sales() {
   // SALES-ACOPIO-02: replacing 'now/later' with explicit Yes/No for invoice
   const [acopioGenerateInvoice, setAcopioGenerateInvoice] = useState(() => _draft?.acopioGenerateInvoice ?? false)
   const [createdAcopio, setCreatedAcopio] = useState<StockpileResponse | null>(null)
-  const [createdAcopioEmail, setCreatedAcopioEmail] = useState('')
   const [downloadingAcopioSnapshot, setDownloadingAcopioSnapshot] = useState(false)
 
   // SALES-ACOPIO-FRONTEND-03: state for linking receipt to acopio
@@ -608,7 +607,6 @@ export default function Sales() {
       const num = data.stockpile_number ? `#${data.stockpile_number} ` : ''
       toast.success(`Acopio ${num}"${data.name}" creado correctamente`, { icon: '✅' })
       setCreatedAcopio(data)
-      setCreatedAcopioEmail(selectedClient?.email || '')
       // Reset form
       setAcopioName('')
       setAcopioDescription('')
@@ -622,24 +620,8 @@ export default function Sales() {
       // For now, if generate_invoice was true, we inform the user Phase 2 is pending
       // The actual invoice flow for acopios is handled in a future phase
     },
-    onError: (error: any) => {
-      toast.error('Error al crear acopio: ' + formatErrorMessage(error))
-    },
-  })
-
-  const sendCreatedAcopioEmailMutation = useMutation({
-    mutationFn: ({ stockpileId, recipientEmail }: { stockpileId: string; recipientEmail: string }) =>
-      stockpileService.sendPriceSnapshotEmail(stockpileId, recipientEmail),
-    onSuccess: (result) => {
-      if (result.sent) {
-        toast.success('Email enviado', { duration: 2500, icon: '✅' })
-        return
-      }
-
-      toast.error(result.reason ? `No se pudo enviar: ${result.reason}` : 'No se pudo enviar el email')
-    },
     onError: (error: unknown) => {
-      toast.error(formatErrorMessage(error))
+      toast.error('Error al crear acopio: ' + formatErrorMessage(error))
     },
   })
 
@@ -2304,8 +2286,6 @@ export default function Sales() {
     return `precios-congelados-${identifier.replace(/[^a-zA-Z0-9_-]/g, '-')}.xlsx`
   }
 
-  const isEmailLike = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
-
   const handleDownloadCreatedAcopioSnapshot = async () => {
     if (!createdAcopio) return
 
@@ -2326,19 +2306,6 @@ export default function Sales() {
     } finally {
       setDownloadingAcopioSnapshot(false)
     }
-  }
-
-  const handleSendCreatedAcopioEmail = () => {
-    if (!createdAcopio) return
-    if (!isEmailLike(createdAcopioEmail)) {
-      toast.error('Ingresá un email válido')
-      return
-    }
-
-    sendCreatedAcopioEmailMutation.mutate({
-      stockpileId: createdAcopio.id,
-      recipientEmail: createdAcopioEmail,
-    })
   }
 
   const handlePrintPdf = () => {
@@ -6615,9 +6582,7 @@ export default function Sales() {
       <Modal
         isOpen={!!createdAcopio}
         onClose={() => {
-          if (sendCreatedAcopioEmailMutation.isPending) return
           setCreatedAcopio(null)
-          setCreatedAcopioEmail('')
         }}
         title="Acopio creado"
         size="md"
@@ -6629,7 +6594,7 @@ export default function Sales() {
                 {createdAcopio.stockpile_number || 'Acopio sin número'} · {createdAcopio.name}
               </p>
               <p className="mt-1 text-xs text-green-700 dark:text-green-300">
-                El Excel de precios congelados ya está disponible. No se envió ningún email automáticamente.
+                El Excel de precios congelados ya está disponible para descargar.
               </p>
             </div>
 
@@ -6639,17 +6604,6 @@ export default function Sales() {
                 {getAcopioSnapshotFilename(createdAcopio)}
               </p>
             </div>
-
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">Destinatario</span>
-              <input
-                type="email"
-                value={createdAcopioEmail}
-                onChange={(event) => setCreatedAcopioEmail(event.target.value)}
-                placeholder="cliente@ejemplo.com"
-                className="w-full rounded-lg border px-3 py-2 dark:border-gray-700 dark:bg-gray-800"
-              />
-            </label>
 
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button
@@ -6664,19 +6618,9 @@ export default function Sales() {
                 variant="secondary"
                 onClick={() => {
                   setCreatedAcopio(null)
-                  setCreatedAcopioEmail('')
                 }}
-                disabled={sendCreatedAcopioEmailMutation.isPending}
               >
-                Cancelar
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleSendCreatedAcopioEmail}
-                disabled={sendCreatedAcopioEmailMutation.isPending}
-              >
-                <Mail size={16} />
-                {sendCreatedAcopioEmailMutation.isPending ? 'Enviando...' : 'Enviar por Email'}
+                Cerrar
               </Button>
             </div>
           </div>

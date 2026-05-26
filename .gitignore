@@ -80,6 +80,13 @@ logs/
 *.pem
 certificates/
 
+# OpenCode / MCP
+.mcp.json
+
+# Playwright
+frontend/playwright-report/
+frontend/test-results/
+
 # Temporary files
 tmp/
 temp/

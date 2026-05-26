@@ -92,12 +92,6 @@ class Settings(BaseSettings):
     # n8n webhook para auditoría de logins (Google OAuth)
     N8N_LOGIN_AUDIT_WEBHOOK_URL: str = ""
 
-    # n8n webhook para envío de resumen de acopio por email
-    N8N_STOCKPILE_WEBHOOK_URL: str = ""
-
-    # API key legacy para descargas internas del Excel de snapshots de acopio
-    N8N_STOCKPILE_SNAPSHOT_API_KEY: str = ""
-
     # MinIO / S3 compatible (logos branding y snapshots privados de acopio)
     MINIO_ENDPOINT: str = ""
     MINIO_ACCESS_KEY: str = ""

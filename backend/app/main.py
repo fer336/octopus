@@ -40,7 +40,6 @@ from app.routers import (
     stockpiles,
     vouchers,
     whatsapp,
-    whatsapp_auth,
 )
 from app.services.pdf_service import PdfService
 
@@ -109,8 +108,6 @@ app.include_router(exchange_rate.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(pdf_test.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(vouchers.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(whatsapp.router, prefix=settings.API_TENANT_PREFIX)
-app.include_router(whatsapp_auth.router, prefix=settings.API_TENANT_PREFIX)
-app.include_router(whatsapp_auth.webhook_router)
 app.include_router(arca.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(business.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(payment_methods.router, prefix=settings.API_TENANT_PREFIX)

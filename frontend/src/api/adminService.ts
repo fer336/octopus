@@ -169,6 +169,62 @@ export interface FeatureFlagsUpdate {
   srx_enabled?: boolean
 }
 
+export const AI_PROVIDERS = {
+  OPENAI: 'openai',
+  GEMINI: 'gemini',
+  OPENROUTER: 'openrouter',
+  ANTHROPIC: 'anthropic',
+} as const
+
+export type AIProvider = (typeof AI_PROVIDERS)[keyof typeof AI_PROVIDERS]
+
+export interface AIModelOption {
+  id: string
+  label: string
+}
+
+export interface AIProviderConfigResponse {
+  id: string
+  provider: AIProvider
+  display_name: string | null
+  api_key_last4: string | null
+  api_key_configured: boolean
+  default_model: string | null
+  base_url: string | null
+  is_active: boolean
+  is_valid: boolean
+  validated_at: string | null
+  validation_error: string | null
+}
+
+export interface AIConfigSummaryResponse {
+  providers: AIProviderConfigResponse[]
+  active_provider: AIProvider | null
+  active_model: string | null
+}
+
+export interface AIProviderUpsertPayload {
+  api_key?: string
+  default_model?: string
+  base_url?: string
+  display_name?: string
+}
+
+export interface AIProviderValidateResponse {
+  provider: AIProvider
+  is_valid: boolean
+  message: string
+  validated_at: string | null
+  suggested_models: string[]
+}
+
+export interface AIProviderModelsResponse {
+  provider: AIProvider
+  models: AIModelOption[]
+}
+
+export type AIModelsCatalogResponse = Record<AIProvider, AIModelOption[]>
+
 export type FeedbackType = 'bug' | 'feature'
 export type FeedbackStatus = 'new' | 'reviewing' | 'planned' | 'done' | 'rejected'
 
@@ -358,6 +414,63 @@ const adminAPI = {
 
   async updateFeatureFlags(businessId: string, data: FeatureFlagsUpdate): Promise<FeatureFlagsResponse> {
     const response = await adminHttpClient.patch(`/tenants/${businessId}/features`, data)
+    return response.data
+  },
+
+  // AI provider config
+  async getTenantAIConfig(businessId: string): Promise<AIConfigSummaryResponse> {
+    const response = await adminHttpClient.get(`/tenants/${businessId}/ai-config`)
+    return response.data
+  },
+
+  async upsertTenantAIConfig(
+    businessId: string,
+    provider: AIProvider,
+    data: AIProviderUpsertPayload,
+  ): Promise<AIProviderConfigResponse> {
+    const response = await adminHttpClient.put(`/tenants/${businessId}/ai-config/${provider}`, data)
+    return response.data
+  },
+
+  async validateTenantAIProvider(
+    businessId: string,
+    provider: AIProvider,
+  ): Promise<AIProviderValidateResponse> {
+    const response = await adminHttpClient.post(`/tenants/${businessId}/ai-config/${provider}/validate`)
+    return response.data
+  },
+
+  async activateTenantAIProvider(
+    businessId: string,
+    provider: AIProvider,
+  ): Promise<AIProviderConfigResponse> {
+    const response = await adminHttpClient.patch(`/tenants/${businessId}/ai-config/${provider}/activate`)
+    return response.data
+  },
+
+  async deleteTenantAIProvider(businessId: string, provider: AIProvider): Promise<void> {
+    await adminHttpClient.delete(`/tenants/${businessId}/ai-config/${provider}`)
+  },
+
+  async fetchTenantAIProviderModels(
+    businessId: string,
+    provider: AIProvider,
+    data: AIProviderUpsertPayload,
+  ): Promise<AIProviderModelsResponse> {
+    const response = await adminHttpClient.post(`/tenants/${businessId}/ai-config/${provider}/fetch-models`, data)
+    return response.data
+  },
+
+  async fetchTenantAIProviderModelsSaved(
+    businessId: string,
+    provider: AIProvider,
+  ): Promise<AIProviderModelsResponse> {
+    const response = await adminHttpClient.post(`/tenants/${businessId}/ai-config/${provider}/fetch-models-saved`)
+    return response.data
+  },
+
+  async getTenantAIModelsCatalog(businessId: string): Promise<AIModelsCatalogResponse> {
+    const response = await adminHttpClient.get(`/tenants/${businessId}/ai-config/models/catalog`)
     return response.data
   },
 
