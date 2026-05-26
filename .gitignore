@@ -82,8 +82,6 @@ certificates/
 
 # OpenCode / MCP
 .mcp.json
-.opencode/
-.claude/
 
 # Playwright
 frontend/playwright-report/
