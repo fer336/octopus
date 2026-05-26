@@ -41,6 +41,11 @@ from app.services.ai_quote_service import (
     _search_candidates_in_memory,
     _thread_local,
 )
+from app.services.ai_business_tools import (
+    get_low_stock_products,
+    get_stagnant_products,
+    get_sales_summary,
+)
 from app.services.ai_memory_service import get_business_memory_context
 from app.services.llm_factory import LLMFactory
 
@@ -73,6 +78,15 @@ class ChatState(TypedDict):
     classifier_client: Any  # Cliente rápido (para clasificación)
     classifier_model: str
     has_llm: bool  # False → solo respuestas hardcodeadas
+
+    # Contexto del negocio
+    business_id: str
+    db: Any  # AsyncSession, para queries bajo demanda
+
+    # Precargados al inicio
+    low_stock_products: list[dict]
+    stagnant_products_list: list[dict]
+    sales_summaries: dict  # {month, quarter, year} → summary dict
 
     # Intent clasificado
     intent: str
@@ -459,6 +473,12 @@ INTENTS disponibles:
 - "quote_intent"       → quiere hacer un presupuesto pero NO especificó productos todavía
 - "quote_with_items"   → quiere presupuesto Y ya listó los productos en el mensaje
                          params: {"raw_text": "texto completo con los productos"}
+- "stock_alert"        → quiere saber qué productos tienen stock bajo o agotado
+                         params: {}
+- "stagnant_products"  → productos que no se vendieron hace mucho tiempo
+                         params: {"days": 90}
+- "sales_analytics"    → resumen de ventas, qué se vende más/menos, revenue
+                         params: {"period": "month|quarter|year"}
 - "general"            → cualquier otra consulta, pregunta libre
 
 Reglas importantes:
@@ -468,6 +488,9 @@ Reglas importantes:
 - "presupuesto", "cotización", "cotizar" sin productos → "quote_intent"
 - "presupuesto" con lista de productos → "quote_with_items"
 - Consultas como "precio de X", "cuánto sale X", "tenés X" → "product_query"
+- "stock bajo", "qué falta", "productos agotados", "qué hay que reponer" → "stock_alert"
+- "productos parados", "sin movimiento", "no se vendió", "estancados" → "stagnant_products"
+- "ventas del mes", "qué se vendió más", "resumen de ventas", "facturación" → "sales_analytics"
 
 Respondé SOLO con JSON. Ejemplos:
 {"intent": "product_query", "params": {"term": "canilla jardín 1/2", "fields": "price"}}
@@ -475,7 +498,10 @@ Respondé SOLO con JSON. Ejemplos:
 {"intent": "add_to_cart", "params": {"qty": 3}}
 {"intent": "quote_intent", "params": {}}
 {"intent": "refinement", "params": {"filter": "cheapest", "n": 1}}
-{"intent": "greeting", "params": {}}"""
+{"intent": "greeting", "params": {}}
+{"intent": "stock_alert", "params": {}}
+{"intent": "stagnant_products", "params": {"days": 90}}
+{"intent": "sales_analytics", "params": {"period": "month"}}"""
 
 
 def _classify_with_llm(
@@ -534,6 +560,9 @@ def _classify_with_llm(
             "refinement",
             "quote_intent",
             "quote_with_items",
+            "stock_alert",
+            "stagnant_products",
+            "sales_analytics",
             "general",
         }
         if intent not in valid_intents:
@@ -713,6 +742,9 @@ Tus capacidades:
 2. Armar listas de productos para presupuesto (multi-ítem con confirmación iterativa)
 3. Agregar ítems confirmados al carrito virtual
 4. Responder preguntas generales del negocio
+5. Reportar productos con stock bajo o agotado
+6. Detectar productos estancados (sin ventas hace meses)
+7. Resumir el rendimiento de ventas del período
 
 Reglas:
 - NUNCA inventés precios ni stock — solo usás datos del catálogo
@@ -1378,6 +1410,118 @@ def node_add_to_cart(state: ChatState) -> dict:
     }
 
 
+def node_stock_alert(state: ChatState) -> dict:
+    products = state["low_stock_products"]
+
+    if not products:
+        return {
+            "response_type": "text",
+            "response_text": "¡Todo en orden! No hay productos con stock bajo en este momento.",
+            "response_products": None,
+            "response_quote": None,
+            "response_cart_items": None,
+        }
+
+    lines = [f"Encontré **{len(products)}** producto{'s' if len(products) != 1 else ''} con stock bajo:\n"]
+    for p in products:
+        deficit = p["minimum_stock"] - p["current_stock"]
+        lines.append(
+            f"- **{p['description']}** (Cód: {p['code']}) — "
+            f"Stock: {p['current_stock']} / Mínimo: {p['minimum_stock']} "
+            f"*(faltan {deficit} {p['unit']})*"
+        )
+    lines.append("\n¿Querés que te ayude a armar un pedido de reposición?")
+
+    return {
+        "response_type": "text",
+        "response_text": "\n".join(lines),
+        "response_products": None,
+        "response_quote": None,
+        "response_cart_items": None,
+    }
+
+
+def node_stagnant_products(state: ChatState) -> dict:
+    params = state["intent_params"]
+    days = int(params.get("days", 90))
+    products = state["stagnant_products_list"]
+
+    if not products:
+        return {
+            "response_type": "text",
+            "response_text": f"¡Buenas noticias! Todos los productos se movieron en los últimos {days} días.",
+            "response_products": None,
+            "response_quote": None,
+            "response_cart_items": None,
+        }
+
+    lines = [f"Productos sin ventas hace más de **{days} días** (con stock disponible):\n"]
+    for p in products[:15]:
+        days_txt = f"{p['days_without_sale']} días" if p["days_without_sale"] else "Nunca vendido"
+        lines.append(
+            f"- **{p['description']}** (Cód: {p['code']}) — "
+            f"Stock: {p['current_stock']} {p['unit']} · Última venta: {p['last_sale_date']} *({days_txt})*"
+        )
+    if len(products) > 15:
+        lines.append(f"\n…y {len(products) - 15} productos más.")
+    lines.append("\n¿Querés analizar alguno en particular o armar una promoción?")
+
+    return {
+        "response_type": "text",
+        "response_text": "\n".join(lines),
+        "response_products": None,
+        "response_quote": None,
+        "response_cart_items": None,
+    }
+
+
+def node_sales_analytics(state: ChatState) -> dict:
+    params = state["intent_params"]
+    period = params.get("period", "month")
+    if period not in ("month", "quarter", "year"):
+        period = "month"
+
+    summaries = state.get("sales_summaries") or {}  # type: ignore[attr-defined]
+    summary = summaries.get(period)
+    if not summary:
+        return {
+            "response_type": "text",
+            "response_text": "No pude obtener los datos de ventas en este momento.",
+            "response_products": None,
+            "response_quote": None,
+            "response_cart_items": None,
+        }
+
+    if not summary["top_by_revenue"]:
+        return {
+            "response_type": "text",
+            "response_text": f"No encontré ventas registradas para {summary['period']}.",
+            "response_products": None,
+            "response_quote": None,
+            "response_cart_items": None,
+        }
+
+    lines = [f"**Ventas — {summary['period']}** ({summary['date_from']} al {summary['date_to']})\n"]
+    lines.append(f"💰 **Total:** ${summary['total_amount']:,.2f}\n")
+
+    lines.append("**Top 5 por facturación:**")
+    for i, p in enumerate(summary["top_by_revenue"], 1):
+        lines.append(f"{i}. {p['description']} — ${p['amount']:,.2f} ({p['quantity']:.0f} u.)")
+
+    if summary["top_by_qty"] and summary["top_by_qty"][0]["description"] != summary["top_by_revenue"][0]["description"]:
+        lines.append("\n**Top 5 por cantidad:**")
+        for i, p in enumerate(summary["top_by_qty"], 1):
+            lines.append(f"{i}. {p['description']} — {p['quantity']:.0f} u. (${p['amount']:,.2f})")
+
+    return {
+        "response_type": "text",
+        "response_text": "\n".join(lines),
+        "response_products": None,
+        "response_quote": None,
+        "response_cart_items": None,
+    }
+
+
 def node_respond_llm(state: ChatState) -> dict:
     """
     Nodo: respuesta conversacional libre con el LLM principal.
@@ -1545,6 +1689,9 @@ def route_by_intent(
     "node_multi_confirm",
     "node_add_to_cart",
     "node_quote_graph",
+    "node_stock_alert",
+    "node_stagnant_products",
+    "node_sales_analytics",
     "node_respond_llm",
 ]:
     intent = state["intent"]
@@ -1560,6 +1707,12 @@ def route_by_intent(
         return "node_add_to_cart"
     if intent == "quote_with_items":
         return "node_quote_graph"
+    if intent == "stock_alert":
+        return "node_stock_alert"
+    if intent == "stagnant_products":
+        return "node_stagnant_products"
+    if intent == "sales_analytics":
+        return "node_sales_analytics"
     return "node_respond_llm"
 
 
@@ -1579,6 +1732,9 @@ def _build_chat_graph():
     builder.add_node("node_multi_confirm", node_multi_confirm)
     builder.add_node("node_add_to_cart", node_add_to_cart)
     builder.add_node("node_quote_graph", node_quote_graph)
+    builder.add_node("node_stock_alert", node_stock_alert)
+    builder.add_node("node_stagnant_products", node_stagnant_products)
+    builder.add_node("node_sales_analytics", node_sales_analytics)
     builder.add_node("node_respond_llm", node_respond_llm)
 
     builder.add_edge(START, "node_classify")
@@ -1593,6 +1749,9 @@ def _build_chat_graph():
             "node_multi_confirm",
             "node_add_to_cart",
             "node_quote_graph",
+            "node_stock_alert",
+            "node_stagnant_products",
+            "node_sales_analytics",
             "node_respond_llm",
         ],
     )
@@ -1604,6 +1763,9 @@ def _build_chat_graph():
     builder.add_edge("node_multi_confirm", END)
     builder.add_edge("node_add_to_cart", END)
     builder.add_edge("node_quote_graph", END)
+    builder.add_edge("node_stock_alert", END)
+    builder.add_edge("node_stagnant_products", END)
+    builder.add_edge("node_sales_analytics", END)
     builder.add_edge("node_respond_llm", END)
 
     return builder.compile()
@@ -1624,6 +1786,9 @@ _NODE_LABELS: dict[str, str] = {
     "node_multi_confirm": "Procesando tu selección...",
     "node_add_to_cart": "Agregando al carrito...",
     "node_quote_graph": "Armando el presupuesto...",
+    "node_stock_alert": "Revisando stock...",
+    "node_stagnant_products": "Buscando productos sin movimiento...",
+    "node_sales_analytics": "Analizando ventas...",
     "node_respond_llm": "Formulando respuesta...",
     "node_respond_static": "Respondiendo...",
 }
@@ -1651,6 +1816,17 @@ async def run_chat_agent(
         business_id=business_id,
         limit=5,
     )
+
+    low_stock = []
+    stagnant = []
+    sales_summaries: dict = {}
+    try:
+        low_stock = await get_low_stock_products(db, business_id)
+        stagnant = await get_stagnant_products(db, business_id, days=90)
+        for period in ("month", "quarter", "year"):
+            sales_summaries[period] = await get_sales_summary(db, business_id, period)
+    except Exception as e:
+        logger.warning(f"[Luci] preload business data failed: {e}")
 
     # Intentar resolver el proveedor IA
     has_llm = True
@@ -1680,6 +1856,11 @@ async def run_chat_agent(
         "classifier_client": classifier_client,
         "classifier_model": classifier_model,
         "has_llm": has_llm,
+        "business_id": business_id,
+        "db": db,
+        "low_stock_products": low_stock,
+        "stagnant_products_list": stagnant,
+        "sales_summaries": sales_summaries,
         "intent": "",
         "intent_params": {},
         "retrieved_products": [],
@@ -1738,6 +1919,17 @@ async def run_chat_agent_streaming(
         limit=5,
     )
 
+    low_stock = []
+    stagnant = []
+    sales_summaries: dict = {}
+    try:
+        low_stock = await get_low_stock_products(db, business_id)
+        stagnant = await get_stagnant_products(db, business_id, days=90)
+        for period in ("month", "quarter", "year"):
+            sales_summaries[period] = await get_sales_summary(db, business_id, period)
+    except Exception as e:
+        logger.warning(f"[Luci] preload business data failed: {e}")
+
     has_llm = True
     ai_provider = ai_api_key = ai_model = ""
     try:
@@ -1765,6 +1957,11 @@ async def run_chat_agent_streaming(
         "classifier_client": classifier_client,
         "classifier_model": classifier_model,
         "has_llm": has_llm,
+        "business_id": business_id,
+        "db": db,
+        "low_stock_products": low_stock,
+        "stagnant_products_list": stagnant,
+        "sales_summaries": sales_summaries,
         "intent": "",
         "intent_params": {},
         "retrieved_products": [],

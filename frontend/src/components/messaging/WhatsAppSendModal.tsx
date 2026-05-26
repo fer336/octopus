@@ -35,10 +35,10 @@ function digitsOnly(s: string) {
 function buildWhatsAppId(raw: string): string {
   const d = digitsOnly(raw)
   if (!d) return ''
-  if (d.startsWith('549') && d.length >= 12) return `${d}@c.us`
-  if (d.startsWith('54') && d.length >= 11) return `549${d.slice(2)}@c.us`
-  if (d.startsWith('0') && d.length >= 10) return `549${d.slice(1)}@c.us`
-  if (d.length >= 8) return `549${d}@c.us`
+  if (d.startsWith('549') && d.length >= 12) return d
+  if (d.startsWith('54') && d.length >= 11) return `549${d.slice(2)}`
+  if (d.startsWith('0') && d.length >= 10) return `549${d.slice(1)}`
+  if (d.length >= 8) return `549${d}`
   return ''
 }
 
