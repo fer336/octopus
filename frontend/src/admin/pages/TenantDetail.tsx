@@ -5,11 +5,9 @@ import { Fragment, useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
-import { UserMinus, UserRoundCog } from 'lucide-react'
+import { CheckCircle2, Loader2, UserMinus, UserRoundCog } from 'lucide-react'
 import adminAPI, {
   AI_PROVIDERS,
-  type AIModelOption,
-  type AIProvider,
   type AIProviderUpsertPayload,
   type AdminUser,
   type BrandingUpdate,
@@ -37,13 +35,6 @@ const permissionModules: Array<{ key: string; label: string }> = [
   { key: 'srx', label: 'SRX / Comprobante X' },
 ]
 
-const aiProviderOptions: Array<{ provider: AIProvider; label: string; hint: string }> = [
-  { provider: AI_PROVIDERS.OPENAI, label: 'OpenAI', hint: 'GPT y modelos OpenAI oficiales' },
-  { provider: AI_PROVIDERS.GEMINI, label: 'Gemini', hint: 'Modelos Google Gemini' },
-  { provider: AI_PROVIDERS.OPENROUTER, label: 'OpenRouter', hint: 'Acceso multi-modelo vía OpenRouter' },
-  { provider: AI_PROVIDERS.ANTHROPIC, label: 'Anthropic', hint: 'Modelos Claude' },
-]
-
 function getApiErrorDetail(error: unknown, fallback: string): string {
   if (typeof error === 'object' && error !== null && 'response' in error) {
     const response = error.response
@@ -58,20 +49,6 @@ function getApiErrorDetail(error: unknown, fallback: string): string {
     }
   }
   return fallback
-}
-
-function mergeModelOptions(...groups: AIModelOption[][]): AIModelOption[] {
-  const seen = new Set<string>()
-  const models: AIModelOption[] = []
-  for (const group of groups) {
-    for (const model of group) {
-      if (!seen.has(model.id)) {
-        seen.add(model.id)
-        models.push(model)
-      }
-    }
-  }
-  return models
 }
 
 function InfoField({ label, value }: { label: string; value: string | null | undefined }) {
@@ -363,9 +340,10 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
   const queryClient = useQueryClient()
   const [linearApiKey, setLinearApiKey] = useState('')
   const [evolutionApiKey, setEvolutionApiKey] = useState('')
-  const [selectedAIProvider, setSelectedAIProvider] = useState<AIProvider>(AI_PROVIDERS.OPENAI)
-  const [aiForm, setAIForm] = useState<AIProviderUpsertPayload>({})
-  const [fetchedAIModels, setFetchedAIModels] = useState<Partial<Record<AIProvider, AIModelOption[]>>>({})
+  const [openRouterApiKey, setOpenRouterApiKey] = useState('')
+  const [openRouterModel, setOpenRouterModel] = useState('anthropic/claude-sonnet-4-6')
+  const [openRouterModels, setOpenRouterModels] = useState<{ id: string; name: string; pricing: { prompt: string; completion: string } }[]>([])
+  const [loadingORModels, setLoadingORModels] = useState(true)
 
   const flagsQuery = useQuery({
     queryKey: ['admin-feature-flags', tenantId],
@@ -380,11 +358,6 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
   const aiConfigQuery = useQuery({
     queryKey: ['admin-ai-config', tenantId],
     queryFn: () => adminAPI.getTenantAIConfig(tenantId),
-  })
-
-  const aiModelsCatalogQuery = useQuery({
-    queryKey: ['admin-ai-models-catalog', tenantId],
-    queryFn: () => adminAPI.getTenantAIModelsCatalog(tenantId),
   })
 
   const updateMutation = useMutation({
@@ -488,73 +461,17 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
   })
 
   const saveAIConfigMutation = useMutation({
-    mutationFn: (payload: AIProviderUpsertPayload) =>
-      adminAPI.upsertTenantAIConfig(tenantId, selectedAIProvider, payload),
+    mutationFn: async (payload: AIProviderUpsertPayload) => {
+      await adminAPI.upsertTenantAIConfig(tenantId, AI_PROVIDERS.OPENROUTER, payload)
+      await adminAPI.activateTenantAIProvider(tenantId, AI_PROVIDERS.OPENROUTER)
+    },
     onSuccess: () => {
       toast.success('Configuración IA guardada')
-      setAIForm((prev) => ({ ...prev, api_key: '' }))
+      setOpenRouterApiKey('')
       queryClient.invalidateQueries({ queryKey: ['admin-ai-config', tenantId] })
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorDetail(error, 'No se pudo guardar la configuración IA'))
-    },
-  })
-
-  const validateAIProviderMutation = useMutation({
-    mutationFn: () => adminAPI.validateTenantAIProvider(tenantId, selectedAIProvider),
-    onSuccess: (data) => {
-      if (data.is_valid) {
-        toast.success('Proveedor validado correctamente')
-      } else {
-        toast.error(data.message)
-      }
-      queryClient.invalidateQueries({ queryKey: ['admin-ai-config', tenantId] })
-    },
-    onError: (error: unknown) => {
-      toast.error(getApiErrorDetail(error, 'No se pudo validar el proveedor'))
-    },
-  })
-
-  const activateAIProviderMutation = useMutation({
-    mutationFn: () => adminAPI.activateTenantAIProvider(tenantId, selectedAIProvider),
-    onSuccess: () => {
-      toast.success('Proveedor IA activado')
-      queryClient.invalidateQueries({ queryKey: ['admin-ai-config', tenantId] })
-    },
-    onError: (error: unknown) => {
-      toast.error(getApiErrorDetail(error, 'No se pudo activar el proveedor'))
-    },
-  })
-
-  const deleteAIProviderMutation = useMutation({
-    mutationFn: () => adminAPI.deleteTenantAIProvider(tenantId, selectedAIProvider),
-    onSuccess: () => {
-      toast.success('Configuración IA eliminada')
-      setAIForm({})
-      queryClient.invalidateQueries({ queryKey: ['admin-ai-config', tenantId] })
-    },
-    onError: (error: unknown) => {
-      toast.error(getApiErrorDetail(error, 'No se pudo eliminar la configuración IA'))
-    },
-  })
-
-  const fetchAIModelsMutation = useMutation({
-    mutationFn: () => {
-      const plainKey = aiForm.api_key?.trim()
-      if (plainKey) {
-        return adminAPI.fetchTenantAIProviderModels(tenantId, selectedAIProvider, {
-          api_key: plainKey,
-          base_url: aiForm.base_url?.trim() || undefined,
-        })
-      }
-      return adminAPI.fetchTenantAIProviderModelsSaved(tenantId, selectedAIProvider)
-    },
-    onSuccess: (data) => {
-      setFetchedAIModels((prev) => ({ ...prev, [data.provider]: data.models }))
-      toast.success('Modelos consultados correctamente')
-    },
-    onError: (error: unknown) => {
-      toast.error(getApiErrorDetail(error, 'No se pudieron consultar los modelos'))
     },
   })
 
@@ -575,30 +492,31 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
   const srxEnabled = flagsQuery.data?.srx_enabled ?? false
   const linearConfigured = Boolean(linearSecretsQuery.data?.secrets?.linear_api_key?.configured)
   const linearLast4 = linearSecretsQuery.data?.secrets?.linear_api_key?.last4
-  const selectedAIConfig = aiConfigQuery.data?.providers.find(
-    (config) => config.provider === selectedAIProvider,
+  const openRouterConfig = aiConfigQuery.data?.providers.find(
+    (config) => config.provider === AI_PROVIDERS.OPENROUTER,
   )
-  const activeAIConfig = aiConfigQuery.data?.providers.find((config) => config.is_active)
-  const activeAIConfigReady = Boolean(activeAIConfig?.is_active && activeAIConfig.is_valid)
-  const catalogAIModels = aiModelsCatalogQuery.data?.[selectedAIProvider] ?? []
-  const currentFetchedAIModels = fetchedAIModels[selectedAIProvider] ?? []
-  const availableAIModels = mergeModelOptions(currentFetchedAIModels, catalogAIModels)
-  const aiActionsDisabled = !currentEnabled
-  const canFetchModels =
-    currentEnabled &&
-    (Boolean(aiForm.api_key?.trim()) || Boolean(selectedAIConfig?.api_key_configured)) &&
-    !fetchAIModelsMutation.isPending
 
   useEffect(() => {
-    setAIForm({
-      api_key: '',
-      display_name: selectedAIConfig?.display_name ?? '',
-      base_url: selectedAIConfig?.base_url ?? '',
-      default_model: selectedAIConfig?.default_model ?? '',
-    })
-  }, [selectedAIConfig, selectedAIProvider])
+    fetch('https://openrouter.ai/api/v1/models')
+      .then((r) => r.json())
+      .then((json) => {
+        const list = (json.data ?? []).filter((m: { id?: string; pricing?: unknown }) => m.id && m.pricing)
+        list.sort((a: { pricing: { prompt: string } }, b: { pricing: { prompt: string } }) =>
+          parseFloat(a.pricing.prompt) - parseFloat(b.pricing.prompt),
+        )
+        setOpenRouterModels(list)
+      })
+      .catch(() => null)
+      .finally(() => setLoadingORModels(false))
+  }, [])
 
-  if (flagsQuery.isLoading || linearSecretsQuery.isLoading || aiConfigQuery.isLoading || aiModelsCatalogQuery.isLoading) {
+  useEffect(() => {
+    if (openRouterConfig?.default_model) {
+      setOpenRouterModel(openRouterConfig.default_model)
+    }
+  }, [openRouterConfig])
+
+  if (flagsQuery.isLoading || linearSecretsQuery.isLoading || aiConfigQuery.isLoading) {
     return <div className="h-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
   }
 
@@ -645,211 +563,90 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-                Configuración del proveedor IA
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Definí qué proveedor, modelo y credencial usa este tenant. La API key nunca se muestra en claro.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {aiProviderOptions.map((option) => {
-                const providerConfig = aiConfigQuery.data?.providers.find(
-                  (config) => config.provider === option.provider,
-                )
-                const isSelected = selectedAIProvider === option.provider
-                return (
-                  <button
-                    key={option.provider}
-                    type="button"
-                    onClick={() => setSelectedAIProvider(option.provider)}
-                    className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
-                      isSelected
-                        ? 'border-primary-500 bg-primary-50 text-primary-800 dark:bg-primary-900/30 dark:text-primary-200'
-                        : 'border-gray-200 bg-white text-gray-700 hover:border-primary-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'
-                    }`}
-                  >
-                    <span className="block font-medium">{option.label}</span>
-                    <span className="block text-xs text-gray-500 dark:text-gray-400">{option.hint}</span>
-                    {providerConfig?.is_active && (
-                      <span className="mt-1 inline-flex rounded-full bg-green-100 px-2 py-0.5 text-[11px] text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                        Activo
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              Configuración del proveedor IA
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              API key de OpenRouter para el agente IA. La key nunca se muestra en claro.
+            </p>
           </div>
 
           {!currentEnabled && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
-              Primero habilitá Agente IA para poder guardar, validar o activar proveedores.
+              Primero habilitá Agente IA para poder guardar la configuración.
             </div>
           )}
 
-          {currentEnabled && !activeAIConfigReady && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
-              El Agente IA está habilitado, pero todavía no hay un proveedor activo y validado.
+          {openRouterConfig?.api_key_configured && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-sm text-green-700 dark:text-green-300">
+              <CheckCircle2 size={14} />
+              <span>
+                Configurado · Key: ····{openRouterConfig.api_key_last4} · Modelo: {openRouterConfig.default_model}
+              </span>
             </div>
           )}
 
-          <div className="flex flex-wrap gap-2">
-            <span
-              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                selectedAIConfig?.api_key_configured
-                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                  : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-              }`}
-            >
-              {selectedAIConfig?.api_key_configured
-                ? `Configurado (${selectedAIConfig.api_key_last4 ?? '****'})`
-                : 'Sin API key'}
-            </span>
-            <span
-              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                selectedAIConfig?.is_active
-                  ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                  : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-              }`}
-            >
-              {selectedAIConfig?.is_active ? 'Activo' : 'Inactivo'}
-            </span>
-            <span
-              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                selectedAIConfig?.is_valid
-                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-              }`}
-            >
-              {selectedAIConfig?.is_valid ? 'Validado' : 'No validado'}
-            </span>
-          </div>
-
-          {selectedAIConfig?.validation_error && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
-              Error de validación: {selectedAIConfig.validation_error}
-            </p>
-          )}
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Nombre visible
-              </label>
-              <input
-                type="text"
-                value={aiForm.display_name ?? ''}
-                onChange={(event) => setAIForm((prev) => ({ ...prev, display_name: event.target.value }))}
-                disabled={aiActionsDisabled}
-                placeholder="Cuenta principal"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white disabled:opacity-60"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                API key
+                API Key{' '}
+                <span className="text-xs text-gray-400 font-normal">(openrouter.ai/keys)</span>
               </label>
               <input
                 type="password"
-                value={aiForm.api_key ?? ''}
-                onChange={(event) => setAIForm((prev) => ({ ...prev, api_key: event.target.value }))}
-                disabled={aiActionsDisabled}
-                placeholder={selectedAIConfig?.api_key_configured ? 'Dejar vacío para mantener la actual' : 'Ingresá la API key'}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white disabled:opacity-60"
+                value={openRouterApiKey}
+                onChange={(e) => setOpenRouterApiKey(e.target.value)}
+                disabled={!currentEnabled}
+                placeholder={
+                  openRouterConfig?.api_key_configured
+                    ? `Dejar vacío para mantener la actual (····${openRouterConfig.api_key_last4})`
+                    : 'sk-or-...'
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-mono text-sm disabled:opacity-60"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Base URL opcional
-              </label>
-              <input
-                type="url"
-                value={aiForm.base_url ?? ''}
-                onChange={(event) => setAIForm((prev) => ({ ...prev, base_url: event.target.value }))}
-                disabled={aiActionsDisabled}
-                placeholder={selectedAIProvider === AI_PROVIDERS.OPENROUTER ? 'https://openrouter.ai/api/v1' : 'Usar endpoint por defecto'}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white disabled:opacity-60"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Modelo
-              </label>
-              <input
-                type="text"
-                list={`ai-models-${selectedAIProvider}`}
-                value={aiForm.default_model ?? ''}
-                onChange={(event) => setAIForm((prev) => ({ ...prev, default_model: event.target.value }))}
-                disabled={aiActionsDisabled}
-                placeholder="Seleccioná o escribí un modelo"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white disabled:opacity-60"
-              />
-              <datalist id={`ai-models-${selectedAIProvider}`}>
-                {availableAIModels.map((model) => (
-                  <option key={model.id} value={model.id} label={model.label} />
-                ))}
-              </datalist>
-            </div>
-          </div>
 
-          <div className="flex flex-wrap gap-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
+                Modelo
+                {loadingORModels && <Loader2 size={12} className="animate-spin text-gray-400" />}
+              </label>
+              <select
+                value={openRouterModel}
+                onChange={(e) => setOpenRouterModel(e.target.value)}
+                disabled={!currentEnabled || loadingORModels}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm disabled:opacity-60"
+              >
+                {openRouterModels.length > 0
+                  ? openRouterModels.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} — ${(parseFloat(m.pricing.prompt) * 1_000_000).toFixed(2)}/1M entrada / ${(parseFloat(m.pricing.completion) * 1_000_000).toFixed(2)}/1M salida
+                      </option>
+                    ))
+                  : <option value={openRouterModel}>{openRouterModel}</option>
+                }
+              </select>
+            </div>
+
             <button
               type="button"
               onClick={() => {
-                const payload: AIProviderUpsertPayload = {
-                  display_name: aiForm.display_name?.trim() || undefined,
-                  api_key: aiForm.api_key?.trim() || undefined,
-                  base_url: aiForm.base_url?.trim() || undefined,
-                  default_model: aiForm.default_model?.trim() || undefined,
-                }
-                if (!selectedAIConfig && !payload.api_key) {
+                if (!openRouterConfig && !openRouterApiKey.trim()) {
                   toast.error('Ingresá una API key para crear la configuración')
                   return
                 }
-                saveAIConfigMutation.mutate(payload)
+                saveAIConfigMutation.mutate({
+                  api_key: openRouterApiKey.trim() || undefined,
+                  default_model: openRouterModel,
+                  base_url: 'https://openrouter.ai/api/v1',
+                })
               }}
-              disabled={aiActionsDisabled || saveAIConfigMutation.isPending}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!currentEnabled || saveAIConfigMutation.isPending}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
               {saveAIConfigMutation.isPending ? 'Guardando...' : 'Guardar configuración'}
             </button>
-            <button
-              type="button"
-              onClick={() => fetchAIModelsMutation.mutate()}
-              disabled={!canFetchModels}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              {fetchAIModelsMutation.isPending ? 'Consultando...' : 'Consultar modelos'}
-            </button>
-            <button
-              type="button"
-              onClick={() => validateAIProviderMutation.mutate()}
-              disabled={aiActionsDisabled || !selectedAIConfig?.api_key_configured || validateAIProviderMutation.isPending}
-              className="px-4 py-2 border border-green-300 text-green-700 rounded-lg hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-green-800 dark:text-green-300 dark:hover:bg-green-900/20"
-            >
-              {validateAIProviderMutation.isPending ? 'Validando...' : 'Validar'}
-            </button>
-            <button
-              type="button"
-              onClick={() => activateAIProviderMutation.mutate()}
-              disabled={aiActionsDisabled || !selectedAIConfig?.api_key_configured || activateAIProviderMutation.isPending}
-              className="px-4 py-2 border border-primary-300 text-primary-700 rounded-lg hover:bg-primary-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-primary-800 dark:text-primary-300 dark:hover:bg-primary-900/20"
-            >
-              {activateAIProviderMutation.isPending ? 'Activando...' : 'Activar proveedor'}
-            </button>
-            {selectedAIConfig && (
-              <button
-                type="button"
-                onClick={() => deleteAIProviderMutation.mutate()}
-                disabled={aiActionsDisabled || deleteAIProviderMutation.isPending}
-                className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
-              >
-                {deleteAIProviderMutation.isPending ? 'Eliminando...' : 'Eliminar'}
-              </button>
-            )}
           </div>
         </div>
 
