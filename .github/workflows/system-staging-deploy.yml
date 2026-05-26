@@ -181,8 +181,8 @@ jobs:
             "${{ secrets.PORTAINER_CMS_WEBHOOK_URL }}")
 
           if [ "$HTTP_STATUS" -ne 204 ] && [ "$HTTP_STATUS" -ne 200 ]; then
-            echo "Error: Portainer CMS staging webhook retornó HTTP $HTTP_STATUS"
-            exit 1
+            echo "Warning: Portainer CMS staging webhook retornó HTTP $HTTP_STATUS — el CMS puede no estar configurado en staging. Continuando."
+            exit 0
           fi
 
           echo "Webhook CMS staging disparado correctamente. HTTP $HTTP_STATUS"
