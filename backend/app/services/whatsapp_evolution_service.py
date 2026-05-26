@@ -3,12 +3,15 @@ Servicio proxy para Evolution API.
 Mantiene la API key en backend y expone sólo las operaciones necesarias al frontend.
 """
 
+import logging
 from typing import Any
 
 import httpx
 from fastapi import HTTPException, status
 
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class WhatsAppEvolutionService:
@@ -61,6 +64,13 @@ class WhatsAppEvolutionService:
             except ValueError:
                 detail = response.text or "Error de Evolution API."
 
+            logger.error(
+                "Evolution API error %s %s -> %s: %s",
+                method,
+                path,
+                response.status_code,
+                detail,
+            )
             raise HTTPException(status_code=response.status_code, detail=detail)
 
         if response.status_code == status.HTTP_204_NO_CONTENT:
