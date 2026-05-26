@@ -1,13 +1,10 @@
 name: CMS Deploy
 
 on:
-  push:
-    tags:
-      - "cms-v*.*.*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag a deployar (ej: cms-v1.2.3)"
+        description: "Tag a deployar (ej: 1.4.8)"
         required: true
 
 permissions:

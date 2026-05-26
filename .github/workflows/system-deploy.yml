@@ -45,6 +45,12 @@ jobs:
             image_name: octopustrack-frontend
             platforms: linux/amd64,linux/arm64
 
+          - service: cms
+            context: ./frontend
+            dockerfile: ./frontend/Dockerfile.prod
+            image_name: octopustrack-cms
+            platforms: linux/amd64
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -179,6 +185,7 @@ jobs:
             |---|---|---|
             | backend | `ghcr.io/${{ github.repository_owner }}/octopustrack-backend:${{ steps.release_tags.outputs.version }}` | `${{ secrets.DOCKERHUB_USERNAME }}/octopustrack-backend:${{ steps.release_tags.outputs.version }}` |
             | frontend | `ghcr.io/${{ github.repository_owner }}/octopustrack-frontend:${{ steps.release_tags.outputs.version }}` | `${{ secrets.DOCKERHUB_USERNAME }}/octopustrack-frontend:${{ steps.release_tags.outputs.version }}` |
+            | cms | `ghcr.io/${{ github.repository_owner }}/octopustrack-cms:${{ steps.release_tags.outputs.version }}` | `${{ secrets.DOCKERHUB_USERNAME }}/octopustrack-cms:${{ steps.release_tags.outputs.version }}` |
 
             ## Tags publicados
 
@@ -244,7 +251,25 @@ jobs:
             exit 1
           fi
 
-          echo "Webhook disparado correctamente. HTTP $HTTP_STATUS"
+          echo "Webhook system disparado correctamente. HTTP $HTTP_STATUS"
+
+      - name: Trigger Portainer CMS webhook
+        run: |
+          if [ -z "${{ secrets.PORTAINER_CMS_WEBHOOK_URL }}" ]; then
+            echo "PORTAINER_CMS_WEBHOOK_URL no configurado, saltando CMS deploy."
+            exit 0
+          fi
+
+          HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}" \
+            -X POST \
+            "${{ secrets.PORTAINER_CMS_WEBHOOK_URL }}")
+
+          if [ "$HTTP_STATUS" -ne 204 ] && [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Error: Portainer CMS webhook retornó HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          echo "Webhook CMS disparado correctamente. HTTP $HTTP_STATUS"
 
       - name: Verify deployment health
         run: |
@@ -266,3 +291,34 @@ jobs:
           else
             echo "Health check retornó HTTP $STATUS. Revisá Portainer manualmente."
           fi
+
+      - name: Verify CMS deployment health
+        run: |
+          URL="${{ secrets.CMS_HEALTH_URL }}"
+
+          if [ -z "$URL" ]; then
+            echo "CMS_HEALTH_URL no configurado. Saltando verificación."
+            exit 0
+          fi
+
+          echo "Esperando 20s para que el swarm redespliegue CMS..."
+          sleep 20
+
+          MAX_RETRIES=6
+          RETRY_DELAY=10
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Intento $i/$MAX_RETRIES — GET $URL"
+            STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 10 "$URL" || echo "000")
+
+            if [ "$STATUS" = "200" ]; then
+              echo "CMS saludable (HTTP 200) — deploy exitoso"
+              exit 0
+            fi
+
+            echo "CMS no disponible (HTTP $STATUS), reintentando en ${RETRY_DELAY}s..."
+            sleep $RETRY_DELAY
+          done
+
+          echo "El servicio CMS no respondió después de $MAX_RETRIES intentos"
+          exit 1
