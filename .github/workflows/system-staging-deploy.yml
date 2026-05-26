@@ -45,6 +45,11 @@ jobs:
             dockerfile: ./frontend/Dockerfile.prod
             image_name: octopustrack-frontend
 
+          - service: cms
+            context: ./frontend
+            dockerfile: ./frontend/Dockerfile.prod
+            image_name: octopustrack-cms
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -164,6 +169,24 @@ jobs:
 
           echo "Webhook staging disparado correctamente. HTTP $HTTP_STATUS"
 
+      - name: Trigger Portainer staging CMS webhook
+        run: |
+          if [ -z "${{ secrets.PORTAINER_CMS_WEBHOOK_URL }}" ]; then
+            echo "PORTAINER_CMS_WEBHOOK_URL no configurado, saltando CMS staging deploy."
+            exit 0
+          fi
+
+          HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}" \
+            -X POST \
+            "${{ secrets.PORTAINER_CMS_WEBHOOK_URL }}")
+
+          if [ "$HTTP_STATUS" -ne 204 ] && [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Warning: Portainer CMS staging webhook retornó HTTP $HTTP_STATUS — el CMS puede no estar configurado en staging. Continuando."
+            exit 0
+          fi
+
+          echo "Webhook CMS staging disparado correctamente. HTTP $HTTP_STATUS"
+
       - name: Verify staging deployment health
         run: |
           sleep 30
@@ -182,3 +205,34 @@ jobs:
           else
             echo "Health check staging retornó HTTP $STATUS. Revisá Portainer manualmente."
           fi
+
+      - name: Verify CMS staging deployment health
+        run: |
+          URL="${{ secrets.CMS_HEALTH_URL }}"
+
+          if [ -z "$URL" ]; then
+            echo "CMS_HEALTH_URL no configurado. Saltando verificación."
+            exit 0
+          fi
+
+          echo "Esperando 20s para que el swarm redespliegue CMS..."
+          sleep 20
+
+          MAX_RETRIES=6
+          RETRY_DELAY=10
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Intento $i/$MAX_RETRIES — GET $URL"
+            STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 10 "$URL" || echo "000")
+
+            if [ "$STATUS" = "200" ]; then
+              echo "CMS staging saludable (HTTP 200) — deploy exitoso"
+              exit 0
+            fi
+
+            echo "CMS no disponible (HTTP $STATUS), reintentando en ${RETRY_DELAY}s..."
+            sleep $RETRY_DELAY
+          done
+
+          echo "El servicio CMS no respondió después de $MAX_RETRIES intentos"
+          exit 1
