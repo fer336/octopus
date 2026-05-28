@@ -39,6 +39,7 @@ from app.schemas.stockpile import (
     ValidateWithdrawalRequest,
     ValidateWithdrawalResponse,
     StockpileOpenItem,
+    PriceSnapshotItemResponse,
 )
 from app.services.stockpile_service import StockpileService
 from app.services.stockpile_snapshot_service import StockpileSnapshotService
@@ -1019,6 +1020,34 @@ async def get_frozen_items(
         )
 
     return result
+
+
+@internal_router.get("/{stockpile_id}/price-snapshot/items", response_model=list[PriceSnapshotItemResponse])
+async def get_price_snapshot_items(
+    stockpile_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+):
+    """Retorna los items del snapshot de precios de un acopio como JSON."""
+    stockpile = await db.get(Stockpile, stockpile_id)
+    if not stockpile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Acopio no encontrado")
+    await authorize_price_snapshot_download(stockpile, db, credentials)
+
+    snapshot_service = StockpileSnapshotService(db)
+    snapshots = await snapshot_service.get_snapshots(stockpile_id)
+
+    return [
+        PriceSnapshotItemResponse(
+            product_id=str(snap.product_id),
+            code=snap.code,
+            description=snap.description,
+            price_without_iva=float(snap.price_without_iva),
+            iva_rate=float(snap.iva_rate),
+            price_with_iva=float(snap.price_with_iva),
+        )
+        for snap in snapshots
+    ]
 
 
 @internal_router.get("/{stockpile_id}/price-snapshot/excel")

@@ -272,6 +272,17 @@ class StockpileSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PriceSnapshotItemResponse(BaseModel):
+    """Ítem del snapshot de precios de un acopio."""
+
+    product_id: str
+    code: str
+    description: str
+    price_without_iva: float
+    iva_rate: float
+    price_with_iva: float
+
+
 class ValidateWithdrawalRequest(BaseModel):
     """Request para validar retiro."""
 

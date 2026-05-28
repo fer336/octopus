@@ -15,6 +15,7 @@ import stockpileService, {
   OpenStockpileItem,
   StockpileResponse,
   StockpileSummary,
+  PriceSnapshotItem,
 } from '../api/stockpileService'
 import draftsService from '../api/draftsService'
 import arcaService from '../api/arcaService'
@@ -450,6 +451,7 @@ export default function Sales() {
   // SALES-ACOPIO-FRONTEND-03: state for linking receipt to acopio
   const [selectedStockpile, setSelectedStockpile] = useState<OpenStockpileItem | null>(null)
   const [stockpileSummary, setStockpileSummary] = useState<StockpileSummary | null>(null)
+  const [stockpilePriceMap, setStockpilePriceMap] = useState<Map<string, number>>(new Map())
   const [showStockpileSelectorModal, setShowStockpileSelectorModal] = useState(false)
   const [openStockpiles, setOpenStockpiles] = useState<OpenStockpileItem[]>([])
   const [isLoadingStockpiles, setIsLoadingStockpiles] = useState(false)
@@ -1191,6 +1193,19 @@ export default function Sales() {
   // Refs para los inputs del modal de configuración
   const modalInputsRef = useRef<(HTMLInputElement | null)[]>([])
 
+  useEffect(() => {
+    if (!selectedStockpile) {
+      setStockpilePriceMap(new Map())
+      return
+    }
+    stockpileService.getPriceSnapshotItems(selectedStockpile.id).then(items => {
+      const map = new Map(items.map((item: PriceSnapshotItem) => [item.product_id, item.price_with_iva]))
+      setStockpilePriceMap(map)
+    }).catch(() => {
+      setStockpilePriceMap(new Map())
+    })
+  }, [selectedStockpile])
+
   // Filtrar productos según búsqueda
   const filteredProducts = allProducts
     .map(p => ({
@@ -1199,7 +1214,9 @@ export default function Sales() {
       supplier_code: typeof p.supplier_code === 'string' ? p.supplier_code : undefined,
       description: safeText(p.description),
       net_price: safeNumber(p.net_price),
-      sale_price: safeNumber(p.sale_price),
+      sale_price: (selectedStockpile && stockpilePriceMap.has(p.id))
+        ? stockpilePriceMap.get(p.id)!
+        : safeNumber(p.sale_price),
       current_stock: typeof p.current_stock === 'number' ? p.current_stock : undefined,
       photo_url: typeof p.photo_url === 'string' ? p.photo_url : undefined,
     }))
@@ -4244,7 +4261,7 @@ export default function Sales() {
               <table className="w-full table-fixed text-sm">
                 <colgroup>
                   <col className="w-16" />
-                  <col className="w-28" />
+                  <col className="hidden xl:table-column w-28" />
                   <col />
                   <col className="w-20" />
                   <col className="w-28" />
@@ -4252,7 +4269,7 @@ export default function Sales() {
                 <thead className="bg-gray-100 dark:bg-gray-900 sticky top-0">
                   <tr>
                     <th className="px-2 py-2 text-left font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Código</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Cód. Fábrica</th>
+                    <th className="px-2 py-2 text-left font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap hidden xl:table-cell">Cód. Fábrica</th>
                     <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Descripción</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Stock</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Precio venta</th>
@@ -4292,7 +4309,7 @@ export default function Sales() {
                             {isInTemp && <span className="text-green-600 dark:text-green-400 mr-1 text-base">✓</span>}
                             {product.code}
                           </td>
-                          <td className="px-2 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap truncate" title={product.supplier_code || undefined}>{product.supplier_code || '—'}</td>
+                          <td className="px-2 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap truncate hidden xl:table-cell" title={product.supplier_code || undefined}>{product.supplier_code || '—'}</td>
                           <td className="px-3 py-2 font-semibold truncate" title={product.description}>{product.description}</td>
                           <td className="px-3 py-2 text-right whitespace-nowrap">{product.current_stock ?? '—'}</td>
                           <td className="px-3 py-2 text-right whitespace-nowrap">${formatNumber(product.sale_price)}</td>
@@ -4330,8 +4347,8 @@ export default function Sales() {
         </div>
 
         {/* Panel lateral - Resumen */}
-        <div className={`w-full lg:w-72 flex-shrink-0 h-full min-h-0 overflow-hidden ${mobileSection === 'summary' ? 'block' : 'hidden lg:block'}`}>
-          <div className="bg-white dark:bg-gray-800 rounded-md p-2 shadow-sm border border-gray-200 dark:border-gray-700 h-full max-h-full flex flex-col overflow-hidden">
+        <div className={`w-full lg:w-64 flex-shrink-0 h-full min-h-0 overflow-hidden ${mobileSection === 'summary' ? 'block' : 'hidden lg:block'}`}>
+          <div className="bg-white dark:bg-gray-800 rounded-md p-2 shadow-sm border border-gray-200 dark:border-gray-700 h-full max-h-full flex flex-col overflow-y-auto">
 
             {/* Numeración del comprobante — en el header, reemplaza el título "Resumen" */}
             {business && voucherType !== 'acopio' && voucherType !== 'current_account' && (() => {
@@ -4456,38 +4473,6 @@ export default function Sales() {
               </div>
             </div>
 
-            {/* Zona scrolleable: foto de producto */}
-            <div className="flex-1 min-h-0 overflow-y-auto py-1">
-
-              {/* Preview de imagen del producto seleccionado en el carrito */}
-              <div className="pt-1">
-                {previewPhotoUrl ? (
-                  <div className="relative rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
-                    <img
-                      src={previewPhotoUrl}
-                      alt="Producto seleccionado"
-                      className="w-full h-36 object-contain"
-                      onError={() => setPreviewPhotoUrl(null)}
-                    />
-                    <button
-                      onClick={() => setPreviewPhotoUrl(null)}
-                      className="absolute top-1 right-1 bg-white/80 dark:bg-gray-900/80 rounded-full p-0.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                      title="Cerrar imagen"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-20 rounded-lg border border-dashed border-gray-200 dark:border-gray-600 text-center text-[10px] text-gray-400 dark:text-gray-500 italic select-none">
-                    Seleccioná un producto para ver su imagen
-                  </div>
-                )}
-              </div>
-
-            </div>
-
             {/* SALES-ACOPIO-FRONTEND-03: Acopio summary panel — solo para remito */}
             {voucherType === 'receipt' && selectedClient && stockpileEnabled && (
               <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
@@ -4576,6 +4561,38 @@ export default function Sales() {
                 )}
               </div>
             )}
+
+            {/* Zona scrolleable: foto de producto */}
+            <div className="flex-1 min-h-0 overflow-y-auto py-1">
+
+              {/* Preview de imagen del producto seleccionado en el carrito */}
+              <div className="pt-1">
+                {previewPhotoUrl ? (
+                  <div className="relative rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
+                    <img
+                      src={previewPhotoUrl}
+                      alt="Producto seleccionado"
+                      className="w-full h-36 object-contain"
+                      onError={() => setPreviewPhotoUrl(null)}
+                    />
+                    <button
+                      onClick={() => setPreviewPhotoUrl(null)}
+                      className="absolute top-1 right-1 bg-white/80 dark:bg-gray-900/80 rounded-full p-0.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                      title="Cerrar imagen"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-20 rounded-lg border border-dashed border-gray-200 dark:border-gray-600 text-center text-[10px] text-gray-400 dark:text-gray-500 italic select-none">
+                    Seleccioná un producto para ver su imagen
+                  </div>
+                )}
+              </div>
+
+            </div>
 
             <div className="space-y-1.5 mt-auto">
               <Button 

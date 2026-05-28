@@ -180,6 +180,15 @@ export interface ValidateWithdrawalResponse {
   message: string
 }
 
+export interface PriceSnapshotItem {
+  product_id: string
+  code: string
+  description: string
+  price_without_iva: number
+  iva_rate: number
+  price_with_iva: number
+}
+
 const stockpileService = {
   /**
    * Lista todos los acopios del negocio.
@@ -308,6 +317,14 @@ const stockpileService = {
    */
   getFrozenItems: async (stockpileId: string): Promise<FrozenItem[]> => {
     const response = await httpClient.get(`/stockpiles/${stockpileId}/frozen-items`)
+    return response.data
+  },
+
+  /**
+   * Obtiene los items del snapshot de precios de un acopio como JSON.
+   */
+  getPriceSnapshotItems: async (stockpileId: string): Promise<PriceSnapshotItem[]> => {
+    const response = await httpClient.get(`/stockpiles/${stockpileId}/price-snapshot/items`)
     return response.data
   },
 

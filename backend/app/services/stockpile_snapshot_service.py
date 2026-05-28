@@ -57,15 +57,14 @@ class StockpileSnapshotService:
         """
         Genera un archivo Excel con los snapshots de precios.
 
-        Columnas: Código, Descripción, Precio sin IVA, IVA %, IVA $,
-                  Precio final con IVA, Fecha de congelamiento
+        Columnas: Código, Descripción, Precio Final
         """
         wb = Workbook()
         ws = wb.active
         ws.title = "Precios Congelados"
 
         # Título
-        ws.merge_cells("A1:G1")
+        ws.merge_cells("A1:C1")
         title_cell = ws["A1"]
         title_cell.value = f"Precios congelados - {stockpile_name}"
         title_cell.font = Font(name="Calibri", bold=True, size=14, color="1f2937")
@@ -76,11 +75,7 @@ class StockpileSnapshotService:
         headers = [
             "Código",
             "Descripción",
-            "Precio sin IVA",
-            "IVA %",
-            "IVA $",
-            "Precio final con IVA",
-            "Fecha de congelamiento",
+            "Precio Final",
         ]
 
         for col_num, header in enumerate(headers, 1):
@@ -101,49 +96,20 @@ class StockpileSnapshotService:
                 row=row_num, column=2, value=snap.description
             ).alignment = LEFT_ALIGNMENT
 
-            price_cell = ws.cell(
-                row=row_num, column=3, value=float(snap.price_without_iva)
-            )
-            price_cell.number_format = MONEY_FORMAT
-            price_cell.alignment = CELL_ALIGNMENT
-
-            iva_rate_cell = ws.cell(
-                row=row_num, column=4, value=float(snap.iva_rate)
-            )
-            iva_rate_cell.number_format = PERCENT_FORMAT
-            iva_rate_cell.alignment = CELL_ALIGNMENT
-
-            iva_amt_cell = ws.cell(
-                row=row_num, column=5, value=float(snap.iva_amount)
-            )
-            iva_amt_cell.number_format = MONEY_FORMAT
-            iva_amt_cell.alignment = CELL_ALIGNMENT
-
             total_cell = ws.cell(
-                row=row_num, column=6, value=float(snap.price_with_iva)
+                row=row_num, column=3, value=float(snap.price_with_iva)
             )
             total_cell.number_format = MONEY_FORMAT
             total_cell.alignment = CELL_ALIGNMENT
 
-            date_cell = ws.cell(
-                row=row_num,
-                column=7,
-                value=(
-                    snap.frozen_at.strftime("%d/%m/%Y %H:%M")
-                    if snap.frozen_at
-                    else ""
-                ),
-            )
-            date_cell.alignment = CELL_ALIGNMENT
-
         # Ajustar ancho de columnas
-        column_widths = [15, 45, 16, 10, 14, 22, 22]
+        column_widths = [15, 50, 20]
         for i, width in enumerate(column_widths, 1):
             ws.column_dimensions[get_column_letter(i)].width = width
 
         # Autofilter en el rango de datos
         if snapshots:
-            ws.auto_filter.ref = f"A3:G{3 + len(snapshots)}"
+            ws.auto_filter.ref = f"A3:C{3 + len(snapshots)}"
 
         # Freeze panes: fila de headers + columna código
         ws.freeze_panes = "B4"
