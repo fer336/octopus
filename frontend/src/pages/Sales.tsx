@@ -1214,7 +1214,7 @@ export default function Sales() {
       supplier_code: typeof p.supplier_code === 'string' ? p.supplier_code : undefined,
       description: safeText(p.description),
       net_price: safeNumber(p.net_price),
-      sale_price: (selectedStockpile && stockpilePriceMap.has(p.id))
+      sale_price: (voucherType === 'receipt' && selectedStockpile && stockpilePriceMap.has(p.id))
         ? stockpilePriceMap.get(p.id)!
         : safeNumber(p.sale_price),
       current_stock: typeof p.current_stock === 'number' ? p.current_stock : undefined,
