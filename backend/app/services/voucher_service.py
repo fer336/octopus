@@ -2043,35 +2043,38 @@ class VoucherService:
         abs_total = abs(Decimal(str(voucher.total or 0)))
 
         if hide_discount:
-            # Modo ORIGINAL "sin descuento": precios completos, ni individual ni general
-            items_context = [
-                {
+            # Modo ORIGINAL "sin descuento": precios completos con IVA, sin descuentos
+            items_context = []
+            for item in voucher.items:
+                iva_r = Decimal(str(item.iva_rate)) if item.iva_rate else Decimal("21")
+                price_with_iva = item.unit_price * (Decimal("1") + iva_r / Decimal("100"))
+                qty = Decimal(str(item.quantity))
+                items_context.append({
                     "code": item.code,
                     "description": item.description,
                     "quantity": f"{item.quantity:g}",
-                    "unit_price": f"{item.unit_price:,.2f}",
+                    "unit_price": f"{abs(price_with_iva):,.2f}",
                     "discount": "0",
-                    "subtotal": f"{item.unit_price * item.quantity:,.2f}",
-                    "is_return_item": Decimal(str(item.quantity)) < Decimal("0"),
-                }
-                for item in voucher.items
-            ]
+                    "subtotal": f"{abs(price_with_iva * qty):,.2f}",
+                    "is_return_item": qty < Decimal("0"),
+                })
         else:
-            # Modo DUPLICADO "con descuento": desc. individual en items, el general va en totales
-            items_context = [
-                {
+            # Modo DUPLICADO "con descuento": precios con IVA, desc. individual en items, el general va en totales
+            items_context = []
+            for item in voucher.items:
+                iva_r = Decimal(str(item.iva_rate)) if item.iva_rate else Decimal("21")
+                price_with_iva = item.unit_price * (Decimal("1") + iva_r / Decimal("100"))
+                qty = Decimal(str(item.quantity))
+                item_disc = Decimal(str(item.discount_percent)) if hasattr(item, "discount_percent") and item.discount_percent else Decimal("0")
+                items_context.append({
                     "code": item.code,
                     "description": item.description,
                     "quantity": f"{item.quantity:g}",
-                    "unit_price": f"{item.unit_price:,.2f}",
-                    "discount": f"{item.discount_percent:g}"
-                    if hasattr(item, "discount_percent") and item.discount_percent
-                    else "0",
-                    "subtotal": f"{item.unit_price * Decimal(str(item.quantity)) * (1 - (Decimal(str(item.discount_percent)) if hasattr(item, 'discount_percent') and item.discount_percent else Decimal('0')) / Decimal('100')):,.2f}",
-                    "is_return_item": Decimal(str(item.quantity)) < Decimal("0"),
-                }
-                for item in voucher.items
-            ]
+                    "unit_price": f"{abs(price_with_iva):,.2f}",
+                    "discount": f"{item.discount_percent:g}" if hasattr(item, "discount_percent") and item.discount_percent else "0",
+                    "subtotal": f"{abs(price_with_iva * qty * (Decimal('1') - item_disc / Decimal('100'))):,.2f}",
+                    "is_return_item": qty < Decimal("0"),
+                })
 
         if is_stockpile_principal_receipt and not items_context:
             linked_stockpile = (voucher.child_stockpiles or [None])[0]
