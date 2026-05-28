@@ -2002,8 +2002,10 @@ class VoucherService:
         # Calcular subtotales de referencia
         # raw_subtotal: precio de lista (sin ningún descuento)
         # item_subtotal_sum: solo con descuentos individuales (sin desc. general)
+        # item_sum_with_iva: con descuentos individuales + IVA (sin desc. general) → "Importe total" visible
         raw_subtotal = Decimal("0")
         item_subtotal_sum = Decimal("0")
+        item_sum_with_iva = Decimal("0")
         iva_no_discount = Decimal("0")
         for item in voucher.items:
             qty = Decimal(str(item.quantity))
@@ -2014,6 +2016,9 @@ class VoucherService:
             # IVA sin descuentos (para modo hide_discount)
             iva_rate_item = Decimal(str(item.iva_rate)) if item.iva_rate else Decimal("21")
             iva_no_discount += abs(item.unit_price * qty) * (iva_rate_item / Decimal("100"))
+            # Precio final con IVA y con descuento individual (sin desc. general)
+            net_after_item_disc = item.unit_price * qty * (1 - item_disc_pct / Decimal("100"))
+            item_sum_with_iva += abs(net_after_item_disc) * (Decimal("1") + iva_rate_item / Decimal("100"))
 
         # Para notas de crédito los montos son negativos → usar absolutos
         if voucher.is_return_receipt:
@@ -2154,14 +2159,14 @@ class VoucherService:
             "items": items_context,
             "totals": (
                 {
-                    "subtotal": f"{abs_raw:,.2f}",
+                    "subtotal": f"{abs(abs_raw + iva_no_discount):,.2f}",
                     "discount": "0%",
                     "iva": "21%",
-                    "total": f"{abs_raw + iva_no_discount:,.2f}",
+                    "total": f"{abs(abs_raw + iva_no_discount):,.2f}",
                 }
                 if hide_discount
                 else {
-                    "subtotal": f"{abs_item_sum:,.2f}",
+                    "subtotal": f"{item_sum_with_iva:,.2f}",
                     "discount": f"{general_discount_pct_rounded:g}%",
                     "iva": "21%",
                     "total": f"{abs_total:,.2f}",
