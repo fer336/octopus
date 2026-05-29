@@ -59,6 +59,7 @@ class ProductCreate(BaseSchema):
     iva_rate: Decimal = Field(default=Decimal("21.00"), description="Alícuota IVA")
 
     current_stock: int = Field(default=0, ge=0, description="Stock inicial (crea lote si > 0)")
+    expiration_date: str | None = Field(None, description="Vencimiento del lote inicial (ISO date)")
     minimum_stock: int = Field(default=0, ge=0)
     unit: str = Field(default="unidad", max_length=20)
     units_per_pack: int | None = Field(None, ge=1, description="Cantidad por pack")
