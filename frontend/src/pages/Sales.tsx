@@ -71,6 +71,8 @@ interface Product {
   sale_price: number // Precio de venta final (ya calculado con IVA)
   current_stock?: number
   photo_url?: string
+  unit?: string
+  quantity_per_package?: number | null
 }
 
 interface CartItem extends Product {
@@ -78,6 +80,7 @@ interface CartItem extends Product {
   quantity: number
   discount: number // Descuento adicional en la venta
   sourceBudgetId?: string // ID del presupuesto origen (para rastrear de qué cotización viene cada item)
+  sell_by_package?: boolean // true = vende por bolsa/paquete completo; false = por unidad mínima
 }
 
 // Presupuesto cargado desde código
@@ -1170,6 +1173,7 @@ export default function Sales() {
   interface TempProduct extends Product {
     tempQuantity: number | string
     tempDiscount: number | string
+    tempSellByPackage?: boolean
   }
   const [tempSelectedProducts, setTempSelectedProducts] = useState<TempProduct[]>([])
   
@@ -1527,8 +1531,8 @@ export default function Sales() {
     setTempSelectedProducts(tempSelectedProducts.filter(p => p.id !== productId))
   }
 
-  // Actualizar cantidad/descuento de producto temporal
-  const updateTempProduct = (productId: string, field: 'tempQuantity' | 'tempDiscount', value: number | string) => {
+  // Actualizar cantidad/descuento/modo de producto temporal
+  const updateTempProduct = (productId: string, field: 'tempQuantity' | 'tempDiscount' | 'tempSellByPackage', value: number | string | boolean) => {
     setTempSelectedProducts(tempSelectedProducts.map(p =>
       p.id === productId ? { ...p, [field]: value } : p
     ))
@@ -1550,11 +1554,13 @@ export default function Sales() {
       if (existing) {
         existing.quantity += quantityValue
         existing.discount = discountValue
+        existing.sell_by_package = product.tempSellByPackage ?? false
       } else {
-        newItems.push({ 
-          ...product, 
+        newItems.push({
+          ...product,
           quantity: quantityValue,
           discount: discountValue,
+          sell_by_package: product.tempSellByPackage ?? false,
         })
       }
     })
@@ -1613,15 +1619,24 @@ export default function Sales() {
     setItems((prevItems) => prevItems.filter(i => i.id !== id))
   }
 
-  const updateItem = (id: string, field: 'quantity' | 'discount', value: number) => {
+  const updateItem = (id: string, field: 'quantity' | 'discount' | 'sell_by_package', value: number | boolean) => {
     setItems((prevItems) => prevItems.map(i =>
       i.id === id ? { ...i, [field]: value } : i
     ))
   }
 
+  const effectiveSalePrice = (item: CartItem) =>
+    item.sell_by_package && item.quantity_per_package
+      ? item.sale_price * item.quantity_per_package
+      : item.sale_price
+
+  const effectiveNetPrice = (item: CartItem) =>
+    item.sell_by_package && item.quantity_per_package
+      ? item.net_price * item.quantity_per_package
+      : item.net_price
+
   const calculateItemTotal = (item: CartItem) => {
-    // Precio normal con IVA incluido
-    const subtotal = item.sale_price * item.quantity
+    const subtotal = effectiveSalePrice(item) * item.quantity
     const discountAmount = subtotal * (item.discount / 100)
     return subtotal - discountAmount
   }
@@ -2147,7 +2162,7 @@ export default function Sales() {
       items: normalizedItems.map(item => ({
         product_id: item.id,
         quantity: item.quantity,
-        unit_price: item.net_price, // Enviamos el precio SIN IVA para que el backend calcule el IVA correctamente
+        unit_price: effectiveNetPrice(item), // Enviamos el precio SIN IVA para que el backend calcule el IVA correctamente
         discount_percent: item.discount
       })),
       payments: buildPaymentsPayload(),
@@ -3828,7 +3843,16 @@ export default function Sales() {
                     <div className="mb-2 flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate text-xs font-semibold text-gray-800 dark:text-gray-100">{item.description}</p>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400">{item.code} · ${formatNumber(item.sale_price)}</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400">{item.code} · ${formatNumber(effectiveSalePrice(item))}</p>
+                        {!!(item.quantity_per_package && item.quantity_per_package > 0) && (
+                          <button
+                            type="button"
+                            onClick={() => updateItem(item.id, 'sell_by_package', !item.sell_by_package)}
+                            className={`mt-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${item.sell_by_package ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
+                          >
+                            {item.sell_by_package ? `por bolsa (${item.quantity_per_package} ${item.unit})` : `por ${item.unit}`}
+                          </button>
+                        )}
                       </div>
                       <button
                         type="button"
@@ -4160,7 +4184,18 @@ export default function Sales() {
                           )}
                           <span className="font-medium text-gray-800 dark:text-gray-100">{item.code}</span>
                         </td>
-                        <td className="px-3 py-[3px] font-semibold text-gray-700 dark:text-gray-200">{item.description}</td>
+                        <td className="px-3 py-[3px] font-semibold text-gray-700 dark:text-gray-200">
+                          <div>{item.description}</div>
+                          {!!(item.quantity_per_package && item.quantity_per_package > 0) && (
+                            <button
+                              type="button"
+                              onClick={() => updateItem(item.id, 'sell_by_package', !item.sell_by_package)}
+                              className={`mt-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${item.sell_by_package ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
+                            >
+                              {item.sell_by_package ? `por bolsa (${item.quantity_per_package} ${item.unit})` : `por ${item.unit}`}
+                            </button>
+                          )}
+                        </td>
                         <td className="px-3 py-[3px] text-right">
                           <input
                             type="number"
@@ -4175,7 +4210,7 @@ export default function Sales() {
                             min={-9999}
                           />
                         </td>
-                        <td className="px-3 py-[3px] text-right">${formatNumber(item.sale_price)}</td>
+                        <td className="px-3 py-[3px] text-right">${formatNumber(effectiveSalePrice(item))}</td>
                         <td className="px-3 py-[3px] text-right">
                           <input
                             type="number"
@@ -4727,7 +4762,10 @@ export default function Sales() {
                       {tempSelectedProducts.map((product, productIndex) => {
                         const qty = Number(product.tempQuantity) || 0
                         const disc = Number(product.tempDiscount) || 0
-                        const subtotal = product.sale_price * qty
+                        const hasPkg = !!(product.quantity_per_package && product.quantity_per_package > 0)
+                        const sellByPkg = hasPkg && !!product.tempSellByPackage
+                        const displayPrice = sellByPkg ? product.sale_price * product.quantity_per_package! : product.sale_price
+                        const subtotal = displayPrice * qty
                         const discountAmount = subtotal * (disc / 100)
                         const total = subtotal - discountAmount
                         const quantityInputIndex = productIndex * 2
@@ -4736,8 +4774,19 @@ export default function Sales() {
                         return (
                           <tr key={product.id}>
                             <td className="px-3 py-2 font-medium">{product.code}</td>
-                            <td className="px-3 py-2">{product.description}</td>
-                            <td className="px-3 py-2 text-right">${formatNumber(product.sale_price)}</td>
+                            <td className="px-3 py-2">
+                              <div>{product.description}</div>
+                              {hasPkg && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateTempProduct(product.id, 'tempSellByPackage', !sellByPkg)}
+                                  className={`mt-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${sellByPkg ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
+                                >
+                                  {sellByPkg ? `por bolsa (${product.quantity_per_package} ${product.unit})` : `por ${product.unit}`}
+                                </button>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right">${formatNumber(displayPrice)}</td>
                             <td className="px-3 py-2 text-right">
                               <input
                                 ref={(el) => modalInputsRef.current[quantityInputIndex] = el}
@@ -4746,7 +4795,8 @@ export default function Sales() {
                                 onChange={(e) => updateTempProduct(product.id, 'tempQuantity', e.target.value)}
                                 onKeyDown={(e) => handleModalInputKeyDown(e, quantityInputIndex)}
                                 className="w-full rounded-lg border border-primary-200 bg-white px-2 py-1 text-right text-sm shadow-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:border-primary-800 dark:bg-gray-700 dark:focus:ring-primary-900"
-                                min={1}
+                                min={0.001}
+                                step={0.001}
                               />
                             </td>
                             <td className="px-3 py-2 text-right">
