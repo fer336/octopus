@@ -565,10 +565,12 @@ async def import_products_excel(
 async def export_products_excel(
     db: AsyncSession = Depends(get_db),
     business_id: UUID = Depends(get_current_business),
+    category_id: UUID | None = None,
+    supplier_id: UUID | None = None,
 ):
     """Exporta productos activos a un archivo Excel con categorías y proveedores."""
     service = ExcelService(db)
-    content = await service.export_products(business_id)
+    content = await service.export_products(business_id, category_id=category_id, supplier_id=supplier_id)
 
     from datetime import datetime
 

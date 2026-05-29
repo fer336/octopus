@@ -128,9 +128,10 @@ export default function Inventory() {
   // Mutación: confirmar
   const confirmMutation = useMutation({
     mutationFn: (id: string) => purchaseOrdersService.confirm(id),
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       toast.success('Orden confirmada')
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-order', id] })
     },
     onError: (err: any) =>
       toast.error(err?.response?.data?.detail || 'No se pudo confirmar la orden'),

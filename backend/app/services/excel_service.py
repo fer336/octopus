@@ -547,7 +547,12 @@ class ExcelService:
         await self.db.commit()
         return summary
 
-    async def export_products(self, business_id: UUID) -> bytes:
+    async def export_products(
+        self,
+        business_id: UUID,
+        category_id: UUID | None = None,
+        supplier_id: UUID | None = None,
+    ) -> bytes:
         """
         Exporta productos a Excel con formato profesional.
         Solo incluye las columnas esenciales para importación.
@@ -556,19 +561,24 @@ class ExcelService:
         from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
         from sqlalchemy.orm import selectinload
 
-        # Obtener productos con relaciones cargadas
         query = (
             select(Product)
             .options(
                 selectinload(Product.category),
-                selectinload(Product.supplier)
+                selectinload(Product.supplier),
+                selectinload(Product.lots),
             )
             .where(
                 Product.business_id == business_id,
-                Product.deleted_at.is_(None)
+                Product.deleted_at.is_(None),
             )
             .order_by(Product.code)
         )
+
+        if category_id is not None:
+            query = query.where(Product.category_id == category_id)
+        if supplier_id is not None:
+            query = query.where(Product.supplier_id == supplier_id)
 
         result = await self.db.execute(query)
         products = result.scalars().all()
@@ -581,7 +591,7 @@ class ExcelService:
         # Definir columnas (orden para importación)
         headers = [
             'codigo', 'codigo_proveedor', 'nombre_proveedor', 'categoria',
-            'nombre', 'unidad', 'stock', 'precio_lista', 'bonificaciones',
+            'nombre', 'marca', 'unidad', 'stock', 'precio_lista', 'bonificaciones',
             'cargo_extra', 'ganancia', 'vencimiento', 'unidades_x_pack', 'precio_venta'
         ]
 
@@ -614,13 +624,14 @@ class ExcelService:
                 p.supplier.name if p.supplier else '',
                 p.category.name if p.category else '',
                 p.description or '',
+                p.brand or '',
                 p.unit or 'unidad',
                 int(p.current_stock) if p.current_stock else 0,
                 float(p.list_price) if p.list_price else 0.0,
                 bonificaciones_str,
                 float(p.extra_cost) if p.extra_cost else 0.0,
                 float(p.profit_margin) if p.profit_margin else 0.0,
-                p.expiration_date.strftime('%Y-%m-%d') if p.expiration_date else '',
+                p.next_expiration.strftime('%Y-%m-%d') if p.next_expiration else '',
                 int(p.units_per_pack) if p.units_per_pack else '',
                 float(p.sale_price) if p.sale_price else 0.0,
             ]
@@ -748,7 +759,8 @@ class ExcelService:
             select(Product)
             .options(
                 selectinload(Product.category),
-                selectinload(Product.supplier)
+                selectinload(Product.supplier),
+                selectinload(Product.lots),
             )
             .where(Product.business_id == business_id)
             .order_by(Product.created_at)
@@ -764,6 +776,7 @@ class ExcelService:
                 'codigo': p.code,
                 'codigo_proveedor': p.supplier_code or '',
                 'nombre': p.description,
+                'marca': p.brand or '',
                 'detalles': p.details or '',
                 'categoria': p.category.name if p.category else '',
                 'categoria_id': str(p.category_id) if p.category_id else '',
