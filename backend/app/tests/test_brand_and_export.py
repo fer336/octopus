@@ -492,8 +492,6 @@ async def test_export_full_backup_multiple_products_marca_column():
     import io
     import pandas as pd
 
-    import pandas as pd
-
     df = pd.read_excel(io.BytesIO(excel_bytes), sheet_name="Backup_Productos")
     marcas = list(df["marca"])
     assert marcas[0] == "Alpha"
