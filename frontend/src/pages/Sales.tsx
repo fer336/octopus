@@ -141,7 +141,7 @@ const normalizeCartItems = (rawItems: unknown[]): CartItem[] => {
   return rawItems
     .map((raw) => {
       const item = raw as Partial<CartItem> & { amount?: unknown; monto?: unknown; net_price?: unknown }
-      const quantity = Math.trunc(safeNumber(item.quantity))
+      const quantity = safeNumber(item.quantity)
       const productId = safeText(item.product_id) || safeText(item.id)
       const salePrice = safeNumber(item.sale_price)
       // Si hay net_price, usarlo, sino calcularlo desde sale_price
@@ -3846,8 +3846,9 @@ export default function Sales() {
                         <input
                           type="number"
                           min={-9999}
+                          step={0.001}
                           value={item.quantity}
-                          onChange={(e) => updateItem(item.id, 'quantity', Number.isNaN(parseInt(e.target.value)) ? 0 : parseInt(e.target.value))}
+                          onChange={(e) => updateItem(item.id, 'quantity', Number.isNaN(parseFloat(e.target.value)) ? 0 : parseFloat(e.target.value))}
                           className={`w-full bg-transparent text-right text-xs font-medium outline-none ${item.quantity < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-gray-100'}`}
                         />
                       </div>
@@ -4164,12 +4165,13 @@ export default function Sales() {
                           <input
                             type="number"
                             value={item.quantity}
-                            onChange={(e) => updateItem(item.id, 'quantity', Number.isNaN(parseInt(e.target.value)) ? 0 : parseInt(e.target.value))}
+                            onChange={(e) => updateItem(item.id, 'quantity', Number.isNaN(parseFloat(e.target.value)) ? 0 : parseFloat(e.target.value))}
                             className={`w-full text-right border rounded dark:bg-gray-700 dark:border-gray-600 ${item.quantity < 0 ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300' : ''}`}
-                            style={{ 
+                            style={{
                               fontSize: `${0.875 * zoomLevel}rem`,
                               padding: `${0.09 * zoomLevel}rem ${0.28 * zoomLevel}rem`
                             }}
+                            step={0.001}
                             min={-9999}
                           />
                         </td>
