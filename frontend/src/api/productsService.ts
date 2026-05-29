@@ -38,6 +38,7 @@ export interface Product {
   minimum_stock: number
   unit: string
   units_per_pack?: number | null
+  quantity_per_package?: number | null
   next_expiration?: string | null
   lots_count: number
   is_active: boolean
@@ -72,6 +73,7 @@ export interface ProductCreate {
   minimum_stock?: number
   unit?: string
   units_per_pack?: number | null
+  quantity_per_package?: number | null
   cost_price?: number
 }
 
@@ -101,6 +103,7 @@ export interface ProductUpdate {
   minimum_stock?: number
   unit?: string
   units_per_pack?: number | null
+  quantity_per_package?: number | null
   cost_price?: number
   is_active?: boolean
 }

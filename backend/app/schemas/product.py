@@ -63,6 +63,7 @@ class ProductCreate(BaseSchema):
     minimum_stock: int = Field(default=0, ge=0)
     unit: str = Field(default="unidad", max_length=20)
     units_per_pack: int | None = Field(None, ge=1, description="Cantidad por pack")
+    quantity_per_package: Decimal | None = Field(None, gt=0)
 
 
 class ProductUpdate(BaseSchema):
@@ -106,6 +107,7 @@ class ProductUpdate(BaseSchema):
     minimum_stock: int | None = Field(None, ge=0)
     unit: str | None = Field(None, max_length=20)
     units_per_pack: int | None = Field(None, ge=1, description="Cantidad por pack")
+    quantity_per_package: Decimal | None = Field(None, gt=0)
 
     is_active: bool | None = None
 
@@ -166,6 +168,7 @@ class ProductResponse(BaseResponse):
     minimum_stock: int
     unit: str
     units_per_pack: int | None
+    quantity_per_package: Decimal | None
 
     is_active: bool
 

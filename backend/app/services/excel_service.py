@@ -592,7 +592,7 @@ class ExcelService:
         headers = [
             'codigo', 'codigo_proveedor', 'nombre_proveedor', 'categoria',
             'nombre', 'marca', 'unidad', 'stock', 'precio_lista', 'bonificaciones',
-            'cargo_extra', 'ganancia', 'vencimiento', 'unidades_x_pack', 'precio_venta'
+            'cargo_extra', 'ganancia', 'vencimiento', 'unidades_x_pack', 'cantidad_por_compra', 'precio_venta'
         ]
 
         # Escribir headers con estilo
@@ -633,6 +633,7 @@ class ExcelService:
                 float(p.profit_margin) if p.profit_margin else 0.0,
                 p.next_expiration.strftime('%Y-%m-%d') if p.next_expiration else '',
                 int(p.units_per_pack) if p.units_per_pack else '',
+                float(p.quantity_per_package) if p.quantity_per_package else '',
                 float(p.sale_price) if p.sale_price else 0.0,
             ]
 
@@ -642,13 +643,13 @@ class ExcelService:
                 # Alineación según tipo
                 if col_idx in [3, 4, 5]:  # nombre_proveedor, categoria, nombre
                     cell.alignment = Alignment(horizontal="left", vertical="center")
-                elif col_idx in [1, 2, 6, 9, 12, 13]:  # códigos, unidad, bonificaciones, vencimiento, unidades_x_pack
+                elif col_idx in [1, 2, 6, 9, 12, 13, 14, 15]:  # códigos, unidad, bonificaciones, vencimiento, unidades_x_pack, cantidad_por_compra
                     cell.alignment = Alignment(horizontal="center", vertical="center")
                 else:  # números
                     cell.alignment = Alignment(horizontal="right", vertical="center")
 
                 # Formato de números
-                if col_idx in [8, 10, 11, 14]:  # precio_lista, cargo_extra, ganancia, precio_venta
+                if col_idx in [8, 10, 11, 16]:  # precio_lista, cargo_extra, ganancia, precio_venta
                     cell.number_format = '#,##0.00'
                 elif col_idx == 7:  # stock
                     cell.number_format = '0'
@@ -680,7 +681,8 @@ class ExcelService:
             'K': 14,  # ganancia
             'L': 15,  # vencimiento
             'M': 16,  # unidades_x_pack
-            'N': 15,  # precio_venta
+            'N': 16,  # cantidad_por_compra
+            'O': 15,  # precio_venta
         }
 
         for col, width in column_widths.items():
@@ -797,6 +799,7 @@ class ExcelService:
                 'stock_minimo': p.minimum_stock,
                 'unidad': p.unit,
                 'unidades_x_pack': p.units_per_pack,
+                'cantidad_por_compra': float(p.quantity_per_package) if p.quantity_per_package else '',
                 'vencimiento': p.expiration_date.strftime('%Y-%m-%d') if p.expiration_date else '',
                 'activo': p.is_active,
                 'fecha_creacion': p.created_at.isoformat() if p.created_at else '',

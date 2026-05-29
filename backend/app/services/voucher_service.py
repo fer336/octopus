@@ -854,13 +854,23 @@ class VoucherService:
                 "Comprobante X no habilitado para este negocio. Activá SRX desde CMS o Configuración."
             )
 
+        # Quotation: never allow negatives
+        if (
+            data.voucher_type == VoucherType.QUOTATION
+            and any(Decimal(str(i.quantity)) < 0 for i in data.items)
+        ):
+            raise ValueError("Una cotización no puede contener cantidades negativas.")
+
+        # Delivery receipt (not CC, not acopio): block negatives
         if (
             data.voucher_type == VoucherType.RECEIPT
-            and data.is_current_account
-            and any(Decimal(str(item.quantity)) < Decimal("0") for item in data.items)
+            and not data.is_current_account
+            and not getattr(data, 'stockpile_id', None)
+            and any(Decimal(str(i.quantity)) < 0 for i in data.items)
         ):
             raise ValueError(
-                "Las devoluciones no se pueden registrar desde Cta Cte. Usá el flujo de Factura."
+                "Un remito de entrega no puede contener cantidades negativas. "
+                "Para devoluciones usá Remito CC o Factura."
             )
 
         if data.is_current_account:
