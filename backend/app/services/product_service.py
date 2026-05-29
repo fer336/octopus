@@ -33,12 +33,10 @@ class ProductService:
         Si se especifica current_stock > 0, crea un lote inicial.
         expiration_date se usa en el lote inicial (no en el producto).
         """
+        from datetime import date
         # Separar campos de lote de los del producto
         initial_stock = data.current_stock
-        exp_date = None
-        if data.expiration_date:
-            from datetime import date
-            exp_date = date.fromisoformat(data.expiration_date)
+        exp_date = date.fromisoformat(data.expiration_date) if data.expiration_date else None
 
         create_data = data.model_dump(exclude={"current_stock", "expiration_date"})
         product = Product(
