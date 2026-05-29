@@ -48,6 +48,9 @@ export default function Products() {
   const [importTotal, setImportTotal] = useState(0)
   const [importMessage, setImportMessage] = useState('')
   const [isSqlImporting, setIsSqlImporting] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exportCategoryId, setExportCategoryId] = useState('')
+  const [exportSupplierId, setExportSupplierId] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const lotQuantityRef = useRef<HTMLInputElement>(null)
   const lotCodeRef = useRef<HTMLInputElement>(null)
@@ -321,15 +324,32 @@ export default function Products() {
   // Manejo de exportación Excel
   const handleExport = async () => {
     try {
-      const blob = await productsService.exportExcel()
+      const params: { category_id?: string; supplier_id?: string } = {}
+      if (exportCategoryId) params.category_id = exportCategoryId
+      if (exportSupplierId) params.supplier_id = exportSupplierId
+
+      const blob = await productsService.exportExcel(params)
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `productos-${new Date().toISOString().split('T')[0]}.xlsx`
+
+      const categoryLabel = exportCategoryId
+        ? categories.find(c => c.id === exportCategoryId)?.name ?? ''
+        : ''
+      const supplierLabel = exportSupplierId
+        ? suppliers.find(s => s.id === exportSupplierId)?.name ?? ''
+        : ''
+      const suffix = [categoryLabel, supplierLabel].filter(Boolean).join('-')
+      const date = new Date().toISOString().split('T')[0]
+      a.download = suffix ? `productos-${suffix}-${date}.xlsx` : `productos-${date}.xlsx`
+
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
+      setShowExportModal(false)
+      setExportCategoryId('')
+      setExportSupplierId('')
       toast.success('Exportación exitosa')
     } catch (error) {
       toast.error('Error al exportar productos')
@@ -605,6 +625,7 @@ export default function Products() {
   const extraCostRef = useRef<HTMLInputElement>(null)
   const profitRef = useRef<HTMLInputElement>(null)
   const taxRef = useRef<HTMLInputElement>(null)
+  const brandRef = useRef<HTMLInputElement>(null)
   const categoryRef = useRef<HTMLSelectElement>(null)
   const supplierRef = useRef<HTMLSelectElement>(null)
   const stockRef = useRef<HTMLInputElement>(null)
@@ -992,7 +1013,7 @@ export default function Products() {
             <Upload size={17} />
           </button>
           <button
-            onClick={handleExport}
+            onClick={() => setShowExportModal(true)}
             title="Exportar Excel"
             className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
@@ -1374,10 +1395,10 @@ export default function Products() {
         headerClassName="px-4 py-3"
         contentClassName="px-4 py-3"
       >
-        <form onSubmit={handleSubmit} className="grid gap-3 lg:grid-cols-[1.05fr_1.25fr]">
-          <div className="space-y-3">
+        <form onSubmit={handleSubmit} className="grid gap-2 lg:grid-cols-[1.05fr_1.25fr]">
+          <div className="space-y-2">
           {/* Sección 1: Identificación - 2 columnas */}
-          <div className="bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/10 dark:to-primary-900/10 p-2.5 rounded-lg">
+          <div className="bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/10 dark:to-primary-900/10 p-2 rounded-lg">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1410,19 +1431,19 @@ export default function Products() {
               </div>
             </div>
             {/* Photo upload */}
-            <div className="mt-3">
-              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <div className="mt-2">
+              <label className="mb-0.5 block text-xs font-medium text-gray-700 dark:text-gray-300">
                 Foto del producto
               </label>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 {(photoPreview || (formData as any).photo_url) && (
                   <img
                     src={photoPreview || (formData as any).photo_url}
                     alt="foto"
-                    className="h-16 w-16 rounded-lg object-cover border border-gray-200"
+                    className="h-10 w-10 rounded-lg object-cover border border-gray-200 shrink-0"
                   />
                 )}
-                <label className="cursor-pointer rounded-lg border border-dashed border-gray-300 px-4 py-2 text-sm text-gray-600 hover:border-primary-400 hover:text-primary-600 dark:border-gray-600 dark:text-gray-400">
+                <label className="cursor-pointer rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:border-primary-400 hover:text-primary-600 dark:border-gray-600 dark:text-gray-400">
                   {photoPreview || (formData as any).photo_url ? 'Cambiar foto' : 'Subir foto'}
                   <input
                     type="file"
@@ -1449,12 +1470,12 @@ export default function Products() {
                     Quitar
                   </button>
                 )}
+                <span className="text-[10px] text-gray-400">JPG, PNG o WebP · 2 MB máx.</span>
               </div>
-              <p className="mt-1 text-xs text-gray-400">Máximo 2 MB · JPG, PNG o WebP</p>
             </div>
 
             {/* Unit type + Pack qty */}
-            <div className="grid grid-cols-2 gap-3 mt-3">
+            <div className="grid grid-cols-2 gap-3 mt-2">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Unidad
@@ -1497,7 +1518,7 @@ export default function Products() {
               </div>
             </div>
             {formData.unit === 'pack' && (
-              <div className="mt-3">
+              <div className="mt-2">
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Unidades por Pack
                 </label>
@@ -1512,7 +1533,7 @@ export default function Products() {
               </div>
             )}
             {!isEditing && (formData.current_stock || 0) > 0 && (
-              <div className="mt-3">
+              <div className="mt-2">
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Vencimiento del lote inicial
                 </label>
@@ -1524,7 +1545,7 @@ export default function Products() {
                 />
               </div>
             )}
-            <div className="mt-3">
+            <div className="mt-2">
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Descripción *
               </label>
@@ -1539,7 +1560,7 @@ export default function Products() {
                 required
               />
             </div>
-            <div className="mt-3">
+            <div className="mt-2">
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Términos del cliente (IA)
               </label>
@@ -1552,11 +1573,75 @@ export default function Products() {
                 />
               </div>
             </div>
-          </div>
 
-          <div className="space-y-3">
+          {/* Sección 3: Marca, Categorización */}
+          <div className="bg-gradient-to-r from-primary-50 to-pink-50 dark:from-primary-900/10 dark:to-pink-900/10 p-2 rounded-lg">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Marca
+                </label>
+                <input
+                  ref={brandRef}
+                  type="text"
+                  value={formData.brand || ''}
+                  onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); categoryRef.current?.focus() }
+                  }}
+                  placeholder="Ej: FV, Ferrum, Andina"
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Categoría
+                </label>
+                <select
+                  ref={categoryRef}
+                  value={formData.category_id || ''}
+                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); supplierRef.current?.focus() }
+                  }}
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">Seleccionar...</option>
+                  {(categories || []).map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Proveedor
+                </label>
+                <select
+                  ref={supplierRef}
+                  value={formData.supplier_id || ''}
+                  onChange={(e) => handleSupplierChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); submitBtnRef.current?.focus() }
+                  }}
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">Seleccionar...</option>
+                  {(suppliers || []).map((sup) => (
+                    <option key={sup.id} value={sup.id}>
+                      {sup.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+          <div className="space-y-2">
           {/* Sección 2: Precios */}
-          <div className="bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 p-3 rounded-lg">
+          <div className="bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 p-2.5 rounded-lg">
             <div className="flex items-center gap-2 mb-3">
               <Calculator className="text-green-600" size={16} />
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -1726,7 +1811,7 @@ export default function Products() {
                   value={formData.iva_rate}
                   onChange={(e) => setFormData({ ...formData, iva_rate: parseFloat(e.target.value) || 21 })}
                   onFocus={handleNumericFocus}
-                  onKeyDown={(e) => handleNumericKeyDown(e, 'iva_rate', categoryRef)}
+                  onKeyDown={(e) => handleNumericKeyDown(e, 'iva_rate', brandRef)}
                   placeholder="21"
                   step="0.1"
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-green-500"
@@ -1820,68 +1905,6 @@ export default function Products() {
             })()}
           </div>
 
-          {/* Sección 3: Categorización */}
-          <div className="bg-gradient-to-r from-primary-50 to-pink-50 dark:from-primary-900/10 dark:to-pink-900/10 p-2.5 rounded-lg">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Categoría
-                </label>
-                <select
-                  ref={categoryRef}
-                  value={formData.category_id || ''}
-                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      // En create mode va a stock, en edit va a unit
-                      if (!isEditing && stockRef.current) {
-                        stockRef.current.focus()
-                      } else {
-                        (document.querySelector('select[name="unit-select"]') as HTMLElement)?.focus()
-                      }
-                    }
-                  }}
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">Seleccionar...</option>
-                  {(categories || []).map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Proveedor
-                </label>
-                <select
-                  ref={supplierRef}
-                  value={formData.supplier_id || ''}
-                  onChange={(e) => handleSupplierChange(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      if (!isEditing && stockRef.current) {
-                        stockRef.current?.focus()
-                      } else {
-                        descriptionRef.current?.focus()
-                      }
-                    }
-                  }}
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">Seleccionar...</option>
-                  {(suppliers || []).map((sup) => (
-                    <option key={sup.id} value={sup.id}>
-                      {sup.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
           </div>
 
           {/* Botones con indicadores */}
@@ -1904,6 +1927,71 @@ export default function Products() {
             </div>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal de filtros para exportar Excel */}
+      <Modal
+        isOpen={showExportModal}
+        onClose={() => {
+          setShowExportModal(false)
+          setExportCategoryId('')
+          setExportSupplierId('')
+        }}
+        title="Exportar productos a Excel"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Podés filtrar la exportación por categoría y/o proveedor. Si no seleccionás ninguno, se exportan todos los productos.
+          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Categoría
+              </label>
+              <Select
+                value={exportCategoryId}
+                onChange={(e) => setExportCategoryId(e.target.value)}
+                options={[
+                  { value: '', label: 'Todas las categorías' },
+                  ...categories.map(c => ({ value: c.id, label: c.name })),
+                ]}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Proveedor
+              </label>
+              <Select
+                value={exportSupplierId}
+                onChange={(e) => setExportSupplierId(e.target.value)}
+                options={[
+                  { value: '', label: 'Todos los proveedores' },
+                  ...suppliers.map(s => ({ value: s.id, label: s.name })),
+                ]}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              onClick={() => {
+                setShowExportModal(false)
+                setExportCategoryId('')
+                setExportSupplierId('')
+              }}
+              className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleExport}
+              className="px-4 py-2 text-sm rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors flex items-center gap-2"
+            >
+              <Download size={15} />
+              Descargar
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* Modal de Preview de Importación */}

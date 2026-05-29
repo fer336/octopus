@@ -476,7 +476,7 @@ class PurchaseOrderService:
                     "system_stock": sys_stock,
                     "counted_stock": counted_stock,
                     "quantity_to_order": quantity_to_order,
-                    "unit_cost": product.cost_price or Decimal("0"),
+                    "unit_cost": self._calculate_unit_cost(product),
                     "iva_rate": product.iva_rate or Decimal("21.00"),
                 }
             )

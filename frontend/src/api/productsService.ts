@@ -294,9 +294,10 @@ export const productsService = {
   /**
    * Exporta productos activos a Excel.
    */
-  exportExcel: async (): Promise<Blob> => {
+  exportExcel: async (params?: { category_id?: string; supplier_id?: string }): Promise<Blob> => {
     const response = await httpClient.get('/products/export/excel', {
       responseType: 'blob',
+      params,
     })
     return response.data
   },
