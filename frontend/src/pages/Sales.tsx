@@ -1927,6 +1927,15 @@ export default function Sales() {
       return
     }
 
+    if (voucherType === 'quotation' && items.some((item) => Number(item.quantity) < 0)) {
+      toast.error('Una cotización no puede contener cantidades negativas.')
+      return
+    }
+    if (voucherType === 'receipt' && !selectedStockpile && items.some((item) => Number(item.quantity) < 0)) {
+      toast.error('Un remito de entrega no puede tener cantidades negativas. Usá Remito CC o Factura.')
+      return
+    }
+
     if (voucherType === 'current_account' && hasReturnItems) {
       toast.error('Las devoluciones se registran desde Factura, no desde Cta Cte.')
       return

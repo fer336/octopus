@@ -97,6 +97,7 @@ class Product(BaseModel):
         String(20), default="unidad", nullable=False
     )  # unidad, metro, kg, litro, pack
     units_per_pack = Column(Integer, nullable=True)  # Cantidad por pack
+    quantity_per_package = Column(Numeric(12, 2), nullable=True)
 
     is_active = Column(Boolean, default=True, nullable=False)
 
@@ -154,8 +155,13 @@ class Product(BaseModel):
         # Precio final con IVA
         sale = net_with_profit * (1 + iva_rate / 100)
 
-        self.net_price = round(net_with_profit, 2)
-        self.sale_price = round(sale, 2)
+        qty = Decimal(str(self.quantity_per_package or 0))
+        if qty > 0:
+            self.net_price = round(net_with_profit / qty, 2)
+            self.sale_price = round(sale / qty, 2)
+        else:
+            self.net_price = round(net_with_profit, 2)
+            self.sale_price = round(sale, 2)
 
         # Formato de descuento para mostrar
         discounts = [d for d in [d1, d2, d3] if d > 0]

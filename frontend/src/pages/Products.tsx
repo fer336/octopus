@@ -607,6 +607,7 @@ export default function Products() {
     minimum_stock: 0,
     unit: 'unidad',
     units_per_pack: null as number | null,
+    quantity_per_package: null as number | null,
     is_active: true,
   })
 
@@ -653,6 +654,7 @@ export default function Products() {
       minimum_stock: 0,
       unit: 'unidad',
       units_per_pack: null as number | null,
+      quantity_per_package: null as number | null,
       is_active: true,
     })
     setDiscountsInput('')
@@ -846,6 +848,7 @@ export default function Products() {
         minimum_stock: formData.minimum_stock || 0,
         unit: formData.unit || 'unidad',
         units_per_pack: formData.units_per_pack || null,
+        quantity_per_package: formData.quantity_per_package || null,
       }
       updateMutation.mutate({ id: editingId, data: dataToSend })
     } else {
@@ -871,6 +874,7 @@ export default function Products() {
         minimum_stock: formData.minimum_stock || 0,
         unit: formData.unit || 'unidad',
         units_per_pack: formData.units_per_pack || null,
+        quantity_per_package: formData.quantity_per_package || null,
       }
       createMutation.mutate(dataToSend)
     }
@@ -1532,6 +1536,25 @@ export default function Products() {
                 />
               </div>
             )}
+            {['m', 'm2', 'kg', 'litro'].includes(formData.unit ?? '') && (
+              <div className="mt-2">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {formData.unit === 'kg' ? 'kg por bolsa / compra'
+                    : formData.unit === 'litro' ? 'Litros por envase'
+                    : formData.unit === 'm2' ? 'm² por unidad'
+                    : 'Metros por rollo'}
+                </label>
+                <input
+                  type="number"
+                  min={0.01}
+                  step="0.01"
+                  value={formData.quantity_per_package ?? ''}
+                  onChange={(e) => setFormData({ ...formData, quantity_per_package: parseFloat(e.target.value) || null })}
+                  placeholder="Ej: 20"
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            )}
             {!isEditing && (formData.current_stock || 0) > 0 && (
               <div className="mt-2">
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1854,6 +1877,8 @@ export default function Products() {
               const netWithProfit = netWithExtra * (1 + profit / 100)
               const ivaAmount = netWithProfit * (iva / 100)
               const finalPrice = netWithProfit + ivaAmount
+              const qtyPerPkg = (formData.quantity_per_package ?? 0) > 0 ? formData.quantity_per_package! : null
+              const unitFinalPrice = qtyPerPkg ? Math.round((finalPrice / qtyPerPkg) * 100) / 100 : finalPrice
 
               return (
                 <div className="mt-3 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/10 dark:to-primary-900/10 rounded-lg p-2.5 border border-primary-200 dark:border-primary-700">
@@ -1891,12 +1916,18 @@ export default function Products() {
                           <span>+ IVA ({iva}%):</span>
                           <span className="font-mono">+${ivaAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                         </div>
+                        {qtyPerPkg && (
+                          <div className="flex justify-between text-blue-600 dark:text-blue-400 border-t border-gray-300 dark:border-gray-600 pt-0.5">
+                            <span>÷ {qtyPerPkg} {formData.unit} (precio por 1 {formData.unit}):</span>
+                            <span className="font-mono font-bold">${unitFinalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="rounded-lg border border-primary-200 bg-white/70 px-3 py-2 text-right dark:border-primary-700 dark:bg-gray-800/60 lg:min-w-[170px]">
                       <p className="text-xs text-primary-600 dark:text-primary-400 font-medium mb-1">Precio Final:</p>
                       <p className="text-xl lg:text-2xl font-bold text-primary-700 dark:text-primary-300 break-words">
-                        ${finalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ${unitFinalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                     </div>
                   </div>
