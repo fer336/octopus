@@ -62,7 +62,7 @@ class ProductService:
             self.db.add(lot)
 
         await self.db.commit()
-        await self.db.refresh(product)
+        await self.db.refresh(product, attribute_names=["lots"])
         return product
 
     async def get_by_id(
