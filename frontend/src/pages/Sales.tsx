@@ -1550,7 +1550,7 @@ export default function Sales() {
     const newItems = [...items]
     tempSelectedProducts.forEach(product => {
       const existing = newItems.find(i => i.id === product.id)
-      const quantityValue = Math.max(1, Number(product.tempQuantity) || 0)
+      const quantityValue = Math.max(0.001, Number(product.tempQuantity) || 0)
       const discountValue = Math.max(0, Math.min(100, Number(product.tempDiscount) || 0))
       const defaultSellByPackage = product.tempSellByPackage ?? (product.sell_per_unit === false)
       if (existing) {
@@ -4888,13 +4888,13 @@ export default function Sales() {
                                 type="number"
                                 value={product.tempQuantity}
                                 onChange={(e) => updateTempProduct(product.id, 'tempQuantity', e.target.value)}
-                                min={1}
-                                step={1}
+                                min={0.001}
+                                step={0.001}
                                 className="no-spinner h-6 w-full rounded-md border border-primary-200 bg-white px-1 text-center text-sm font-semibold tabular-nums text-gray-900 dark:border-primary-800 dark:bg-gray-700 dark:text-white"
                               />
                               <button
                                 type="button"
-                                onClick={() => updateTempProduct(product.id, 'tempQuantity', Math.max(1, (Number(product.tempQuantity) || 0) - 1))}
+                                onClick={() => updateTempProduct(product.id, 'tempQuantity', Math.max(0.001, (Number(product.tempQuantity) || 0) - 1))}
                                 className="flex h-4 w-full items-center justify-center rounded-md border border-primary-200 bg-white text-[12px] leading-none text-primary-600 dark:border-primary-800 dark:bg-gray-700 dark:text-primary-300"
                                 aria-label="Disminuir cantidad"
                               >
