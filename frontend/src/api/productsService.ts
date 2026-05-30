@@ -39,6 +39,7 @@ export interface Product {
   unit: string
   units_per_pack?: number | null
   quantity_per_package?: number | null
+  sell_per_unit?: boolean
   next_expiration?: string | null
   lots_count: number
   is_active: boolean
@@ -74,6 +75,7 @@ export interface ProductCreate {
   unit?: string
   units_per_pack?: number | null
   quantity_per_package?: number | null
+  sell_per_unit?: boolean
   cost_price?: number
 }
 
@@ -104,6 +106,7 @@ export interface ProductUpdate {
   unit?: string
   units_per_pack?: number | null
   quantity_per_package?: number | null
+  sell_per_unit?: boolean
   cost_price?: number
   is_active?: boolean
 }

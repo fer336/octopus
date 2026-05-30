@@ -608,6 +608,7 @@ export default function Products() {
     unit: 'unidad',
     units_per_pack: null as number | null,
     quantity_per_package: null as number | null,
+    sell_per_unit: true as boolean,
     is_active: true,
   })
 
@@ -655,6 +656,7 @@ export default function Products() {
       unit: 'unidad',
       units_per_pack: null as number | null,
       quantity_per_package: null as number | null,
+      sell_per_unit: true as boolean,
       is_active: true,
     })
     setDiscountsInput('')
@@ -849,6 +851,7 @@ export default function Products() {
         unit: formData.unit || 'unidad',
         units_per_pack: formData.units_per_pack || null,
         quantity_per_package: formData.quantity_per_package || null,
+        sell_per_unit: formData.sell_per_unit !== false,
       }
       updateMutation.mutate({ id: editingId, data: dataToSend })
     } else {
@@ -875,6 +878,7 @@ export default function Products() {
         unit: formData.unit || 'unidad',
         units_per_pack: formData.units_per_pack || null,
         quantity_per_package: formData.quantity_per_package || null,
+        sell_per_unit: formData.sell_per_unit !== false,
       }
       createMutation.mutate(dataToSend)
     }
@@ -1553,6 +1557,24 @@ export default function Products() {
                   placeholder="Ej: 20"
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
                 />
+                {(formData.quantity_per_package ?? 0) > 0 && (
+                  <div className="mt-1.5 flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, sell_per_unit: true })}
+                      className={`flex-1 rounded px-2 py-1 text-xs font-medium transition-colors ${formData.sell_per_unit !== false ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-400 dark:bg-primary-900/30 dark:text-primary-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
+                    >
+                      Vender por {formData.unit}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, sell_per_unit: false })}
+                      className={`flex-1 rounded px-2 py-1 text-xs font-medium transition-colors ${formData.sell_per_unit === false ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-400 dark:bg-primary-900/30 dark:text-primary-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
+                    >
+                      Vender por bolsa ({formData.quantity_per_package} {formData.unit})
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             {!isEditing && (formData.current_stock || 0) > 0 && (
@@ -1877,7 +1899,9 @@ export default function Products() {
               const netWithProfit = netWithExtra * (1 + profit / 100)
               const ivaAmount = netWithProfit * (iva / 100)
               const finalPrice = netWithProfit + ivaAmount
-              const qtyPerPkg = (formData.quantity_per_package ?? 0) > 0 ? formData.quantity_per_package! : null
+              const qtyPerPkg = (formData.quantity_per_package ?? 0) > 0 && formData.sell_per_unit !== false
+                ? formData.quantity_per_package!
+                : null
               const unitFinalPrice = qtyPerPkg ? Math.round((finalPrice / qtyPerPkg) * 100) / 100 : finalPrice
 
               return (

@@ -64,6 +64,7 @@ class ProductCreate(BaseSchema):
     unit: str = Field(default="unidad", max_length=20)
     units_per_pack: int | None = Field(None, ge=1, description="Cantidad por pack")
     quantity_per_package: Decimal | None = Field(None, gt=0)
+    sell_per_unit: bool = Field(default=True, description="True = precio dividido por unidad; False = precio por paquete completo")
 
 
 class ProductUpdate(BaseSchema):
@@ -108,6 +109,7 @@ class ProductUpdate(BaseSchema):
     unit: str | None = Field(None, max_length=20)
     units_per_pack: int | None = Field(None, ge=1, description="Cantidad por pack")
     quantity_per_package: Decimal | None = Field(None, gt=0)
+    sell_per_unit: bool | None = None
 
     is_active: bool | None = None
 
@@ -169,6 +171,7 @@ class ProductResponse(BaseResponse):
     unit: str
     units_per_pack: int | None
     quantity_per_package: Decimal | None
+    sell_per_unit: bool
 
     is_active: bool
 
