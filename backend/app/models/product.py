@@ -98,6 +98,7 @@ class Product(BaseModel):
     )  # unidad, metro, kg, litro, pack
     units_per_pack = Column(Integer, nullable=True)  # Cantidad por pack
     quantity_per_package = Column(Numeric(12, 2), nullable=True)
+    sell_per_unit = Column(Boolean, default=True, nullable=False, server_default="true")
 
     is_active = Column(Boolean, default=True, nullable=False)
 
@@ -156,7 +157,8 @@ class Product(BaseModel):
         sale = net_with_profit * (1 + iva_rate / 100)
 
         qty = Decimal(str(self.quantity_per_package or 0))
-        if qty > 0:
+        divide = qty > 0 and (self.sell_per_unit is True or self.sell_per_unit is None)
+        if divide:
             self.net_price = round(net_with_profit / qty, 2)
             self.sale_price = round(sale / qty, 2)
         else:

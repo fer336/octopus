@@ -73,6 +73,7 @@ interface Product {
   photo_url?: string
   unit?: string
   quantity_per_package?: number | null
+  sell_per_unit?: boolean
 }
 
 interface CartItem extends Product {
@@ -1420,14 +1421,14 @@ export default function Sales() {
         // Si NO hay temporales pero hay 1 producto filtrado, agregarlo y abrir modal
         else if (filteredProducts.length === 1) {
           const product = filteredProducts[0]
-          setTempSelectedProducts([{ ...product, tempQuantity: 1, tempDiscount: 0 }])
+          setTempSelectedProducts([{ ...product, tempQuantity: 1, tempDiscount: 0, tempSellByPackage: (product as any).sell_per_unit === false }])
           setShowQuantityModal(true)
         }
         // Si NO hay temporales pero hay un producto seleccionado, agregarlo y abrir modal
         else if (filteredProducts.length > 0) {
           const product = filteredProducts[selectedProductIndex]
           if (product) {
-            setTempSelectedProducts([{ ...product, tempQuantity: 1, tempDiscount: 0 }])
+            setTempSelectedProducts([{ ...product, tempQuantity: 1, tempDiscount: 0, tempSellByPackage: (product as any).sell_per_unit === false }])
             setShowQuantityModal(true)
           }
         }
@@ -1522,7 +1523,7 @@ export default function Sales() {
       setTempSelectedProducts(tempSelectedProducts.filter(p => p.id !== product.id))
     } else {
       // Si no está, agregarlo
-      setTempSelectedProducts([...tempSelectedProducts, { ...product, tempQuantity: 1, tempDiscount: 0 }])
+      setTempSelectedProducts([...tempSelectedProducts, { ...product, tempQuantity: 1, tempDiscount: 0, tempSellByPackage: (product as any).sell_per_unit === false }])
     }
   }
 
@@ -1551,16 +1552,17 @@ export default function Sales() {
       const existing = newItems.find(i => i.id === product.id)
       const quantityValue = Math.max(1, Number(product.tempQuantity) || 0)
       const discountValue = Math.max(0, Math.min(100, Number(product.tempDiscount) || 0))
+      const defaultSellByPackage = product.tempSellByPackage ?? (product.sell_per_unit === false)
       if (existing) {
         existing.quantity += quantityValue
         existing.discount = discountValue
-        existing.sell_by_package = product.tempSellByPackage ?? false
+        existing.sell_by_package = defaultSellByPackage
       } else {
         newItems.push({
           ...product,
           quantity: quantityValue,
           discount: discountValue,
-          sell_by_package: product.tempSellByPackage ?? false,
+          sell_by_package: defaultSellByPackage,
         })
       }
     })
