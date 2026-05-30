@@ -43,7 +43,7 @@ const VOUCHER_TYPE_LABEL: Record<string, string> = {
   invoice: 'Factura',
   current_account: 'Cta Cte',
   acopio: 'Acopio',
-  invoice_x: 'SRX',
+  invoice_x: 'Comprobante X',
 }
 
 const baseVoucherTypes = [
@@ -61,6 +61,12 @@ const baseSalesMenuModes: Array<{ value: SalesMenuMode; label: string; icon: any
   { value: 'current_account', label: 'Cta Cte', icon: ClipboardList },
   { value: 'acopio', label: 'Acopio', icon: Archive },
 ]
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function isValidUuid(value: string | null | undefined): boolean {
+  return typeof value === 'string' && UUID_PATTERN.test(value)
+}
 
 interface Product {
   id: string
@@ -334,7 +340,6 @@ export default function Sales() {
   const currentAccountEnabled =
     (business?.current_account_mode ?? 'disabled') !== 'disabled' &&
     hasModuleAccess(user, 'current_account')
-
   const srxEnabled = (business?.srx_enabled ?? false) && hasModuleAccess(user, 'srx')
   const [srxMode, setSrxMode] = useState(false)
 
@@ -348,12 +353,9 @@ export default function Sales() {
         if (item.value === 'current_account') return currentAccountEnabled
         return true
       })
-      if (srxMode && srxEnabled) {
-        base.push({ value: 'invoice_x', label: 'SRX', icon: Receipt })
-      }
       return base
     },
-    [invoicingEnabled, receiptsEnabled, quotationEnabled, stockpileEnabled, currentAccountEnabled, srxMode, srxEnabled],
+    [invoicingEnabled, receiptsEnabled, quotationEnabled, stockpileEnabled, currentAccountEnabled],
   )
 
   const salesMenuModes = useMemo(
@@ -366,12 +368,9 @@ export default function Sales() {
         if (item.value === 'current_account') return currentAccountEnabled
         return true
       })
-      if (srxMode && srxEnabled) {
-        base.push({ value: 'invoice_x' as SalesMenuMode, label: 'SRX', icon: Receipt })
-      }
       return base
     },
-    [invoicingEnabled, receiptsEnabled, quotationEnabled, stockpileEnabled, currentAccountEnabled, srxMode, srxEnabled],
+    [invoicingEnabled, receiptsEnabled, quotationEnabled, stockpileEnabled, currentAccountEnabled],
   )
 
   // React Query para productos
@@ -423,6 +422,27 @@ export default function Sales() {
     voucher: any
     priceCheck: any
   } | null>(null)
+
+  useEffect(() => {
+    if (!selectedClient || isValidUuid(selectedClient.id) || allClients.length === 0) return
+
+    const clientFromCatalog = allClients.find(
+      (client) =>
+        client.document_number === selectedClient.document_number ||
+        client.name === selectedClient.name,
+    )
+
+    if (clientFromCatalog) {
+      setSelectedClient(clientFromCatalog)
+      setClientSearch(clientFromCatalog.name)
+      return
+    }
+
+    setSelectedClient(null)
+    setSelectedOperatingClientId('')
+    setClientSearch('')
+    toast.error('El cliente seleccionado no tiene un ID válido. Volvé a seleccionarlo.')
+  }, [allClients, selectedClient])
   const [items, setItems] = useState<CartItem[]>(() => (_draft?.items as CartItem[]) ?? [])
   const [showQrScanner, setShowQrScanner] = useState(false)
   const [mobileSection, setMobileSection] = useState<MobileSalesSection>('items')
@@ -1339,22 +1359,21 @@ export default function Sales() {
     }
   }, [voucherType, invoicingEnabled, receiptsEnabled, stockpileEnabled])
 
-  // SRX-User: toggle mode with Ctrl+Shift+Q (only when srx_enabled for this tenant)
+  // Atajo oculto: alterna SRX sin mostrarlo como opción visible del menú.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (!srxEnabled) return
+
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'q') {
         e.preventDefault()
         setSrxMode((prev) => {
           const next = !prev
-          if (next) {
-            setVoucherType('invoice_x')
-          } else {
-            setVoucherType('invoice')
-          }
+          setVoucherType(next ? 'invoice_x' : 'invoice')
           return next
         })
       }
     }
+
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [srxEnabled])
@@ -1939,6 +1958,11 @@ export default function Sales() {
       return
     }
 
+    if (!isValidUuid(selectedClient.id)) {
+      toast.error('El cliente seleccionado no tiene un ID válido. Volvé a seleccionarlo.')
+      return
+    }
+
     if (items.some((item) => Number(item.quantity) === 0)) {
       toast.error('La cantidad no puede ser 0. Usá positivo para venta o negativo para devolución.')
       return
@@ -1997,8 +2021,17 @@ export default function Sales() {
   }
 
   const handleConfirmGenerate = async () => {
+    if (isGenerating || createVoucherMutation.isPending) {
+      return
+    }
+
     if (!selectedClient) {
       toast.error('Debe seleccionar un cliente')
+      return
+    }
+
+    if (!isValidUuid(selectedClient.id)) {
+      toast.error('El cliente seleccionado no tiene un ID válido. Volvé a seleccionarlo.')
       return
     }
 
@@ -3188,13 +3221,6 @@ export default function Sales() {
                 <p className="mt-1 text-[10px] text-blue-700 dark:text-blue-300">
                   {priceStrategyOptions.find((option) => option.value === loadedBudgetsPriceStrategy)?.help}
                 </p>
-              </div>
-            )}
-
-            {srxMode && srxEnabled && (
-              <div className="inline-flex items-center gap-1.5 rounded-xl border border-violet-700 bg-white px-2.5 py-1 text-xs font-bold text-violet-700 shadow-sm">
-                <img src="/images/logos/logo-header@2x.png" alt="" className="h-4 w-auto" />
-                <span>SRX</span>
               </div>
             )}
 
@@ -4657,6 +4683,8 @@ export default function Sales() {
                     ? 'Actualizar Cotización'
                   : voucherType === 'acopio'
                     ? 'Generar Acopio'
+                  : voucherType === 'invoice_x' && srxMode
+                    ? 'Emitir SRX'
                   : voucherType === 'invoice'
                     ? 'Emitir Factura Electrónica'
                     : `Generar ${VOUCHER_TYPE_LABEL[voucherType] ?? voucherType}`
@@ -5317,7 +5345,7 @@ export default function Sales() {
       <Modal 
         isOpen={showConfirmModal} 
         onClose={() => setShowConfirmModal(false)} 
-        title={voucherType === 'invoice' ? 'Confirmar Emisión de Factura Electrónica' : voucherType === 'invoice_x' ? 'Confirmar Comprobante SRX' : `Confirmar ${VOUCHER_TYPE_LABEL[voucherType] ?? voucherType}`}
+        title={voucherType === 'invoice' ? 'Confirmar Emisión de Factura Electrónica' : voucherType === 'invoice_x' ? 'Confirmar Comprobante X' : `Confirmar ${VOUCHER_TYPE_LABEL[voucherType] ?? voucherType}`}
         size={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'xl' : 'lg'}
         containerClassName={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'max-h-[95vh]' : undefined}
         headerClassName={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'px-4 py-2' : undefined}
@@ -5672,7 +5700,7 @@ export default function Sales() {
                 {isCustomerCreditReturn ? (
                   <><strong>⚠️ Importante:</strong> Esta operación guardará saldo a favor; no se emitirá factura electrónica porque el neto no es positivo.</>
                 ) : voucherType === 'invoice_x' ? (
-                  <><strong>⚠️ Importante:</strong> Se emitirá un Comprobante X (SRX). <strong>No tiene validez fiscal en ARCA/AFIP</strong>. El proceso es irreversible.</>
+                  <><strong>⚠️ Importante:</strong> Se emitirá un Comprobante X. <strong>No tiene validez fiscal en ARCA/AFIP</strong>. El proceso es irreversible.</>
                 ) : (
                   <><strong>⚠️ Importante:</strong> Se emitirá una factura electrónica en ARCA/AFIP. Este proceso es <strong>irreversible</strong> y se obtendrá un CAE oficial.</>
                 )}
@@ -5695,9 +5723,10 @@ export default function Sales() {
                 <button
                   type="button"
                   onClick={handleConfirmGenerate}
+                  disabled={isGenerating || createVoucherMutation.isPending}
                   className="flex-1 rounded-lg border border-primary-200 bg-primary-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-primary-700"
                 >
-                  {isCustomerCreditReturn ? 'Guardar saldo' : voucherType === 'invoice_x' ? 'Generar SRX' : 'Emitir Factura'}
+                  {isGenerating || createVoucherMutation.isPending ? 'Procesando...' : isCustomerCreditReturn ? 'Guardar saldo' : voucherType === 'invoice_x' ? 'Generar Comprobante X' : 'Emitir Factura'}
                 </button>
               </div>
             </div>
@@ -5714,8 +5743,9 @@ export default function Sales() {
                 variant="primary"
                 onClick={handleConfirmGenerate}
                 className="flex-1"
+                disabled={isGenerating || createVoucherMutation.isPending}
               >
-                {isCustomerCreditReturn ? 'Guardar saldo a favor' : editingVoucherId ? 'Actualizar' : 'Confirmar'}
+                {isGenerating || createVoucherMutation.isPending ? 'Procesando...' : isCustomerCreditReturn ? 'Guardar saldo a favor' : editingVoucherId ? 'Actualizar' : 'Confirmar'}
               </Button>
             </div>
           )}

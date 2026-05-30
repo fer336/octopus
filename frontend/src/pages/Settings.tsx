@@ -282,44 +282,6 @@ export default function Settings() {
             className="w-40"
           />
 
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-200">SRX-User</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Facturación alternativa sin validez fiscal (Comprobante X)
-                </p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={formData.srx_enabled}
-                onClick={() => handleChange('srx_enabled', !formData.srx_enabled)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-                  formData.srx_enabled
-                    ? 'bg-red-500'
-                    : 'bg-gray-200 dark:bg-gray-700'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                    formData.srx_enabled ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {formData.srx_enabled && (
-              <Input
-                label="Punto de Venta Alternativo (SRX)"
-                placeholder="5001"
-                value={formData.alternative_sale_point}
-                onChange={(e) => handleChange('alternative_sale_point', e.target.value)}
-                className="w-40 mt-3"
-              />
-            )}
-          </div>
-
           <Button type="submit" disabled={loading}>
             {loading ? 'Guardando...' : 'Guardar configuración de facturación'}
           </Button>

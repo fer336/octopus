@@ -843,8 +843,15 @@ class VoucherService:
             elif not is_responsible and data.voucher_type == VoucherType.INVOICE_A:
                 data.voucher_type = VoucherType.INVOICE_B
 
-        # 3. Obtener business para numeración correlativa
-        business = await self.db.get(Business, business_id)
+        # 3. Obtener business para numeración correlativa.
+        # Bloquea la fila durante la transacción para evitar que dos emisiones
+        # simultáneas lean el mismo último número y creen comprobantes duplicados.
+        business_result = await self.db.execute(
+            select(Business)
+            .where(Business.id == business_id)
+            .with_for_update()
+        )
+        business = business_result.scalar_one_or_none()
         if not business:
             raise ValueError("Negocio no encontrado")
 
@@ -1406,6 +1413,16 @@ class VoucherService:
         voucher.soft_delete()
         voucher.deleted_by = deleted_by_user_id
         voucher.deletion_reason = reason.strip()
+
+        # Mantener el movimiento en caja como rastro operativo, pero sin impacto
+        # monetario: un comprobante eliminado debe aparecer en el cierre con $0.
+        cash_movements_result = await self.db.execute(
+            select(CashMovement).where(CashMovement.voucher_id == voucher.id)
+        )
+        for movement in cash_movements_result.scalars().all():
+            movement.amount = Decimal("0")
+            if "eliminado" not in (movement.description or "").lower():
+                movement.description = f"{movement.description} (eliminado)"
 
         await self.db.commit()
         return True
