@@ -32,7 +32,6 @@ const permissionModules: Array<{ key: string; label: string }> = [
   { key: 'reports', label: 'Reportes' },
   { key: 'feedback', label: 'Feedback' },
   { key: 'current_account', label: 'Cuenta Corriente' },
-  { key: 'srx', label: 'SRX / Comprobante X' },
 ]
 
 function getApiErrorDetail(error: unknown, fallback: string): string {
@@ -417,9 +416,6 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
       if (typeof payload.qr_scanner_enabled === 'boolean') {
         toast.success(payload.qr_scanner_enabled ? 'Scanner QR habilitado' : 'Scanner QR deshabilitado')
       }
-      if (typeof payload.srx_enabled === 'boolean') {
-        toast.success(payload.srx_enabled ? 'SRX / Comprobante X habilitado' : 'SRX / Comprobante X deshabilitado')
-      }
       queryClient.invalidateQueries({ queryKey: ['admin-feature-flags', tenantId] })
     },
     onError: (error: any) => {
@@ -489,7 +485,6 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
   const priceUpdateEnabled = flagsQuery.data?.price_update_enabled ?? true
   const reportsEnabled = flagsQuery.data?.reports_enabled ?? true
   const sqlBackupEnabled = flagsQuery.data?.sql_backup_enabled ?? false
-  const srxEnabled = flagsQuery.data?.srx_enabled ?? false
   const linearConfigured = Boolean(linearSecretsQuery.data?.secrets?.linear_api_key?.configured)
   const linearLast4 = linearSecretsQuery.data?.secrets?.linear_api_key?.last4
   const openRouterConfig = aiConfigQuery.data?.providers.find(
@@ -926,49 +921,6 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
                   }`}
                 />
               </button>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white">SRX / Comprobante X</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Punto de venta fantasma para emisión de comprobantes locales sin factura
-                  electrónica. Se activa con Ctrl+Shift+Q desde la pantalla de Ventas.
-                </p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={srxEnabled}
-                onClick={() => updateMutation.mutate({ srx_enabled: !srxEnabled })}
-                disabled={updateMutation.isPending}
-                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
-                  srxEnabled ? 'bg-violet-500' : 'bg-gray-300 dark:bg-gray-600'
-                }`}
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                    srxEnabled ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            <div className="mt-3">
-              <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  srxEnabled
-                    ? 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400'
-                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                }`}
-              >
-                {srxEnabled ? 'Habilitado' : 'Deshabilitado'}
-              </span>
-              <span className="ml-2 text-xs text-gray-400">
-                Pto. Vta.: {flagsQuery.data?.srx_enabled ? '5001 (alternativo)' : '—'}
-              </span>
             </div>
           </div>
 

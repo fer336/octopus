@@ -144,6 +144,10 @@
       text-align: right;
       font-family: "Courier New", Courier, monospace;
     }
+    tbody tr.muted-row td {
+      color: #555;
+      font-style: italic;
+    }
 
     /* ─── Resumen de efectivo ─────────────────────────────── */
     .cash-summary {
@@ -358,7 +362,7 @@
       </thead>
       <tbody>
         {% for v in arca_vouchers %}
-        <tr>
+        <tr{% if v.is_deleted %} class="muted-row"{% endif %}>
           <td>{{ v.date }}</td>
           <td>{{ v.number }}</td>
           <td>{{ v.type_label }}</td>
@@ -392,7 +396,7 @@
       </thead>
       <tbody>
         {% for v in srx_vouchers %}
-        <tr>
+        <tr{% if v.is_deleted %} class="muted-row"{% endif %}>
           <td>{{ v.date }}</td>
           <td>{{ v.number }}</td>
           <td>{{ v.type_label }}</td>
@@ -440,7 +444,7 @@
       </thead>
       <tbody>
         {% for v in all_vouchers %}
-        <tr>
+        <tr{% if v.is_deleted %} class="muted-row"{% endif %}>
           <td>{{ v.date }}</td>
           <td>{{ v.number }}</td>
           <td>{{ v.type_label }}</td>

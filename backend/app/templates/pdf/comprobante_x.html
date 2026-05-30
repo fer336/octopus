@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Comprobante X {{ voucher.sale_point }}-{{ voucher.comp_number }}</title>
+    <title>Presupuesto {{ voucher.sale_point }}-{{ voucher.comp_number }}</title>
     <style type="text/css">
         @page {
             size: A4;
@@ -244,8 +244,6 @@
 </head>
 <body>
 
-<div class="watermark">SIN VALIDEZ FISCAL</div>
-
 <div class="invoice">
     <!-- Header -->
     <div class="header-container">
@@ -258,17 +256,11 @@
         <table class="header-table">
             <tr>
                 <td class="header-col-left">
-                    {% set logo_position = business.logo_position or 'left' %}
                     {% set logo_mode = business.logo_display_mode or 'alongside_text' %}
                     {% set show_business_name = (not business.hide_business_name_in_pdf) and logo_mode != 'replace_text' %}
-                    {% if business.logo_url or show_business_name %}
+                    {% if show_business_name %}
                     <div class="branding-block">
-                        {% if business.logo_url %}
-                        <img class="logo-img" src="{{ business.logo_url }}" alt="Logo">
-                        {% endif %}
-                        {% if show_business_name %}
                         <div class="business-name">{{ business.name }}</div>
-                        {% endif %}
                     </div>
                     {% endif %}
                     <div class="info-line"><strong>Domicilio:</strong> {{ business.address or 'Sin domicilio' }}</div>
@@ -279,10 +271,10 @@
                     {% endif %}
                 </td>
                 <td class="header-col-right">
-                    <div class="invoice-title">COMPROBANTE X</div>
-                    <div class="info-line"><strong>Punto de Venta:</strong> {{ voucher.sale_point }}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>Comp. Nro:</strong> {{ voucher.comp_number }}</div>
+                    <div class="invoice-title">PRESUPUESTO</div>
+                    <div class="info-line"><strong>Comp. Nro:</strong> {{ voucher.comp_number }}</div>
+                    <div class="info-line"><strong>Punto de Venta:</strong> {{ voucher.sale_point }}</div>
                     <div class="info-line"><strong>Fecha de Emisión:</strong> {{ voucher.date }}</div>
-                    <div class="no-fiscal-note">Documento no válido como comprobante fiscal</div>
                 </td>
             </tr>
         </table>
@@ -347,9 +339,6 @@
         </tr>
     </table>
 
-    <div class="footer">
-        Documento no válido como comprobante fiscal &bull; Comprobante X {{ voucher.sale_point }}-{{ voucher.comp_number }} &bull; {{ voucher.date }}
-    </div>
 </div>
 
 </body>

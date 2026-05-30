@@ -8,7 +8,7 @@ import gsap from 'gsap'
 import { Button, Table, Pagination, Select, Modal, Input, ResponsiveTable } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import vouchersService, { type LegacyPaymentMethod, type Voucher, type VoucherPayment, type PriceStrategy } from '../api/vouchersService'
+import vouchersService, { type DeleteVoucherResponse, type LegacyPaymentMethod, type Voucher, type VoucherPayment, type PriceStrategy } from '../api/vouchersService'
 import arcaService from '../api/arcaService'
 import businessService from '../api/businessService'
 import clientsService from '../api/clientsService'
@@ -188,7 +188,6 @@ export default function Vouchers() {
   const currentAccountEnabled =
     (business?.current_account_mode ?? 'disabled') !== 'disabled' &&
     hasModuleAccess(user, 'current_account')
-  const srxEnabled = (business?.srx_enabled ?? false) && hasModuleAccess(user, 'srx')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [filterType, setFilterType] = useState('')
@@ -460,7 +459,7 @@ export default function Vouchers() {
   const deleteMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       vouchersService.delete(id, reason),
-    onSuccess: (response: any) => {
+    onSuccess: (response: DeleteVoucherResponse) => {
       // Verificar si se requiere autorización
       if (response.authorization_required) {
         queryClient.invalidateQueries({ queryKey: ['pending-authorizations'] })
@@ -1442,7 +1441,6 @@ export default function Vouchers() {
                       { value: 'credit_note_c', label: 'Notas de Crédito C' },
                     ]
                   : []),
-                ...(srxEnabled ? [{ value: 'invoice_x', label: 'Comprobantes X' }] : []),
               ]}
             />
 

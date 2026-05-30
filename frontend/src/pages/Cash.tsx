@@ -3,7 +3,6 @@
  * Maneja los 4 estados: sin caja, abierta, vencida y ya cerrada hoy.
  */
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import {
   AlertTriangle,
   ArrowDownCircle,
@@ -20,9 +19,6 @@ import {
   DollarSign,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { useAuthStore } from '../stores/authStore'
-import businessService from '../api/businessService'
-import { hasModuleAccess } from '../utils/acl'
 import { useAddMovement, useCloseCash, useCurrentCash, useOpenCash, useCashSummary, useCashHistory } from '../hooks/useCash'
 import { openClosurePdf, openSalesPdf } from '../api/cashService'
 import type {
@@ -57,10 +53,6 @@ function formatDateTime(iso: string): string {
 
 function formatTime(iso: string): string {
   return toUTC(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-}
-
-function isSrxMovement(description: string): boolean {
-  return description.startsWith('[SRX]')
 }
 
 function stripSrxPrefix(description: string): string {
@@ -382,7 +374,6 @@ function CloseCashModal({
 
 function MovementRow({ mv }: { mv: CashMovement }) {
   const isExpense = mv.type === 'EXPENSE'
-  const isSrx = isSrxMovement(mv.description)
 
   return (
     <tr className="border-b hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
@@ -390,14 +381,7 @@ function MovementRow({ mv }: { mv: CashMovement }) {
         {formatTime(mv.created_at)}
       </td>
       <td className="py-1.5 text-sm text-gray-900 dark:text-white">
-        <span className="flex items-center gap-1.5">
-          {isSrx && (
-            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 shrink-0">
-              SRX
-            </span>
-          )}
-          {stripSrxPrefix(mv.description)}
-        </span>
+        {stripSrxPrefix(mv.description)}
       </td>
       <td className="py-1.5 text-sm text-gray-500 dark:text-gray-400">
         {MOVEMENT_TYPE_LABELS[mv.type]}
@@ -423,7 +407,6 @@ function MovementRow({ mv }: { mv: CashMovement }) {
 
 function MovementCard({ mv }: { mv: CashMovement }) {
   const isExpense = mv.type === 'EXPENSE'
-  const isSrx = isSrxMovement(mv.description)
 
   const getMethodIcon = (method: CashPaymentMethod) => {
     switch (method) {
@@ -451,11 +434,6 @@ function MovementCard({ mv }: { mv: CashMovement }) {
             {formatTime(mv.created_at)}
           </div>
           <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-white">
-            {isSrx && (
-              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 shrink-0">
-                SRX
-              </span>
-            )}
             {stripSrxPrefix(mv.description)}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
@@ -694,12 +672,6 @@ function CashHistory() {
 
 export default function Cash() {
   const { data: cashRegister, isLoading } = useCurrentCash()
-  const user = useAuthStore((state) => state.user)
-  const { data: business } = useQuery({
-    queryKey: ['business-me-cash'],
-    queryFn: () => businessService.getMyBusiness(),
-  })
-  const srxEnabled = (business?.srx_enabled ?? false) && hasModuleAccess(user, 'srx')
   const [showOpen, setShowOpen] = useState(false)
   const [showClose, setShowClose] = useState(false)
   const [movementType, setMovementType] = useState<'INCOME' | 'EXPENSE' | null>(null)
@@ -785,11 +757,6 @@ export default function Cash() {
               <div>
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">Caja Abierta</p>
-                  {srxEnabled && (
-                    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
-                      SRX activo
-                    </span>
-                  )}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Desde las {formatTime(cashRegister.opened_at)} · {elapsedTime(cashRegister.opened_at)} transcurridos

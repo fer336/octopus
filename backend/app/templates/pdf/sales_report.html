@@ -178,6 +178,14 @@
       border: none;
       color: #333;
     }
+    .items-detail table th {
+      padding: 1.5px 4px;
+      border: none;
+      color: #000;
+      font-size: 8px;
+      text-align: left;
+      text-transform: uppercase;
+    }
     .items-detail table td.right { text-align: right; }
 
     /* ─── Footer ───────────────────────────────────────── */
@@ -202,7 +210,7 @@
   <!-- Header -->
   <div class="header">
     <table class="header-table">
-      <tr>
+      <tr{% if v.is_deleted %} style="color: #555; font-style: italic;"{% endif %}>
         <td style="width: 55%;">
           {% if not business.hide_business_name_in_pdf %}
           <div class="business-name">{{ business.name }}</div>
@@ -279,10 +287,17 @@
         <td colspan="7" style="padding: 0; border-top: none;">
           <div class="items-detail">
             <table>
+              <tr>
+                <th style="width: 8%;">Cant.</th>
+                <th>Producto</th>
+                <th class="right" style="width: 12%;">Stock</th>
+                <th class="right" style="width: 18%;">Importe</th>
+              </tr>
               {% for item in v.line_items %}
               <tr>
                 <td>{{ item.qty }}x</td>
                 <td>{{ item.description }}</td>
+                <td class="right">{{ item.stock }}</td>
                 <td class="right">{{ item.subtotal_fmt }}</td>
               </tr>
               {% endfor %}

@@ -550,6 +550,11 @@ async def generate_closure_pdf(
             if voucher:
                 client = await db.get(Client, voucher.client_id)
                 vtype = voucher.voucher_type.value
+                is_deleted = voucher.deleted_at is not None
+                effective_total = Decimal("0") if is_deleted else (voucher.total or Decimal("0"))
+                type_label = VOUCHER_TYPE_LABELS.get(vtype, vtype)
+                if is_deleted:
+                    type_label = f"{type_label} (Eliminado)"
                 payments_list = [
                     vp.payment_method_catalog.name
                     for vp in (voucher.voucher_payments or [])
@@ -557,22 +562,23 @@ async def generate_closure_pdf(
                 ]
                 row = {
                     "number": voucher.full_number,
-                    "type_label": VOUCHER_TYPE_LABELS.get(vtype, vtype),
+                    "type_label": type_label,
                     "client_name": client.name if client else "—",
-                    "total_fmt": fmt(voucher.total),
-                    "total": voucher.total,
+                    "total_fmt": fmt(effective_total),
+                    "total": effective_total,
                     "date": voucher.date.strftime("%d/%m/%Y"),
                     "payment_str": " + ".join(payments_list) if payments_list else "—",
+                    "is_deleted": is_deleted,
                 }
                 if vtype in ARCA_TYPES:
                     arca_vouchers.append(row)
-                    total_arca += voucher.total
+                    total_arca += effective_total
                 elif vtype in SRX_TYPES:
                     srx_vouchers.append(row)
-                    total_srx += voucher.total
+                    total_srx += effective_total
                 else:
                     other_vouchers.append(row)
-                    total_other_vouchers += voucher.total
+                    total_other_vouchers += effective_total
 
     arca_vouchers.sort(key=lambda v: v["date"])
     srx_vouchers.sort(key=lambda v: v["date"])
@@ -642,10 +648,12 @@ async def generate_sales_pdf(
     from pathlib import Path
 
     from jinja2 import Environment, FileSystemLoader
-    from sqlalchemy import and_
+    from sqlalchemy import and_, func
     from weasyprint import HTML
 
-    from app.models.voucher import Voucher
+    from app.models.product_lot import ProductLot
+    from app.models.voucher import Voucher, VoucherStatus, VoucherType
+    from app.models.voucher_item import VoucherItem
     from app.models.voucher_payment import VoucherPayment
 
     # Obtener la caja
@@ -710,11 +718,85 @@ async def generate_sales_pdf(
             voucher = result_v.scalar_one_or_none()
             if voucher:
                 vouchers.append(voucher)
-                total_vendido += voucher.total
+                if voucher.deleted_at is None:
+                    total_vendido += voucher.total or Decimal("0")
+
+    product_ids = {
+        item.product_id
+        for voucher in vouchers
+        for item in (voucher.items or [])
+        if item.product_id
+    }
+    current_stock_by_product_id: dict[UUID, int] = {}
+    if product_ids:
+        stock_result = await db.execute(
+            select(
+                ProductLot.product_id,
+                func.coalesce(func.sum(ProductLot.quantity), 0),
+            )
+            .where(
+                and_(
+                    ProductLot.business_id == business_id,
+                    ProductLot.product_id.in_(product_ids),
+                    ProductLot.deleted_at.is_(None),
+                )
+            )
+            .group_by(ProductLot.product_id)
+        )
+        current_stock_by_product_id = {
+            product_id: int(stock or 0)
+            for product_id, stock in stock_result.all()
+        }
+
+    stock_after_item_id: dict[UUID, int] = {}
+    report_voucher_item_ids = {
+        item.id
+        for voucher in vouchers
+        for item in (voucher.items or [])
+        if item.id
+    }
+    oldest_voucher_created_at = min(
+        (voucher.created_at for voucher in vouchers if voucher.created_at),
+        default=None,
+    )
+
+    if product_ids and oldest_voucher_created_at:
+        stock_events_result = await db.execute(
+            select(
+                VoucherItem.id,
+                VoucherItem.product_id,
+                VoucherItem.quantity,
+                Voucher.created_at,
+            )
+            .join(Voucher, Voucher.id == VoucherItem.voucher_id)
+            .where(
+                and_(
+                    Voucher.business_id == business_id,
+                    VoucherItem.product_id.in_(product_ids),
+                    Voucher.created_at >= oldest_voucher_created_at,
+                    Voucher.voucher_type != VoucherType.QUOTATION,
+                    Voucher.status == VoucherStatus.CONFIRMED,
+                    Voucher.is_current_account_closure.is_(False),
+                    Voucher.deleted_at.is_(None),
+                    VoucherItem.deleted_at.is_(None),
+                )
+            )
+            .order_by(Voucher.created_at.desc(), VoucherItem.created_at.desc())
+        )
+        running_stock = dict(current_stock_by_product_id)
+        for item_id, product_id, quantity, _created_at in stock_events_result.all():
+            if item_id in report_voucher_item_ids:
+                stock_after_item_id[item_id] = running_stock.get(product_id, 0)
+            running_stock[product_id] = running_stock.get(product_id, 0) + int(quantity or 0)
 
     # Preparar datos de vouchers
     vouchers_data = []
     for v in vouchers:
+        is_deleted = v.deleted_at is not None
+        effective_total = Decimal("0") if is_deleted else (v.total or Decimal("0"))
+        type_label = TYPE_LABELS.get(v.voucher_type.value, v.voucher_type.value)
+        if is_deleted:
+            type_label = f"{type_label} (Eliminado)"
         client = await db.get(Client, v.client_id) if v.client_id else None
         payments_list = [
             vp.payment_method_catalog.name
@@ -726,19 +808,24 @@ async def generate_sales_pdf(
             {
                 "description": item.description or "—",
                 "qty": f"{float(item.quantity):g}",
-                "subtotal_fmt": fmt(item.subtotal),
+                "stock": stock_after_item_id.get(
+                    item.id,
+                    current_stock_by_product_id.get(item.product_id, 0) if item.product_id else "—",
+                ),
+                "subtotal_fmt": fmt(0 if is_deleted else item.subtotal),
             }
             for item in (v.items or [])
         ]
         vouchers_data.append({
             "number":      v.full_number,
-            "type":        TYPE_LABELS.get(v.voucher_type.value, v.voucher_type.value),
+            "type":        type_label,
             "client_name": client.name if client else "—",
             "payment_str": payment_str,
-            "total_fmt":   fmt(v.total),
+            "total_fmt":   fmt(effective_total),
             "date":        v.date.strftime("%d/%m/%Y"),
             "time":        v.created_at.strftime("%H:%M") if v.created_at else "—",
             "line_items":  items_data,
+            "is_deleted":  is_deleted,
         })
 
     vouchers_data.sort(key=lambda x: (x["date"], x["time"]), reverse=True)
@@ -746,11 +833,13 @@ async def generate_sales_pdf(
     # Totales por tipo
     totals_by_type = {}
     for v in vouchers:
+        is_deleted = v.deleted_at is not None
         t = TYPE_LABELS.get(v.voucher_type.value, v.voucher_type.value)
         if t not in totals_by_type:
             totals_by_type[t] = {"count": 0, "total": Decimal("0")}
         totals_by_type[t]["count"] += 1
-        totals_by_type[t]["total"] += v.total
+        if not is_deleted:
+            totals_by_type[t]["total"] += v.total or Decimal("0")
 
     totals_by_type_data = []
     for t, data in totals_by_type.items():

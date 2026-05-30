@@ -64,6 +64,12 @@ export interface CustomerCreditReturnResponse {
   message: string
 }
 
+export interface DeleteVoucherResponse {
+  authorization_required?: boolean
+  authorization_id?: string
+  message: string
+}
+
 export interface VoucherUpdate {
   client_id: string
   date: string
@@ -276,10 +282,11 @@ const vouchersService = {
   /**
    * Elimina un comprobante (soft delete).
    */
-  delete: async (id: string, reason: string): Promise<void> => {
-    await httpClient.delete(`/vouchers/${id}/delete`, {
+  delete: async (id: string, reason: string): Promise<DeleteVoucherResponse> => {
+    const response = await httpClient.delete<DeleteVoucherResponse>(`/vouchers/${id}/delete`, {
       params: { reason }
     })
+    return response.data
   },
 
   /**
