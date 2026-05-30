@@ -2446,35 +2446,33 @@ export default function Sales() {
     }, 500)
   }
 
-  const handleCreateClient = () => {
-    const client: Client = {
-      id: Date.now().toString(),
-      name: newClient.name || '',
-      document_type: newClient.document_type || 'CUIT',
-      document_number: newClient.document_number || '',
-      tax_condition: newClient.tax_condition || 'CF',
-      street: newClient.street,
-      street_number: newClient.street_number,
-      floor: newClient.floor,
-      apartment: newClient.apartment,
-      city: newClient.city,
-      province: newClient.province,
-      postal_code: newClient.postal_code,
-      phone: newClient.phone,
-      email: newClient.email,
-      notes: newClient.notes,
+  const handleCreateClient = async () => {
+    try {
+      const created = await clientsService.create({
+        name: newClient.name || '',
+        document_type: newClient.document_type || 'CUIT',
+        document_number: newClient.document_number || '',
+        tax_condition: newClient.tax_condition || 'CF',
+        street: newClient.street,
+        street_number: newClient.street_number,
+        floor: newClient.floor,
+        apartment: newClient.apartment,
+        city: newClient.city,
+        province: newClient.province,
+        postal_code: newClient.postal_code,
+        phone: newClient.phone,
+        email: newClient.email,
+        notes: newClient.notes,
+      })
+      queryClient.invalidateQueries({ queryKey: ['clients-for-sales'] })
+      setSelectedClient(created)
+      setSelectedOperatingClientId(voucherType === 'current_account' ? created.id : '')
+      setClientSearch(created.name)
+      setShowClientModal(false)
+      setNewClient({ name: '', document_type: 'CUIT', document_number: '', tax_condition: 'CF' })
+    } catch {
+      toast.error('No se pudo guardar el cliente. Revisá los datos.')
     }
-
-    setSelectedClient(client)
-    setSelectedOperatingClientId(voucherType === 'current_account' ? client.id : '')
-    setClientSearch(client.name)
-    setShowClientModal(false)
-    setNewClient({
-      name: '',
-      document_type: 'CUIT',
-      document_number: '',
-      tax_condition: 'CF',
-    })
   }
 
   // Restablecer selección de métodos de pago
@@ -5326,13 +5324,14 @@ export default function Sales() {
         contentClassName={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'p-0' : undefined}
         titleClassName={(voucherType === 'invoice' || voucherType === 'invoice_x') ? 'text-sm' : undefined}
       >
-        <div className={voucherType === 'invoice' ? 'flex flex-col max-h-[80vh] overflow-hidden' : 'space-y-4'}>
-          {/* Body scrolleable (solo invoice) */}
-          <div className={voucherType === 'invoice' ? 'flex-1 overflow-y-auto px-4 py-3 space-y-2.5 text-[11px]' : ''}>
-          <div className={voucherType === 'invoice' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : ''}>
+        {(() => { const isInvoiceLike = voucherType === 'invoice' || voucherType === 'invoice_x'; return (
+        <div className={isInvoiceLike ? 'flex flex-col max-h-[80vh] overflow-hidden' : 'space-y-4'}>
+          {/* Body scrolleable */}
+          <div className={isInvoiceLike ? 'flex-1 overflow-y-auto px-4 py-3 space-y-2.5 text-[11px]' : ''}>
+          <div className={isInvoiceLike ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : ''}>
             {/* Detalles Venta */}
-            <div className={voucherType === 'invoice' ? 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-2' : 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-4'}>
-              <div className={voucherType === 'invoice' ? 'space-y-1.5 text-xs' : 'space-y-2 text-sm'}>
+            <div className={isInvoiceLike ? 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-2' : 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-4'}>
+              <div className={isInvoiceLike ? 'space-y-1.5 text-xs' : 'space-y-2 text-sm'}>
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Cliente:</span>
                   <span className="font-medium text-gray-900 dark:text-white">{selectedClient?.name}</span>
@@ -5667,11 +5666,13 @@ export default function Sales() {
           </div>
           )}
 
-          {voucherType === 'invoice' && (
+          {isInvoiceLike && (
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2">
               <p className="text-xs text-amber-900 dark:text-amber-200">
                 {isCustomerCreditReturn ? (
                   <><strong>⚠️ Importante:</strong> Esta operación guardará saldo a favor; no se emitirá factura electrónica porque el neto no es positivo.</>
+                ) : voucherType === 'invoice_x' ? (
+                  <><strong>⚠️ Importante:</strong> Se emitirá un Comprobante X (SRX). <strong>No tiene validez fiscal en ARCA/AFIP</strong>. El proceso es irreversible.</>
                 ) : (
                   <><strong>⚠️ Importante:</strong> Se emitirá una factura electrónica en ARCA/AFIP. Este proceso es <strong>irreversible</strong> y se obtendrá un CAE oficial.</>
                 )}
@@ -5681,7 +5682,7 @@ export default function Sales() {
           </div>
 
           {/* Footer con botones */}
-          {voucherType === 'invoice' ? (
+          {isInvoiceLike ? (
             <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2">
               <div className="flex items-center gap-1.5">
                 <button
@@ -5696,7 +5697,7 @@ export default function Sales() {
                   onClick={handleConfirmGenerate}
                   className="flex-1 rounded-lg border border-primary-200 bg-primary-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-primary-700"
                 >
-                  {isCustomerCreditReturn ? 'Guardar saldo' : 'Emitir Factura'}
+                  {isCustomerCreditReturn ? 'Guardar saldo' : voucherType === 'invoice_x' ? 'Generar SRX' : 'Emitir Factura'}
                 </button>
               </div>
             </div>
@@ -5719,6 +5720,7 @@ export default function Sales() {
             </div>
           )}
         </div>
+        )})()}
       </Modal>
 
       {/* SALES-ACOPIO-FRONTEND-03: Modal para seleccionar acopio abierto del cliente */}
