@@ -436,7 +436,7 @@ class ProductService:
         source: ProductCreate | ProductUpdate | ProductBulkUpdateItem,
     ) -> None:
         """Resuelve marca canónica y mantiene el string legacy sincronizado."""
-        source_fields = getattr(source, "model_fields_set", set())
+        source_fields: set[str] = getattr(source, "model_fields_set", set())
         provided_brand_id = "brand_id" in source_fields
         provided_brand_name = "brand_name" in source_fields
         provided_brand = "brand" in source_fields
