@@ -104,7 +104,7 @@ class TestDetectColumns:
         assert result.sample_rows == []
         assert result.total_rows == 0
 
-    def test_returns_ImportDetectResponse_instance(self):
+    def test_returns_import_detect_response_instance(self):
         content = _make_xlsx(["X"], [["val"]])
         svc = _make_service()
         result = svc.detect_columns(content)

@@ -546,19 +546,14 @@ class ExcelService:
                     resolved_category_id = await _resolve_category(row.category_name)
 
                 resolved_supplier_id = row.supplier_id
-                if row.supplier_is_new and row.supplier_name:
+                if (row.supplier_is_new and row.supplier_name) or (row.supplier_name and row.supplier_id is None):
                     resolved_supplier_id = await _resolve_supplier(row.supplier_name)
                 elif row.supplier_name and row.supplier_id is None:
                     resolved_supplier_id = await _resolve_supplier(row.supplier_name)
 
                 resolved_brand_id = row.brand_id
                 resolved_brand_name = row.brand_name
-                if row.brand_is_new and row.brand_name:
-                    brand = await _resolve_brand(row.brand_name)
-                    if brand:
-                        resolved_brand_id = brand.id
-                        resolved_brand_name = brand.name
-                elif row.brand_name and row.brand_id is None:
+                if (row.brand_is_new and row.brand_name) or (row.brand_name and row.brand_id is None):
                     brand = await _resolve_brand(row.brand_name)
                     if brand:
                         resolved_brand_id = brand.id
