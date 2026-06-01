@@ -26,8 +26,6 @@ import brandsService, {
 } from '../api/brandsService'
 import toast from 'react-hot-toast'
 
-type ActivePanel = 'list' | 'products'
-
 export default function Brands() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
