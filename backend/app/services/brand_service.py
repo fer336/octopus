@@ -103,7 +103,7 @@ class BrandService:
         )
         return result.scalar_one_or_none()
 
-    async def list(
+    async def list_all(
         self,
         business_id: UUID,
         params: BrandListParams,

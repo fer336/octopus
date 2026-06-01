@@ -42,7 +42,7 @@ async def list_brands(
     """Lista marcas con paginación y búsqueda."""
     service = BrandService(db)
     params = BrandListParams(search=search, page=page, per_page=per_page)
-    brands_with_count, total = await service.list(business_id, params)
+    brands_with_count, total = await service.list_all(business_id, params)
     pages = (total + per_page - 1) // per_page if per_page else 0
     return PaginatedResponse(
         items=[
