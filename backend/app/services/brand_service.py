@@ -7,8 +7,10 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.models.brand import Brand
+from app.models.product import Product
 from app.schemas.brand import BrandCreate, BrandListParams, BrandUpdate
 from app.utils.brand_normalization import normalize_brand_name
 
@@ -18,6 +20,33 @@ class BrandService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    # ── helpers ──────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _product_count_subquery():
+        """Subquery que cuenta productos activos por brand_id."""
+        return (
+            select(func.count(Product.id))
+            .where(
+                Product.brand_id == Brand.id,
+                Product.deleted_at.is_(None),
+            )
+            .correlate(Brand)
+            .scalar_subquery()
+        )
+
+    async def get_product_count(self, brand_id: UUID) -> int:
+        """Cuenta productos activos vinculados a una marca."""
+        result = await self.db.execute(
+            select(func.count(Product.id)).where(
+                Product.brand_id == brand_id,
+                Product.deleted_at.is_(None),
+            )
+        )
+        return result.scalar() or 0
+
+    # ── CRUD ─────────────────────────────────────────────────────────────
 
     async def create(self, business_id: UUID, data: BrandCreate) -> Brand:
         """Crea una marca validando unicidad normalizada por negocio."""
@@ -78,8 +107,12 @@ class BrandService:
         self,
         business_id: UUID,
         params: BrandListParams,
-    ) -> tuple[list[Brand], int]:
-        """Lista marcas con paginación y búsqueda."""
+    ) -> tuple[list[tuple[Brand, int]], int]:
+        """Lista marcas con product_count, paginación y búsqueda.
+
+        Returns:
+            Tupla de (lista de pares (Brand, product_count), total).
+        """
         conditions = [Brand.business_id == business_id, Brand.deleted_at.is_(None)]
         if params.search:
             conditions.append(Brand.name.ilike(f"%{params.search}%"))
@@ -89,12 +122,44 @@ class BrandService:
         )
         total = count_result.scalar() or 0
 
+        product_count_subq = self._product_count_subquery()
         result = await self.db.execute(
-            select(Brand)
+            select(Brand, product_count_subq.label("product_count"))
             .where(*conditions)
             .order_by(Brand.name)
             .offset((params.page - 1) * params.per_page)
             .limit(params.per_page)
+        )
+        return [(row.Brand, row.product_count) for row in result.all()], total
+
+    async def get_products(
+        self,
+        brand_id: UUID,
+        business_id: UUID,
+        page: int = 1,
+        per_page: int = 50,
+    ) -> tuple[list[Product], int]:
+        """Obtiene productos activos vinculados a una marca."""
+        brand = await self.get_by_id(brand_id, business_id)
+        if not brand:
+            return [], 0
+
+        conditions = [
+            Product.brand_id == brand_id,
+            Product.business_id == business_id,
+            Product.deleted_at.is_(None),
+        ]
+        total_result = await self.db.execute(
+            select(func.count(Product.id)).where(*conditions)
+        )
+        total = total_result.scalar() or 0
+
+        result = await self.db.execute(
+            select(Product)
+            .where(*conditions)
+            .order_by(Product.code)
+            .offset((page - 1) * per_page)
+            .limit(per_page)
         )
         return list(result.scalars().all()), total
 
@@ -125,10 +190,18 @@ class BrandService:
         return brand
 
     async def soft_delete(self, brand_id: UUID, business_id: UUID) -> bool:
-        """Elimina una marca (soft delete)."""
+        """Elimina una marca (soft delete). Previene si tiene productos."""
         brand = await self.get_by_id(brand_id, business_id)
         if not brand:
             return False
+
+        product_count = await self.get_product_count(brand_id)
+        if product_count > 0:
+            raise ValueError(
+                f"No se puede eliminar la marca \"{brand.name}\": "
+                f"tiene {product_count} producto{'s' if product_count != 1 else ''} asociado{'s' if product_count != 1 else ''}. "
+                "Reasigná los productos a otra marca primero."
+            )
 
         brand.deleted_at = datetime.utcnow()
         await self.db.commit()

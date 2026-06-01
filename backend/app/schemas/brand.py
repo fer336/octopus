@@ -1,5 +1,8 @@
 """Schemas para Marcas."""
 
+from decimal import Decimal
+from uuid import UUID
+
 from pydantic import Field
 
 from app.schemas.base import BaseResponse, BaseSchema
@@ -22,6 +25,18 @@ class BrandResponse(BaseResponse):
 
     name: str
     normalized_name: str
+    product_count: int = 0
+
+
+class BrandProductItem(BaseSchema):
+    """Schema liviano para producto vinculado a una marca."""
+
+    id: UUID
+    code: str
+    description: str
+    sale_price: Decimal
+    current_stock: int
+    is_active: bool
 
 
 class BrandListParams(BaseSchema):
