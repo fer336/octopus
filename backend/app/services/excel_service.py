@@ -548,8 +548,6 @@ class ExcelService:
                 resolved_supplier_id = row.supplier_id
                 if (row.supplier_is_new and row.supplier_name) or (row.supplier_name and row.supplier_id is None):
                     resolved_supplier_id = await _resolve_supplier(row.supplier_name)
-                elif row.supplier_name and row.supplier_id is None:
-                    resolved_supplier_id = await _resolve_supplier(row.supplier_name)
 
                 resolved_brand_id = row.brand_id
                 resolved_brand_name = row.brand_name
