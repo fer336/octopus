@@ -3,6 +3,7 @@ Servicio de Importación/Exportación Excel.
 Maneja la carga masiva de productos.
 """
 import io
+import math
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -12,22 +13,133 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_log import AuditLog
+from app.models.brand import Brand
 from app.models.category import Category
 from app.models.product import Product
 from app.models.product_lot import ProductLot
 from app.models.supplier import Supplier
+from app.services.brand_service import BrandService
 from app.services.product_lot_service import ProductLotService
 from app.schemas.excel_schemas import (
     ImportConfirmRequest,
     ImportConfirmResponse,
+    ImportDetectResponse,
     ImportPreviewResponse,
     ProductImportRow,
 )
+from app.utils.brand_normalization import normalize_brand_name
+
+
+# Maps internal field ids (used by the column mapper UI) to the canonical
+# Spanish DataFrame column names that the parse loop expects.
+FIELD_TO_EXCEL_KEY: dict[str, str] = {
+    "code": "codigo",
+    "description": "nombre",
+    "list_price": "precio_lista",
+    "supplier_code": "codigo_proveedor",
+    "discounts": "bonificaciones",
+    "bonificaciones": "bonificaciones",
+    "extra_cost": "cargo_extra",
+    "profit_margin": "ganancia",
+    "iva": "iva",
+    "iva_rate": "iva",
+    "stock": "stock",
+    "current_stock": "stock",
+    "unit": "unidad",
+    "units_per_pack": "unidades_x_pack",
+    "expiration": "vencimiento",
+    "expiration_date": "vencimiento",
+    "category": "categoria",
+    "supplier": "proveedor",
+    "minimum_stock": "stock_minimo",
+    "brand": "marca",
+    "cost_price": "precio_costo",
+    "details": "detalles",
+}
+
+
+def _clean_excel_cell(value: object) -> str | None:
+    """Stringifies a cell value for sample rows; returns None for NaN/None."""
+    if value is None:
+        return None
+    try:
+        import math
+        if isinstance(value, float) and math.isnan(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    text = str(value)
+    # Cap oversized values to avoid bloating the response
+    return text[:200] if len(text) > 200 else text
 
 
 class ExcelService:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    def detect_columns(self, file_content: bytes) -> ImportDetectResponse:
+        """
+        Reads the first sheet of an Excel file and returns column headers plus
+        up to 3 sample rows of stringified cell values.
+        Does NOT require a DB session.
+        """
+        try:
+            df = pd.read_excel(io.BytesIO(file_content), dtype=str)
+        except Exception as e:
+            raise ValueError(f"Error al leer el archivo Excel: {str(e)}")
+
+        columns = [str(col) for col in df.columns]
+        sample_df = df.head(3)
+        sample_rows: list[list] = [
+            [_clean_excel_cell(cell) for cell in row]
+            for row in sample_df.itertuples(index=False, name=None)
+        ]
+
+        return ImportDetectResponse(
+            columns=columns,
+            sample_rows=sample_rows,
+            total_rows=len(df),
+        )
+
+    @staticmethod
+    def _safe_decimal(value: object, default: Decimal = Decimal(0)) -> Decimal:
+        """Convierte un valor de celda Excel a Decimal tolerando formatos regionales."""
+        if value is None or (isinstance(value, float) and pd.isna(value)):
+            return default
+        try:
+            if isinstance(value, Decimal):
+                return value
+            if isinstance(value, int) and not isinstance(value, bool):
+                return Decimal(value)
+            if isinstance(value, float) and math.isfinite(value):
+                return Decimal(str(value))
+
+            s = str(value).strip()
+            if not s or s.lower() in ('nan', 'none', '-', ''):
+                return default
+            # Remove currency symbols and non-breaking spaces
+            s = s.replace('$', '').replace('\xa0', '').replace(' ', '')
+            # Handle Argentine Excel imports.
+            # Thousands separator = "." (between groups of 3 digits).
+            # Decimal separator = ",".
+            # Examples: "7.000" → 7000, "1.234,56" → 1234.56, "10.5" → 10.5.
+            if ',' in s and '.' in s:
+                s = s.replace('.', '').replace(',', '.')
+            elif ',' in s:
+                # Only comma present → treat as decimal separator
+                s = s.replace(',', '.')
+            elif '.' in s:
+                # Only dot present → distinguish thousands from decimal.
+                # If the last group after "." is exactly 3 digits → it's a
+                # thousands separator (e.g. "7.000", "12.345").
+                # Otherwise → it's a decimal point (e.g. "10.5", "7.5").
+                parts = s.rsplit('.', 1)
+                if len(parts) == 2 and len(parts[1]) == 3 and all(c.isdigit() for c in parts[1]):
+                    s = s.replace('.', '')
+                # else: keep dot, Decimal() handles it as decimal separator
+            return Decimal(s)
+        except Exception:
+            return default
 
     def _parse_discounts(self, discounts_str: str) -> tuple[Decimal, Decimal, Decimal]:
         """Parsea el string de descuentos (ej: '10+5+2') en tres valores."""
@@ -78,15 +190,36 @@ class ExcelService:
 
         return net_price, sale_price, discount_display
 
-    async def preview_import(self, business_id: UUID, file_content: bytes) -> ImportPreviewResponse:
+    async def preview_import(
+        self,
+        business_id: UUID,
+        file_content: bytes,
+        column_mapping: dict[str, str] | None = None,
+    ) -> ImportPreviewResponse:
         """
         Parsea el Excel y retorna un preview de los productos a importar.
         Incluye validaciones y cálculos de precios.
+
+        Args:
+            column_mapping: Optional mapping of {excel_header: field_id} produced
+                by ColumnMapperModal. When provided, the DataFrame columns are
+                renamed to canonical Spanish keys before the parse loop runs,
+                so the legacy logic remains byte-identical.
         """
         try:
-            df = pd.read_excel(io.BytesIO(file_content))
+            df = pd.read_excel(io.BytesIO(file_content), dtype=str)
         except Exception as e:
             raise ValueError(f"Error al leer el archivo Excel: {str(e)}")
+
+        # Apply column mapping when provided: rename excel headers → canonical keys
+        if column_mapping:
+            rename_dict: dict[str, str] = {}
+            for excel_col, field_id in column_mapping.items():
+                canonical = FIELD_TO_EXCEL_KEY.get(field_id)
+                if canonical:
+                    rename_dict[excel_col] = canonical
+            if rename_dict:
+                df = df.rename(columns=rename_dict)
 
         # Validar columnas requeridas
         required_cols = ['codigo', 'nombre', 'precio_lista']
@@ -94,14 +227,32 @@ class ExcelService:
         if missing_cols:
             raise ValueError(f"Faltan columnas requeridas: {', '.join(missing_cols)}")
 
-        # Obtener todas las categorías y proveedores para mapeo
-        categories_query = select(Category).where(Category.deleted_at.is_(None))
+        # Obtain existing categories and suppliers scoped to this tenant
+        # (fixes latent tenant leak — previously queried without business_id filter)
+        categories_query = select(Category).where(
+            Category.business_id == business_id,
+            Category.deleted_at.is_(None),
+        )
         categories_result = await self.db.execute(categories_query)
         categories = {cat.name.lower(): cat for cat in categories_result.scalars().all()}
 
-        suppliers_query = select(Supplier).where(Supplier.deleted_at.is_(None))
+        suppliers_query = select(Supplier).where(
+            Supplier.business_id == business_id,
+            Supplier.deleted_at.is_(None),
+        )
         suppliers_result = await self.db.execute(suppliers_query)
         suppliers = {sup.name.lower(): sup for sup in suppliers_result.scalars().all()}
+
+        brands: dict[str, Brand] = {}
+        if "marca" in df.columns:
+            brands_query = select(Brand).where(
+                Brand.business_id == business_id,
+                Brand.deleted_at.is_(None),
+            )
+            brands_result = await self.db.execute(brands_query)
+            brands = {
+                brand.normalized_name: brand for brand in brands_result.scalars().all()
+            }
 
         rows: list[ProductImportRow] = []
         valid_count = 0
@@ -138,17 +289,18 @@ class ExcelService:
 
             # Parsear campos
             try:
-                supplier_code = str(row.get('codigo_proveedor', '')) if pd.notna(row.get('codigo_proveedor')) else None
-                list_price = Decimal(str(row.get('precio_lista', 0)))
+                supplier_code = str(row.get('codigo_proveedor', '')).strip() if pd.notna(row.get('codigo_proveedor')) else None
+                list_price = self._safe_decimal(row.get('precio_lista'))
 
                 if list_price <= 0:
                     raise ValueError("El precio de lista debe ser mayor a 0")
 
                 d1, d2, d3 = self._parse_discounts(row.get('bonificaciones', ''))
-                extra_cost = Decimal(str(row.get('cargo_extra', 0))) if pd.notna(row.get('cargo_extra')) else Decimal(0)
-                profit_margin = Decimal(str(row.get('ganancia', 0))) if pd.notna(row.get('ganancia')) else Decimal(0)
-                iva_rate = Decimal(str(row.get('iva', 21))) if pd.notna(row.get('iva')) else Decimal(21)
-                current_stock = int(row.get('stock', 0)) if pd.notna(row.get('stock')) else 0
+                extra_cost = self._safe_decimal(row.get('cargo_extra'))
+                profit_margin = self._safe_decimal(row.get('ganancia'))
+                iva_rate = self._safe_decimal(row.get('iva'), default=Decimal(21))
+                current_stock_raw = row.get('stock')
+                current_stock = int(self._safe_decimal(current_stock_raw)) if pd.notna(current_stock_raw) else 0
 
                 # Leer unidad, pack qty y vencimiento
                 unit = str(row.get('unidad', 'unidad')).strip().lower() if pd.notna(row.get('unidad')) else 'unidad'
@@ -171,25 +323,55 @@ class ExcelService:
                     list_price, d1, d2, d3, extra_cost, profit_margin, iva_rate
                 )
 
-                # Buscar categoría si se especifica
+                # Resolve category: match by name (case-insensitive), flag new ones
                 category_id = None
                 category_name = None
+                category_is_new = False
                 if pd.notna(row.get('categoria')):
-                    cat_name = str(row.get('categoria')).strip().lower()
-                    category = categories.get(cat_name)
-                    if category:
-                        category_id = category.id
-                        category_name = category.name
+                    raw_cat = str(row.get('categoria')).strip()
+                    if raw_cat:
+                        cat_key = raw_cat.lower()
+                        category = categories.get(cat_key)
+                        if category:
+                            category_id = category.id
+                            category_name = category.name
+                        else:
+                            # Will be auto-created at confirm time
+                            category_name = raw_cat
+                            category_is_new = True
 
-                # Buscar proveedor si se especifica
+                # Resolve supplier: match by name (case-insensitive), flag new ones
                 supplier_id = None
                 supplier_name = None
+                supplier_is_new = False
                 if pd.notna(row.get('proveedor')):
-                    sup_name = str(row.get('proveedor')).strip().lower()
-                    supplier = suppliers.get(sup_name)
-                    if supplier:
-                        supplier_id = supplier.id
-                        supplier_name = supplier.name
+                    raw_sup = str(row.get('proveedor')).strip()
+                    if raw_sup:
+                        sup_key = raw_sup.lower()
+                        supplier = suppliers.get(sup_key)
+                        if supplier:
+                            supplier_id = supplier.id
+                            supplier_name = supplier.name
+                        else:
+                            # Will be auto-created at confirm time
+                            supplier_name = raw_sup
+                            supplier_is_new = True
+
+                # Resolve brand with normalization so FV, F.V. and fv collapse
+                brand_id = None
+                brand_name = None
+                brand_is_new = False
+                if pd.notna(row.get('marca')):
+                    raw_brand = str(row.get('marca')).strip()
+                    if raw_brand:
+                        brand_key = normalize_brand_name(raw_brand)
+                        brand = brands.get(brand_key)
+                        if brand:
+                            brand_id = brand.id
+                            brand_name = brand.name
+                        else:
+                            brand_name = raw_brand
+                            brand_is_new = True
 
                 # Verificar si el producto ya existe
                 existing_query = select(Product).where(
@@ -215,8 +397,13 @@ class ExcelService:
                     description=description,
                     category_id=category_id,
                     category_name=category_name,
+                    category_is_new=category_is_new,
                     supplier_id=supplier_id,
                     supplier_name=supplier_name,
+                    supplier_is_new=supplier_is_new,
+                    brand_id=brand_id,
+                    brand_name=brand_name,
+                    brand_is_new=brand_is_new,
                     list_price=list_price,
                     discount_1=d1,
                     discount_2=d2,
@@ -266,12 +453,82 @@ class ExcelService:
         Confirma la importación de productos después del preview.
         Crea/actualiza productos en la base de datos.
 
+        Auto-creates categories and suppliers that were flagged as new during
+        preview (category_is_new / supplier_is_new). Lookups are case-insensitive
+        and scoped to business_id to avoid cross-tenant collisions.
+
         Si se provee user_id, los lotes creados se atribuyen al usuario
         y se registra Auditoría (lot_operation:create).
         """
         created = 0
         updated = 0
         errors: list[str] = []
+
+        # In-memory caches so we don't hit the DB twice for the same name
+        # within the same import batch. Keys are lowercased names.
+        category_cache: dict[str, Category] = {}
+        supplier_cache: dict[str, Supplier] = {}
+        brand_cache: dict[str, Brand] = {}
+        brand_service = BrandService(self.db)
+
+        async def _resolve_category(name: str) -> UUID | None:
+            """Return category id, creating one if it doesn't exist."""
+            if not name or not name.strip():
+                return None
+            key = name.strip().lower()
+            if key in category_cache:
+                return category_cache[key].id
+            result = await self.db.execute(
+                select(Category).where(
+                    Category.business_id == business_id,
+                    Category.deleted_at.is_(None),
+                )
+            )
+            all_cats = {c.name.lower(): c for c in result.scalars().all()}
+            if key in all_cats:
+                category_cache[key] = all_cats[key]
+                return all_cats[key].id
+            # Create new
+            new_cat = Category(name=name.strip(), business_id=business_id)
+            self.db.add(new_cat)
+            await self.db.flush()
+            category_cache[key] = new_cat
+            return new_cat.id
+
+        async def _resolve_supplier(name: str) -> UUID | None:
+            """Return supplier id, creating one if it doesn't exist."""
+            if not name or not name.strip():
+                return None
+            key = name.strip().lower()
+            if key in supplier_cache:
+                return supplier_cache[key].id
+            result = await self.db.execute(
+                select(Supplier).where(
+                    Supplier.business_id == business_id,
+                    Supplier.deleted_at.is_(None),
+                )
+            )
+            all_sups = {s.name.lower(): s for s in result.scalars().all()}
+            if key in all_sups:
+                supplier_cache[key] = all_sups[key]
+                return all_sups[key].id
+            # Create new
+            new_sup = Supplier(name=name.strip(), business_id=business_id)
+            self.db.add(new_sup)
+            await self.db.flush()
+            supplier_cache[key] = new_sup
+            return new_sup.id
+
+        async def _resolve_brand(name: str) -> Brand | None:
+            """Return brand, creating one if it doesn't exist."""
+            if not name or not name.strip():
+                return None
+            key = normalize_brand_name(name)
+            if key in brand_cache:
+                return brand_cache[key]
+            brand = await brand_service.resolve_or_create(business_id, name)
+            brand_cache[key] = brand
+            return brand
 
         for row in request.rows:
             # Saltar filas con errores
@@ -280,6 +537,33 @@ class ExcelService:
                 continue
 
             try:
+                # Resolve category/supplier — auto-create new ones if flagged
+                resolved_category_id = row.category_id
+                if row.category_is_new and row.category_name:
+                    resolved_category_id = await _resolve_category(row.category_name)
+                elif row.category_name and row.category_id is None:
+                    # Fallback: name was provided but id was not set (e.g. re-submitted row)
+                    resolved_category_id = await _resolve_category(row.category_name)
+
+                resolved_supplier_id = row.supplier_id
+                if row.supplier_is_new and row.supplier_name:
+                    resolved_supplier_id = await _resolve_supplier(row.supplier_name)
+                elif row.supplier_name and row.supplier_id is None:
+                    resolved_supplier_id = await _resolve_supplier(row.supplier_name)
+
+                resolved_brand_id = row.brand_id
+                resolved_brand_name = row.brand_name
+                if row.brand_is_new and row.brand_name:
+                    brand = await _resolve_brand(row.brand_name)
+                    if brand:
+                        resolved_brand_id = brand.id
+                        resolved_brand_name = brand.name
+                elif row.brand_name and row.brand_id is None:
+                    brand = await _resolve_brand(row.brand_name)
+                    if brand:
+                        resolved_brand_id = brand.id
+                        resolved_brand_name = brand.name
+
                 if row.is_new:
                     # Crear nuevo producto
                     initial_stock = row.current_stock
@@ -288,8 +572,10 @@ class ExcelService:
                         code=row.code,
                         supplier_code=row.supplier_code,
                         description=row.description,
-                        category_id=row.category_id,
-                        supplier_id=row.supplier_id,
+                        category_id=resolved_category_id,
+                        supplier_id=resolved_supplier_id,
+                        brand_id=resolved_brand_id,
+                        brand=resolved_brand_name,
                         list_price=row.list_price,
                         discount_1=row.discount_1,
                         discount_2=row.discount_2,
@@ -355,8 +641,10 @@ class ExcelService:
                             existing_product.code = row.code
                             existing_product.supplier_code = row.supplier_code
                             existing_product.description = row.description
-                            existing_product.category_id = row.category_id
-                            existing_product.supplier_id = row.supplier_id
+                            existing_product.category_id = resolved_category_id
+                            existing_product.supplier_id = resolved_supplier_id
+                            existing_product.brand_id = resolved_brand_id
+                            existing_product.brand = resolved_brand_name
                             existing_product.list_price = row.list_price
                             existing_product.discount_1 = row.discount_1
                             existing_product.discount_2 = row.discount_2
@@ -438,7 +726,7 @@ class ExcelService:
         Retorna un resumen de la operación.
         """
         try:
-            df = pd.read_excel(io.BytesIO(file_content))
+            df = pd.read_excel(io.BytesIO(file_content), dtype=str)
         except Exception as e:
             raise ValueError(f"Error al leer el archivo Excel: {str(e)}")
 
@@ -493,21 +781,30 @@ class ExcelService:
                 # Datos del producto
                 product_data = {
                     "code": code,
-                    "supplier_code": str(row.get('codigo_proveedor', '')) if pd.notna(row.get('codigo_proveedor')) else None,
+                    "supplier_code": str(row.get('codigo_proveedor', '')).strip() if pd.notna(row.get('codigo_proveedor')) else None,
                     "description": str(row.get('nombre', '')),
-                    "current_stock": int(row.get('stock', 0)) if pd.notna(row.get('stock')) else 0,
-                    "list_price": Decimal(str(row.get('precio_lista', 0))),
+                    "brand": str(row.get('marca', '')).strip() if pd.notna(row.get('marca')) else None,
+                    "current_stock": int(self._safe_decimal(row.get('stock'))) if pd.notna(row.get('stock')) else 0,
+                    "list_price": self._safe_decimal(row.get('precio_lista')),
                     "discount_1": d1,
                     "discount_2": d2,
                     "discount_3": d3,
-                    "extra_cost": Decimal(str(row.get('cargo_extra', 0))) if pd.notna(row.get('cargo_extra')) else Decimal(0),
-                    "profit_margin": Decimal(str(row.get('ganancia', 0))) if pd.notna(row.get('ganancia')) else Decimal(0),
+                    "extra_cost": self._safe_decimal(row.get('cargo_extra')),
+                    "profit_margin": self._safe_decimal(row.get('ganancia')),
                     "iva_rate": Decimal("21.00"), # Default
                     "unit": str(row.get('unidad', 'unidad')).strip().lower() if pd.notna(row.get('unidad')) else 'unidad',
                     "units_per_pack": int(row.get('unidades_x_pack')) if pd.notna(row.get('unidades_x_pack')) else None,
                     "expiration_date": None,
                     "business_id": business_id
                 }
+
+                if product_data["brand"]:
+                    brand = await BrandService(self.db).resolve_or_create(
+                        business_id,
+                        str(product_data["brand"]),
+                    )
+                    product_data["brand_id"] = brand.id
+                    product_data["brand"] = brand.name
 
                 # Parsear vencimiento si está presente
                 if pd.notna(row.get('vencimiento')):
@@ -566,6 +863,7 @@ class ExcelService:
             .options(
                 selectinload(Product.category),
                 selectinload(Product.supplier),
+                selectinload(Product.brand_ref),
                 selectinload(Product.lots),
             )
             .where(
@@ -624,7 +922,7 @@ class ExcelService:
                 p.supplier.name if p.supplier else '',
                 p.category.name if p.category else '',
                 p.description or '',
-                p.brand or '',
+                p.brand_ref.name if p.brand_ref else (p.brand or ''),
                 p.unit or 'unidad',
                 int(p.current_stock) if p.current_stock else 0,
                 float(p.list_price) if p.list_price else 0.0,

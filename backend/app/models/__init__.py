@@ -8,6 +8,7 @@ from app.models.audit_log import AuditLog
 from app.models.authorization import AuthorizationRequest, AuthorizationStatus, AuthorizationType
 from app.models.base import BaseModel
 from app.models.business import Business
+from app.models.brand import Brand
 from app.models.cash_register import (
     CashMovement,
     CashMovementType,
@@ -55,6 +56,7 @@ __all__ = [
     # Usuarios y negocios
     "User",
     "Business",
+    "Brand",
     "TenantSecret",
     "TenantMembership",
     "MembershipRole",

@@ -18,6 +18,7 @@ from app.routers import (
     audit_logs,
     auth,
     billing,
+    brands,
     business,
     cash,
     categories,
@@ -102,6 +103,7 @@ app.include_router(client_authorizations.router, prefix=settings.API_TENANT_PREF
 app.include_router(client_types.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(suppliers.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(categories.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(brands.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(dashboard.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(drafts.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(exchange_rate.router, prefix=settings.API_TENANT_PREFIX)

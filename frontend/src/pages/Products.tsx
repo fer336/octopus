@@ -12,8 +12,10 @@ import { useDebounce } from '../hooks/useDebounce'
 import productsService, { ProductCreate, ProductUpdate, Product, ProductImportRow, ImportPreviewResponse, SyncPriceFromLotResponse } from '../api/productsService'
 import categoriesService from '../api/categoriesService'
 import suppliersService from '../api/suppliersService'
+import brandsService from '../api/brandsService'
 import businessService from '../api/businessService'
 import ImportPreviewModal from '../components/products/ImportPreviewModal'
+import ColumnMapperModal from '../components/products/ColumnMapperModal'
 import QrPrintPreview from '../components/products/QrPrintPreview'
 import BulkDeleteModal from '../components/products/BulkDeleteModal'
 import ImportProgressModal from '../components/products/ImportProgressModal'
@@ -31,6 +33,7 @@ export default function Products() {
   const debouncedSearch = useDebounce(search, 300)
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedSupplier, setSelectedSupplier] = useState('')
+  const [selectedBrand, setSelectedBrand] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -39,6 +42,12 @@ export default function Products() {
   const [isImporting, setIsImporting] = useState(false)
   const [showImportPreview, setShowImportPreview] = useState(false)
   const [importPreviewData, setImportPreviewData] = useState<ImportPreviewResponse | null>(null)
+  const [showColumnMapper, setShowColumnMapper] = useState(false)
+  const [columnMapperData, setColumnMapperData] = useState<{
+    file: File
+    columns: string[]
+    sampleRows: (string | null)[][]
+  } | null>(null)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [showImportProgress, setShowImportProgress] = useState(false)
   const [selectedForQr, setSelectedForQr] = useState<Set<string>>(new Set())
@@ -82,13 +91,14 @@ export default function Products() {
 
   // React Query para productos con filtros
   const { data: productsData, isLoading, isFetching, error } = useQuery({
-    queryKey: ['products', page, debouncedSearch, selectedCategory, selectedSupplier],
+    queryKey: ['products', page, debouncedSearch, selectedCategory, selectedSupplier, selectedBrand],
     queryFn: () => productsService.getAll({ 
       page, 
       per_page: 20, 
       search: debouncedSearch,
       category_id: selectedCategory || undefined,
-      supplier_id: selectedSupplier || undefined
+      supplier_id: selectedSupplier || undefined,
+      brand_id: selectedBrand || undefined,
     }),
     placeholderData: keepPreviousData,
     retry: false,
@@ -106,6 +116,13 @@ export default function Products() {
   const { data: suppliersData } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => suppliersService.getAll({ per_page: 100 }),
+    retry: false,
+    enabled: !!productsData || !error,
+  })
+
+  const { data: brandsData } = useQuery({
+    queryKey: ['brands'],
+    queryFn: () => brandsService.getAll({ per_page: 100 }),
     retry: false,
     enabled: !!productsData || !error,
   })
@@ -129,6 +146,7 @@ export default function Products() {
   // Valores seguros con fallback a array vacío
   const categories = Array.isArray(categoriesData) ? categoriesData : []
   const suppliers = Array.isArray(suppliersData?.items) ? suppliersData.items : []
+  const brands = Array.isArray(brandsData?.items) ? brandsData.items : []
 
   // Mutation para crear producto
   const createMutation = useMutation({
@@ -142,6 +160,7 @@ export default function Products() {
         }
       }
       queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['brands'] })
       toast.success('Producto creado correctamente', {
         duration: 3000,
         icon: '✅',
@@ -169,6 +188,7 @@ export default function Products() {
         }
       }
       queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['brands'] })
       toast.success('Producto actualizado correctamente', {
         duration: 3000,
         icon: '✅',
@@ -183,59 +203,71 @@ export default function Products() {
     },
   })
 
-  // Manejo de importación Excel - Ahora con preview y modal de loading
+  // Manejo de importación Excel - Detecta columnas y abre el mapper
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0]
-      
-      // Mostrar modal de loading mientras se parsea
-      setShowImportProgress(true)
-      setImportProgress(0)
-      setImportStatus('importing')
-      setImportMessage('Leyendo archivo Excel...')
+
       setIsImporting(true)
-      
-      // Simular progreso de lectura
-      const readInterval = setInterval(() => {
-        setImportProgress((prev) => {
-          if (prev >= 80) return prev
-          return prev + 20
-        })
-      }, 200)
-      
+
       try {
-        // Llamar al endpoint de preview
-        const preview = await productsService.previewImport(file)
-        
-        clearInterval(readInterval)
-        setImportProgress(100)
-        setImportMessage('Archivo procesado correctamente')
-        
-        // Esperar un momento para que se vea el 100%
-        setTimeout(() => {
-          setShowImportProgress(false)
-          setImportPreviewData(preview)
-          setShowImportPreview(true)
-          
-          toast.success(`${preview.total_rows} productos encontrados`, {
-            icon: '📄'
-          })
-        }, 500)
-        
+        const detected = await productsService.detectColumns(file)
+        setColumnMapperData({
+          file,
+          columns: detected.columns,
+          sampleRows: detected.sample_rows,
+        })
+        setShowColumnMapper(true)
       } catch (error: any) {
-        clearInterval(readInterval)
-        setImportStatus('error')
-        setImportMessage('Error al leer archivo')
-        
         toast.error('Error al leer archivo: ' + (error.response?.data?.detail || error.message))
-        
-        setTimeout(() => {
-          setShowImportProgress(false)
-        }, 2000)
       } finally {
         setIsImporting(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
       }
+    }
+  }
+
+  // Usuario confirmó el mapping → llama preview con el mapping
+  const handleColumnMapperConfirm = async (columnMapping: Record<string, string>) => {
+    if (!columnMapperData) return
+
+    setShowColumnMapper(false)
+
+    // Mostrar modal de loading mientras se parsea
+    setShowImportProgress(true)
+    setImportProgress(0)
+    setImportStatus('importing')
+    setImportMessage('Leyendo archivo Excel...')
+
+    // Simular progreso de lectura
+    const readInterval = setInterval(() => {
+      setImportProgress((prev) => {
+        if (prev >= 80) return prev
+        return prev + 20
+      })
+    }, 200)
+
+    try {
+      const preview = await productsService.previewImport(columnMapperData.file, columnMapping)
+
+      clearInterval(readInterval)
+      setImportProgress(100)
+      setImportMessage('Archivo procesado correctamente')
+
+      setTimeout(() => {
+        setShowImportProgress(false)
+        setImportPreviewData(preview)
+        setShowImportPreview(true)
+        toast.success(`${preview.total_rows} productos encontrados`, { icon: '📄' })
+      }, 500)
+    } catch (error: any) {
+      clearInterval(readInterval)
+      setImportStatus('error')
+      setImportMessage('Error al leer archivo')
+      toast.error('Error al leer archivo: ' + (error.response?.data?.detail || error.message))
+      setTimeout(() => {
+        setShowImportProgress(false)
+      }, 2000)
     }
   }
 
@@ -297,6 +329,7 @@ export default function Products() {
       }
       
       queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['brands'] })
       setImportPreviewData(null)
       
       // Cerrar modal de progreso después de 2 segundos
@@ -595,6 +628,8 @@ export default function Products() {
     supplier_code: '',
     category_id: '',
     supplier_id: '',
+    brand_id: '',
+    brand: '',
     list_price: 0,
     discount_1: 0,
     discount_2: 0,
@@ -627,7 +662,7 @@ export default function Products() {
   const extraCostRef = useRef<HTMLInputElement>(null)
   const profitRef = useRef<HTMLInputElement>(null)
   const taxRef = useRef<HTMLInputElement>(null)
-  const brandRef = useRef<HTMLInputElement>(null)
+  const brandRef = useRef<HTMLSelectElement>(null)
   const categoryRef = useRef<HTMLSelectElement>(null)
   const supplierRef = useRef<HTMLSelectElement>(null)
   const stockRef = useRef<HTMLInputElement>(null)
@@ -643,6 +678,8 @@ export default function Products() {
       supplier_code: '',
       category_id: '',
       supplier_id: '',
+      brand_id: '',
+      brand: '',
       list_price: 0,
       discount_1: 0,
       discount_2: 0,
@@ -838,6 +875,8 @@ export default function Products() {
         customer_terms: formData.customer_terms?.trim() || undefined,
         category_id: formData.category_id || undefined,
         supplier_id: formData.supplier_id || undefined,
+        brand_id: formData.brand_id || undefined,
+        brand: formData.brand?.trim() || undefined,
         list_price: resolvedListPrice,
         price_currency: priceCurrency,
         list_price_usd: priceCurrency === 'USD' ? Number(listPriceUsd) : null,
@@ -863,6 +902,8 @@ export default function Products() {
         customer_terms: formData.customer_terms?.trim() || undefined,
         category_id: formData.category_id || undefined,
         supplier_id: formData.supplier_id || undefined,
+        brand_id: formData.brand_id || undefined,
+        brand: formData.brand?.trim() || undefined,
         list_price: resolvedListPrice,
         price_currency: priceCurrency,
         list_price_usd: priceCurrency === 'USD' ? Number(listPriceUsd) : null,
@@ -1062,7 +1103,7 @@ export default function Products() {
       </div>
 
       {/* Barra de Filtros Completa */}
-      <div className="bg-white dark:bg-gray-800 p-3 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="bg-white dark:bg-gray-800 p-3 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 grid grid-cols-1 md:grid-cols-5 gap-3">
         <div className="md:col-span-2 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
           <input
@@ -1080,7 +1121,10 @@ export default function Products() {
         
         <Select
           value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
+          onChange={(e) => {
+            setSelectedCategory(e.target.value)
+            setPage(1)
+          }}
           options={[
             { value: '', label: 'Todas las Categorías' },
             ...categories.map(c => ({ value: c.id, label: c.name }))
@@ -1089,23 +1133,40 @@ export default function Products() {
         
         <Select
           value={selectedSupplier}
-          onChange={(e) => setSelectedSupplier(e.target.value)}
+          onChange={(e) => {
+            setSelectedSupplier(e.target.value)
+            setPage(1)
+          }}
           options={[
             { value: '', label: 'Todos los Proveedores' },
             ...suppliers.map(s => ({ value: s.id, label: s.name }))
+          ]}
+        />
+
+        <Select
+          value={selectedBrand}
+          onChange={(e) => {
+            setSelectedBrand(e.target.value)
+            setPage(1)
+          }}
+          options={[
+            { value: '', label: 'Todas las Marcas' },
+            ...brands.map(brand => ({ value: brand.id, label: brand.name }))
           ]}
         />
       </div>
 
       {/* Tabla desktop */}
       <div className="hidden lg:block" data-tour-products-table>
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
-          <div className="grid grid-cols-[32px_88px_minmax(260px,1.6fr)_120px_120px_110px_120px_110px] items-center gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-400">
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+          <div className="grid min-w-[1020px] grid-cols-[32px_64px_88px_minmax(220px,1.35fr)_110px_110px_92px_82px_64px_98px] items-center gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-400">
             <span />
             <span>Código</span>
-            <span>Producto</span>
-            <span>Vence</span>
-            <span>Lista</span>
+            <span>Cód. proveedor</span>
+            <span>Descripción</span>
+            <span>Categoría</span>
+            <span>Proveedor</span>
+            <span className="text-center">Lista</span>
             <span>Venta</span>
             <span>Stock</span>
             <span className="text-right">Acciones</span>
@@ -1125,7 +1186,7 @@ export default function Products() {
 
                 return (
                   <article key={item.id} className={`group bg-white transition-colors hover:bg-gray-50/80 dark:bg-gray-900 dark:hover:bg-gray-800/60 ${selectedForQr.has(item.id) ? 'ring-1 ring-inset ring-violet-400 dark:ring-violet-600' : ''}`}>
-                    <div className="grid grid-cols-[32px_88px_minmax(260px,1.6fr)_120px_120px_110px_120px_110px] items-center gap-3 px-4 py-3">
+                    <div className="grid min-w-[1020px] grid-cols-[32px_64px_88px_minmax(220px,1.35fr)_110px_110px_92px_82px_64px_98px] items-center gap-2 px-4 py-3">
                       {qrScannerEnabled ? (
                         <input
                           type="checkbox"
@@ -1145,6 +1206,9 @@ export default function Products() {
                       <span className="inline-flex w-fit rounded-lg bg-gray-100 px-2 py-1 font-mono text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
                         {item.code}
                       </span>
+                      <span className="truncate font-mono text-xs text-gray-600 dark:text-gray-300" title={item.supplier_code || undefined}>
+                        {item.supplier_code || '—'}
+                      </span>
 
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
@@ -1157,16 +1221,19 @@ export default function Products() {
                             </span>
                           )}
                         </div>
-                        <div className="mt-1 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                          <span className="truncate">{categoryName || 'Sin categoría'}</span>
-                          <span className="h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+                        <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
                           <span>{formatUnit(item)}</span>
                         </div>
                       </div>
 
-                      <div>{renderExpirationBadge(item)}</div>
+                      <span className="truncate text-xs text-gray-600 dark:text-gray-300" title={categoryName || undefined}>
+                        {categoryName || 'Sin categoría'}
+                      </span>
+                      <span className="truncate text-xs text-gray-600 dark:text-gray-300" title={supplierName || undefined}>
+                        {supplierName || 'Sin proveedor'}
+                      </span>
 
-                      <span className="flex flex-col items-end gap-0.5 font-mono text-xs text-gray-700 dark:text-gray-300">
+                      <span className="flex flex-col items-center gap-0.5 font-mono text-xs text-gray-700 dark:text-gray-300">
                         <span className="flex items-center gap-1">
                           {isDollarPricedProduct(item)
                             ? formatMoney(item.list_price_usd, 'USD')
@@ -1219,10 +1286,10 @@ export default function Products() {
                     {isExpanded && (
                       <div className="grid grid-cols-[88px_1fr] gap-3 border-t border-gray-100 bg-gray-50/80 px-4 py-2.5 dark:border-gray-800 dark:bg-gray-800/40">
                         <span />
-                        <div className="grid grid-cols-4 gap-2 text-xs">
+                        <div className="grid grid-cols-3 gap-2 text-xs">
                           <div className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 dark:border-gray-700 dark:bg-gray-900">
-                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Proveedor</p>
-                            <p className="mt-0.5 truncate font-medium text-gray-700 dark:text-gray-200">{supplierName || 'Sin proveedor'}</p>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Vencimiento</p>
+                            <div className="mt-1">{renderExpirationBadge(item)}</div>
                           </div>
                           <div className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 dark:border-gray-700 dark:bg-gray-900">
                             <p className="text-[10px] uppercase tracking-wide text-gray-400">Bonificación</p>
@@ -1231,10 +1298,6 @@ export default function Products() {
                           <div className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 dark:border-gray-700 dark:bg-gray-900">
                             <p className="text-[10px] uppercase tracking-wide text-gray-400">Extra</p>
                             <p className="mt-0.5 font-semibold text-orange-700 dark:text-orange-300">{item.extra_cost > 0 ? `${item.extra_cost}%` : '—'}</p>
-                          </div>
-                          <div className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 dark:border-gray-700 dark:bg-gray-900">
-                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Código proveedor</p>
-                            <p className="mt-0.5 truncate font-mono text-gray-700 dark:text-gray-200">{item.supplier_code || '—'}</p>
                           </div>
                         </div>
                       </div>
@@ -1626,17 +1689,36 @@ export default function Products() {
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Marca
                 </label>
-                <input
+                <select
                   ref={brandRef}
-                  type="text"
-                  value={formData.brand || ''}
-                  onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                  value={formData.brand_id || ''}
+                  onChange={(e) => {
+                    const selected = brands.find(brand => brand.id === e.target.value)
+                    setFormData({
+                      ...formData,
+                      brand_id: e.target.value,
+                      brand: selected?.name || '',
+                    })
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') { e.preventDefault(); categoryRef.current?.focus() }
                   }}
-                  placeholder="Ej: FV, Ferrum, Andina"
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-                />
+                >
+                  <option value="">Nueva o sin marca...</option>
+                  {brands.map((brand) => (
+                    <option key={brand.id} value={brand.id}>{brand.name}</option>
+                  ))}
+                </select>
+                {!formData.brand_id && (
+                  <input
+                    type="text"
+                    value={formData.brand || ''}
+                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                    placeholder="Escribir nueva marca: FV, Ferrum, Andina"
+                    className="mt-1.5 w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                  />
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -2048,6 +2130,20 @@ export default function Products() {
           </div>
         </div>
       </Modal>
+
+      {/* Modal de mapeo de columnas Excel */}
+      {showColumnMapper && columnMapperData && (
+        <ColumnMapperModal
+          file={columnMapperData.file}
+          columns={columnMapperData.columns}
+          sampleRows={columnMapperData.sampleRows}
+          onConfirm={(mapping) => void handleColumnMapperConfirm(mapping)}
+          onCancel={() => {
+            setShowColumnMapper(false)
+            setColumnMapperData(null)
+          }}
+        />
+      )}
 
       {/* Modal de Preview de Importación */}
       <ImportPreviewModal

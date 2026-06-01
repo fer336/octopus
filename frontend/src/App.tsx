@@ -25,6 +25,7 @@ const PriceUpdate = lazy(() => import('./pages/PriceUpdate'))
 const Clients    = lazy(() => import('./pages/Clients'))
 const Suppliers  = lazy(() => import('./pages/Suppliers'))
 const Categories = lazy(() => import('./pages/Categories'))
+const Brands     = lazy(() => import('./pages/Brands'))
 const Vouchers   = lazy(() => import('./pages/Vouchers'))
 const CurrentAccount = lazy(() => import('./pages/CurrentAccount'))
 const PaymentMethods = lazy(() => import('./pages/PaymentMethods'))
@@ -147,6 +148,9 @@ export default function App() {
               } />
               <Route path="categories" element={
                 <Suspense fallback={<PageLoader />}><Categories /></Suspense>
+              } />
+              <Route path="brands" element={
+                <Suspense fallback={<PageLoader />}><Brands /></Suspense>
               } />
               <Route path="comprobantes" element={
                 <Suspense fallback={<PageLoader />}><Vouchers /></Suspense>

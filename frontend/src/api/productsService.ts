@@ -9,12 +9,14 @@ export interface Product {
   business_id: string
   category_id?: string
   supplier_id?: string
+  brand_id?: string | null
   code: string
   supplier_code?: string
   photo_url?: string
   description: string
   details?: string
   brand?: string
+  brand_name?: string | null
   line?: string
   application_area?: string
   finish?: string
@@ -52,6 +54,8 @@ export interface ProductCreate {
   supplier_code?: string
   description: string
   brand?: string
+  brand_id?: string
+  brand_name?: string
   line?: string
   application_area?: string
   finish?: string
@@ -84,6 +88,8 @@ export interface ProductUpdate {
   supplier_code?: string
   description?: string
   brand?: string
+  brand_id?: string | null
+  brand_name?: string | null
   line?: string
   application_area?: string
   finish?: string
@@ -138,6 +144,9 @@ export interface ProductImportRow {
   category_name?: string
   supplier_id?: string
   supplier_name?: string
+  brand_id?: string
+  brand_name?: string
+  brand_is_new?: boolean
   list_price: number
   discount_1: number
   discount_2: number
@@ -212,6 +221,7 @@ export const productsService = {
     search?: string
     category_id?: string
     supplier_id?: string
+    brand_id?: string
     brand?: string
     line?: string
     application_area?: string
@@ -265,12 +275,29 @@ export const productsService = {
   },
 
   /**
-   * Preview de importación de Excel.
-   * Parsea el archivo y retorna datos para revisión.
+   * Detecta columnas de un archivo Excel para el mapper de importación.
+   * Retorna headers, filas de muestra y total de filas.
    */
-  previewImport: async (file: File): Promise<ImportPreviewResponse> => {
+  detectColumns: async (file: File): Promise<{ columns: string[]; sample_rows: (string | null)[][]; total_rows: number }> => {
     const formData = new FormData()
     formData.append('file', file)
+    const response = await httpClient.post('/products/import/detect', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data
+  },
+
+  /**
+   * Preview de importación de Excel.
+   * Parsea el archivo y retorna datos para revisión.
+   * Acepta un mapping opcional de columnas Excel → campo canónico.
+   */
+  previewImport: async (file: File, columnMapping?: Record<string, string>): Promise<ImportPreviewResponse> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (columnMapping) {
+      formData.append('column_mapping', JSON.stringify(columnMapping))
+    }
     const response = await httpClient.post('/products/import/preview', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
