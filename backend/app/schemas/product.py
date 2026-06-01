@@ -25,6 +25,8 @@ class ProductCreate(BaseSchema):
     )
     details: str | None = Field(None, description="Descripción extendida")
     brand: str | None = Field(None, max_length=100)
+    brand_id: UUID | None = None
+    brand_name: str | None = Field(None, max_length=100)
     line: str | None = Field(None, max_length=100)
     application_area: str | None = Field(None, max_length=100)
     finish: str | None = Field(None, max_length=80)
@@ -76,6 +78,8 @@ class ProductUpdate(BaseSchema):
     description: str | None = Field(None, max_length=500)
     details: str | None = None
     brand: str | None = Field(None, max_length=100)
+    brand_id: UUID | None = None
+    brand_name: str | None = Field(None, max_length=100)
     line: str | None = Field(None, max_length=100)
     application_area: str | None = Field(None, max_length=100)
     finish: str | None = Field(None, max_length=80)
@@ -139,6 +143,8 @@ class ProductResponse(BaseResponse):
     description: str
     details: str | None
     brand: str | None
+    brand_id: UUID | None
+    brand_name: str | None
     line: str | None
     application_area: str | None
     finish: str | None
@@ -227,6 +233,7 @@ class ProductListParams(BaseSchema):
     category_id: UUID | None = None
     supplier_id: UUID | None = None
     brand: str | None = None
+    brand_id: UUID | None = None
     line: str | None = None
     application_area: str | None = None
     finish: str | None = None

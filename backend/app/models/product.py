@@ -39,6 +39,12 @@ class Product(BaseModel):
         nullable=True,
         index=True,
     )
+    brand_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("brands.id"),
+        nullable=True,
+        index=True,
+    )
 
     # Códigos
     code = Column(String(50), nullable=False, index=True)  # Código interno del negocio
@@ -106,6 +112,7 @@ class Product(BaseModel):
     business = relationship("Business", back_populates="products")
     category = relationship("Category", back_populates="products")
     supplier = relationship("Supplier", back_populates="products")
+    brand_ref = relationship("Brand", back_populates="products")
     price_history = relationship(
         "PriceHistory", back_populates="product", lazy="dynamic"
     )
@@ -119,6 +126,11 @@ class Product(BaseModel):
     def current_stock(self) -> int:
         """Retorna el stock actual sumando la cantidad de todos los lotes activos."""
         return sum(lot.quantity for lot in self.lots if not lot.deleted_at)
+
+    @property
+    def brand_name(self) -> str | None:
+        """Retorna la marca canónica, con fallback al texto legacy."""
+        return self.brand_ref.name if self.brand_ref else self.brand
 
     @property
     def next_expiration(self) -> date | None:

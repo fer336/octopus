@@ -4,12 +4,13 @@ Endpoints para gestión de productos e inventario.
 """
 
 import io
+import json
 import math
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +22,7 @@ from app.schemas.base import MessageResponse, PaginatedResponse
 from app.schemas.excel_schemas import (
     ImportConfirmRequest,
     ImportConfirmResponse,
+    ImportDetectResponse,
     ImportPreviewResponse,
 )
 from app.schemas.price_update import (
@@ -191,6 +193,7 @@ async def list_products(
     search: str | None = Query(None, description="Buscar por código o descripción"),
     category_id: UUID | None = Query(None, description="Filtrar por categoría"),
     supplier_id: UUID | None = Query(None, description="Filtrar por proveedor"),
+    brand_id: UUID | None = Query(None, description="Filtrar por marca normalizada"),
     brand: str | None = Query(None, description="Filtrar por marca"),
     line: str | None = Query(None, description="Filtrar por línea"),
     application_area: str | None = Query(
@@ -228,6 +231,7 @@ async def list_products(
         search=search,
         category_id=category_id,
         supplier_id=supplier_id,
+        brand_id=brand_id,
         brand=brand,
         line=line,
         application_area=application_area,
@@ -270,7 +274,13 @@ async def create_product(
             detail=f"Ya existe un producto con el código '{data.code}'",
         )
 
-    product = await service.create(business_id, data)
+    try:
+        product = await service.create(business_id, data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
     return ProductResponse.model_validate(product)
 
 
@@ -325,7 +335,13 @@ async def update_product(
 ):
     """Actualiza un producto existente."""
     service = ProductService(db)
-    product = await service.update(product_id, business_id, data, current_user.id)
+    try:
+        product = await service.update(product_id, business_id, data, current_user.id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
 
     if not product:
         raise HTTPException(
@@ -486,15 +502,15 @@ async def bulk_stock_delta(
     )
 
 
-@router.post("/import/preview", response_model=ImportPreviewResponse)
-async def preview_import_excel(
+@router.post("/import/detect", response_model=ImportDetectResponse)
+async def detect_import_columns(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    business_id: UUID = Depends(get_current_business),
 ):
     """
-    Parsea el Excel y retorna un preview de los productos a importar.
-    Permite al usuario revisar y editar antes de confirmar.
+    Reads an Excel file and returns the column headers plus up to 3 sample rows.
+    Used by the column mapper UI to let the user assign arbitrary headers to
+    canonical product fields before calling /import/preview.
     """
     if not file.filename or not file.filename.endswith((".xlsx", ".xls")):
         raise HTTPException(
@@ -506,7 +522,47 @@ async def preview_import_excel(
     service = ExcelService(db)
 
     try:
-        preview = await service.preview_import(business_id, content)
+        return service.detect_columns(content)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/import/preview", response_model=ImportPreviewResponse)
+async def preview_import_excel(
+    file: UploadFile = File(...),
+    column_mapping: str | None = Form(None),
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """
+    Parsea el Excel y retorna un preview de los productos a importar.
+    Permite al usuario revisar y editar antes de confirmar.
+
+    Accepts an optional `column_mapping` JSON form field produced by
+    ColumnMapperModal: {"ExcelHeader": "field_id", ...}.
+    Legacy callers without this field continue to work unchanged.
+    """
+    if not file.filename or not file.filename.endswith((".xlsx", ".xls")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El archivo debe ser un Excel (.xlsx, .xls)",
+        )
+
+    mapping: dict[str, str] | None = None
+    if column_mapping:
+        try:
+            mapping = json.loads(column_mapping)
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"column_mapping inválido: {exc}",
+            )
+
+    content = await file.read()
+    service = ExcelService(db)
+
+    try:
+        preview = await service.preview_import(business_id, content, column_mapping=mapping)
         return preview
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -13,11 +13,13 @@ from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.brand import Brand
 from app.models.price_history import PriceHistory
 from app.models.product import Product
 from app.models.product_lot import ProductLot
 from app.schemas.product import ProductBulkUpdateItem, ProductCreate, ProductListParams, ProductUpdate
 from app.schemas.product_lot import ProductLotCreate
+from app.services.brand_service import BrandService
 from app.services.product_lot_service import ProductLotService
 
 
@@ -38,7 +40,10 @@ class ProductService:
         initial_stock = data.current_stock
         exp_date = date.fromisoformat(data.expiration_date) if data.expiration_date else None
 
-        create_data = data.model_dump(exclude={"current_stock", "expiration_date"})
+        create_data = data.model_dump(
+            exclude={"current_stock", "expiration_date", "brand_name"}
+        )
+        await self._sync_brand_fields(business_id, create_data, data)
         product = Product(
             business_id=business_id,
             **create_data,
@@ -76,7 +81,7 @@ class ProductService:
             Product.id == product_id,
             Product.business_id == business_id,
         )
-        query = query.options(selectinload(Product.lots))
+        query = query.options(selectinload(Product.lots), selectinload(Product.brand_ref))
         if not include_deleted:
             query = query.where(Product.deleted_at.is_(None))
 
@@ -94,7 +99,7 @@ class ProductService:
             Product.business_id == business_id,
             Product.deleted_at.is_(None),
         )
-        query = query.options(selectinload(Product.lots))
+        query = query.options(selectinload(Product.lots), selectinload(Product.brand_ref))
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
@@ -111,12 +116,14 @@ class ProductService:
         ]
 
         # Aplicar filtros
+        uses_brand_join = bool(params.search)
         if params.search:
             search_filter = or_(
                 Product.code.ilike(f"%{params.search}%"),
                 Product.supplier_code.ilike(f"%{params.search}%"),
                 Product.description.ilike(f"%{params.search}%"),
                 Product.brand.ilike(f"%{params.search}%"),
+                Brand.name.ilike(f"%{params.search}%"),
                 Product.line.ilike(f"%{params.search}%"),
                 Product.application_area.ilike(f"%{params.search}%"),
                 Product.finish.ilike(f"%{params.search}%"),
@@ -130,8 +137,17 @@ class ProductService:
         if params.supplier_id:
             base_conditions.append(Product.supplier_id == params.supplier_id)
 
+        if params.brand_id:
+            base_conditions.append(Product.brand_id == params.brand_id)
+
         if params.brand:
-            base_conditions.append(Product.brand.ilike(f"%{params.brand}%"))
+            uses_brand_join = True
+            base_conditions.append(
+                or_(
+                    Product.brand.ilike(f"%{params.brand}%"),
+                    Brand.name.ilike(f"%{params.brand}%"),
+                )
+            )
 
         if params.line:
             base_conditions.append(Product.line.ilike(f"%{params.line}%"))
@@ -171,6 +187,8 @@ class ProductService:
 
         # Query de conteo
         count_query = select(func.count(Product.id)).where(*base_conditions)
+        if uses_brand_join:
+            count_query = count_query.outerjoin(Brand, Product.brand_id == Brand.id)
         if params.low_stock:
             count_query = count_query.outerjoin(
                 stock_by_product,
@@ -191,7 +209,7 @@ class ProductService:
         offset = (params.page - 1) * params.per_page
         query = (
             select(Product)
-            .options(selectinload(Product.lots))
+            .options(selectinload(Product.lots), selectinload(Product.brand_ref))
             .where(*base_conditions)
             .outerjoin(
                 stock_by_product,
@@ -201,6 +219,9 @@ class ProductService:
             .offset(offset)
             .limit(params.per_page)
         )
+
+        if uses_brand_join:
+            query = query.outerjoin(Brand, Product.brand_id == Brand.id)
 
         result = await self.db.execute(query)
         products = list(result.scalars().all())
@@ -225,7 +246,8 @@ class ProductService:
         old_sale_price = product.sale_price
 
         # Aplicar actualizaciones
-        update_data = data.model_dump(exclude_unset=True)
+        update_data = data.model_dump(exclude={"brand_name"}, exclude_unset=True)
+        await self._sync_brand_fields(business_id, update_data, data)
         for field, value in update_data.items():
             setattr(product, field, value)
 
@@ -271,7 +293,7 @@ class ProductService:
         product_ids = [item.id for item in items]
         result = await self.db.execute(
             select(Product)
-            .options(selectinload(Product.lots))
+            .options(selectinload(Product.lots), selectinload(Product.brand_ref))
             .where(
                 Product.id.in_(product_ids),
                 Product.business_id == business_id,
@@ -302,7 +324,8 @@ class ProductService:
             old_net_price = product.net_price
             old_sale_price = product.sale_price
 
-            update_data = item.model_dump(exclude={"id"}, exclude_unset=True)
+            update_data = item.model_dump(exclude={"id", "brand_name"}, exclude_unset=True)
+            await self._sync_brand_fields(business_id, update_data, item)
             desired_stock = update_data.pop("current_stock", None)
             for field, value in update_data.items():
                 setattr(product, field, value)
@@ -358,7 +381,7 @@ class ProductService:
         updated_ids = [product.id for product in updated_products]
         refreshed_result = await self.db.execute(
             select(Product)
-            .options(selectinload(Product.lots))
+            .options(selectinload(Product.lots), selectinload(Product.brand_ref))
             .where(
                 Product.id.in_(updated_ids),
                 Product.business_id == business_id,
@@ -405,6 +428,46 @@ class ProductService:
         )
         entries = list(result.scalars().all())
         return entries, total
+
+    async def _sync_brand_fields(
+        self,
+        business_id: UUID,
+        product_data: dict,
+        source: ProductCreate | ProductUpdate | ProductBulkUpdateItem,
+    ) -> None:
+        """Resuelve marca canónica y mantiene el string legacy sincronizado."""
+        source_fields = getattr(source, "model_fields_set", set())
+        provided_brand_id = "brand_id" in source_fields
+        provided_brand_name = "brand_name" in source_fields
+        provided_brand = "brand" in source_fields
+
+        brand_id = product_data.get("brand_id")
+        raw_name = None
+        if provided_brand_name:
+            raw_name = getattr(source, "brand_name", None)
+        elif provided_brand:
+            raw_name = product_data.get("brand")
+
+        service = BrandService(self.db)
+        if brand_id:
+            brand = await service.get_by_id(brand_id, business_id)
+            if not brand:
+                raise ValueError("Marca no encontrada")
+            product_data["brand"] = brand.name
+            return
+
+        if raw_name and str(raw_name).strip():
+            brand = await service.resolve_or_create(business_id, str(raw_name))
+            product_data["brand_id"] = brand.id
+            product_data["brand"] = brand.name
+            return
+
+        if provided_brand_id and brand_id is None:
+            product_data["brand"] = None
+
+        if (provided_brand_name or provided_brand) and not raw_name:
+            product_data["brand_id"] = None
+            product_data["brand"] = None
 
     async def restore_price(
         self,

@@ -9,6 +9,16 @@ from pydantic import Field, field_serializer
 from app.schemas.base import BaseSchema
 
 
+class ImportDetectResponse(BaseSchema):
+    """Respuesta del endpoint de detección de columnas de un Excel."""
+
+    columns: list[str] = Field(..., description="Nombres de las columnas detectadas")
+    sample_rows: list[list] = Field(
+        ..., description="Hasta 3 filas de muestra con valores crudos"
+    )
+    total_rows: int = Field(..., description="Total de filas de datos (sin header)")
+
+
 class ProductImportRow(BaseSchema):
     """Representa una fila del Excel para importar/editar."""
 
@@ -19,8 +29,19 @@ class ProductImportRow(BaseSchema):
 
     category_id: UUID | None = None
     category_name: str | None = Field(None, description="Nombre de categoría (para display)")
+    category_is_new: bool = Field(
+        default=False, description="True si la categoría será creada al confirmar"
+    )
     supplier_id: UUID | None = None
     supplier_name: str | None = Field(None, description="Nombre de proveedor (para display)")
+    supplier_is_new: bool = Field(
+        default=False, description="True si el proveedor será creado al confirmar"
+    )
+    brand_id: UUID | None = None
+    brand_name: str | None = Field(None, description="Nombre de marca (para display)")
+    brand_is_new: bool = Field(
+        default=False, description="True si la marca será creada al confirmar"
+    )
 
     list_price: Decimal = Field(default=Decimal("0"), ge=0)
     discount_1: Decimal = Field(default=Decimal("0"), ge=0, le=100)

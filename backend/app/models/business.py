@@ -100,6 +100,7 @@ class Business(BaseModel):
     client_types = relationship("ClientType", back_populates="business", lazy="dynamic")
     suppliers = relationship("Supplier", back_populates="business", lazy="dynamic")
     categories = relationship("Category", back_populates="business", lazy="dynamic")
+    brands = relationship("Brand", back_populates="business", lazy="dynamic")
     payment_methods_catalog = relationship(
         "PaymentMethodCatalog", back_populates="business", lazy="dynamic"
     )
