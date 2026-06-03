@@ -85,7 +85,7 @@ export default function VouchersSelectionModal({
       setImportTarget(null)
       setSelectedListId('')
     }
-  }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isOpen])  
 
   const voucherById = new Map(selectedReceipts.map((v) => [v.id, v]))
   const orderedVouchers = orderedIds.map((id) => voucherById.get(id)).filter(Boolean) as Voucher[]
