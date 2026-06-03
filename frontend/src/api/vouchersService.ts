@@ -331,6 +331,7 @@ const vouchersService = {
     receipt_ids?: string[]
     close_all: boolean
     notes?: string
+    item_quantity_overrides?: Array<{ voucher_item_id: string; quantity: number }>
   }): Promise<Voucher> => {
     const response = await httpClient.post('/vouchers/current-account/close', data)
     return response.data
@@ -353,6 +354,7 @@ const vouchersService = {
     receipt_ids?: string[]
     close_all?: boolean
     notes?: string
+    item_quantity_overrides?: Array<{ voucher_item_id: string; quantity: number }>
   }): Promise<{
     billing_client_name: string
     items: Array<{
@@ -386,6 +388,7 @@ const vouchersService = {
     receipt_ids?: string[]
     close_all?: boolean
     notes?: string
+    item_quantity_overrides?: Array<{ voucher_item_id: string; quantity: number }>
   }): Promise<Blob> => {
     const response = await httpClient.post('/vouchers/current-account/preview-pdf', data, {
       responseType: 'blob',

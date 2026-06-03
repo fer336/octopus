@@ -34,6 +34,7 @@ from app.schemas.voucher import (
     CurrentAccountClosePreviewResponse,
     CurrentAccountClosureHistoryItem,
     CurrentAccountClosureReceiptSummary,
+    ItemQuantityOverride,
     VoucherCreate,
     VoucherUpdate,
 )
@@ -2395,6 +2396,7 @@ class VoucherService:
         receipt_ids: builtins.list[UUID] | None,
         close_all: bool,
         notes: str | None,
+        item_quantity_overrides: builtins.list[ItemQuantityOverride] | None = None,
     ) -> CurrentAccountClosePreviewResponse:
         """
         Previsualiza un cierre de cuenta corriente SIN persistir nada.
@@ -2453,12 +2455,28 @@ class VoucherService:
         total_iva = Decimal("0")
         total_final = Decimal("0")
 
+        override_map = {o.voucher_item_id: o.quantity for o in (item_quantity_overrides or [])}
+
         for receipt in source_receipts:
             # Obtener descuento general del remito
             general_discount = receipt.general_discount or Decimal("0")
 
             for item in receipt.items:
-                # Agregar prefijo con número de remito origen
+                qty = override_map.get(item.id, item.quantity)
+                if qty <= 0:
+                    continue
+
+                # Recalcular totales si la cantidad fue modificada
+                if qty != item.quantity and item.quantity > 0:
+                    ratio = qty / item.quantity
+                    subtotal = self._round_money(Decimal(str(item.subtotal)) * ratio)
+                    iva_amount = self._round_money(Decimal(str(item.iva_amount)) * ratio)
+                    total = self._round_money(Decimal(str(item.total)) * ratio)
+                else:
+                    subtotal = Decimal(str(item.subtotal))
+                    iva_amount = Decimal(str(item.iva_amount))
+                    total = Decimal(str(item.total))
+
                 desc_with_prefix = f"[{receipt.full_number}] {item.description}"
 
                 preview_item = CurrentAccountCloseItemPreview(
@@ -2467,20 +2485,20 @@ class VoucherService:
                     receipt_date=receipt.date,
                     operating_client_name=receipt.withdrawal_client_name,
                     is_withdrawal_authorized=receipt.is_withdrawal_authorized,
-general_discount=general_discount,
+                    general_discount=general_discount,
                     code=item.code,
                     description=desc_with_prefix,
-                    quantity=item.quantity,
+                    quantity=qty,
                     unit_price=item.unit_price,
                     discount_percent=item.discount_percent,
                     iva_rate=item.iva_rate,
-                    subtotal=item.subtotal,
-                    total=item.total,
+                    subtotal=subtotal,
+                    total=total,
                 )
                 items.append(preview_item)
-                total_subtotal += Decimal(str(item.subtotal))
-                total_iva += Decimal(str(item.iva_amount))
-                total_final += Decimal(str(item.total))
+                total_subtotal += subtotal
+                total_iva += iva_amount
+                total_final += total
 
         return CurrentAccountClosePreviewResponse(
             billing_client_name=billing_client.name,
@@ -2500,6 +2518,7 @@ general_discount=general_discount,
         close_all: bool,
         notes: str | None,
         user_id: UUID,
+        item_quantity_overrides: builtins.list[ItemQuantityOverride] | None = None,
     ) -> Voucher:
         """Cierra una cuenta corriente creando cotización consolidada pendiente de facturar."""
         billing_client = await self._get_client_or_raise(billing_client_id, business_id)
@@ -2584,28 +2603,44 @@ general_discount=general_discount,
         total_iva = Decimal("0")
         total_final = Decimal("0")
 
+        override_map = {o.voucher_item_id: o.quantity for o in (item_quantity_overrides or [])}
+
         for receipt in source_receipts:
             for item in receipt.items:
+                qty = override_map.get(item.id, item.quantity)
+                if qty <= 0:
+                    continue
+
+                if qty != item.quantity and item.quantity > 0:
+                    ratio = qty / item.quantity
+                    iva_amount = self._round_money(Decimal(str(item.iva_amount)) * ratio)
+                    subtotal = self._round_money(Decimal(str(item.subtotal)) * ratio)
+                    total = self._round_money(Decimal(str(item.total)) * ratio)
+                else:
+                    iva_amount = Decimal(str(item.iva_amount))
+                    subtotal = Decimal(str(item.subtotal))
+                    total = Decimal(str(item.total))
+
                 closure_item = VoucherItem(
                     voucher_id=closure_voucher.id,
                     product_id=item.product_id,
                     code=item.code,
                     description=f"[{receipt.full_number}] {item.description}",
-                    quantity=item.quantity,
+                    quantity=qty,
                     unit=item.unit,
                     unit_price=item.unit_price,
                     discount_percent=item.discount_percent,
                     iva_rate=item.iva_rate,
-                    iva_amount=item.iva_amount,
-                    subtotal=item.subtotal,
-                    total=item.total,
+                    iva_amount=iva_amount,
+                    subtotal=subtotal,
+                    total=total,
                     line_number=line_number,
                 )
                 self.db.add(closure_item)
                 line_number += 1
-                total_subtotal += Decimal(str(item.subtotal))
-                total_iva += Decimal(str(item.iva_amount))
-                total_final += Decimal(str(item.total))
+                total_subtotal += subtotal
+                total_iva += iva_amount
+                total_final += total
 
             receipt.invoiced_voucher_id = closure_voucher.id
 

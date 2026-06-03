@@ -75,6 +75,9 @@ export default function Sidebar({
         if (item.path === '/price-update' && !priceUpdateEnabled) {
           return false
         }
+        if (item.path === '/price-lists' && !priceUpdateEnabled && !currentAccountEnabled) {
+          return false
+        }
         if (item.path === '/reports' && !reportsEnabled) {
           return false
         }
@@ -102,14 +105,12 @@ export default function Sidebar({
     }))
   }, [visibleItems])
 
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
-    const activeSection = getActiveSection(location.pathname)
-
-    return navigationSections.reduce<Record<string, boolean>>((acc, section) => {
-      acc[section.key] = section.key === activeSection
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() =>
+    navigationSections.reduce<Record<string, boolean>>((acc, section) => {
+      acc[section.key] = true
       return acc
     }, {})
-  })
+  )
 
   useEffect(() => {
     const activeSection = getActiveSection(location.pathname)

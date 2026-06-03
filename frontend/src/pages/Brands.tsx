@@ -1,19 +1,14 @@
-/**
- * Página de Marcas.
- * CRUD completo con diseño mejorado: cards, contador de productos,
- * vista de productos asociados y confirmación de borrado.
- */
 import { useState } from 'react'
 import {
   Plus,
-  Edit,
+  Edit2,
   Trash2,
   Search,
   Tags,
-  Inbox,
   Package,
   AlertTriangle,
   ChevronRight,
+  RefreshCw,
 } from 'lucide-react'
 import { Button, Modal, Input } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
@@ -35,14 +30,10 @@ export default function Brands() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState<Partial<Brand>>({ name: '' })
   const [brandToDelete, setBrandToDelete] = useState<Brand | null>(null)
-
-  // ── Products panel ──────────────────────────────────────────────────
   const [productsBrand, setProductsBrand] = useState<Brand | null>(null)
   const [productsPage, setProductsPage] = useState(1)
 
-  // ── Queries ──────────────────────────────────────────────────────────
-
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['brands'],
     queryFn: () => brandsService.getAll({ per_page: 100 }),
     retry: false,
@@ -58,8 +49,6 @@ export default function Brands() {
     enabled: !!productsBrand,
     retry: false,
   })
-
-  // ── Mutations ────────────────────────────────────────────────────────
 
   const createMutation = useMutation({
     mutationFn: (payload: BrandCreate) => brandsService.create(payload),
@@ -101,8 +90,6 @@ export default function Brands() {
     },
   })
 
-  // ── Handlers ─────────────────────────────────────────────────────────
-
   const resetForm = () => {
     setIsEditing(false)
     setEditingId(null)
@@ -142,7 +129,6 @@ export default function Brands() {
       toast.error('El nombre es obligatorio')
       return
     }
-
     const payload = { name }
     if (isEditing && editingId) {
       updateMutation.mutate({ id: editingId, payload })
@@ -151,193 +137,105 @@ export default function Brands() {
     }
   }
 
-  // ── Derived state ────────────────────────────────────────────────────
-
   const brands = data?.items ?? []
   const filteredBrands = brands.filter((brand) =>
     brand.name.toLowerCase().includes(search.toLowerCase()),
   )
 
-  // ── Loading ──────────────────────────────────────────────────────────
-
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary-600" />
+      <div className="space-y-4">
+        <PageHeader onNew={() => handleOpenBrandModal()} />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-28 animate-pulse rounded-xl border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800"
+            />
+          ))}
+        </div>
       </div>
     )
   }
-
-  // ── Error ────────────────────────────────────────────────────────────
 
   if (error) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
-        <div className="mb-4 rounded-full bg-red-50 p-4 dark:bg-red-900/20">
-          <Tags className="h-8 w-8 text-red-500" />
+      <div className="space-y-4">
+        <PageHeader onNew={() => handleOpenBrandModal()} />
+        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-red-100 bg-red-50 px-6 py-16 text-center dark:border-red-900/30 dark:bg-red-900/10">
+          <div className="rounded-full bg-red-100 p-3 dark:bg-red-900/30">
+            <Tags className="h-7 w-7 text-red-500" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+              No se pudieron cargar las marcas
+            </p>
+            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+              {formatErrorMessage(error)}
+            </p>
+          </div>
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm transition hover:bg-red-50 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/40"
+          >
+            <RefreshCw size={12} />
+            Reintentar
+          </button>
         </div>
-        <h2 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
-          Error de Conexión
-        </h2>
-        <p className="max-w-md text-gray-500 dark:text-gray-400">
-          No pudimos cargar las marcas. Intentá nuevamente más tarde.
-        </p>
       </div>
     )
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // RENDER
-  // ═══════════════════════════════════════════════════════════════════════
-
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-4">
-      {/* ── Header ──────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary-200 bg-gradient-to-r from-primary-50 to-white px-4 py-3 shadow-sm dark:border-primary-800 dark:from-primary-900/30 dark:to-gray-800">
-        <div className="min-w-0">
-          <h1 className="flex items-center gap-2 text-lg font-bold leading-none text-gray-900 dark:text-white">
-            <Tags className="h-5 w-5 text-primary-600 dark:text-primary-400" />
-            Marcas
-          </h1>
-          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            {brands.length} marca{brands.length !== 1 ? 's' : ''} registrada{brands.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-        <Button
-          onClick={() => handleOpenBrandModal()}
-          className="border-none bg-primary-600 text-white shadow-md hover:bg-primary-700"
-        >
-          <Plus size={18} className="mr-2" />
-          Nueva Marca
-        </Button>
+      <PageHeader
+        count={brands.length}
+        onNew={() => handleOpenBrandModal()}
+      />
+
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Buscar marcas..."
+          className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-8 pr-3 text-sm text-gray-900 transition placeholder:text-gray-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-primary-500"
+        />
       </div>
 
-      {/* ── Search ──────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-        <div className="relative max-w-md">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar marcas..."
-            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-8 pr-3 text-sm text-gray-900 ring-1 ring-inset ring-gray-200 transition focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:ring-gray-600"
-          />
-        </div>
-      </div>
-
-      {/* ── Brand grid ──────────────────────────────────────────────── */}
+      {/* Grid */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {filteredBrands.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white px-4 py-12 dark:border-gray-700 dark:bg-gray-800/50">
-            <div className="text-center">
-              <Inbox className="mx-auto mb-3 h-10 w-10 text-gray-300 dark:text-gray-600" />
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                {search ? 'No hay marcas que coincidan' : 'No hay marcas registradas'}
-              </p>
-              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                {search
-                  ? 'Probá con otro término de búsqueda.'
-                  : 'Agregá tu primera marca para empezar a categorizar productos.'}
-              </p>
-              {!search && (
-                <Button
-                  onClick={() => handleOpenBrandModal()}
-                  variant="outline"
-                  className="mt-4"
-                >
-                  <Plus size={16} className="mr-1.5" />
-                  Crear Marca
-                </Button>
-              )}
-            </div>
-          </div>
+          <EmptyState
+            isFiltered={!!search}
+            onNew={() => handleOpenBrandModal()}
+            onClear={() => setSearch('')}
+          />
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredBrands.map((brand) => (
-              <article
+              <BrandCard
                 key={brand.id}
-                className="group relative flex flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-primary-200 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-primary-700"
-              >
-                {/* Brand name + icon */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
-                      <Tags size={16} />
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                        {brand.name}
-                      </h3>
-                      <p className="truncate font-mono text-[11px] text-gray-400 dark:text-gray-500">
-                        {brand.normalized_name}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Action buttons */}
-                  <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                    <button
-                      type="button"
-                      className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-900/30 dark:hover:text-primary-300"
-                      onClick={() => handleOpenBrandModal(brand)}
-                      title="Editar"
-                    >
-                      <Edit size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-300"
-                      onClick={() => handleDeleteClick(brand)}
-                      title="Eliminar"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Product count — clickable */}
-                <button
-                  type="button"
-                  onClick={() => handleShowProducts(brand)}
-                  className="mt-3 flex w-full items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs transition-colors hover:border-primary-100 hover:bg-primary-50 dark:border-gray-700 dark:bg-gray-700/50 dark:hover:border-primary-800 dark:hover:bg-primary-900/20"
-                >
-                  <span className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
-                    <Package size={14} />
-                    Productos asociados
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span
-                      className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        brand.product_count > 0
-                          ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300'
-                          : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-                      }`}
-                    >
-                      {brand.product_count}
-                    </span>
-                    <ChevronRight
-                      size={12}
-                      className="text-gray-300 dark:text-gray-600"
-                    />
-                  </span>
-                </button>
-              </article>
+                brand={brand}
+                onEdit={() => handleOpenBrandModal(brand)}
+                onDelete={() => handleDeleteClick(brand)}
+                onViewProducts={() => handleShowProducts(brand)}
+              />
             ))}
           </div>
         )}
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* CREATE / EDIT MODAL                                          */}
-      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* Create / Edit modal */}
       <Modal
         isOpen={showBrandModal}
         onClose={() => {
           setShowBrandModal(false)
           resetForm()
         }}
-        title={isEditing ? 'Editar Marca' : 'Nueva Marca'}
+        title={isEditing ? 'Editar marca' : 'Nueva marca'}
       >
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
@@ -357,7 +255,6 @@ export default function Brands() {
               Se normalizará automáticamente para evitar duplicados.
             </p>
           </div>
-
           <div className="flex justify-end gap-2 border-t border-gray-100 pt-5 dark:border-gray-700">
             <Button
               variant="outline"
@@ -376,62 +273,52 @@ export default function Brands() {
               {createMutation.isPending || updateMutation.isPending
                 ? 'Guardando...'
                 : isEditing
-                  ? 'Actualizar Marca'
-                  : 'Crear Marca'}
+                  ? 'Guardar cambios'
+                  : 'Crear marca'}
             </Button>
           </div>
         </form>
       </Modal>
 
-      {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* DELETE CONFIRMATION MODAL                                     */}
-      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* Delete confirmation */}
       <Modal
         isOpen={showDeleteConfirm}
         onClose={() => {
           setShowDeleteConfirm(false)
           setBrandToDelete(null)
         }}
-        title="Eliminar Marca"
+        title="Eliminar marca"
       >
         <div className="space-y-4">
           {brandToDelete && brandToDelete.product_count > 0 ? (
-            // ⚠️ Has products — warn and block
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-                <div>
-                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                    No se puede eliminar esta marca
-                  </p>
-                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                    La marca <strong>"{brandToDelete.name}"</strong> tiene{' '}
-                    <strong>{brandToDelete.product_count}</strong> producto
-                    {brandToDelete.product_count !== 1 ? 's' : ''} asociado
-                    {brandToDelete.product_count !== 1 ? 's' : ''}.
-                    Reasigná los productos a otra marca antes de eliminarla.
-                  </p>
-                </div>
+            <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+              <div>
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  No se puede eliminar esta marca
+                </p>
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                  <strong>"{brandToDelete.name}"</strong> tiene{' '}
+                  <strong>{brandToDelete.product_count}</strong> producto
+                  {brandToDelete.product_count !== 1 ? 's' : ''} asociado
+                  {brandToDelete.product_count !== 1 ? 's' : ''}.
+                  Reasigná los productos antes de eliminarla.
+                </p>
               </div>
             </div>
           ) : (
-            // ✅ Safe to delete
-            <div className="rounded-lg border border-red-100 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
-              <div className="flex items-start gap-3">
-                <Trash2 className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
-                <div>
-                  <p className="text-sm text-red-700 dark:text-red-300">
-                    ¿Estás seguro de eliminar la marca{' '}
-                    <strong>"{brandToDelete?.name}"</strong>?
-                  </p>
-                  <p className="mt-1 text-xs text-red-500 dark:text-red-400">
-                    Esta acción no se puede deshacer.
-                  </p>
-                </div>
+            <div className="flex items-start gap-3 rounded-lg border border-red-100 bg-red-50 p-4 dark:border-red-900/30 dark:bg-red-900/10">
+              <Trash2 className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
+              <div>
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  ¿Eliminar <strong>"{brandToDelete?.name}"</strong>?
+                </p>
+                <p className="mt-0.5 text-xs text-red-500 dark:text-red-400">
+                  Esta acción no se puede deshacer.
+                </p>
               </div>
             </div>
           )}
-
           <div className="flex justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-700">
             <Button
               variant="outline"
@@ -441,9 +328,7 @@ export default function Brands() {
               }}
               type="button"
             >
-              {brandToDelete && brandToDelete.product_count > 0
-                ? 'Entendido'
-                : 'Cancelar'}
+              {brandToDelete && brandToDelete.product_count > 0 ? 'Entendido' : 'Cancelar'}
             </Button>
             {(!brandToDelete || brandToDelete.product_count === 0) && (
               <Button
@@ -458,9 +343,7 @@ export default function Brands() {
         </div>
       </Modal>
 
-      {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* PRODUCTS MODAL                                                */}
-      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* Products modal */}
       <Modal
         isOpen={!!productsBrand}
         onClose={() => setProductsBrand(null)}
@@ -469,7 +352,6 @@ export default function Brands() {
       >
         {productsBrand && (
           <div className="space-y-3">
-            {/* Summary */}
             <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:bg-gray-700/50 dark:text-gray-400">
               <span className="flex items-center gap-1.5">
                 <Package size={14} />
@@ -477,41 +359,37 @@ export default function Brands() {
                 {(productsQuery.data?.total ?? 0) !== 1 ? 's' : ''} asociado
                 {(productsQuery.data?.total ?? 0) !== 1 ? 's' : ''}
               </span>
-
-              {/* Pagination */}
-              {productsQuery.data &&
-                productsQuery.data.pages > 1 && (
-                  <div className="flex items-center gap-1">
-                    {Array.from(
-                      { length: productsQuery.data.pages },
-                      (_, i) => i + 1,
-                    ).map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setProductsPage(p)}
-                        className={`flex h-6 w-6 items-center justify-center rounded text-xs font-medium transition ${
-                          p === productsPage
-                            ? 'bg-primary-600 text-white'
-                            : 'text-gray-500 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-600'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              {productsQuery.data && productsQuery.data.pages > 1 && (
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: productsQuery.data.pages }, (_, i) => i + 1).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setProductsPage(p)}
+                      className={`flex h-6 w-6 items-center justify-center rounded text-xs font-medium transition ${
+                        p === productsPage
+                          ? 'bg-primary-600 text-white'
+                          : 'text-gray-500 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-
-            {/* Product list */}
             {productsQuery.isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-primary-600" />
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-10 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-700" />
+                ))}
               </div>
             ) : productsQuery.data?.items.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-400 dark:border-gray-600">
-                <Inbox className="mx-auto mb-2 h-6 w-6 text-gray-300 dark:text-gray-600" />
-                <p>Esta marca no tiene productos asociados.</p>
+              <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center dark:border-gray-600">
+                <Package className="mx-auto mb-2 h-6 w-6 text-gray-300 dark:text-gray-600" />
+                <p className="text-sm text-gray-400 dark:text-gray-500">
+                  Sin productos asociados a esta marca.
+                </p>
               </div>
             ) : (
               <div className="max-h-80 space-y-1.5 overflow-y-auto">
@@ -527,61 +405,198 @@ export default function Brands() {
   )
 }
 
-/**
- * Fila de producto dentro del modal de productos de una marca.
- */
-function ProductRow({ product }: { product: BrandProductItem }) {
-  const [isExpanded, setIsExpanded] = useState(false)
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function PageHeader({
+  count,
+  onNew,
+}: {
+  count?: number
+  onNew: () => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
+          <Tags className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+          Marcas
+        </h1>
+        {count !== undefined && (
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {count} marca{count !== 1 ? 's' : ''} registrada{count !== 1 ? 's' : ''}
+          </p>
+        )}
+      </div>
+      <Button onClick={onNew}>
+        <Plus size={16} className="mr-1.5" />
+        Nueva marca
+      </Button>
+    </div>
+  )
+}
+
+function EmptyState({
+  isFiltered,
+  onNew,
+  onClear,
+}: {
+  isFiltered: boolean
+  onNew: () => void
+  onClear: () => void
+}) {
+  if (isFiltered) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center dark:border-gray-700 dark:bg-gray-800/50">
+        <Search className="h-8 w-8 text-gray-300 dark:text-gray-600" />
+        <div>
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            Sin coincidencias
+          </p>
+          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+            No hay marcas que coincidan con la búsqueda.
+          </p>
+        </div>
+        <button
+          onClick={onClear}
+          className="text-xs font-medium text-primary-600 hover:underline dark:text-primary-400"
+        >
+          Limpiar búsqueda
+        </button>
+      </div>
+    )
+  }
 
   return (
-    <div
-      className={`rounded-lg border bg-white text-xs transition-colors dark:border-gray-700 dark:bg-gray-800 ${
-        !product.is_active ? 'opacity-60' : ''
-      }`}
-    >
-      <button
-        type="button"
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex w-full items-center justify-between px-3 py-2 text-left"
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <span
-            className={`inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[11px] font-semibold ${
-              product.is_active
-                ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-                : 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-            }`}
-          >
-            {product.code}
-          </span>
-          <span className="truncate text-gray-700 dark:text-gray-300">
-            {product.description}
-          </span>
+    <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center dark:border-gray-700 dark:bg-gray-800/50">
+      <div className="rounded-full bg-primary-50 p-4 dark:bg-primary-900/20">
+        <Tags className="h-8 w-8 text-primary-600 dark:text-primary-400" />
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+          No hay marcas registradas
+        </p>
+        <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-gray-400">
+          Organizá tus productos por marca para filtrar más rápido y mantener el catálogo ordenado.
+        </p>
+      </div>
+      <Button onClick={onNew}>
+        <Plus size={14} className="mr-1.5" />
+        Crear primera marca
+      </Button>
+    </div>
+  )
+}
+
+function BrandCard({
+  brand,
+  onEdit,
+  onDelete,
+  onViewProducts,
+}: {
+  brand: Brand
+  onEdit: () => void
+  onDelete: () => void
+  onViewProducts: () => void
+}) {
+  return (
+    <article className="flex flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-800">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+            <Tags size={16} />
+          </div>
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+              {brand.name}
+            </h3>
+            <p className="truncate font-mono text-[11px] text-gray-400 dark:text-gray-500">
+              {brand.normalized_name}
+            </p>
+          </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-3">
-          <span className="font-medium text-gray-900 dark:text-white">
-            ${Number(product.sale_price).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-          </span>
+        {/* Action buttons — always visible, not hover-only */}
+        <div className="flex shrink-0 gap-0.5">
+          <button
+            type="button"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+            onClick={onEdit}
+            title="Editar marca"
+          >
+            <Edit2 size={13} />
+          </button>
+          <button
+            type="button"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+            onClick={onDelete}
+            title="Eliminar marca"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onViewProducts}
+        className="mt-3 flex w-full items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs transition-colors hover:border-primary-100 hover:bg-primary-50 dark:border-gray-700 dark:bg-gray-700/50 dark:hover:border-primary-800/60 dark:hover:bg-primary-900/20"
+      >
+        <span className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+          <Package size={13} />
+          Productos
+        </span>
+        <div className="flex items-center gap-1.5">
           <span
-            className={`text-nowrap text-[11px] ${
-              product.current_stock <= 0
-                ? 'text-red-500'
-                : product.current_stock <= 5
-                  ? 'text-amber-500'
-                  : 'text-gray-500'
+            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+              brand.product_count > 0
+                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300'
+                : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
             }`}
           >
-            Stock: {product.current_stock}
+            {brand.product_count}
           </span>
-          <ChevronRight
-            size={14}
-            className={`text-gray-300 transition-transform dark:text-gray-600 ${
-              isExpanded ? 'rotate-90' : ''
-            }`}
-          />
+          <ChevronRight size={11} className="text-gray-300 dark:text-gray-600" />
         </div>
       </button>
+    </article>
+  )
+}
+
+function ProductRow({ product }: { product: BrandProductItem }) {
+  return (
+    <div
+      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs dark:border-gray-700 ${
+        !product.is_active ? 'opacity-60' : 'bg-white dark:bg-gray-800'
+      }`}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <span
+          className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] font-semibold ${
+            product.is_active
+              ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+              : 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+          }`}
+        >
+          {product.code}
+        </span>
+        <span className="truncate text-gray-700 dark:text-gray-300">{product.description}</span>
+      </div>
+      <div className="ml-3 flex shrink-0 items-center gap-3">
+        <span className="font-medium text-gray-900 dark:text-white">
+          ${Number(product.sale_price).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+        </span>
+        <span
+          className={`text-nowrap ${
+            product.current_stock <= 0
+              ? 'text-red-500'
+              : product.current_stock <= 5
+                ? 'text-amber-500'
+                : 'text-gray-400'
+          }`}
+        >
+          Stock: {product.current_stock}
+        </span>
+      </div>
     </div>
   )
 }

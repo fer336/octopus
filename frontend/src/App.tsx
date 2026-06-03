@@ -36,6 +36,8 @@ const Inventory  = lazy(() => import('./pages/Inventory'))
 const Feedback   = lazy(() => import('./pages/Feedback'))
 const Authorizations = lazy(() => import('./pages/Authorizations'))
 const Messaging  = lazy(() => import('./pages/Messaging'))
+const PriceLists  = lazy(() => import('./pages/PriceLists'))
+const Stockpiles  = lazy(() => import('./pages/Stockpiles'))
 
 // Skeleton de carga entre navegaciones
 function PageLoader() {
@@ -140,6 +142,9 @@ export default function App() {
               <Route path="price-update" element={
                 <Suspense fallback={<PageLoader />}><PriceUpdate /></Suspense>
               } />
+              <Route path="price-lists" element={
+                <Suspense fallback={<PageLoader />}><PriceLists /></Suspense>
+              } />
               <Route path="clients" element={
                 <Suspense fallback={<PageLoader />}><Clients /></Suspense>
               } />
@@ -181,6 +186,9 @@ export default function App() {
               } />
               <Route path="messaging" element={
                 <Suspense fallback={<PageLoader />}><Messaging /></Suspense>
+              } />
+              <Route path="stockpiles" element={
+                <Suspense fallback={<PageLoader />}><Stockpiles /></Suspense>
               } />
             </Route>
 
