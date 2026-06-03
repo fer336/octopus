@@ -1132,6 +1132,7 @@ async def close_current_account(
             close_all=data.close_all,
             notes=data.notes,
             user_id=current_user.id,
+            item_quantity_overrides=data.item_quantity_overrides,
         )
 
         await _log_audit(
@@ -1174,6 +1175,7 @@ async def preview_current_account_close(
             receipt_ids=data.receipt_ids,
             close_all=data.close_all,
             notes=data.notes,
+            item_quantity_overrides=data.item_quantity_overrides,
         )
         return preview
     except ValueError as e:
@@ -1201,6 +1203,7 @@ async def preview_current_account_close_pdf(
             receipt_ids=data.receipt_ids,
             close_all=data.close_all,
             notes=data.notes,
+            item_quantity_overrides=data.item_quantity_overrides,
         )
         # Generar PDF del preview
         business = await service.db.get(Business, business_id)

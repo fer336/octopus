@@ -49,6 +49,8 @@ from app.models.voucher_item import VoucherItem
 from app.models.voucher_payment import VoucherPayment
 from app.models.product_lot import ProductLot
 from app.models.stockpile import Stockpile, StockpileItem, StockpilePriceSnapshot, StockpileStatus
+from app.models.price_list import PriceList, PriceListItem
+from app.models.cc_draft import CCDraft
 
 __all__ = [
     # Base
@@ -113,4 +115,9 @@ __all__ = [
     # IA
     "AIProviderConfig",
     "AIProvider",
+    # Price Lists
+    "PriceList",
+    "PriceListItem",
+    # CC Drafts
+    "CCDraft",
 ]

@@ -133,6 +133,13 @@ class VoucherUpdate(BaseSchema):
     items: list[VoucherItemCreate]
 
 
+class ItemQuantityOverride(BaseSchema):
+    """Override de cantidad para un ítem específico al cerrar o previsualizar."""
+
+    voucher_item_id: UUID
+    quantity: Decimal
+
+
 class CurrentAccountCloseRequest(BaseSchema):
     """Request para cierre de cuenta corriente por titular."""
 
@@ -140,6 +147,7 @@ class CurrentAccountCloseRequest(BaseSchema):
     receipt_ids: list[UUID] | None = None
     close_all: bool = False
     notes: str | None = None
+    item_quantity_overrides: list[ItemQuantityOverride] | None = None
 
 
 class CurrentAccountClosePreviewRequest(BaseSchema):
@@ -149,6 +157,7 @@ class CurrentAccountClosePreviewRequest(BaseSchema):
     receipt_ids: list[UUID] | None = None
     close_all: bool = False
     notes: str | None = None
+    item_quantity_overrides: list[ItemQuantityOverride] | None = None
 
 
 class CurrentAccountCloseItemPreview(BaseSchema):
