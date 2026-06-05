@@ -93,6 +93,11 @@ class VoucherCreate(BaseSchema):
         description="ID del acopio vinculado (para remitos hijos de retiros parciales)",
     )
 
+    rounding_amount: Decimal | None = Field(
+        default=None,
+        description="Redondeo sobre el total (positivo o negativo). None = sin redondeo.",
+    )
+
     items: list[VoucherItemCreate]
     payments: list[VoucherPaymentCreate] | None = Field(
         default=None,
@@ -422,6 +427,7 @@ class VoucherResponse(BaseResponse):
     subtotal: Decimal
     iva_amount: Decimal
     total: Decimal
+    rounding_amount: Decimal | None = None
 
     cae: str | None
     cae_expiration: date | None

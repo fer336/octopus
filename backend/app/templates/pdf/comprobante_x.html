@@ -334,6 +334,11 @@
             <td class="total-label-inline"><strong>IVA:</strong></td>
             <td class="total-value-inline">{{ totals.iva }}</td>
 
+            {% if totals.rounding %}
+            <td class="total-label-inline" style="font-size:0.85em; color:#666;"><strong>Redondeo:</strong></td>
+            <td class="total-value-inline" style="font-size:0.85em; color:#666;">{{ '%+.2f'|format(totals.rounding) }}</td>
+            {% endif %}
+
             <td class="total-label-inline"><strong>Importe a pagar: $</strong></td>
             <td class="total-value-inline">{{ totals.total }}</td>
         </tr>
