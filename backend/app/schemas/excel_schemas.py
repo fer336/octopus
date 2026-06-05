@@ -2,6 +2,7 @@
 Schemas para importación/exportación de productos via Excel.
 """
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field, field_serializer
@@ -59,6 +60,19 @@ class ProductImportRow(BaseSchema):
         None, description="Fecha de vencimiento (YYYY-MM-DD)"
     )
 
+    # Campos de empaquetado (F1a)
+    quantity_per_package: Decimal | None = Field(
+        None, description="Cantidad de unidades base por paquete de compra"
+    )
+    sell_per_unit: bool = Field(
+        default=True, description="True si se vende por unidad (fraccionado), False si se vende por paquete completo"
+    )
+    # Indica si la columna 'fraccionado' fue mapeada explícitamente por el operador
+    # Solo cuando es True se escribe sell_per_unit al confirmar (W-02 guard)
+    sell_per_unit_mapped: bool = Field(
+        default=False, description="True si la columna fraccionado fue mapeada explícitamente"
+    )
+
     # Campos calculados (read-only en preview)
     net_price: Decimal | None = Field(None, description="Precio sin IVA (calculado)")
     sale_price: Decimal | None = Field(None, description="Precio final con IVA (calculado)")
@@ -69,9 +83,12 @@ class ProductImportRow(BaseSchema):
     error_message: str | None = Field(None, description="Mensaje de error si existe")
     is_new: bool = Field(default=True, description="True si es nuevo, False si actualiza existente")
     existing_id: UUID | None = Field(None, description="ID del producto existente si aplica")
+    status: Literal["nuevo", "actualizar", "error", "repetido"] = Field(
+        default="nuevo", description="Estado de la fila en el proceso de importación"
+    )
 
     # Serializar Decimals como float para JSON
-    @field_serializer('list_price', 'discount_1', 'discount_2', 'discount_3', 'extra_cost', 'profit_margin', 'iva_rate', 'net_price', 'sale_price')
+    @field_serializer('list_price', 'discount_1', 'discount_2', 'discount_3', 'extra_cost', 'profit_margin', 'iva_rate', 'net_price', 'sale_price', 'quantity_per_package')
     def serialize_decimal(self, value: Decimal | None) -> float | None:
         """Convierte Decimal a float para JSON."""
         return float(value) if value is not None else None
@@ -85,6 +102,7 @@ class ImportPreviewResponse(BaseSchema):
     rows_with_errors: int = Field(..., description="Filas con errores")
     new_products: int = Field(..., description="Productos nuevos a crear")
     existing_products: int = Field(..., description="Productos existentes a actualizar")
+    duplicate_rows: int = Field(default=0, description="Filas marcadas como repetido (intra-archivo o DB)")
 
     rows: list[ProductImportRow] = Field(..., description="Datos parseados del Excel")
 
@@ -101,3 +119,4 @@ class ImportConfirmResponse(BaseSchema):
     created: int = Field(..., description="Productos creados")
     updated: int = Field(..., description="Productos actualizados")
     errors: list[str] = Field(default_factory=list, description="Errores durante la confirmación")
+    skipped_duplicates: int = Field(default=0, description="Filas omitidas por estar marcadas como repetido")

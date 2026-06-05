@@ -39,6 +39,8 @@ const MAPPABLE_FIELDS: MappableField[] = [
   { id: 'brand', label: 'Marca' },
   { id: 'cost_price', label: 'Precio Costo' },
   { id: 'details', label: 'Detalles' },
+  { id: 'quantity_per_package', label: 'Cantidad por Compra' },
+  { id: 'sell_per_unit', label: 'Fraccionado (venta por unidad)' },
 ]
 
 const REQUIRED_FIELDS = new Set(['code', 'description', 'list_price'])
@@ -56,7 +58,9 @@ const INFERENCE_MAP: Record<string, string[]> = {
   current_stock:  ['stock', 'cantidad', 'qty', 'existencia'],
   iva_rate:       ['iva', 'impuesto', 'tax'],
   bonificaciones: ['bonif', 'descuento', 'discount', 'dto'],
-  profit_margin:  ['ganancia', 'margen', 'margin'],
+  profit_margin:        ['ganancia', 'margen', 'margin'],
+  quantity_per_package: ['cantidad_por_compra', 'cantidad_compra', 'cant_compra'],
+  sell_per_unit:        ['fraccionado', 'fraccionar', 'venta_unitaria'],
 }
 
 // ---------------------------------------------------------------------------

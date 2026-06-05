@@ -158,6 +158,8 @@ export interface ProductImportRow {
   minimum_stock: number
   unit: string
   units_per_pack?: number | null
+  quantity_per_package?: number | null
+  sell_per_unit?: boolean
   net_price?: number
   sale_price?: number
   discount_display?: string
@@ -165,6 +167,7 @@ export interface ProductImportRow {
   error_message?: string
   is_new: boolean
   existing_id?: string
+  status?: 'nuevo' | 'actualizar' | 'error' | 'repetido'
 }
 
 export interface ImportPreviewResponse {
@@ -173,6 +176,7 @@ export interface ImportPreviewResponse {
   rows_with_errors: number
   new_products: number
   existing_products: number
+  duplicate_rows: number
   rows: ProductImportRow[]
 }
 

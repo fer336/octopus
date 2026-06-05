@@ -173,10 +173,13 @@ class TestPreviewImportWithMapping:
         # Mock DB queries: no existing categories, no suppliers, no existing products
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = []
+        # Batch query for supplier_codes (F1b): uses .all() directly (not .scalars().all())
+        mock_codes_result = MagicMock()
+        mock_codes_result.all.return_value = []
         mock_scalar = MagicMock()
         mock_scalar.scalar_one_or_none.return_value = None
 
-        db.execute = AsyncMock(side_effect=[mock_result, mock_result, mock_scalar])
+        db.execute = AsyncMock(side_effect=[mock_result, mock_result, mock_codes_result, mock_scalar])
 
         svc = ExcelService(db=db)
         return await svc.preview_import(business_id, content, column_mapping=mapping)
@@ -210,9 +213,11 @@ class TestPreviewImportWithMapping:
         db = MagicMock(spec=AsyncSession)
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = []
+        mock_codes_result = MagicMock()
+        mock_codes_result.all.return_value = []
         mock_scalar = MagicMock()
         mock_scalar.scalar_one_or_none.return_value = None
-        db.execute = AsyncMock(side_effect=[mock_result, mock_result, mock_scalar])
+        db.execute = AsyncMock(side_effect=[mock_result, mock_result, mock_codes_result, mock_scalar])
 
         business_id = uuid4()
         content = _make_xlsx(
@@ -243,9 +248,11 @@ class TestPreviewImportLegacyPath:
         db = MagicMock(spec=AsyncSession)
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = []
+        mock_codes_result = MagicMock()
+        mock_codes_result.all.return_value = []
         mock_scalar = MagicMock()
         mock_scalar.scalar_one_or_none.return_value = None
-        db.execute = AsyncMock(side_effect=[mock_result, mock_result, mock_scalar])
+        db.execute = AsyncMock(side_effect=[mock_result, mock_result, mock_codes_result, mock_scalar])
 
         business_id = uuid4()
         content = _make_xlsx(
@@ -283,9 +290,11 @@ class TestBonificacionesMapping:
         db = MagicMock(spec=AsyncSession)
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = []
+        mock_codes_result = MagicMock()
+        mock_codes_result.all.return_value = []
         mock_scalar = MagicMock()
         mock_scalar.scalar_one_or_none.return_value = None
-        db.execute = AsyncMock(side_effect=[mock_result, mock_result, mock_scalar])
+        db.execute = AsyncMock(side_effect=[mock_result, mock_result, mock_codes_result, mock_scalar])
 
         business_id = uuid4()
         # File has header "Descuentos" mapped to field_id "discounts" → "bonificaciones"
@@ -312,9 +321,11 @@ class TestBonificacionesMapping:
         db = MagicMock(spec=AsyncSession)
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = []
+        mock_codes_result = MagicMock()
+        mock_codes_result.all.return_value = []
         mock_scalar = MagicMock()
         mock_scalar.scalar_one_or_none.return_value = None
-        db.execute = AsyncMock(side_effect=[mock_result, mock_result, mock_scalar])
+        db.execute = AsyncMock(side_effect=[mock_result, mock_result, mock_codes_result, mock_scalar])
 
         business_id = uuid4()
         mapping = {

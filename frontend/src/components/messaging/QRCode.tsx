@@ -48,7 +48,7 @@ export default function QRCode({ sessionId, onConnected }: Props) {
   // Single load on mount — no polling
   useEffect(() => {
     refresh()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const statusLabels: Record<SessionStatus, string> = {
     created: 'Creando sesión...',
