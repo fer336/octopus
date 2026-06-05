@@ -33,6 +33,7 @@ export interface VoucherCreate {
   payment_days?: number // Días de plazo para facturas en cuenta corriente
   // Vínculo remito hijo → acopio padre
   stockpile_id?: string
+  rounding_amount?: number | null
   items: VoucherItemCreate[]
   payments?: VoucherPayment[]
 }
@@ -132,6 +133,7 @@ export interface Voucher {
   subtotal: number
   iva_amount: number
   total: number
+  rounding_amount?: number | null
   cae?: string
   cae_expiration?: string
   has_credit_note: boolean
