@@ -542,6 +542,16 @@ export default function Sales() {
   // Descuento general
   const [generalDiscount, setGeneralDiscount] = useState(() => _draft?.generalDiscount ?? 0)
 
+  // Redondeo de total (F2)
+  const [roundingActive, setRoundingActive] = useState(false)
+  const [editedTotal, setEditedTotal] = useState<number | null>(null)
+
+  // Stale-guard: limpiar redondeo cuando cambian items o descuento (F2)
+  useEffect(() => {
+    setRoundingActive(false)
+    setEditedTotal(null)
+  }, [items, generalDiscount])
+
   // Auto-save draft — persists cart state on every meaningful change so navigation doesn't lose work
   useEffect(() => {
     // Don't persist while editing an existing voucher (that uses its own backend draft)
@@ -1099,6 +1109,10 @@ export default function Sales() {
   const [srxPdfOriginalUrl, setSrxPdfOriginalUrl] = useState<string | null>(null)
   const [srxPdfDuplicadoUrl, setSrxPdfDuplicadoUrl] = useState<string | null>(null)
   const [srxPdfActiveCopy, setSrxPdfActiveCopy] = useState<'original' | 'duplicado'>('original')
+
+  // === Modal de desincronización de numeración ARCA ===
+  const [arcaMismatch, setArcaMismatch] = useState<{ voucherId: string; errorMsg: string } | null>(null)
+  const [arcaSyncing, setArcaSyncing] = useState(false)
 
   // === Modal de desincronización de numeración ARCA ===
   const [arcaMismatch, setArcaMismatch] = useState<{ voucherId: string; errorMsg: string } | null>(null)
@@ -2192,6 +2206,7 @@ export default function Sales() {
       billing_client_id: (voucherType === 'current_account' || (voucherType === 'invoice' && payInCurrentAccount)) ? selectedClient.id : undefined,
       operating_client_id: operatingClientIdForPayload,
       general_discount: generalDiscount,
+      rounding_amount: roundingActive ? roundingAmount : null,
       // Días de plazo para facturas en cuenta corriente
       payment_days: (voucherType === 'invoice' && payInCurrentAccount) ? currentAccountDays : undefined,
       items: normalizedItems.map(item => ({
@@ -2995,7 +3010,11 @@ export default function Sales() {
   const hasReturnItems = returnSummary.returnItems > 0
   const isCustomerCreditReturn = voucherType === 'invoice' && hasReturnItems && totalRounded <= 0
   const customerCreditAmount = isCustomerCreditReturn ? Math.abs(totalRounded) : 0
-  const invoiceableTotal = Math.max(totalRounded, 0)
+  // Redondeo (F2): delta entre total editado y original
+  const roundingAmount = roundingActive && editedTotal !== null
+    ? Number((editedTotal - totalRounded).toFixed(2))
+    : null
+  const invoiceableTotal = Math.max(roundingActive && editedTotal !== null ? editedTotal : totalRounded, 0)
    
   // Calcular IVA real para mostrar en UI (separando el IVA del precio final)
   // El total incluye IVA, entonces: Subtotal = Total / 1.21, IVA = Total - Subtotal
@@ -4545,6 +4564,54 @@ export default function Sales() {
               </div>
             </div>
 
+            {/* Redondeo de total (F2) */}
+            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  Redondeo
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (roundingActive) {
+                      setRoundingActive(false)
+                      setEditedTotal(null)
+                    } else {
+                      setRoundingActive(true)
+                      setEditedTotal(totalRounded)
+                    }
+                  }}
+                  className={`text-xs px-2 py-0.5 rounded-md font-medium transition-colors ${
+                    roundingActive
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {roundingActive ? 'Activo' : 'Activar'}
+                </button>
+              </div>
+              {roundingActive && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">Total $</span>
+                    <input
+                      type="number"
+                      value={editedTotal ?? totalRounded}
+                      onChange={(e) => setEditedTotal(parseFloat(e.target.value) || 0)}
+                      className="flex-1 px-3 py-1.5 text-sm text-right border rounded-lg dark:bg-gray-700 dark:border-gray-600 font-medium focus:ring-2 focus:ring-blue-400"
+                      step={0.01}
+                    />
+                  </div>
+                  {roundingAmount !== null && roundingAmount !== 0 && (
+                    <div className="flex justify-between text-xs" style={{ color: '#666' }}>
+                      <span>Redondeo</span>
+                      <span>{roundingAmount > 0 ? '+' : ''}{roundingAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* SALES-ACOPIO-FRONTEND-03: Acopio summary panel — solo para remito */}
             {voucherType === 'receipt' && selectedClient && stockpileEnabled && (
               <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
@@ -5505,6 +5572,13 @@ export default function Sales() {
                         <span>Devoluciones:</span>
                         <span>-${formatNumber(returnSummary.returnTotal, undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </div>
+                    </div>
+                  )}
+
+                  {roundingAmount !== null && roundingAmount !== 0 && (
+                    <div className="flex justify-between text-xs" style={{ color: '#666' }}>
+                      <span>Redondeo:</span>
+                      <span>{roundingAmount > 0 ? '+' : ''}{roundingAmount.toFixed(2)}</span>
                     </div>
                   )}
 
@@ -6708,7 +6782,7 @@ export default function Sales() {
               <p className="mt-1 text-xs text-green-700 dark:text-green-300">
                 El Excel de precios congelados ya está disponible para descargar.
               </p>
-            </div>
+            </div> Stashed changes
 
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-900/40">
               <p className="font-medium text-gray-900 dark:text-gray-100">Referencia del Excel</p>

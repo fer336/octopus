@@ -968,7 +968,9 @@ class VoucherService:
         # Asignar totales al voucher
         voucher.subtotal = total_subtotal
         voucher.iva_amount = total_iva
-        voucher.total = total_final
+        # Aplicar redondeo opcional (F2): rounding_amount es el delta que el operador ajustó
+        voucher.rounding_amount = data.rounding_amount
+        voucher.total = total_final + (data.rounding_amount or Decimal("0"))
 
         if data.voucher_type in {
             VoucherType.INVOICE_A,
@@ -2193,6 +2195,7 @@ class VoucherService:
                     "subtotal": f"{abs(abs_raw + iva_no_discount):,.2f}",
                     "discount": "0%",
                     "iva": "21%",
+                    "rounding": float(voucher.rounding_amount) if voucher.rounding_amount else None,
                     "total": f"{abs(abs_raw + iva_no_discount):,.2f}",
                 }
                 if hide_discount
@@ -2200,6 +2203,7 @@ class VoucherService:
                     "subtotal": f"{item_sum_with_iva:,.2f}",
                     "discount": f"{general_discount_pct_rounded:g}%",
                     "iva": "21%",
+                    "rounding": float(voucher.rounding_amount) if voucher.rounding_amount else None,
                     "total": f"{abs_total:,.2f}",
                 }
             ),
