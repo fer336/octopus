@@ -1114,10 +1114,6 @@ export default function Sales() {
   const [arcaMismatch, setArcaMismatch] = useState<{ voucherId: string; errorMsg: string } | null>(null)
   const [arcaSyncing, setArcaSyncing] = useState(false)
 
-  // === Modal de desincronización de numeración ARCA ===
-  const [arcaMismatch, setArcaMismatch] = useState<{ voucherId: string; errorMsg: string } | null>(null)
-  const [arcaSyncing, setArcaSyncing] = useState(false)
-
   // === Modal de diferencias de precios al cargar presupuesto ===
   const [showPriceDiffModal, setShowPriceDiffModal] = useState(false)
 
