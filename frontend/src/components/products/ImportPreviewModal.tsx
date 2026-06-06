@@ -392,6 +392,7 @@ export default function ImportPreviewModal({
                 <th className="px-2 py-2 text-left">Proveedor</th>
                 <th className="px-2 py-2 text-left">Categoría</th>
                 <th className="px-2 py-2 text-left">Nombre</th>
+                <th className="px-2 py-2 text-left">Unidad</th>
                 <th className="px-2 py-2 text-left">Stock</th>
                 <th className="px-2 py-2 text-left">P. Lista</th>
                 <th className="px-2 py-2 text-left">Bonif.</th>
@@ -538,6 +539,25 @@ export default function ImportPreviewModal({
                         <span className="text-xs truncate block">{row.description}</span>
                       )}
                     </td>
+                    {/* Unidad */}
+                    <td className="px-2 py-2">
+                      {isEditing ? (
+                        <select
+                          value={row.unit || 'unidad'}
+                          onChange={(e) => updateRow(row.row_number, 'unit', e.target.value)}
+                          className="w-20 px-1 py-0.5 text-xs border rounded dark:bg-gray-700"
+                        >
+                          <option value="unidad">Unidad</option>
+                          <option value="m">Metro (m)</option>
+                          <option value="m2">Metro² (m²)</option>
+                          <option value="kg">Kg</option>
+                          <option value="litro">Litro</option>
+                          <option value="pack">Pack</option>
+                        </select>
+                      ) : (
+                        <span className="text-xs text-gray-600 dark:text-gray-400">{row.unit || 'unidad'}</span>
+                      )}
+                    </td>
                     {/* Stock */}
                     <td className="px-2 py-2">
                       {isEditing ? (
@@ -609,15 +629,41 @@ export default function ImportPreviewModal({
                     </td>
                     {/* Cantidad por Compra */}
                     <td className="px-2 py-2">
-                      <span className="text-xs text-gray-600 dark:text-gray-400">
-                        {row.quantity_per_package != null ? row.quantity_per_package : '-'}
-                      </span>
+                      {isEditing ? (
+                        <input
+                          type="number"
+                          value={row.quantity_per_package ?? ''}
+                          onChange={(e) => updateRow(row.row_number, 'quantity_per_package', e.target.value === '' ? null : parseFloat(e.target.value))}
+                          className="w-16 px-1 py-0.5 text-xs border rounded dark:bg-gray-700"
+                          min="0"
+                          step="0.01"
+                          placeholder="-"
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          {row.quantity_per_package != null ? row.quantity_per_package : '-'}
+                        </span>
+                      )}
                     </td>
                     {/* Fraccionado */}
                     <td className="px-2 py-2">
-                      <span className="text-xs text-gray-600 dark:text-gray-400">
-                        {row.sell_per_unit === false ? 'No' : 'Sí'}
-                      </span>
+                      {isEditing ? (
+                        <label className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={row.sell_per_unit !== false}
+                            onChange={(e) => updateRow(row.row_number, 'sell_per_unit', e.target.checked)}
+                            className="w-3.5 h-3.5"
+                          />
+                          <span className="text-xs text-gray-600 dark:text-gray-400">
+                            {row.sell_per_unit !== false ? 'Sí' : 'No'}
+                          </span>
+                        </label>
+                      ) : (
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          {row.sell_per_unit === false ? 'No' : 'Sí'}
+                        </span>
+                      )}
                     </td>
                     {/* Acciones */}
                     <td className="px-2 py-2">

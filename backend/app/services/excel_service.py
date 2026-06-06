@@ -361,7 +361,17 @@ class ExcelService:
                 current_stock = int(self._safe_decimal(current_stock_raw)) if pd.notna(current_stock_raw) else 0
 
                 # Leer unidad, pack qty y vencimiento
-                unit = str(row.get('unidad', 'unidad')).strip().lower() if pd.notna(row.get('unidad')) else 'unidad'
+                _UNIT_ALIASES: dict[str, str] = {
+                    'kg': 'kg', 'kilo': 'kg', 'kilos': 'kg', 'kilogramo': 'kg', 'kilogramos': 'kg',
+                    'm': 'm', 'metro': 'm', 'metros': 'm',
+                    'm2': 'm2', 'm²': 'm2', 'metro2': 'm2', 'metros2': 'm2',
+                    'metro cuadrado': 'm2', 'metros cuadrados': 'm2',
+                    'litro': 'litro', 'litros': 'litro', 'lt': 'litro', 'lts': 'litro',
+                    'pack': 'pack', 'paquete': 'pack', 'paquetes': 'pack',
+                    'unidad': 'unidad', 'unidades': 'unidad', 'u': 'unidad', 'und': 'unidad',
+                }
+                _raw_unit = str(row.get('unidad', 'unidad')).strip().lower() if pd.notna(row.get('unidad')) else 'unidad'
+                unit = _UNIT_ALIASES.get(_raw_unit, 'unidad')
                 units_per_pack = None
                 if pd.notna(row.get('unidades_x_pack')):
                     try:
