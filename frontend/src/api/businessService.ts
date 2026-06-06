@@ -34,6 +34,7 @@ export interface Business {
   price_update_enabled: boolean
   reports_enabled: boolean
   sql_backup_enabled: boolean
+  invoice_zero_stock_enabled: boolean
   arca_environment?: string
   last_quotation_number: string
   last_receipt_number: string

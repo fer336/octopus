@@ -325,6 +325,7 @@ class VoucherService:
         user_id: UUID | None = None,
         voucher_id: UUID | None = None,
         stockpile_id: UUID | None = None,
+        allow_zero_stock: bool = False,
     ) -> tuple[list[VoucherItem], Decimal, Decimal, Decimal]:
         """Construye items del comprobante y recalcula totales.
 
@@ -436,15 +437,19 @@ class VoucherService:
                 else:
                     reason = "Venta"
 
-                last_lot_id, _consumptions = await lot_service.fifo_consume(
-                    product_id=product.id,
-                    business_id=business_id,
-                    quantity=qty,
-                    voucher_item_id=voucher_item.id,
-                    user_id=user_id,
-                    reason=reason,
-                )
-                voucher_item.product_lot_id = last_lot_id
+                try:
+                    last_lot_id, _consumptions = await lot_service.fifo_consume(
+                        product_id=product.id,
+                        business_id=business_id,
+                        quantity=qty,
+                        voucher_item_id=voucher_item.id,
+                        user_id=user_id,
+                        reason=reason,
+                    )
+                    voucher_item.product_lot_id = last_lot_id
+                except ValueError:
+                    if not allow_zero_stock:
+                        raise
             elif qty < 0:
                 # Devolución: crear nuevo lote con la mercadería devuelta
                 from datetime import date as date_type
@@ -697,6 +702,7 @@ class VoucherService:
         voucher_id: UUID | None = None,
         user_id: UUID | None = None,
         reason: str = "Factura",
+        allow_zero_stock: bool = False,
     ) -> tuple[list[VoucherItem], Decimal, Decimal, Decimal]:
         """Construye ítems/totales de factura desde comprobantes origen.
 
@@ -791,15 +797,19 @@ class VoucherService:
                     self.db.add(voucher_item)
                     await self.db.flush()
 
-                    last_lot_id, consumptions = await lot_service.fifo_consume(
-                        product_id=product.id,
-                        business_id=business_id,
-                        quantity=qty,
-                        voucher_item_id=voucher_item.id,
-                        user_id=user_id,
-                        reason=reason,
-                    )
-                    voucher_item.product_lot_id = last_lot_id
+                    try:
+                        last_lot_id, consumptions = await lot_service.fifo_consume(
+                            product_id=product.id,
+                            business_id=business_id,
+                            quantity=qty,
+                            voucher_item_id=voucher_item.id,
+                            user_id=user_id,
+                            reason=reason,
+                        )
+                        voucher_item.product_lot_id = last_lot_id
+                    except ValueError:
+                        if not allow_zero_stock:
+                            raise
                 elif qty < 0:
                     self.db.add(voucher_item)
                     await self.db.flush()
@@ -963,6 +973,7 @@ class VoucherService:
             user_id=user_id,
             voucher_id=voucher.id,
             stockpile_id=data.stockpile_id,
+            allow_zero_stock=bool(getattr(business, "invoice_zero_stock_enabled", False)),
         )
 
         # Asignar totales al voucher
@@ -2897,6 +2908,7 @@ class VoucherService:
             voucher_id=invoice.id,
             user_id=user_id,
             reason="Factura",
+            allow_zero_stock=bool(getattr(business, "invoice_zero_stock_enabled", False)),
         )
 
         # 7. Asignar totales
@@ -3117,6 +3129,7 @@ class VoucherService:
             voucher_id=invoice.id,
             user_id=user_id,
             reason="Factura",
+            allow_zero_stock=bool(getattr(business, "invoice_zero_stock_enabled", False)),
         )
 
         # 14. Asignar totales

@@ -103,6 +103,7 @@ class BusinessResponse(BaseModel):
     price_update_enabled: bool
     reports_enabled: bool
     sql_backup_enabled: bool
+    invoice_zero_stock_enabled: bool = False
 
     # Facturación electrónica separada por función
     electronic_sale_point: str | None = None

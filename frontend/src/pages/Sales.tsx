@@ -3030,10 +3030,10 @@ export default function Sales() {
       }, 0)
 
   const shouldShowPaymentDifference = !isCCActive && (assignedPaymentsTotal > 0 || voucherType === 'invoice')
-  const paymentDifference = isCCActive 
-    ? 0 
-    : (shouldShowPaymentDifference ? Number((totalRounded - assignedPaymentsTotal).toFixed(2)) : 0)
-  const isPaymentBalanced = isCCActive || (!shouldShowPaymentDifference || Math.abs(totalRounded - Number(assignedPaymentsTotal.toFixed(2))) <= 0.01)
+  const paymentDifference = isCCActive
+    ? 0
+    : (shouldShowPaymentDifference ? Number((invoiceableTotal - assignedPaymentsTotal).toFixed(2)) : 0)
+  const isPaymentBalanced = isCCActive || (!shouldShowPaymentDifference || Math.abs(invoiceableTotal - Number(assignedPaymentsTotal.toFixed(2))) <= 0.01)
 
   const mobileSteps: Array<{ key: MobileSalesSection; label: string }> = [
     { key: 'items', label: 'Cliente' },

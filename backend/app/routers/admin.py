@@ -183,6 +183,7 @@ class FeatureFlagsResponse(BaseModel):
     reports_enabled: bool
     sql_backup_enabled: bool = False
     srx_enabled: bool = False
+    invoice_zero_stock_enabled: bool = False
 
 
 class FeatureFlagsUpdate(BaseModel):
@@ -202,6 +203,7 @@ class FeatureFlagsUpdate(BaseModel):
     reports_enabled: bool | None = None
     sql_backup_enabled: bool | None = None
     srx_enabled: bool | None = None
+    invoice_zero_stock_enabled: bool | None = None
 
 
 class TenantResponse(BaseModel):
@@ -1688,6 +1690,7 @@ async def get_feature_flags(
         reports_enabled=bool(business.reports_enabled),
         sql_backup_enabled=bool(business.sql_backup_enabled),
         srx_enabled=bool(getattr(business, "srx_enabled", False)),
+        invoice_zero_stock_enabled=bool(getattr(business, "invoice_zero_stock_enabled", False)),
     )
 
 
@@ -1754,6 +1757,7 @@ async def update_feature_flags(
         reports_enabled=bool(business.reports_enabled),
         sql_backup_enabled=bool(business.sql_backup_enabled),
         srx_enabled=bool(getattr(business, "srx_enabled", False)),
+        invoice_zero_stock_enabled=bool(getattr(business, "invoice_zero_stock_enabled", False)),
     )
 
 
