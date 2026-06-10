@@ -162,12 +162,12 @@ export default function Header({
               {user.picture && (
                 <img
                   src={user.picture}
-                  alt={user.name}
+                  alt={user.name || ''}
                   className="w-7 h-7 rounded-full"
                 />
               )}
               <span className="text-[13px] text-primary-800 dark:text-primary-200 hidden sm:block max-w-[150px] truncate">
-                {user.name}
+                {user.name || 'Usuario'}
               </span>
             </div>
           )}

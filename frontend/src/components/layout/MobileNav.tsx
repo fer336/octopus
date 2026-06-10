@@ -121,14 +121,14 @@ export default function MobileNav({
         {user && (
           <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
             {user.picture ? (
-              <img src={user.picture} alt={user.name} className="h-9 w-9 flex-shrink-0 rounded-full" />
+              <img src={user.picture} alt={user.name || ''} className="h-9 w-9 flex-shrink-0 rounded-full" />
             ) : (
               <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary-700 text-sm font-semibold text-white">
-                {user.name.charAt(0).toUpperCase()}
+                {(user.name || '?').charAt(0).toUpperCase()}
               </div>
             )}
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">{user.name}</p>
+              <p className="truncate text-sm font-semibold text-white">{user.name || 'Usuario'}</p>
               {user.membership_role && (
                 <p className="text-xs" style={{ color: '#a78bfa' }}>
                   {ROLE_LABELS[user.membership_role] ?? user.membership_role}
