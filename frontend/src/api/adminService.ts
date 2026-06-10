@@ -150,6 +150,7 @@ export interface FeatureFlagsResponse {
   reports_enabled: boolean
   sql_backup_enabled?: boolean
   srx_enabled?: boolean
+  invoice_zero_stock_enabled: boolean
 }
 
 export interface FeatureFlagsUpdate {
@@ -167,6 +168,7 @@ export interface FeatureFlagsUpdate {
   reports_enabled?: boolean
   sql_backup_enabled?: boolean
   srx_enabled?: boolean
+  invoice_zero_stock_enabled?: boolean
 }
 
 export const AI_PROVIDERS = {

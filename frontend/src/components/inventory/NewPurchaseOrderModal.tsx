@@ -235,8 +235,8 @@ export default function NewPurchaseOrderModal({
         selectedCategory || undefined,
       )
       toast.success('Planilla descargada')
-    } catch {
-      toast.error('Error al descargar la planilla')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al descargar la planilla')
     } finally {
       setIsDownloading(false)
     }
@@ -250,8 +250,8 @@ export default function NewPurchaseOrderModal({
         selectedCategory || undefined,
       )
       toast.success('Planilla Excel descargada')
-    } catch {
-      toast.error('Error al descargar la planilla Excel')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al descargar la planilla Excel')
     } finally {
       setIsDownloadingExcel(false)
     }

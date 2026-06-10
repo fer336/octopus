@@ -55,7 +55,42 @@ FIELD_TO_EXCEL_KEY: dict[str, str] = {
     "brand": "marca",
     "cost_price": "precio_costo",
     "details": "detalles",
+    "quantity_per_package": "cantidad_por_compra",
+    "sell_per_unit": "fraccionado",
 }
+
+
+def _parse_bool_cell(val: object) -> bool:
+    """
+    Convierte un valor de celda Excel a bool con tolerancia a formatos argentinos.
+
+    Valores verdaderos: sí, si, s, true, 1, x (case-insensitive).
+    Valores falsos: no, n, false, 0, "" (cadena vacía explícita).
+    Valor en blanco (None / NaN): retorna True por defecto (campo ausente).
+    """
+    if val is None:
+        return True
+    try:
+        import math as _math
+        if isinstance(val, float) and _math.isnan(val):
+            return True
+    except (TypeError, ValueError):
+        pass
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return bool(val)
+    raw = str(val)
+    s = raw.strip().lower()
+    # Cadena con solo espacios → blank → True por defecto
+    if raw and not s:
+        return True
+    if s in ("sí", "si", "s", "true", "1", "x"):
+        return True
+    if s in ("no", "n", "false", "0", ""):
+        return False
+    # Valor desconocido → True por defecto (tolerante)
+    return True
 
 
 def _clean_excel_cell(value: object) -> str | None:
@@ -254,11 +289,34 @@ class ExcelService:
                 brand.normalized_name: brand for brand in brands_result.scalars().all()
             }
 
+        # Batch query: obtener todos los (supplier_id, supplier_code) existentes en este business
+        # para detección de duplicados (F1b)
+        from sqlalchemy import tuple_ as sa_tuple
+
+        existing_supplier_codes_query = select(
+            Product.supplier_id,
+            Product.supplier_code,
+        ).where(
+            Product.business_id == business_id,
+            Product.deleted_at.is_(None),
+            Product.supplier_code.isnot(None),
+        )
+        existing_supplier_codes_result = await self.db.execute(existing_supplier_codes_query)
+        # Conjunto de (supplier_id, supplier_code) ya persistidos en DB
+        db_supplier_codes: set[tuple] = {
+            (str(row_db.supplier_id) if row_db.supplier_id else None, row_db.supplier_code)
+            for row_db in existing_supplier_codes_result.all()
+        }
+
+        # Conjunto para detectar duplicados intra-archivo: (supplier_id_resolved, supplier_code)
+        seen_intra: set[tuple] = set()
+
         rows: list[ProductImportRow] = []
         valid_count = 0
         error_count = 0
         new_count = 0
         existing_count = 0
+        duplicate_count = 0
 
         for index, row in df.iterrows():
             row_number = index + 2  # +2 porque Excel empieza en 1 y la fila 1 es header
@@ -303,7 +361,17 @@ class ExcelService:
                 current_stock = int(self._safe_decimal(current_stock_raw)) if pd.notna(current_stock_raw) else 0
 
                 # Leer unidad, pack qty y vencimiento
-                unit = str(row.get('unidad', 'unidad')).strip().lower() if pd.notna(row.get('unidad')) else 'unidad'
+                _UNIT_ALIASES: dict[str, str] = {
+                    'kg': 'kg', 'kilo': 'kg', 'kilos': 'kg', 'kilogramo': 'kg', 'kilogramos': 'kg',
+                    'm': 'm', 'metro': 'm', 'metros': 'm',
+                    'm2': 'm2', 'm²': 'm2', 'metro2': 'm2', 'metros2': 'm2',
+                    'metro cuadrado': 'm2', 'metros cuadrados': 'm2',
+                    'litro': 'litro', 'litros': 'litro', 'lt': 'litro', 'lts': 'litro',
+                    'pack': 'pack', 'paquete': 'pack', 'paquetes': 'pack',
+                    'unidad': 'unidad', 'unidades': 'unidad', 'u': 'unidad', 'und': 'unidad',
+                }
+                _raw_unit = str(row.get('unidad', 'unidad')).strip().lower() if pd.notna(row.get('unidad')) else 'unidad'
+                unit = _UNIT_ALIASES.get(_raw_unit, 'unidad')
                 units_per_pack = None
                 if pd.notna(row.get('unidades_x_pack')):
                     try:
@@ -317,6 +385,22 @@ class ExcelService:
                         expiration_date = exp_date.strftime('%Y-%m-%d')
                     except Exception:
                         pass
+
+                # Leer campos de empaquetado (F1a)
+                quantity_per_package: Decimal | None = None
+                raw_qty = row.get('cantidad_por_compra')
+                if raw_qty is not None and pd.notna(raw_qty):
+                    qty_val = self._safe_decimal(raw_qty, default=Decimal(0))
+                    if qty_val <= 0:
+                        raise ValueError(
+                            "La cantidad por compra debe ser mayor a 0"
+                        )
+                    quantity_per_package = qty_val
+
+                fraccionado_mapped = 'fraccionado' in row.index
+                sell_per_unit = _parse_bool_cell(
+                    row.get('fraccionado') if fraccionado_mapped else None
+                )
 
                 # Calcular precios
                 net_price, sale_price, discount_display = self._calculate_prices(
@@ -373,6 +457,27 @@ class ExcelService:
                             brand_name = raw_brand
                             brand_is_new = True
 
+                # Detección de duplicados (F1b)
+                # Clave de duplicado: (supplier_id resuelto, supplier_code)
+                # Solo aplica cuando supplier_code está presente
+                row_status = "nuevo"
+                if supplier_code:
+                    supplier_id_str = str(supplier_id) if supplier_id else None
+                    dup_key = (supplier_id_str, supplier_code)
+                    if dup_key in db_supplier_codes or dup_key in seen_intra:
+                        rows.append(ProductImportRow(
+                            row_number=row_number,
+                            code=code,
+                            supplier_code=supplier_code,
+                            description=description,
+                            has_errors=False,
+                            is_new=False,
+                            status="repetido",
+                        ))
+                        duplicate_count += 1
+                        continue
+                    seen_intra.add(dup_key)
+
                 # Verificar si el producto ya existe
                 existing_query = select(Product).where(
                     Product.code == code,
@@ -387,8 +492,10 @@ class ExcelService:
 
                 if is_new:
                     new_count += 1
+                    row_status = "nuevo"
                 else:
                     existing_count += 1
+                    row_status = "actualizar"
 
                 rows.append(ProductImportRow(
                     row_number=row_number,
@@ -415,12 +522,16 @@ class ExcelService:
                     unit=unit,
                     units_per_pack=units_per_pack,
                     expiration_date=expiration_date,
+                    quantity_per_package=quantity_per_package,
+                    sell_per_unit=sell_per_unit,
+                    sell_per_unit_mapped=fraccionado_mapped,
                     net_price=net_price,
                     sale_price=sale_price,
                     discount_display=discount_display,
                     has_errors=False,
                     is_new=is_new,
-                    existing_id=existing_id
+                    existing_id=existing_id,
+                    status=row_status,
                 ))
                 valid_count += 1
 
@@ -440,6 +551,7 @@ class ExcelService:
             rows_with_errors=error_count,
             new_products=new_count,
             existing_products=existing_count,
+            duplicate_rows=duplicate_count,
             rows=rows
         )
 
@@ -463,6 +575,7 @@ class ExcelService:
         created = 0
         updated = 0
         errors: list[str] = []
+        skipped_duplicates = 0
 
         # In-memory caches so we don't hit the DB twice for the same name
         # within the same import batch. Keys are lowercased names.
@@ -531,6 +644,11 @@ class ExcelService:
             return brand
 
         for row in request.rows:
+            # Saltar filas marcadas como repetido (F1b)
+            if row.status == "repetido":
+                skipped_duplicates += 1
+                continue
+
             # Saltar filas con errores
             if row.has_errors:
                 errors.append(f"Fila {row.row_number}: {row.error_message}")
@@ -578,6 +696,8 @@ class ExcelService:
                         iva_rate=row.iva_rate,
                         unit=row.unit,
                         units_per_pack=row.units_per_pack,
+                        quantity_per_package=row.quantity_per_package,
+                        sell_per_unit=row.sell_per_unit,
                         cost_price=Decimal(0),  # Se puede calcular después
                     )
                     new_product.calculate_prices()
@@ -647,6 +767,10 @@ class ExcelService:
                             existing_product.iva_rate = row.iva_rate
                             existing_product.unit = row.unit
                             existing_product.units_per_pack = row.units_per_pack
+                            if row.quantity_per_package is not None:
+                                existing_product.quantity_per_package = row.quantity_per_package
+                            if row.sell_per_unit_mapped:
+                                existing_product.sell_per_unit = row.sell_per_unit
 
                             # Ajustar stock via lotes (current_stock es @property)
                             new_stock_val = row.current_stock
@@ -710,7 +834,8 @@ class ExcelService:
         return ImportConfirmResponse(
             created=created,
             updated=updated,
-            errors=errors
+            errors=errors,
+            skipped_duplicates=skipped_duplicates,
         )
 
     async def import_products(self, business_id: UUID, file_content: bytes) -> dict:

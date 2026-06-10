@@ -10,14 +10,17 @@ para evitar que la tabla crezca indefinidamente.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+from collections import Counter
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.chat_conversation import ChatConversation, ChatMessage
+from app.services.ai_memory_service import save_aggregate_memory
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,69 @@ MAX_MESSAGES = 100
 
 # Máximo de mensajes que se devuelven al frontend para el contexto del agente
 HISTORY_LIMIT = 20
+
+
+def _heuristic_summary(rows) -> str:
+    """
+    Build a compact (≤200 chars) summary from a list of ChatMessage rows.
+
+    Uses response_type distribution and the last user message as anchors.
+    Returns an empty string when rows is empty.
+    """
+    if not rows:
+        return ""
+    n = len(rows)
+    types = [r.response_type for r in rows if r.role == "assistant" and r.response_type]
+    topic_counts = Counter(t for t in types if t != "text")
+    topics = ", ".join(f"{t}x{c}" for t, c in topic_counts.most_common()) or "consultas generales"
+    last_user = next((r.content for r in reversed(rows) if r.role == "user"), "")
+    last_user = " ".join(last_user.split())[:80]
+    summary = f"{n} mensajes — temas: {topics}. Ultimo: {last_user}"
+    return summary[:200]
+
+
+async def _save_pre_trim_summary(
+    db: AsyncSession,
+    conversation_id: UUID,
+    discarded_ids: list,
+) -> None:
+    """
+    Build a heuristic summary of the messages about to be discarded and
+    fire-and-forget save it to Engram before they are deleted.
+    """
+    try:
+        conv = (
+            await db.execute(
+                select(ChatConversation).where(ChatConversation.id == conversation_id)
+            )
+        ).scalar_one_or_none()
+        if conv is None or not conv.business_id:
+            return
+
+        rows_result = await db.execute(
+            select(ChatMessage.role, ChatMessage.content, ChatMessage.response_type)
+            .where(ChatMessage.id.in_(discarded_ids))
+            .order_by(ChatMessage.created_at.asc())
+        )
+        rows = rows_result.all()
+
+        summary = _heuristic_summary(rows)
+        if not summary:
+            return
+
+        bid = str(conv.business_id)
+        asyncio.ensure_future(
+            save_aggregate_memory(
+                title=f"[{bid}] conversation-summary",
+                new_entry=summary,
+                topic_key=f"business/{bid}/conversation-summaries",
+                business_id=bid,
+                strategy="append_cap",
+                cap=5,
+            )
+        )
+    except Exception as exc:
+        logger.info("[Luci/Engram] pre-trim summary skipped for conv=%s: %s", conversation_id, exc)
 
 
 async def get_or_create_conversation(
@@ -136,6 +202,7 @@ async def _trim_conversation(db: AsyncSession, conversation_id: UUID) -> None:
         )
         old_ids = [row[0] for row in old_ids_result]
         if old_ids:
+            await _save_pre_trim_summary(db, conversation_id, old_ids)
             await db.execute(delete(ChatMessage).where(ChatMessage.id.in_(old_ids)))
 
 

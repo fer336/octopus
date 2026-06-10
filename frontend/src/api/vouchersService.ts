@@ -33,6 +33,7 @@ export interface VoucherCreate {
   payment_days?: number // Días de plazo para facturas en cuenta corriente
   // Vínculo remito hijo → acopio padre
   stockpile_id?: string
+  rounding_amount?: number | null
   items: VoucherItemCreate[]
   payments?: VoucherPayment[]
 }
@@ -132,6 +133,7 @@ export interface Voucher {
   subtotal: number
   iva_amount: number
   total: number
+  rounding_amount?: number | null
   cae?: string
   cae_expiration?: string
   has_credit_note: boolean
@@ -331,6 +333,7 @@ const vouchersService = {
     receipt_ids?: string[]
     close_all: boolean
     notes?: string
+    item_quantity_overrides?: Array<{ voucher_item_id: string; quantity: number }>
   }): Promise<Voucher> => {
     const response = await httpClient.post('/vouchers/current-account/close', data)
     return response.data
@@ -353,6 +356,7 @@ const vouchersService = {
     receipt_ids?: string[]
     close_all?: boolean
     notes?: string
+    item_quantity_overrides?: Array<{ voucher_item_id: string; quantity: number }>
   }): Promise<{
     billing_client_name: string
     items: Array<{
@@ -386,6 +390,7 @@ const vouchersService = {
     receipt_ids?: string[]
     close_all?: boolean
     notes?: string
+    item_quantity_overrides?: Array<{ voucher_item_id: string; quantity: number }>
   }): Promise<Blob> => {
     const response = await httpClient.post('/vouchers/current-account/preview-pdf', data, {
       responseType: 'blob',

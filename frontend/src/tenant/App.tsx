@@ -14,6 +14,7 @@ import MainLayout from '../components/layout/MainLayout'
 // Páginas públicas (carga inmediata — necesarias antes de auth)
 import Login from '../pages/Login'
 import AuthCallback from '../pages/AuthCallback'
+import SubscriptionExpiredPage from '../pages/SubscriptionExpiredPage'
 
 // Páginas protegidas con lazy load — cada una genera su propio chunk
 // El browser solo descarga el código cuando el usuario navega a esa ruta
@@ -31,9 +32,11 @@ const Cash       = lazy(() => import('../pages/Cash'))
 const Inventory  = lazy(() => import('../pages/Inventory'))
 const Feedback   = lazy(() => import('../pages/Feedback'))
 const CurrentAccount = lazy(() => import('../pages/CurrentAccount'))
-const Stockpiles = lazy(() => import('../pages/Stockpiles'))
-const Messaging     = lazy(() => import('../pages/Messaging'))
-const Settings      = lazy(() => import('../pages/Settings'))
+const Stockpiles  = lazy(() => import('../pages/Stockpiles'))
+const Messaging   = lazy(() => import('../pages/Messaging'))
+const Settings    = lazy(() => import('../pages/Settings'))
+const Brands      = lazy(() => import('../pages/Brands'))
+const PriceLists  = lazy(() => import('../pages/PriceLists'))
 
 // Error boundary para capturar crashes de páginas individuales
 class PageErrorBoundary extends Component<
@@ -151,6 +154,7 @@ export default function App() {
             {/* Rutas públicas */}
             <Route path="/login" element={<Login />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/blocked" element={<SubscriptionExpiredPage />} />
 
             {/* Rutas protegidas — cada página carga solo cuando se navega */}
             <Route
@@ -211,6 +215,12 @@ export default function App() {
               } />
               <Route path="settings" element={
                 <Suspense fallback={<PageLoader />}><Settings /></Suspense>
+              } />
+              <Route path="brands" element={
+                <Suspense fallback={<PageLoader />}><Brands /></Suspense>
+              } />
+              <Route path="price-lists" element={
+                <Suspense fallback={<PageLoader />}><PriceLists /></Suspense>
               } />
             </Route>
 

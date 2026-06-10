@@ -93,6 +93,11 @@ class VoucherCreate(BaseSchema):
         description="ID del acopio vinculado (para remitos hijos de retiros parciales)",
     )
 
+    rounding_amount: Decimal | None = Field(
+        default=None,
+        description="Redondeo sobre el total (positivo o negativo). None = sin redondeo.",
+    )
+
     items: list[VoucherItemCreate]
     payments: list[VoucherPaymentCreate] | None = Field(
         default=None,
@@ -133,6 +138,13 @@ class VoucherUpdate(BaseSchema):
     items: list[VoucherItemCreate]
 
 
+class ItemQuantityOverride(BaseSchema):
+    """Override de cantidad para un ítem específico al cerrar o previsualizar."""
+
+    voucher_item_id: UUID
+    quantity: Decimal
+
+
 class CurrentAccountCloseRequest(BaseSchema):
     """Request para cierre de cuenta corriente por titular."""
 
@@ -140,6 +152,7 @@ class CurrentAccountCloseRequest(BaseSchema):
     receipt_ids: list[UUID] | None = None
     close_all: bool = False
     notes: str | None = None
+    item_quantity_overrides: list[ItemQuantityOverride] | None = None
 
 
 class CurrentAccountClosePreviewRequest(BaseSchema):
@@ -149,6 +162,7 @@ class CurrentAccountClosePreviewRequest(BaseSchema):
     receipt_ids: list[UUID] | None = None
     close_all: bool = False
     notes: str | None = None
+    item_quantity_overrides: list[ItemQuantityOverride] | None = None
 
 
 class CurrentAccountCloseItemPreview(BaseSchema):
@@ -413,6 +427,7 @@ class VoucherResponse(BaseResponse):
     subtotal: Decimal
     iva_amount: Decimal
     total: Decimal
+    rounding_amount: Decimal | None = None
 
     cae: str | None
     cae_expiration: date | None

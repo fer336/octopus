@@ -1,10 +1,14 @@
-/**
- * Página de Cuenta Corriente.
- * MVP de CC-03: gestión de autorizaciones titular/subcliente con sublímite.
- */
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, ClipboardList, Eye, FileText, Filter, Plus, ShieldCheck, Trash2, XCircle } from 'lucide-react'
+import {
+  ClipboardList,
+  Filter,
+  HelpCircle,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  XCircle,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
@@ -13,8 +17,20 @@ import clientTypesService from '../api/clientTypesService'
 import clientAuthorizationsService, {
   ClientAuthorization,
 } from '../api/clientAuthorizationsService'
-import vouchersService from '../api/vouchersService'
+import vouchersService, { Voucher } from '../api/vouchersService'
+import ccDraftsService, { CCDraft } from '../api/ccDraftsService'
 import { Button, ConfirmModal, Input, Modal } from '../components/ui'
+import {
+  TitularesList,
+  RemitosTable,
+  RemitosResumen,
+  RemitosHistorial,
+  ActionBar,
+  ClosureGuide,
+  VouchersSelectionModal,
+  type VoucherItemOverride,
+  type AppliedPriceList,
+} from '../components/current-account'
 import { formatErrorMessage } from '../utils/errorHelpers'
 
 const CURRENT_ACCOUNT_MODES = [
@@ -22,6 +38,9 @@ const CURRENT_ACCOUNT_MODES = [
   { value: 'limited', label: 'Con límite' },
   { value: 'unlimited', label: 'Sin límite' },
 ] as const
+
+type WorkspaceTab = 'remitos' | 'resumen' | 'historial'
+type PageTab = 'closure' | 'authorizations'
 
 export default function CurrentAccount() {
   const queryClient = useQueryClient()
@@ -35,24 +54,46 @@ export default function CurrentAccount() {
       ? initialReceiptStatus
       : 'pending'
 
+  // ── Auth form state ───────────────────────────────────────────────────────
   const [billingClientId, setBillingClientId] = useState('')
   const [operatingClientId, setOperatingClientId] = useState('')
   const [operatingCreditLimit, setOperatingCreditLimit] = useState('')
   const [notes, setNotes] = useState('')
   const [editingAuth, setEditingAuth] = useState<ClientAuthorization | null>(null)
   const [authToDelete, setAuthToDelete] = useState<ClientAuthorization | null>(null)
+  const [showDisabledBillingClients, setShowDisabledBillingClients] = useState(false)
+
+  // ── Legacy closure state (kept for backwards compat with URL params) ───────
   const [closureBillingClientId, setClosureBillingClientId] = useState(initialBillingClientId)
-  const [closureNotes, setClosureNotes] = useState('')
+  const [closureNotes] = useState('')
   const [selectedReceiptIds, setSelectedReceiptIds] = useState<string[]>(
     initialReceiptId ? [initialReceiptId] : []
   )
-  const [receiptStatusFilter, setReceiptStatusFilter] = useState<'pending' | 'closed' | 'all'>(
-    initialReceiptStatusFilter
-  )
-  const [receiptSearch, setReceiptSearch] = useState('')
-  const [showDisabledBillingClients, setShowDisabledBillingClients] = useState(false)
-  const [showHistorySection, setShowHistorySection] = useState(false)
+  const [receiptStatusFilter] = useState<'pending' | 'closed' | 'all'>(initialReceiptStatusFilter)
+  const [receiptSearch] = useState('')
 
+  // ── Workspace state ───────────────────────────────────────────────────────
+  const [selectedTitularId, setSelectedTitularId] = useState<string | null>(
+    initialBillingClientId || null
+  )
+  const [workspaceSelectedIds, setWorkspaceSelectedIds] = useState<Set<string>>(
+    initialReceiptId ? new Set([initialReceiptId]) : new Set()
+  )
+  const [itemQuantityOverrides, setItemQuantityOverrides] = useState<Map<string, number>>(
+    new Map()
+  )
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>('remitos')
+  const [pageTab, setPageTab] = useState<PageTab>('closure')
+  const [remitosPage, setRemitosPage] = useState(1)
+  const [workspaceClosureNotes, setWorkspaceClosureNotes] = useState('')
+  const [showSelectionModal, setShowSelectionModal] = useState(false)
+  const [workspaceSpecialListItems, setWorkspaceSpecialListItems] = useState<string[]>([])
+  const [workspaceAppliedLists, setWorkspaceAppliedLists] = useState<Map<string, AppliedPriceList>>(new Map())
+  const [draftBanner, setDraftBanner] = useState<'hidden' | 'visible'>('hidden')
+  const [isSavingDraft, setIsSavingDraft] = useState(false)
+  const [existingDraft, setExistingDraft] = useState<CCDraft | null>(null)
+
+  // ── Queries ───────────────────────────────────────────────────────────────
   const {
     data: clientsData,
     isLoading: loadingClients,
@@ -104,7 +145,7 @@ export default function CurrentAccount() {
     queryFn: () =>
       vouchersService.getAll({
         page: 1,
-        per_page: 300,
+        per_page: 100,
         voucher_type: 'receipt',
         search: receiptSearch.trim() || undefined,
       }),
@@ -112,15 +153,39 @@ export default function CurrentAccount() {
     retry: false,
   })
 
+  const { data: workspaceReceiptsData } = useQuery({
+    queryKey: ['current-account-receipts', selectedTitularId, remitosPage, 15],
+    queryFn: () =>
+      vouchersService.getCurrentAccountReceipts({
+        billing_client_id: selectedTitularId!,
+        page: remitosPage,
+        per_page: 15,
+        pending_only: true,
+      }),
+    enabled: !!selectedTitularId,
+    staleTime: 15_000,
+  })
+
+  const workspacePageVouchers: Voucher[] = workspaceReceiptsData?.items ?? []
+
+  const workspaceSelectedReceipts = useMemo(
+    () => workspacePageVouchers.filter((v) => workspaceSelectedIds.has(v.id)),
+    [workspacePageVouchers, workspaceSelectedIds]
+  )
+
+  const workspaceSelectedTotal = useMemo(
+    () => workspaceSelectedReceipts.reduce((acc, v) => acc + Number(v.total ?? 0), 0),
+    [workspaceSelectedReceipts]
+  )
+
+  // ── Derived values ────────────────────────────────────────────────────────
   const clients = clientsData?.items || []
   const clientTypes = clientTypesData || []
   const authorizations = authorizationsData?.items || []
   const currentAccountReceipts = currentAccountReceiptsData?.items || []
-  const fallbackCurrentAccountReceipts = useMemo(() => {
-    if (!closureBillingClientId || currentAccountReceipts.length > 0) {
-      return []
-    }
 
+  const fallbackCurrentAccountReceipts = useMemo(() => {
+    if (!closureBillingClientId || currentAccountReceipts.length > 0) return []
     return (fallbackReceiptsData?.items || []).filter((voucher) => {
       const belongsToSelectedClient =
         voucher.billing_client_id === closureBillingClientId ||
@@ -134,7 +199,6 @@ export default function CurrentAccount() {
         (receiptStatusFilter === 'pending'
           ? !voucher.invoiced_voucher_id
           : !!voucher.invoiced_voucher_id)
-
       return belongsToSelectedClient && isCurrentAccountReceipt && matchesStatus
     })
   }, [
@@ -144,104 +208,77 @@ export default function CurrentAccount() {
     receiptStatusFilter,
   ])
 
-  const clientsById = useMemo(() => {
-    return new Map(clients.map((client) => [client.id, client]))
-  }, [clients])
+  const clientsById = useMemo(
+    () => new Map(clients.map((client) => [client.id, client])),
+    [clients]
+  )
 
-  const enabledBillingClients = useMemo(() => {
-    return clients.filter((client) => (client.current_account_mode || 'disabled') !== 'disabled')
-  }, [clients])
+  const enabledBillingClients = useMemo(
+    () => clients.filter((c) => (c.current_account_mode || 'disabled') !== 'disabled'),
+    [clients]
+  )
 
-  const disabledBillingClients = useMemo(() => {
-    return clients.filter((client) => (client.current_account_mode || 'disabled') === 'disabled')
-  }, [clients])
+  const disabledBillingClients = useMemo(
+    () => clients.filter((c) => (c.current_account_mode || 'disabled') === 'disabled'),
+    [clients]
+  )
 
-  const billingClients = useMemo(() => {
-    if (showDisabledBillingClients) {
-      return clients
-    }
-    return enabledBillingClients
-  }, [clients, enabledBillingClients, showDisabledBillingClients])
+  const billingClients = useMemo(
+    () => (showDisabledBillingClients ? clients : enabledBillingClients),
+    [clients, enabledBillingClients, showDisabledBillingClients]
+  )
 
   const hasOnlyDisabledBillingClients =
     enabledBillingClients.length === 0 && disabledBillingClients.length > 0
 
+  // Suppress unused variable warnings for legacy state still needed by queries/effects
+  void currentAccountReceipts
+  void fallbackCurrentAccountReceipts
+  void loadingPendingReceipts
+  void loadingFallbackReceipts
+  void selectedReceiptIds
+  void closureNotes
+
+  const typeById = useMemo(
+    () => new Map(clientTypes.map((item) => [item.id, item])),
+    [clientTypes]
+  )
+
+  const eligibleOperatingClients = useMemo(
+    () =>
+      clients.filter((c) => {
+        const type = c.client_type_id ? typeById.get(c.client_type_id) : undefined
+        return !!type?.is_subclient_eligible
+      }),
+    [clients, typeById]
+  )
+
+  const availableOperatingClients = useMemo(
+    () => eligibleOperatingClients.filter((c) => c.id !== billingClientId),
+    [eligibleOperatingClients, billingClientId]
+  )
+
+  // ── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (billingClientId && !billingClients.some((client) => client.id === billingClientId)) {
+    if (billingClientId && !billingClients.some((c) => c.id === billingClientId)) {
       setBillingClientId('')
     }
-
-    if (
-      closureBillingClientId &&
-      !billingClients.some((client) => client.id === closureBillingClientId)
-    ) {
+    if (closureBillingClientId && !billingClients.some((c) => c.id === closureBillingClientId)) {
       setClosureBillingClientId('')
       setSelectedReceiptIds([])
     }
   }, [billingClients, billingClientId, closureBillingClientId])
 
-  const closureReceipts = useMemo(
-    () =>
-      currentAccountReceipts.length > 0
-        ? currentAccountReceipts
-        : fallbackCurrentAccountReceipts,
-    [currentAccountReceipts, fallbackCurrentAccountReceipts]
-  )
-
-  const loadingClosureReceipts =
-    loadingPendingReceipts ||
-    (!!closureBillingClientId &&
-      currentAccountReceipts.length === 0 &&
-      loadingFallbackReceipts)
-
-  const pendingReceiptIds = useMemo(
-    () =>
-      new Set(
-        closureReceipts
-          .filter((voucher) => !voucher.invoiced_voucher_id)
-          .map((voucher) => voucher.id)
-      ),
-    [closureReceipts]
-  )
-
-  useEffect(() => {
-    setSelectedReceiptIds((prev) => prev.filter((id) => pendingReceiptIds.has(id)))
-  }, [pendingReceiptIds])
-
-  useEffect(() => {
-    if (!initialReceiptId || !pendingReceiptIds.has(initialReceiptId)) {
-      return
-    }
-
-    setSelectedReceiptIds((prev) =>
-      prev.includes(initialReceiptId) ? prev : [...prev, initialReceiptId]
-    )
-  }, [initialReceiptId, pendingReceiptIds])
-
-  const typeById = useMemo(() => {
-    return new Map(clientTypes.map((item) => [item.id, item]))
-  }, [clientTypes])
-
-  const eligibleOperatingClients = useMemo(() => {
-    return clients.filter((client) => {
-      const type = client.client_type_id ? typeById.get(client.client_type_id) : undefined
-      return !!type?.is_subclient_eligible
-    })
-  }, [clients, typeById])
-
-  const availableOperatingClients = useMemo(() => {
-    return eligibleOperatingClients.filter((client) => client.id !== billingClientId)
-  }, [eligibleOperatingClients, billingClientId])
-
   useEffect(() => {
     if (
       operatingClientId &&
-      !availableOperatingClients.some((client) => client.id === operatingClientId)
+      !availableOperatingClients.some((c) => c.id === operatingClientId)
     ) {
       setOperatingClientId('')
     }
   }, [availableOperatingClients, operatingClientId])
 
+  // ── Auth mutations ────────────────────────────────────────────────────────
   const createAuthorizationMutation = useMutation({
     mutationFn: () =>
       clientAuthorizationsService.create({
@@ -259,7 +296,7 @@ export default function CurrentAccount() {
       setOperatingCreditLimit('')
       setNotes('')
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(formatErrorMessage(error))
     },
   })
@@ -281,7 +318,7 @@ export default function CurrentAccount() {
       toast.success('Autorización actualizada')
       setEditingAuth(null)
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(formatErrorMessage(error))
     },
   })
@@ -293,1054 +330,742 @@ export default function CurrentAccount() {
       toast.success('Autorización eliminada')
       setAuthToDelete(null)
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(formatErrorMessage(error))
     },
   })
 
-  const closeCurrentAccountMutation = useMutation({
-    mutationFn: (payload: { close_all: boolean }) =>
-      vouchersService.closeCurrentAccount({
-        billing_client_id: closureBillingClientId,
-        receipt_ids: payload.close_all ? undefined : selectedReceiptIds,
-        close_all: payload.close_all,
-        notes: closureNotes.trim() || undefined,
-      }),
-    onSuccess: (voucher) => {
-      queryClient.invalidateQueries({ queryKey: ['current-account-receipts'] })
-      queryClient.invalidateQueries({ queryKey: ['current-account-pending-receipts'] })
-      queryClient.invalidateQueries({ queryKey: ['pending-quotations'] })
-      toast.success(
-        `Cierre generado: ${voucher.sale_point}-${voucher.number} (pendiente de facturar)`
-      )
-      setSelectedReceiptIds([])
-      setClosureNotes('')
-    },
-    onError: (error: any) => {
-      toast.error(formatErrorMessage(error))
-    },
-  })
-
-  const historyQuery = useQuery({
-    queryKey: ['current-account-history', closureBillingClientId],
-    queryFn: () => vouchersService.getCurrentAccountHistory(closureBillingClientId),
-    enabled: !!closureBillingClientId && showHistorySection,
-  })
-
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleCreateAuthorization = () => {
     if (!billingClientId || !operatingClientId) {
       toast.error('Seleccioná titular y subcliente')
       return
     }
-
     if (billingClientId === operatingClientId) {
       toast.error('Titular y subcliente deben ser distintos')
       return
     }
-
     createAuthorizationMutation.mutate()
   }
 
-  const handleToggleReceipt = (voucherId: string, isLocked: boolean) => {
-    if (isLocked) {
-      toast.error('Este remito ya quedó cerrado y no se puede seleccionar')
-      return
-    }
-
-    setSelectedReceiptIds((prev) =>
-      prev.includes(voucherId) ? prev.filter((id) => id !== voucherId) : [...prev, voucherId]
-    )
+  const handleWorkspaceTitularSelect = (id: string) => {
+    setSelectedTitularId(id)
+    setWorkspaceSelectedIds(new Set())
+    setItemQuantityOverrides(new Map())
+    setRemitosPage(1)
+    setActiveTab('remitos')
+    setWorkspaceAppliedLists(new Map())
+    setDraftBanner('hidden')
+    setExistingDraft(null)
+    ccDraftsService.get(id).then((draft) => {
+      if (draft) {
+        setExistingDraft(draft)
+        setDraftBanner('visible')
+      }
+    }).catch(() => {})
   }
 
-  const handleCloseCurrentAccount = (closeAll: boolean) => {
-    if (!closureBillingClientId) {
-      toast.error('Seleccioná el cliente titular a cerrar')
-      return
-    }
-
-    if (!closeAll && selectedReceiptIds.length === 0) {
-      toast.error('Seleccioná al menos un remito o usá "Cerrar toda la cuenta"')
-      return
-    }
-
-    closeCurrentAccountMutation.mutate({ close_all: closeAll })
+  const handleWorkspaceToggleReceipt = (id: string) => {
+    setWorkspaceSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
-  const handlePreview = async (closeAll: boolean) => {
-    if (!closureBillingClientId) {
-      toast.error('Seleccioná el cliente titular a cerrar')
-      return
+  const handleWorkspaceToggleAll = (ids: string[]) => {
+    const allSelected = ids.every((id) => workspaceSelectedIds.has(id))
+    if (!allSelected) {
+      setShowSelectionModal(true)
     }
+    setWorkspaceSelectedIds((prev) => {
+      if (allSelected) {
+        const next = new Set(prev)
+        ids.forEach((id) => next.delete(id))
+        return next
+      }
+      const next = new Set(prev)
+      ids.forEach((id) => next.add(id))
+      return next
+    })
+  }
 
-    if (!closeAll && selectedReceiptIds.length === 0) {
-      toast.error('Seleccioná al menos un remito para previsualizar o usá "Vista previa total"')
-      return
+  const handleItemQtyChange = (itemId: string, qty: number) => {
+    setItemQuantityOverrides((prev) => {
+      const next = new Map(prev)
+      next.set(itemId, qty)
+      return next
+    })
+  }
+
+  const handleWorkspaceCloseSuccess = () => {
+    setWorkspaceSelectedIds(new Set())
+    setItemQuantityOverrides(new Map())
+    setWorkspaceClosureNotes('')
+    setWorkspaceSpecialListItems([])
+    setRemitosPage(1)
+    if (selectedTitularId) ccDraftsService.delete(selectedTitularId).catch(() => {})
+    setWorkspaceAppliedLists(new Map())
+    setDraftBanner('hidden')
+    setExistingDraft(null)
+  }
+
+  const handleSelectionModalConfirm = (
+    overrides: Map<string, VoucherItemOverride>,
+    appliedLists: Map<string, AppliedPriceList>
+  ) => {
+    if (overrides.size > 0) {
+      setItemQuantityOverrides((prev) => {
+        const next = new Map(prev)
+        overrides.forEach((override, itemId) => {
+          next.set(itemId, override.quantity)
+        })
+        return next
+      })
     }
+    setWorkspaceAppliedLists(appliedLists)
+    if (workspaceSpecialListItems.length > 0) {
+      const listText = workspaceSpecialListItems.map((i) => `• ${i}`).join('\n')
+      setWorkspaceClosureNotes((prev) =>
+        prev.trim() ? `${prev}\n\nLista especial:\n${listText}` : `Lista especial:\n${listText}`
+      )
+      setWorkspaceSpecialListItems([])
+    }
+    setShowSelectionModal(false)
+  }
 
+  const handleRestoreDraft = () => {
+    if (!existingDraft) return
+    if (existingDraft.selected_receipt_ids) {
+      setWorkspaceSelectedIds(new Set(existingDraft.selected_receipt_ids))
+    }
+    if (existingDraft.closure_notes) setWorkspaceClosureNotes(existingDraft.closure_notes)
+    if (existingDraft.special_list_items) setWorkspaceSpecialListItems(existingDraft.special_list_items)
+    if (existingDraft.item_overrides) {
+      const map = new Map<string, number>()
+      Object.entries(existingDraft.item_overrides).forEach(([id, v]) => map.set(id, v.quantity))
+      setItemQuantityOverrides(map)
+    }
+    if (existingDraft.applied_price_lists) {
+      const map = new Map<string, AppliedPriceList>()
+      Object.entries(existingDraft.applied_price_lists).forEach(([vId, v]) => map.set(vId, v))
+      setWorkspaceAppliedLists(map)
+    }
+    setDraftBanner('hidden')
+    toast.success('Borrador restaurado')
+  }
+
+  const handleDiscardDraft = () => {
+    if (selectedTitularId) {
+      ccDraftsService.delete(selectedTitularId).catch(() => {})
+    }
+    setDraftBanner('hidden')
+    setExistingDraft(null)
+  }
+
+  const handleSaveDraft = async () => {
+    if (!selectedTitularId) return
+    setIsSavingDraft(true)
     try {
-      toast.loading('Generando PDF...', { id: 'preview-pdf' })
-      const blob = await vouchersService.previewCurrentAccountClosePdf({
-        billing_client_id: closureBillingClientId,
-        receipt_ids: closeAll ? undefined : selectedReceiptIds,
-        close_all: closeAll,
-        notes: closureNotes.trim() || undefined,
+      const overridesObj: Record<string, { quantity: number; unit_price: number; discount_percent: number }> = {}
+      itemQuantityOverrides.forEach((qty, id) => {
+        overridesObj[id] = { quantity: qty, unit_price: 0, discount_percent: 0 }
       })
 
-      // Abrir PDF en nueva pestaña
-      const url = window.URL.createObjectURL(blob)
-      window.open(url, '_blank')
+      const appliedObj: Record<string, AppliedPriceList> = {}
+      workspaceAppliedLists.forEach((val, vId) => {
+        appliedObj[vId] = val
+      })
 
-      toast.success('PDF generado', { id: 'preview-pdf' })
-    } catch (error: any) {
-      const status = error?.response?.status
-      const detail = error?.response?.data?.detail
-      if (status === 400) {
-        toast.error(
-          typeof detail === 'string' ? detail : 'No hay remitos disponibles para previsualizar.',
-          { id: 'preview-pdf' }
-        )
-      } else {
-        toast.error(formatErrorMessage(error), { id: 'preview-pdf' })
-      }
+      await ccDraftsService.save(selectedTitularId, {
+        titular_id: selectedTitularId,
+        closure_notes: workspaceClosureNotes || undefined,
+        special_list_items: workspaceSpecialListItems.length > 0 ? workspaceSpecialListItems : undefined,
+        selected_receipt_ids: Array.from(workspaceSelectedIds),
+        item_overrides: Object.keys(overridesObj).length > 0 ? overridesObj : undefined,
+        applied_price_lists: Object.keys(appliedObj).length > 0 ? appliedObj : undefined,
+      })
+      toast.success('Borrador guardado')
+    } catch {
+      toast.error('Error al guardar el borrador')
+    } finally {
+      setIsSavingDraft(false)
     }
   }
 
+  // ── KPI summary ───────────────────────────────────────────────────────────
   const topSummary = [
-    {
-      label: 'Clientes con Cta Cte habilitada',
-      value: enabledBillingClients.length,
-    },
-    {
-      label: 'Subclientes elegibles',
-      value: eligibleOperatingClients.length,
-    },
-    {
-      label: 'Autorizaciones activas',
-      value: authorizations.filter((a) => a.is_active).length,
-    },
+    { label: 'Clientes con Cta Cte habilitada', value: enabledBillingClients.length },
+    { label: 'Subclientes elegibles', value: eligibleOperatingClients.length },
+    { label: 'Autorizaciones activas', value: authorizations.filter((a) => a.is_active).length },
   ]
 
-  const selectedReceiptsTotal = useMemo(() => {
-    return closureReceipts
-      .filter((voucher) => selectedReceiptIds.includes(voucher.id))
-      .reduce((acc, voucher) => acc + Number(voucher.total || 0), 0)
-  }, [closureReceipts, selectedReceiptIds])
-
-  const selectedBillingClient = closureBillingClientId
-    ? clientsById.get(closureBillingClientId)
-    : undefined
+  const selectedTitularName = selectedTitularId
+    ? (clientsById.get(selectedTitularId)?.name ?? null)
+    : null
 
   return (
-    <div className="w-full max-w-none space-y-1">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 p-2 rounded-md border border-primary-200 dark:border-primary-800">
+    <div className="w-full max-w-none space-y-2">
+      {/* ── Page header ── */}
+      <div className="flex items-center gap-3 bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/20 dark:to-primary-900/20 px-4 py-3 rounded-lg border border-primary-200 dark:border-primary-800">
+        <ClipboardList className="h-5 w-5 text-primary-600 dark:text-primary-400 shrink-0" />
         <div>
-          <h1 className="text-xl font-bold text-primary-900 dark:text-primary-100 flex items-center gap-1.5">
-            <ClipboardList className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+          <h1 className="text-xl font-bold text-primary-900 dark:text-primary-100 leading-tight">
             Cuenta Corriente
           </h1>
           <p className="text-sm text-primary-700 dark:text-primary-300">
-            Gestión de autorizaciones titular/subcliente con sublímite por vínculo.
+            Gestión de autorizaciones titular/subcliente y cierre de remitos.
           </p>
         </div>
       </div>
 
+      {/* ── KPI cards ── */}
       <div className="grid grid-cols-3 gap-2">
         {topSummary.map((item) => {
           const isClients = item.label === 'Clientes con Cta Cte habilitada'
           const isSubclients = item.label === 'Subclientes elegibles'
-          
           return (
             <div
               key={item.label}
-              className={`rounded-2xl border-2 p-3 text-center ${
-                isClients 
-                  ? 'border-blue-300 bg-blue-100 dark:border-blue-700 dark:bg-blue-900/30' 
+              className={`rounded-xl border p-3 text-center ${
+                isClients
+                  ? 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20'
                   : isSubclients
-                  ? 'border-purple-300 bg-purple-100 dark:border-purple-700 dark:bg-purple-900/30'
-                  : 'border-green-300 bg-green-100 dark:border-green-700 dark:bg-green-900/30'
+                    ? 'border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-900/20'
+                    : 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
               }`}
             >
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                {isClients ? 'Ctas activas' : isSubclients ? 'Subclientes' : 'Auths'}
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-0.5">
+                {isClients ? 'Cuentas activas' : isSubclients ? 'Subclientes' : 'Autorizaciones'}
               </p>
-              <p className="text-2xl font-bold text-gray-800 dark:text-white">
-                {item.value}
-              </p>
+              <p className="text-2xl font-bold text-gray-800 dark:text-white">{item.value}</p>
             </div>
           )
         })}
       </div>
 
-      <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 space-y-2" data-tour-current-account-auth-section>
-        <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold">
-          <Plus size={16} className="text-primary-600" />
-          Nueva autorización de retiro
-        </div>
-
-        {clients.length === 0 && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
-            No hay clientes cargados todavía. Para crear autorizaciones primero necesitás dar de alta clientes.
-            <div className="mt-2">
-              <Button size="sm" variant="outline" onClick={() => navigate('/clients')}>
-                Ir a Clientes
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {hasOnlyDisabledBillingClients && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
-            No hay clientes con Cuenta Corriente habilitada. Podés habilitarla desde Clientes o mostrar
-            temporalmente los clientes deshabilitados para continuar con el flujo.
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => navigate('/clients')}>
-                Habilitar CC en Clientes
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setShowDisabledBillingClients(true)}>
-                Mostrar deshabilitados
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-          <input
-            type="checkbox"
-            checked={showDisabledBillingClients}
-            onChange={(e) => setShowDisabledBillingClients(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-          Mostrar también clientes con Cuenta Corriente deshabilitada
-        </label>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Cliente titular (paga la cuenta)
-            </label>
-            <select
-              value={billingClientId}
-              onChange={(e) => setBillingClientId(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 dark:text-white"
-              data-tour-current-account-billing-select
-            >
-              <option value="">{billingClients.length > 0 ? 'Seleccionar titular...' : 'Sin titulares disponibles'}</option>
-              {billingClients.map((client) => {
-                const mode = client.current_account_mode || 'disabled'
-                const modeLabel = CURRENT_ACCOUNT_MODES.find((item) => item.value === mode)?.label || mode
-                return (
-                  <option key={client.id} value={client.id}>
-                    {client.name} · {modeLabel}
-                  </option>
-                )
-              })}
-            </select>
-            {billingClients.length === 0 && (
-              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                No hay clientes para seleccionar. Revisá la configuración de Cuenta Corriente en Clientes.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Subcliente autorizado (retira mercadería)
-            </label>
-            <select
-              value={operatingClientId}
-              onChange={(e) => setOperatingClientId(e.target.value)}
-              disabled={availableOperatingClients.length === 0}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 dark:text-white"
-              data-tour-current-account-operating-select
-            >
-              <option value="">
-                {availableOperatingClients.length > 0
-                  ? 'Seleccionar subcliente...'
-                  : 'Sin subclientes disponibles'}
-              </option>
-              {availableOperatingClients.map((client) => {
-                const typeName = client.client_type_id
-                  ? typeById.get(client.client_type_id)?.name
-                  : 'Sin tipo'
-                return (
-                  <option key={client.id} value={client.id}>
-                    {client.name} · {typeName}
-                  </option>
-                )
-              })}
-            </select>
-            {billingClientId && availableOperatingClients.length === 0 && (
-              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                No quedan subclientes disponibles para este titular.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Sublímite (opcional)
-            </label>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={operatingCreditLimit}
-              onChange={(e) => setOperatingCreditLimit(e.target.value)}
-              placeholder="Ej: 500000"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Notas
-            </label>
-            <Input
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Condiciones del vínculo..."
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end" data-tour-current-account-create-auth-section>
-          <Button
-            onClick={handleCreateAuthorization}
-            isLoading={createAuthorizationMutation.isPending}
-            data-tour-current-account-create-auth
-          >
-            Guardar autorización
-          </Button>
-        </div>
+      {/* ── Page-level tabs ── */}
+      <div className="flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-t-lg">
+        <button
+          onClick={() => setPageTab('closure')}
+          className={[
+            'flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer',
+            pageTab === 'closure'
+              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200',
+          ].join(' ')}
+        >
+          <XCircle size={15} />
+          Cierre de Cuenta
+        </button>
+        <button
+          onClick={() => setPageTab('authorizations')}
+          className={[
+            'flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer',
+            pageTab === 'authorizations'
+              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200',
+          ].join(' ')}
+        >
+          <ShieldCheck size={15} />
+          Autorizaciones
+          {authorizations.filter((a) => a.is_active).length > 0 && (
+            <span className="inline-flex items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 text-[10px] font-bold w-4 h-4">
+              {authorizations.filter((a) => a.is_active).length}
+            </span>
+          )}
+        </button>
       </div>
 
-      <div
-        className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2"
-        data-tour-current-account-authorizations-table
-      >
-        <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold mb-2">
-          <Filter size={16} className="text-primary-600" />
-          <span className="lg:hidden">Titulares</span>
-          <span className="hidden lg:inline">Clientes titulares para Cuenta Corriente</span>
-        </div>
-
-        {/* Cards para mobile */}
-        <div className="lg:hidden space-y-2">
-          {clientsError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-center text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
-              Error cargando clientes: {formatErrorMessage(clientsError)}
+      {/* ══════════════════════════════════════════════
+          TAB: Cierre de Cuenta
+          ══════════════════════════════════════════════ */}
+      {pageTab === 'closure' && (
+        <div className="space-y-2">
+          {/* Guide — always visible */}
+          <div className="rounded-lg border border-primary-200 dark:border-primary-800 bg-white dark:bg-gray-800 overflow-hidden">
+            <div className="px-4 py-2.5 bg-primary-50 dark:bg-primary-900/20 border-b border-primary-100 dark:border-primary-800/60 flex items-center gap-2">
+              <HelpCircle size={14} className="text-primary-500 shrink-0" />
+              <p className="text-sm font-semibold text-primary-800 dark:text-primary-200">
+                Pasos para cerrar la cuenta
+              </p>
             </div>
-          )}
-          
-          {billingClients.map((client) => {
-            const mode = client.current_account_mode || 'disabled'
-            const modeLabel = CURRENT_ACCOUNT_MODES.find((item) => item.value === mode)?.label || mode
-            const isSelected = closureBillingClientId === client.id
-            const hasCredit = Number(client.current_balance || 0) > 0
-            
-            // Badge de modo con color
-            const modeColors: Record<string, string> = {
-              automatic: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-              manual: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-              disabled: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
-            }
-            const modeColor = modeColors[mode] || modeColors.disabled
-            
-            return (
-              <div key={client.id} className={`rounded-xl border p-3 shadow-sm ${
-                isSelected ? 'border-primary-300 bg-primary-50 dark:border-primary-700 dark:bg-primary-900/20' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
-              }`}>
-                {/* Cliente + Modo */}
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium text-gray-900 dark:text-white">{client.name}</span>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${modeColor}`}>
-                    {modeLabel}
-                  </span>
-                </div>
-                
-                {/* Límite y Saldo */}
-                <div className="flex items-center justify-between mb-2 text-sm">
-                  <div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">Límite</span>
-                    <div className="font-mono text-gray-700 dark:text-gray-300">
-                      {client.credit_limit != null
-                        ? `$ ${Number(client.credit_limit).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-                        : 'Sin límite'}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">Saldo</span>
-                    <div className={`font-mono font-semibold ${hasCredit ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}>
-                      $ {Number(client.current_balance || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Botón acción */}
-                <button
-                  onClick={() => {
-                    setClosureBillingClientId(client.id)
-                    setSelectedReceiptIds([])
+            <div className="p-3">
+              <ClosureGuide
+                hasSelectedTitular={!!selectedTitularId}
+                hasSelectedReceipts={workspaceSelectedIds.size > 0}
+                alwaysOpen
+              />
+            </div>
+          </div>
+
+          {/* Workspace */}
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
+            <div className="flex flex-col lg:flex-row h-[620px] lg:h-[680px]">
+              {/* Mobile: select */}
+              <div className="lg:hidden p-2 border-b border-gray-200 dark:border-gray-700">
+                <select
+                  value={selectedTitularId ?? ''}
+                  onChange={(e) => {
+                    const id = e.target.value
+                    if (id) handleWorkspaceTitularSelect(id)
+                    else setSelectedTitularId(null)
                   }}
-                  className={`w-full rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                    isSelected
-                      ? 'bg-primary-600 text-white'
-                      : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }`}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-primary-500"
                 >
-                  {isSelected ? 'Filtrando' : 'Ver remitos'}
-                </button>
+                  <option value="">Seleccioná un titular...</option>
+                  {enabledBillingClients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-            )
-          })}
-          
-          {!clientsError && billingClients.length === 0 && (
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-              No hay titulares para mostrar. Activá "Mostrar también clientes deshabilitados" o habilitá Cuenta Corriente desde Clientes.
-            </div>
-          )}
-        </div>
-        
-        {/* Tabla solo desktop */}
-        <div className="hidden lg:block overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800/70">
-              <tr>
-                <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Cliente</th>
-                <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Modo CC</th>
-                <th className="text-right px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Límite</th>
-                <th className="text-right px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Saldo</th>
-                <th className="text-right px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clientsError && (
-                <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-red-600 dark:text-red-400">
-                    Error cargando clientes: {formatErrorMessage(clientsError)}
-                  </td>
-                </tr>
-              )}
 
-              {billingClients.map((client) => {
-                const mode = client.current_account_mode || 'disabled'
-                const modeLabel = CURRENT_ACCOUNT_MODES.find((item) => item.value === mode)?.label || mode
-                const isSelected = closureBillingClientId === client.id
-                return (
-                  <tr key={client.id} className="border-t border-gray-100 dark:border-gray-700">
-                    <td className="px-3 py-2 text-gray-900 dark:text-white font-medium">{client.name}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{modeLabel}</td>
-                    <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">
-                      {client.credit_limit != null
-                        ? `$ ${Number(client.credit_limit).toLocaleString('es-AR', {
-                            minimumFractionDigits: 2,
-                          })}`
-                        : 'Sin límite'}
-                    </td>
-                    <td className="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">
-                      $ {Number(client.current_balance || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <Button
-                        size="sm"
-                        variant={isSelected ? 'primary' : 'outline'}
-                        onClick={() => {
-                          setClosureBillingClientId(client.id)
-                          setSelectedReceiptIds([])
-                        }}
-                      >
-                        {isSelected ? 'Filtrando' : 'Ver remitos'}
-                      </Button>
-                    </td>
-                  </tr>
-                )
-              })}
-
-               {!clientsError && billingClients.length === 0 && (
-                 <tr>
-                   <td colSpan={5} className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">
-                     No hay titulares para mostrar. Activá "Mostrar también clientes deshabilitados" o
-                     habilitá Cuenta Corriente desde Clientes.
-                   </td>
-                 </tr>
-               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2">
-        <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold mb-2">
-          <ShieldCheck size={16} className="text-primary-600" />
-          <span className="lg:hidden">Autorizaciones</span>
-          <span className="hidden lg:inline">Autorizaciones activas e históricas</span>
-        </div>
-
-        {(loadingClients || loadingAuthorizations) && (
-          <p className="text-sm text-gray-500 dark:text-gray-400">Cargando autorizaciones...</p>
-        )}
-
-        {!loadingClients && !loadingAuthorizations && (
-          <>
-            {/* Cards para mobile */}
-            <div className="lg:hidden space-y-2">
-              {authorizations.map((auth) => {
-                const billing = clientsById.get(auth.billing_client_id)
-                const operating = clientsById.get(auth.operating_client_id)
-                return (
-                  <div key={auth.id} className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                    {/* Titular - Subcliente */}
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">Titular</div>
-                        <div className="font-medium text-gray-900 dark:text-white">{billing?.name || '—'}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-xs text-gray-500 dark:text-gray-400">Subcliente</div>
-                        <div className="font-medium text-gray-900 dark:text-white">{operating?.name || '—'}</div>
-                      </div>
-                    </div>
-                    
-                    {/* Sublímite + Estado */}
-                    <div className="flex items-center justify-between mb-2 text-sm">
-                      <div>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">Sublímite</span>
-                        <div className="font-mono text-gray-700 dark:text-gray-300">
-                          {auth.operating_credit_limit != null
-                            ? `$ ${Number(auth.operating_credit_limit).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-                            : 'Sin sublímite'}
-                        </div>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        auth.is_active
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                          : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
-                      }`}>
-                        {auth.is_active ? 'Activa' : 'Inactiva'}
-                      </span>
-                    </div>
-                    
-                    {/* Botones acciones */}
-                    <div className="flex gap-1.5 pt-2 border-t border-gray-100 dark:border-gray-700">
-                      <button
-                        onClick={() => setEditingAuth(auth)}
-                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => setAuthToDelete(auth)}
-                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-              
-              {authorizations.length === 0 && (
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                  No hay autorizaciones registradas todavía.
+              {/* Desktop: sidebar */}
+              <div className="hidden lg:flex flex-col w-60 shrink-0 border-r border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800/70 border-b border-gray-200 dark:border-gray-700">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Titulares
+                  </p>
                 </div>
-              )}
-            </div>
-            
-            {/* Tabla solo desktop */}
-            <div className="hidden lg:block overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
-              <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-800/70">
-                <tr>
-                  <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Titular</th>
-                  <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Subcliente</th>
-                  <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Sublímite</th>
-                  <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Estado</th>
-                  <th className="text-right px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {authorizations.map((auth) => {
-                  const billing = clientsById.get(auth.billing_client_id)
-                  const operating = clientsById.get(auth.operating_client_id)
-                  return (
-                    <tr key={auth.id} className="border-t border-gray-100 dark:border-gray-700">
-                      <td className="px-3 py-2 text-gray-900 dark:text-white">{billing?.name || '—'}</td>
-                      <td className="px-3 py-2 text-gray-900 dark:text-white">{operating?.name || '—'}</td>
-                      <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
-                        {auth.operating_credit_limit != null
-                          ? `$ ${Number(auth.operating_credit_limit).toLocaleString('es-AR', {
-                              minimumFractionDigits: 2,
-                            })}`
-                          : 'Sin sublímite'}
-                      </td>
-                      <td className="px-3 py-2">
-                        <span
-                          className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                            auth.is_active
-                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                              : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
-                          }`}
-                        >
-                          {auth.is_active ? 'Activa' : 'Inactiva'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex justify-end gap-2">
-                          <Button size="sm" variant="outline" onClick={() => setEditingAuth(auth)}>
-                            Editar
-                          </Button>
-                          <button
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                            onClick={() => setAuthToDelete(auth)}
-                            title="Eliminar autorización"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-                {authorizations.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">
-                      No hay autorizaciones registradas todavía.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          </>
-        )}
-      </div>
+                <div className="flex-1 overflow-hidden">
+                  <TitularesList
+                    selectedId={selectedTitularId}
+                    onSelect={handleWorkspaceTitularSelect}
+                  />
+                </div>
+              </div>
 
-      <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 space-y-2" data-tour-current-account-close-section>
-        <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold">
-          <ClipboardList size={16} className="text-primary-600" />
-          <span className="lg:hidden">Cierre</span>
-          <span className="hidden lg:inline">Control previo al cierre y selección de remitos</span>
-        </div>
-
-        {/* Filtros para mobile */}
-        <div className="lg:hidden space-y-2">
-          <select
-            value={closureBillingClientId}
-            onChange={(e) => {
-              setClosureBillingClientId(e.target.value)
-              setSelectedReceiptIds([])
-            }}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 dark:text-white"
-          >
-            <option value="">{billingClients.length > 0 ? 'Seleccionar titular...' : 'Sin titulares'}</option>
-            {billingClients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.name}
-                {(client.current_account_mode || 'disabled') === 'disabled' ? ' · Deshabilitada' : ''}
-              </option>
-            ))}
-          </select>
-          
-          {selectedBillingClient && (
-            <div className="rounded-lg border border-gray-200 bg-gray-50 dark:bg-gray-900/30 p-2 text-sm">
-              <span className="text-gray-500 dark:text-gray-400">Saldo actual: </span>
-              <span className="font-mono font-semibold text-gray-900 dark:text-white">
-                ${Number(selectedBillingClient.current_balance || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-          )}
-          
-          <select
-            value={receiptStatusFilter}
-            onChange={(e) => {
-              setReceiptStatusFilter(e.target.value as 'pending' | 'closed' | 'all')
-              setSelectedReceiptIds([])
-            }}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-          >
-            <option value="pending">Solo pendientes</option>
-            <option value="closed">Solo cerrados</option>
-            <option value="all">Todos</option>
-          </select>
-        </div>
-        
-        {/* Desktop filters */}
-        <div className="hidden lg:grid grid-cols-1 md:grid-cols-2 gap-2">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Cliente titular a cerrar
-            </label>
-            <select
-              value={closureBillingClientId}
-              onChange={(e) => {
-                setClosureBillingClientId(e.target.value)
-                setSelectedReceiptIds([])
-              }}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 dark:text-white"
-              data-tour-current-account-closure-billing
-            >
-              <option value="">{billingClients.length > 0 ? 'Seleccionar titular...' : 'Sin titulares disponibles'}</option>
-              {billingClients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                  {(client.current_account_mode || 'disabled') === 'disabled'
-                    ? ' · Deshabilitada'
-                    : ''}
-                </option>
-              ))}
-            </select>
-            {billingClients.length === 0 && (
-              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                Sin titulares para cierre. Mostrá clientes deshabilitados o habilitá CC en Clientes.
-              </p>
-            )}
-            {selectedBillingClient && (
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Saldo actual: ${' '}
-                {Number(selectedBillingClient.current_balance || 0).toLocaleString('es-AR', {
-                  minimumFractionDigits: 2,
-                })}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Observaciones del cierre (opcional)
-            </label>
-            <Input
-              value={closureNotes}
-              onChange={(e) => setClosureNotes(e.target.value)}
-              placeholder="Nota para el comprobante de cierre..."
-            />
-          </div>
-        </div>
-
-        <div className="hidden lg:grid grid-cols-1 md:grid-cols-2 gap-2">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Estado de remitos
-            </label>
-            <select
-              value={receiptStatusFilter}
-              onChange={(e) => {
-                setReceiptStatusFilter(e.target.value as 'pending' | 'closed' | 'all')
-                setSelectedReceiptIds([])
-              }}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 dark:text-white"
-            >
-              <option value="pending">Solo pendientes</option>
-              <option value="closed">Solo cerrados/bloqueados</option>
-              <option value="all">Todos</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Buscar remito
-            </label>
-            <Input
-              value={receiptSearch}
-              onChange={(e) => setReceiptSearch(e.target.value)}
-              placeholder="Número o nota..."
-            />
-          </div>
-        </div>
-
-        {/* ===== LISTA DE REMITOS ===== */}
-        
-        {/* Mobile cards */}
-        <div className="lg:hidden space-y-2">
-          {loadingClosureReceipts && (
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-              Cargando remitos...
-            </div>
-          )}
-          
-          {!loadingClosureReceipts && closureReceipts.length === 0 && (
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-              {closureBillingClientId
-                ? 'No hay remitos de Cuenta Corriente pendientes para este titular.'
-                : 'Seleccioná un cliente titular para ver sus remitos de Cuenta Corriente'}
-            </div>
-          )}
-          
-          {!loadingClosureReceipts && closureReceipts.map((voucher) => {
-            const isLocked = !!voucher.invoiced_voucher_id
-            const isAuthorized = !!voucher.is_withdrawal_authorized
-            const isSelected = selectedReceiptIds.includes(voucher.id)
-            const isReturnReceipt = voucher.is_return_receipt
-            
-            return (
-              <div key={voucher.id} className={`rounded-xl border p-3 shadow-sm ${
-                isSelected 
-                  ? 'border-primary-300 bg-primary-50 dark:border-primary-700 dark:bg-primary-900/20' 
-                  : isReturnReceipt 
-                  ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
-                  : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
-              }`}>
-                {/* Checkbox + Número */}
-                <div className="flex items-center justify-between mb-2">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => handleToggleReceipt(voucher.id, isLocked)}
-                      disabled={isLocked}
-                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    <span className="font-mono font-semibold text-gray-900 dark:text-white">
-                      {voucher.sale_point}-{voucher.number}
-                    </span>
-                    {isReturnReceipt && (
-                      <span className="inline-flex items-center rounded-full bg-red-100 text-red-700 px-1.5 py-0.5 text-[10px] font-medium dark:bg-red-900/50 dark:text-red-300">
-                        Devolución
+              {/* Right panel */}
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800/70 border-b border-gray-200 dark:border-gray-700">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {selectedTitularName ?? (
+                      <span className="text-gray-400 dark:text-gray-500 italic">
+                        Seleccioná un titular...
                       </span>
                     )}
-                  </label>
-                  <span className={`font-mono font-bold ${isReturnReceipt ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
-                    ${Number(voucher.total).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                  </span>
+                  </p>
                 </div>
-                
-                {/* Fecha + Estado */}
-                <div className="flex items-center justify-between text-xs mb-2">
-                  <span className="text-gray-500 dark:text-gray-400">
-                    {new Date(`${voucher.date}T00:00:00`).toLocaleDateString('es-AR')}
-                  </span>
-                  {isLocked ? (
-                    <span className="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300">
-                      <AlertTriangle size={10} />
-                      Cerrado
+
+                {/* Draft banner */}
+                {draftBanner === 'visible' && (
+                  <div className="mx-3 mt-2 flex items-center gap-3 px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-sm">
+                    <span className="text-amber-700 dark:text-amber-300 flex-1">
+                      Hay un borrador guardado para este titular. ¿Querés continuar donde lo dejaste?
                     </span>
-                  ) : (
-                    <span className="flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300">
-                      <CheckCircle2 size={10} />
-                      Pendiente
-                    </span>
-                  )}
-                </div>
-                
-                {/* Autorizado badge */}
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                  isAuthorized
-                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                }`}>
-                  Autorizado: {isAuthorized ? 'Sí' : 'No'}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-        
-        {/* Desktop table */}
-        <div className="hidden lg:block overflow-auto rounded-md border border-gray-200 dark:border-gray-700 max-h-72">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800/70">
-              <tr>
-                <th className="px-3 py-2 text-left">Sel.</th>
-                <th className="px-3 py-2 text-left">Remito</th>
-                <th className="px-3 py-2 text-left">Fecha</th>
-                <th className="px-3 py-2 text-left">Titular</th>
-                <th className="px-3 py-2 text-left">Autorizado</th>
-                <th className="px-3 py-2 text-left">Estado</th>
-                <th className="px-3 py-2 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loadingClosureReceipts && (
-                <tr>
-                  <td colSpan={7} className="px-3 py-4 text-center text-gray-500 dark:text-gray-400">
-                    Cargando remitos pendientes...
-                  </td>
-                </tr>
-              )}
-
-              {!loadingClosureReceipts && closureReceipts.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-3 py-4 text-center text-gray-500 dark:text-gray-400">
-                    {closureBillingClientId
-                      ? 'No hay remitos de Cuenta Corriente pendientes para este titular.'
-                      : 'Seleccioná un cliente titular para ver sus remitos de Cuenta Corriente'}
-                  </td>
-                </tr>
-              )}
-
-              {!loadingClosureReceipts &&
-                closureReceipts.map((voucher) => {
-                  const isLocked = !!voucher.invoiced_voucher_id
-                  // Mostrar el titular (billing client)
-                  const titularName =
-                    voucher.billing_client?.name ||
-                    clientsById.get(voucher.billing_client_id || '')?.name ||
-                    clientsById.get(voucher.client_id || '')?.name ||
-                    '—'
-                  const isAuthorized = !!voucher.is_withdrawal_authorized
-                  const isReturnReceipt = voucher.is_return_receipt
-
-                  return (
-                    <tr key={voucher.id} className={`border-t border-gray-100 dark:border-gray-700 ${isReturnReceipt ? 'bg-red-50 dark:bg-red-900/20' : ''}`}>
-                      <td className="px-3 py-2">
-                        <input
-                          type="checkbox"
-                          checked={selectedReceiptIds.includes(voucher.id)}
-                          onChange={() => handleToggleReceipt(voucher.id, isLocked)}
-                          disabled={isLocked}
-                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className="text-gray-900 dark:text-white">
-                          {voucher.sale_point}-{voucher.number}
-                        </span>
-                        {isReturnReceipt && (
-                          <span className="ml-2 inline-flex items-center rounded-full bg-red-100 text-red-700 px-1.5 py-0.5 text-[10px] font-medium dark:bg-red-900/50 dark:text-red-300">
-                            Devolución
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
-                        {new Date(`${voucher.date}T00:00:00`).toLocaleDateString('es-AR')}
-                      </td>
-                      <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{titularName}</td>
-                      <td className="px-3 py-2">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                            isAuthorized
-                              ? 'border border-green-200 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300'
-                              : 'border border-red-200 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300'
-                          }`}
-                        >
-                          {isAuthorized ? 'Sí' : 'No'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">
-                        {isLocked ? (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300">
-                            <AlertTriangle size={12} />
-                            Bloqueado (cerrado)
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300">
-                            <CheckCircle2 size={12} />
-                            Pendiente
-                          </span>
-                        )}
-                      </td>
-                      <td className={`px-3 py-2 text-right font-medium ${isReturnReceipt ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
-                        $
-                        {Number(voucher.total).toLocaleString('es-AR', {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                    </tr>
-                  )
-                })}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-2 text-sm text-gray-700 dark:text-gray-300">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span>Seleccionados: <strong>{selectedReceiptIds.length}</strong></span>
-            <span>
-              Total selección:{' '}
-              <strong>
-                $ {selectedReceiptsTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-              </strong>
-            </span>
-            <span>
-              Pendientes visibles:{' '}
-              <strong>{closureReceipts.filter((voucher) => !voucher.invoiced_voucher_id).length}</strong>
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap justify-center gap-1.5">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handlePreview(false)}
-            disabled={selectedReceiptIds.length === 0}
-            data-tour-current-account-preview
-            title="Vista previa del cierre"
-          >
-            <Eye size={14} className="mr-1" />
-            Previa
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleCloseCurrentAccount(false)}
-            isLoading={closeCurrentAccountMutation.isPending}
-            disabled={selectedReceiptIds.length === 0}
-            title="Cerrar solo los remitos seleccionados"
-          >
-            <XCircle size={14} className="mr-1" />
-            Cerrar ({selectedReceiptIds.length})
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => handlePreview(true)}
-            title="Vista previa de toda la cuenta sin cerrar"
-          >
-            <FileText size={14} className="mr-1" />
-            Previa total
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => handleCloseCurrentAccount(true)}
-            isLoading={closeCurrentAccountMutation.isPending}
-            data-tour-current-account-close-all
-            title="Cerrar todos los remitos pendientes"
-          >
-            <ShieldCheck size={14} className="mr-1" />
-            Cerrar todo
-          </Button>
-        </div>
-
-        {/* Sección histórico de cierres */}
-        {closureBillingClientId && (
-          <div className="mt-2">
-            <button
-              onClick={() => setShowHistorySection(!showHistorySection)}
-              className="text-sm text-primary-600 hover:text-primary-700 underline"
-            >
-              {showHistorySection ? 'Ocultar' : 'Ver'} histórico de cierres
-            </button>
-          </div>
-        )}
-
-        {showHistorySection && historyQuery.data && (
-          <div className="mt-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-1.5">
-              Histórico de cierres
-            </h3>
-            {historyQuery.data.closures.length === 0 ? (
-              <p className="text-gray-500 text-sm">No hay cierres históricos</p>
-            ) : (
-              <div className="space-y-1">
-                {historyQuery.data.closures.map((closure) => (
-                  <div
-                    key={closure.closure_voucher_id}
-                    className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-900 rounded"
-                  >
-                    <div>
-                      <span className="font-medium">{closure.closure_number}</span>
-                      <span className="ml-2 text-gray-500 text-sm">
-                        {new Date(closure.closure_date).toLocaleDateString('es-AR')} ·{' '}
-                        {closure.total_receipts} remito(s) · ${' '}
-                        {closure.total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
+                    <Button size="sm" variant="outline" onClick={handleRestoreDraft}>Continuar</Button>
+                    <button onClick={handleDiscardDraft} className="text-xs text-amber-500 hover:text-amber-700 cursor-pointer">Descartar</button>
                   </div>
-                ))}
+                )}
+
+                {selectedTitularId ? (
+                  <>
+                    <div className="flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                      {(['remitos', 'resumen', 'historial'] as WorkspaceTab[]).map((tab) => (
+                        <button
+                          key={tab}
+                          onClick={() => setActiveTab(tab)}
+                          className={[
+                            'px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer',
+                            activeTab === tab
+                              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200',
+                          ].join(' ')}
+                        >
+                          {tab === 'remitos' ? 'Remitos' : tab === 'resumen' ? 'Resumen' : 'Historial'}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-3">
+                      {activeTab === 'remitos' && (
+                        <RemitosTable
+                          titularId={selectedTitularId}
+                          selectedIds={workspaceSelectedIds}
+                          itemQuantityOverrides={itemQuantityOverrides}
+                          page={remitosPage}
+                          onPageChange={setRemitosPage}
+                          onToggleReceipt={handleWorkspaceToggleReceipt}
+                          onToggleAll={handleWorkspaceToggleAll}
+                          onItemQtyChange={handleItemQtyChange}
+                        />
+                      )}
+
+                      {activeTab === 'resumen' && (
+                        <RemitosResumen
+                          selectedReceipts={workspaceSelectedReceipts}
+                          itemQuantityOverrides={itemQuantityOverrides}
+                        />
+                      )}
+
+                      {activeTab === 'historial' && (
+                        <RemitosHistorial titularId={selectedTitularId} />
+                      )}
+                    </div>
+
+                    <ActionBar
+                      selectedCount={workspaceSelectedIds.size}
+                      selectedTotal={workspaceSelectedTotal}
+                      titularId={selectedTitularId}
+                      closureNotes={workspaceClosureNotes}
+                      onNotesChange={setWorkspaceClosureNotes}
+                      itemQuantityOverrides={itemQuantityOverrides}
+                      selectedReceiptIds={workspaceSelectedIds}
+                      onCloseSuccess={handleWorkspaceCloseSuccess}
+                      onOpenPreview={() => setShowSelectionModal(true)}
+                      onSaveDraft={selectedTitularId ? handleSaveDraft : undefined}
+                      isSavingDraft={isSavingDraft}
+                    />
+                  </>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-400 dark:text-gray-500">
+                    <ClipboardList size={36} className="opacity-20" />
+                    <p className="text-sm">Seleccioná un titular para comenzar</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════
+          TAB: Autorizaciones
+          ══════════════════════════════════════════════ */}
+      {pageTab === 'authorizations' && (
+        <div className="space-y-2">
+          {/* Nueva autorización */}
+          <div
+            className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-3"
+            data-tour-current-account-auth-section
+          >
+            <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold">
+              <Plus size={16} className="text-primary-600" />
+              Nueva autorización de retiro
+            </div>
+
+            {clients.length === 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+                No hay clientes cargados todavía.
+                <div className="mt-2">
+                  <Button size="sm" variant="outline" onClick={() => navigate('/clients')}>
+                    Ir a Clientes
+                  </Button>
+                </div>
               </div>
             )}
-</div>
-        )}
-      </div>
 
+            {hasOnlyDisabledBillingClients && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+                No hay clientes con Cuenta Corriente habilitada.
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => navigate('/clients')}>
+                    Habilitar CC en Clientes
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowDisabledBillingClients(true)}
+                  >
+                    Mostrar deshabilitados
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={showDisabledBillingClients}
+                onChange={(e) => setShowDisabledBillingClients(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              Mostrar también clientes con CC deshabilitada
+            </label>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Cliente titular (paga la cuenta)
+                </label>
+                <select
+                  value={billingClientId}
+                  onChange={(e) => setBillingClientId(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 dark:text-white"
+                  data-tour-current-account-billing-select
+                >
+                  <option value="">
+                    {billingClients.length > 0 ? 'Seleccionar titular...' : 'Sin titulares disponibles'}
+                  </option>
+                  {billingClients.map((client) => {
+                    const mode = client.current_account_mode || 'disabled'
+                    const modeLabel =
+                      CURRENT_ACCOUNT_MODES.find((item) => item.value === mode)?.label || mode
+                    return (
+                      <option key={client.id} value={client.id}>
+                        {client.name} · {modeLabel}
+                      </option>
+                    )
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Subcliente autorizado (retira mercadería)
+                </label>
+                <select
+                  value={operatingClientId}
+                  onChange={(e) => setOperatingClientId(e.target.value)}
+                  disabled={availableOperatingClients.length === 0}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 dark:text-white"
+                  data-tour-current-account-operating-select
+                >
+                  <option value="">
+                    {availableOperatingClients.length > 0
+                      ? 'Seleccionar subcliente...'
+                      : 'Sin subclientes disponibles'}
+                  </option>
+                  {availableOperatingClients.map((client) => {
+                    const typeName = client.client_type_id
+                      ? typeById.get(client.client_type_id)?.name
+                      : 'Sin tipo'
+                    return (
+                      <option key={client.id} value={client.id}>
+                        {client.name} · {typeName}
+                      </option>
+                    )
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Sublímite (opcional)
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={operatingCreditLimit}
+                  onChange={(e) => setOperatingCreditLimit(e.target.value)}
+                  placeholder="Ej: 500000"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Notas
+                </label>
+                <Input
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Condiciones del vínculo..."
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end" data-tour-current-account-create-auth-section>
+              <Button
+                onClick={handleCreateAuthorization}
+                isLoading={createAuthorizationMutation.isPending}
+                data-tour-current-account-create-auth
+              >
+                Guardar autorización
+              </Button>
+            </div>
+          </div>
+
+          {/* Clientes con CC */}
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+            <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold mb-3">
+              <Filter size={16} className="text-primary-600" />
+              Clientes con Cuenta Corriente
+            </div>
+
+            <div className="overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-800/70">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">
+                      Cliente
+                    </th>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">
+                      Modo CC
+                    </th>
+                    <th className="text-right px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">
+                      Límite
+                    </th>
+                    <th className="text-right px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">
+                      Saldo
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clientsError && (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-6 text-center text-red-600 dark:text-red-400">
+                        {formatErrorMessage(clientsError)}
+                      </td>
+                    </tr>
+                  )}
+                  {enabledBillingClients.map((client) => {
+                    const mode = client.current_account_mode || 'disabled'
+                    const modeLabel =
+                      CURRENT_ACCOUNT_MODES.find((item) => item.value === mode)?.label || mode
+                    const hasDebt = Number(client.current_balance || 0) > 0
+                    return (
+                      <tr key={client.id} className="border-t border-gray-100 dark:border-gray-700">
+                        <td className="px-3 py-2 font-medium text-gray-900 dark:text-white">
+                          {client.name}
+                        </td>
+                        <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{modeLabel}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs text-gray-700 dark:text-gray-300">
+                          {client.credit_limit != null
+                            ? `$${Number(client.credit_limit).toLocaleString('es-AR', { minimumFractionDigits: 0 })}`
+                            : '—'}
+                        </td>
+                        <td
+                          className={`px-3 py-2 text-right font-mono text-xs font-semibold ${
+                            hasDebt ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'
+                          }`}
+                        >
+                          ${Number(client.current_balance || 0).toLocaleString('es-AR', {
+                            minimumFractionDigits: 0,
+                          })}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {!clientsError && enabledBillingClients.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">
+                        No hay titulares con CC habilitada.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Autorizaciones */}
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+            <div className="flex items-center gap-2 text-gray-900 dark:text-white font-semibold mb-3">
+              <ShieldCheck size={16} className="text-primary-600" />
+              Autorizaciones activas e históricas
+            </div>
+
+            {(loadingClients || loadingAuthorizations) && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">Cargando...</p>
+            )}
+
+            {!loadingClients && !loadingAuthorizations && (
+              <div className="overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-800/70">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">
+                        Titular
+                      </th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">
+                        Subcliente
+                      </th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">
+                        Sublímite
+                      </th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">
+                        Estado
+                      </th>
+                      <th className="text-right px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {authorizations.map((auth) => {
+                      const billing = clientsById.get(auth.billing_client_id)
+                      const operating = clientsById.get(auth.operating_client_id)
+                      return (
+                        <tr key={auth.id} className="border-t border-gray-100 dark:border-gray-700">
+                          <td className="px-3 py-2 text-gray-900 dark:text-white">
+                            {billing?.name || '—'}
+                          </td>
+                          <td className="px-3 py-2 text-gray-900 dark:text-white">
+                            {operating?.name || '—'}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300">
+                            {auth.operating_credit_limit != null
+                              ? `$${Number(auth.operating_credit_limit).toLocaleString('es-AR', { minimumFractionDigits: 0 })}`
+                              : '—'}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span
+                              className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                                auth.is_active
+                                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                  : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                              }`}
+                            >
+                              {auth.is_active ? 'Activa' : 'Inactiva'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditingAuth(auth)}
+                              >
+                                Editar
+                              </Button>
+                              <button
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors cursor-pointer"
+                                onClick={() => setAuthToDelete(auth)}
+                                title="Eliminar autorización"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {authorizations.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-3 py-6 text-center text-gray-500 dark:text-gray-400"
+                        >
+                          No hay autorizaciones registradas todavía.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Selection preview modal ── */}
+      <VouchersSelectionModal
+        isOpen={showSelectionModal}
+        onClose={() => setShowSelectionModal(false)}
+        selectedReceipts={workspaceSelectedReceipts}
+        closureNotes={workspaceClosureNotes}
+        onNotesChange={setWorkspaceClosureNotes}
+        specialListItems={workspaceSpecialListItems}
+        onSpecialListChange={setWorkspaceSpecialListItems}
+        initialAppliedLists={workspaceAppliedLists}
+        onConfirm={handleSelectionModalConfirm}
+      />
+
+      {/* ── Modals ── */}
       <Modal
         isOpen={!!editingAuth}
         onClose={() => setEditingAuth(null)}
@@ -1423,7 +1148,9 @@ function EditAuthorizationForm({
       </label>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notas</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Notas
+        </label>
         <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notas" />
       </div>
 

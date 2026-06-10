@@ -64,6 +64,11 @@ export default function MainLayout() {
       return
     }
 
+    if (location.pathname.startsWith('/price-lists') && !priceUpdateEnabled && !currentAccountEnabled) {
+      navigate('/', { replace: true })
+      return
+    }
+
     if (location.pathname.startsWith('/reports') && !reportsEnabled) {
       navigate('/', { replace: true })
       return

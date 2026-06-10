@@ -410,6 +410,13 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
       if (typeof payload.sql_backup_enabled === 'boolean') {
         toast.success(payload.sql_backup_enabled ? 'Backup SQL habilitado' : 'Backup SQL deshabilitado')
       }
+      if (typeof payload.invoice_zero_stock_enabled === 'boolean') {
+        toast.success(
+          payload.invoice_zero_stock_enabled
+            ? 'Venta con stock en cero habilitada'
+            : 'Venta con stock en cero deshabilitada',
+        )
+      }
       if (typeof payload.whatsapp_enabled === 'boolean') {
         toast.success(payload.whatsapp_enabled ? 'WhatsApp habilitado' : 'WhatsApp deshabilitado')
       }
@@ -485,6 +492,7 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
   const priceUpdateEnabled = flagsQuery.data?.price_update_enabled ?? true
   const reportsEnabled = flagsQuery.data?.reports_enabled ?? true
   const sqlBackupEnabled = flagsQuery.data?.sql_backup_enabled ?? false
+  const invoiceZeroStockEnabled = flagsQuery.data?.invoice_zero_stock_enabled ?? false
   const linearConfigured = Boolean(linearSecretsQuery.data?.secrets?.linear_api_key?.configured)
   const linearLast4 = linearSecretsQuery.data?.secrets?.linear_api_key?.last4
   const openRouterConfig = aiConfigQuery.data?.providers.find(
@@ -893,6 +901,46 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
                 }`}
               >
                 {sqlBackupEnabled ? 'Habilitado (Premium)' : 'Deshabilitado'}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Venta con stock en cero</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Permite emitir comprobantes aunque el stock del producto sea cero o negativo.
+                  Útil para negocios que no gestionan el stock con precisión.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={invoiceZeroStockEnabled}
+                onClick={() => updateMutation.mutate({ invoice_zero_stock_enabled: !invoiceZeroStockEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  invoiceZeroStockEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    invoiceZeroStockEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="mt-3">
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  invoiceZeroStockEnabled
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                }`}
+              >
+                {invoiceZeroStockEnabled ? 'Habilitado' : 'Deshabilitado'}
               </span>
             </div>
           </div>

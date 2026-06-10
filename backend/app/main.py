@@ -22,6 +22,7 @@ from app.routers import (
     business,
     cash,
     categories,
+    cc_drafts,
     client_authorizations,
     client_types,
     clients,
@@ -31,6 +32,7 @@ from app.routers import (
     feedback,
     payment_methods,
     pdf_test,
+    price_lists,
     price_update_drafts,
     product_lots,
     products,
@@ -123,6 +125,8 @@ app.include_router(reports.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(stockpiles.internal_router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(stockpiles.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(audit_logs.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(price_lists.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(cc_drafts.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(admin.router)  # /api/admin/* (prefijo interno)
 app.include_router(feedback.admin_router)
 app.include_router(billing.router)

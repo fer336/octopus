@@ -1,26 +1,52 @@
-/**
- * Página de Marcas.
- * Gestión de marcas normalizadas para productos.
- */
 import { useState } from 'react'
-import { Plus, Edit, Trash2, Search, Tags, Inbox } from 'lucide-react'
-import { Button, Table, Modal, Input, ResponsiveTable } from '../components/ui'
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  Search,
+  Tags,
+  Package,
+  AlertTriangle,
+  ChevronRight,
+  RefreshCw,
+} from 'lucide-react'
+import { Button, Modal, Input } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import brandsService, { Brand, BrandCreate, BrandUpdate } from '../api/brandsService'
+import brandsService, {
+  Brand,
+  BrandCreate,
+  BrandUpdate,
+  BrandProductItem,
+} from '../api/brandsService'
 import toast from 'react-hot-toast'
 
 export default function Brands() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
-  const [showModal, setShowModal] = useState(false)
+  const [showBrandModal, setShowBrandModal] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState<Partial<Brand>>({ name: '' })
+  const [brandToDelete, setBrandToDelete] = useState<Brand | null>(null)
+  const [productsBrand, setProductsBrand] = useState<Brand | null>(null)
+  const [productsPage, setProductsPage] = useState(1)
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['brands'],
     queryFn: () => brandsService.getAll({ per_page: 100 }),
+    retry: false,
+  })
+
+  const productsQuery = useQuery({
+    queryKey: ['brands', productsBrand?.id, 'products', productsPage],
+    queryFn: () =>
+      brandsService.getProducts(productsBrand!.id, {
+        page: productsPage,
+        per_page: 50,
+      }),
+    enabled: !!productsBrand,
     retry: false,
   })
 
@@ -29,22 +55,25 @@ export default function Brands() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['brands'] })
       toast.success('Marca creada correctamente', { duration: 3000 })
-      setShowModal(false)
+      setShowBrandModal(false)
       resetForm()
     },
-    onError: (mutationError: unknown) => toast.error(formatErrorMessage(mutationError)),
+    onError: (mutationError: unknown) =>
+      toast.error(formatErrorMessage(mutationError)),
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: BrandUpdate }) => brandsService.update(id, payload),
+    mutationFn: ({ id, payload }: { id: string; payload: BrandUpdate }) =>
+      brandsService.update(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['brands'] })
       queryClient.invalidateQueries({ queryKey: ['products'] })
       toast.success('Marca actualizada correctamente', { duration: 3000 })
-      setShowModal(false)
+      setShowBrandModal(false)
       resetForm()
     },
-    onError: (mutationError: unknown) => toast.error(formatErrorMessage(mutationError)),
+    onError: (mutationError: unknown) =>
+      toast.error(formatErrorMessage(mutationError)),
   })
 
   const deleteMutation = useMutation({
@@ -52,8 +81,13 @@ export default function Brands() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['brands'] })
       toast.success('Marca eliminada correctamente', { duration: 3000 })
+      setShowDeleteConfirm(false)
+      setBrandToDelete(null)
     },
-    onError: (mutationError: unknown) => toast.error(formatErrorMessage(mutationError)),
+    onError: (mutationError: unknown) => {
+      toast.error(formatErrorMessage(mutationError))
+      setShowDeleteConfirm(false)
+    },
   })
 
   const resetForm = () => {
@@ -62,7 +96,7 @@ export default function Brands() {
     setFormData({ name: '' })
   }
 
-  const handleOpenModal = (brand?: Brand) => {
+  const handleOpenBrandModal = (brand?: Brand) => {
     if (brand) {
       setIsEditing(true)
       setEditingId(brand.id)
@@ -70,7 +104,22 @@ export default function Brands() {
     } else {
       resetForm()
     }
-    setShowModal(true)
+    setShowBrandModal(true)
+  }
+
+  const handleDeleteClick = (brand: Brand) => {
+    setBrandToDelete(brand)
+    setShowDeleteConfirm(true)
+  }
+
+  const handleConfirmDelete = () => {
+    if (!brandToDelete) return
+    deleteMutation.mutate(brandToDelete.id)
+  }
+
+  const handleShowProducts = (brand: Brand) => {
+    setProductsBrand(brand)
+    setProductsPage(1)
   }
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -80,7 +129,6 @@ export default function Brands() {
       toast.error('El nombre es obligatorio')
       return
     }
-
     const payload = { name }
     if (isEditing && editingId) {
       updateMutation.mutate({ id: editingId, payload })
@@ -89,153 +137,466 @@ export default function Brands() {
     }
   }
 
+  const brands = data?.items ?? []
+  const filteredBrands = brands.filter((brand) =>
+    brand.name.toLowerCase().includes(search.toLowerCase()),
+  )
+
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary-600" />
+      <div className="space-y-4">
+        <PageHeader onNew={() => handleOpenBrandModal()} />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-28 animate-pulse rounded-xl border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800"
+            />
+          ))}
+        </div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
-        <div className="mb-4 rounded-full bg-red-50 p-4 dark:bg-red-900/20">
-          <Tags className="h-8 w-8 text-red-500" />
+      <div className="space-y-4">
+        <PageHeader onNew={() => handleOpenBrandModal()} />
+        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-red-100 bg-red-50 px-6 py-16 text-center dark:border-red-900/30 dark:bg-red-900/10">
+          <div className="rounded-full bg-red-100 p-3 dark:bg-red-900/30">
+            <Tags className="h-7 w-7 text-red-500" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+              No se pudieron cargar las marcas
+            </p>
+            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+              {formatErrorMessage(error)}
+            </p>
+          </div>
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm transition hover:bg-red-50 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/40"
+          >
+            <RefreshCw size={12} />
+            Reintentar
+          </button>
         </div>
-        <h2 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">Error de Conexión</h2>
-        <p className="max-w-md text-gray-500 dark:text-gray-400">No pudimos cargar las marcas. Intentá nuevamente más tarde.</p>
       </div>
     )
   }
 
-  const brands = data?.items ?? []
-  const filteredBrands = brands.filter((brand) =>
-    brand.name.toLowerCase().includes(search.toLowerCase())
-  )
-
-  const columns = [
-    {
-      key: 'name',
-      header: 'Nombre',
-      render: (item: Brand) => (
-        <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
-            <Tags size={13} />
-          </div>
-          <span className="truncate font-medium text-gray-900 dark:text-white">{item.name}</span>
-        </div>
-      ),
-    },
-    {
-      key: 'normalized_name',
-      header: 'Nombre normalizado',
-      render: (item: Brand) => <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{item.normalized_name}</span>,
-    },
-    {
-      key: 'actions',
-      header: '',
-      render: (item: Brand) => (
-        <div className="flex justify-end gap-2">
-          <button
-            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-900/30"
-            onClick={() => handleOpenModal(item)}
-            title="Editar"
-          >
-            <Edit size={18} />
-          </button>
-          <button
-            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-60 dark:hover:bg-red-900/30"
-            onClick={() => deleteMutation.mutate(item.id)}
-            disabled={deleteMutation.isPending}
-            title="Eliminar"
-          >
-            <Trash2 size={18} />
-          </button>
-        </div>
-      ),
-    },
-  ]
-
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-3">
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-primary-200 bg-gradient-to-r from-primary-50 to-primary-50 px-3 py-2.5 dark:border-primary-800 dark:from-primary-900/20 dark:to-primary-900/20">
-        <div className="min-w-0">
-          <h1 className="flex items-center gap-2 text-lg font-semibold leading-none text-primary-900 dark:text-primary-100">
-            <Tags className="h-5 w-5 text-primary-600 dark:text-primary-400" />
-            Marcas
-          </h1>
-          <p className="mt-1 truncate text-xs text-primary-700 dark:text-primary-300">Normaliza marcas para evitar duplicados en productos</p>
-        </div>
-        <Button onClick={() => handleOpenModal()} className="border-none bg-primary-600 text-white shadow-md hover:bg-primary-700">
-          <Plus size={18} className="mr-2" />
-          Nueva Marca
-        </Button>
-      </div>
+    <div className="flex h-full min-h-0 w-full flex-col gap-4">
+      <PageHeader
+        count={brands.length}
+        onNew={() => handleOpenBrandModal()}
+      />
 
-      <div className="rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-        <div className="relative max-w-md">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar marcas..."
-            className="w-full rounded-md border border-gray-200 bg-gray-50 py-1.5 pl-8 pr-3 text-sm text-gray-900 focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-          />
-        </div>
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <ResponsiveTable
-          data={filteredBrands}
-          emptyState={
-            <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-              <Inbox className="mx-auto mb-2 h-7 w-7 text-primary-400" />
-              <p className="font-medium text-gray-700 dark:text-gray-200">No hay marcas para mostrar</p>
-              <p className="mt-1 text-xs">Probá con otro término de búsqueda o creá una marca nueva.</p>
-            </div>
-          }
-          renderDesktop={() => (
-            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-              <Table columns={columns} data={filteredBrands} emptyMessage="No se encontraron marcas." density="compact" />
-            </div>
-          )}
-          renderCard={(item) => (
-            <article key={item.id} className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">{item.name}</h3>
-                  <p className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{item.normalized_name}</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button type="button" className="flex h-8 w-8 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-900/20 dark:text-violet-300" onClick={() => handleOpenModal(item)} title="Editar">
-                    <Edit size={14} />
-                  </button>
-                  <button type="button" className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-60 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300" onClick={() => deleteMutation.mutate(item.id)} disabled={deleteMutation.isPending} title="Eliminar">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-            </article>
-          )}
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Buscar marcas..."
+          className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-8 pr-3 text-sm text-gray-900 transition placeholder:text-gray-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-primary-500"
         />
       </div>
 
-      <Modal isOpen={showModal} onClose={() => { setShowModal(false); resetForm() }} title={isEditing ? 'Editar Marca' : 'Nueva Marca'}>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre *</label>
-            <Input value={formData.name || ''} onChange={(event) => setFormData({ ...formData, name: event.target.value })} placeholder="Ej: FV, Ferrum, Peirano..." required autoFocus />
+      {/* Grid */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {filteredBrands.length === 0 ? (
+          <EmptyState
+            isFiltered={!!search}
+            onNew={() => handleOpenBrandModal()}
+            onClear={() => setSearch('')}
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filteredBrands.map((brand) => (
+              <BrandCard
+                key={brand.id}
+                brand={brand}
+                onEdit={() => handleOpenBrandModal(brand)}
+                onDelete={() => handleDeleteClick(brand)}
+                onViewProducts={() => handleShowProducts(brand)}
+              />
+            ))}
           </div>
-          <div className="flex justify-end gap-2 border-t border-gray-100 pt-6 dark:border-gray-700">
-            <Button variant="outline" onClick={() => { setShowModal(false); resetForm() }} type="button">Cancelar</Button>
-            <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-              {createMutation.isPending || updateMutation.isPending ? 'Guardando...' : 'Guardar Marca'}
+        )}
+      </div>
+
+      {/* Create / Edit modal */}
+      <Modal
+        isOpen={showBrandModal}
+        onClose={() => {
+          setShowBrandModal(false)
+          resetForm()
+        }}
+        title={isEditing ? 'Editar marca' : 'Nueva marca'}
+      >
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Nombre <span className="text-red-500">*</span>
+            </label>
+            <Input
+              value={formData.name || ''}
+              onChange={(event) =>
+                setFormData({ ...formData, name: event.target.value })
+              }
+              placeholder="Ej: FV, Ferrum, Peirano..."
+              required
+              autoFocus
+            />
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              Se normalizará automáticamente para evitar duplicados.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 border-t border-gray-100 pt-5 dark:border-gray-700">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowBrandModal(false)
+                resetForm()
+              }}
+              type="button"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={createMutation.isPending || updateMutation.isPending}
+            >
+              {createMutation.isPending || updateMutation.isPending
+                ? 'Guardando...'
+                : isEditing
+                  ? 'Guardar cambios'
+                  : 'Crear marca'}
             </Button>
           </div>
         </form>
       </Modal>
+
+      {/* Delete confirmation */}
+      <Modal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false)
+          setBrandToDelete(null)
+        }}
+        title="Eliminar marca"
+      >
+        <div className="space-y-4">
+          {brandToDelete && brandToDelete.product_count > 0 ? (
+            <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+              <div>
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  No se puede eliminar esta marca
+                </p>
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                  <strong>"{brandToDelete.name}"</strong> tiene{' '}
+                  <strong>{brandToDelete.product_count}</strong> producto
+                  {brandToDelete.product_count !== 1 ? 's' : ''} asociado
+                  {brandToDelete.product_count !== 1 ? 's' : ''}.
+                  Reasigná los productos antes de eliminarla.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start gap-3 rounded-lg border border-red-100 bg-red-50 p-4 dark:border-red-900/30 dark:bg-red-900/10">
+              <Trash2 className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
+              <div>
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  ¿Eliminar <strong>"{brandToDelete?.name}"</strong>?
+                </p>
+                <p className="mt-0.5 text-xs text-red-500 dark:text-red-400">
+                  Esta acción no se puede deshacer.
+                </p>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-700">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteConfirm(false)
+                setBrandToDelete(null)
+              }}
+              type="button"
+            >
+              {brandToDelete && brandToDelete.product_count > 0 ? 'Entendido' : 'Cancelar'}
+            </Button>
+            {(!brandToDelete || brandToDelete.product_count === 0) && (
+              <Button
+                onClick={handleConfirmDelete}
+                disabled={deleteMutation.isPending}
+                className="bg-red-600 text-white hover:bg-red-700"
+              >
+                {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+              </Button>
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Products modal */}
+      <Modal
+        isOpen={!!productsBrand}
+        onClose={() => setProductsBrand(null)}
+        title={`Productos — ${productsBrand?.name ?? ''}`}
+        size="lg"
+      >
+        {productsBrand && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:bg-gray-700/50 dark:text-gray-400">
+              <span className="flex items-center gap-1.5">
+                <Package size={14} />
+                {productsQuery.data?.total ?? '...'} producto
+                {(productsQuery.data?.total ?? 0) !== 1 ? 's' : ''} asociado
+                {(productsQuery.data?.total ?? 0) !== 1 ? 's' : ''}
+              </span>
+              {productsQuery.data && productsQuery.data.pages > 1 && (
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: productsQuery.data.pages }, (_, i) => i + 1).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setProductsPage(p)}
+                      className={`flex h-6 w-6 items-center justify-center rounded text-xs font-medium transition ${
+                        p === productsPage
+                          ? 'bg-primary-600 text-white'
+                          : 'text-gray-500 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {productsQuery.isLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-10 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-700" />
+                ))}
+              </div>
+            ) : productsQuery.data?.items.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center dark:border-gray-600">
+                <Package className="mx-auto mb-2 h-6 w-6 text-gray-300 dark:text-gray-600" />
+                <p className="text-sm text-gray-400 dark:text-gray-500">
+                  Sin productos asociados a esta marca.
+                </p>
+              </div>
+            ) : (
+              <div className="max-h-80 space-y-1.5 overflow-y-auto">
+                {productsQuery.data?.items.map((product) => (
+                  <ProductRow key={product.id} product={product} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+    </div>
+  )
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function PageHeader({
+  count,
+  onNew,
+}: {
+  count?: number
+  onNew: () => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
+          <Tags className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+          Marcas
+        </h1>
+        {count !== undefined && (
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {count} marca{count !== 1 ? 's' : ''} registrada{count !== 1 ? 's' : ''}
+          </p>
+        )}
+      </div>
+      <Button onClick={onNew}>
+        <Plus size={16} className="mr-1.5" />
+        Nueva marca
+      </Button>
+    </div>
+  )
+}
+
+function EmptyState({
+  isFiltered,
+  onNew,
+  onClear,
+}: {
+  isFiltered: boolean
+  onNew: () => void
+  onClear: () => void
+}) {
+  if (isFiltered) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center dark:border-gray-700 dark:bg-gray-800/50">
+        <Search className="h-8 w-8 text-gray-300 dark:text-gray-600" />
+        <div>
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            Sin coincidencias
+          </p>
+          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+            No hay marcas que coincidan con la búsqueda.
+          </p>
+        </div>
+        <button
+          onClick={onClear}
+          className="text-xs font-medium text-primary-600 hover:underline dark:text-primary-400"
+        >
+          Limpiar búsqueda
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center dark:border-gray-700 dark:bg-gray-800/50">
+      <div className="rounded-full bg-primary-50 p-4 dark:bg-primary-900/20">
+        <Tags className="h-8 w-8 text-primary-600 dark:text-primary-400" />
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+          No hay marcas registradas
+        </p>
+        <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-gray-400">
+          Organizá tus productos por marca para filtrar más rápido y mantener el catálogo ordenado.
+        </p>
+      </div>
+      <Button onClick={onNew}>
+        <Plus size={14} className="mr-1.5" />
+        Crear primera marca
+      </Button>
+    </div>
+  )
+}
+
+function BrandCard({
+  brand,
+  onEdit,
+  onDelete,
+  onViewProducts,
+}: {
+  brand: Brand
+  onEdit: () => void
+  onDelete: () => void
+  onViewProducts: () => void
+}) {
+  return (
+    <article className="flex flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-800">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+            <Tags size={16} />
+          </div>
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+              {brand.name}
+            </h3>
+            <p className="truncate font-mono text-[11px] text-gray-400 dark:text-gray-500">
+              {brand.normalized_name}
+            </p>
+          </div>
+        </div>
+
+        {/* Action buttons — always visible, not hover-only */}
+        <div className="flex shrink-0 gap-0.5">
+          <button
+            type="button"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+            onClick={onEdit}
+            title="Editar marca"
+          >
+            <Edit2 size={13} />
+          </button>
+          <button
+            type="button"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+            onClick={onDelete}
+            title="Eliminar marca"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onViewProducts}
+        className="mt-3 flex w-full items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs transition-colors hover:border-primary-100 hover:bg-primary-50 dark:border-gray-700 dark:bg-gray-700/50 dark:hover:border-primary-800/60 dark:hover:bg-primary-900/20"
+      >
+        <span className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+          <Package size={13} />
+          Productos
+        </span>
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+              brand.product_count > 0
+                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300'
+                : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+            }`}
+          >
+            {brand.product_count}
+          </span>
+          <ChevronRight size={11} className="text-gray-300 dark:text-gray-600" />
+        </div>
+      </button>
+    </article>
+  )
+}
+
+function ProductRow({ product }: { product: BrandProductItem }) {
+  return (
+    <div
+      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs dark:border-gray-700 ${
+        !product.is_active ? 'opacity-60' : 'bg-white dark:bg-gray-800'
+      }`}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <span
+          className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] font-semibold ${
+            product.is_active
+              ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+              : 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+          }`}
+        >
+          {product.code}
+        </span>
+        <span className="truncate text-gray-700 dark:text-gray-300">{product.description}</span>
+      </div>
+      <div className="ml-3 flex shrink-0 items-center gap-3">
+        <span className="font-medium text-gray-900 dark:text-white">
+          ${Number(product.sale_price).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+        </span>
+        <span
+          className={`text-nowrap ${
+            product.current_stock <= 0
+              ? 'text-red-500'
+              : product.current_stock <= 5
+                ? 'text-amber-500'
+                : 'text-gray-400'
+          }`}
+        >
+          Stock: {product.current_stock}
+        </span>
+      </div>
     </div>
   )
 }

@@ -2,8 +2,23 @@
  * Servicio de Órdenes de Pedido.
  * Gestiona el control de inventario físico y las órdenes a proveedores.
  */
+import axios from 'axios'
 import httpClient from './httpClient'
 import { PaginatedResponse } from './productsService'
+
+async function parseBlobError(error: unknown): Promise<string> {
+  if (axios.isAxiosError(error) && error.response?.data instanceof Blob) {
+    try {
+      const text = await error.response.data.text()
+      const json = JSON.parse(text)
+      return json.detail ?? 'Error desconocido'
+    } catch {
+      return 'Error al procesar la respuesta del servidor'
+    }
+  }
+  if (error instanceof Error) return error.message
+  return 'Error desconocido'
+}
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -162,20 +177,23 @@ const purchaseOrdersService = {
     if (supplierId) params.append('supplier_id', supplierId)
     if (categoryId) params.append('category_id', categoryId)
 
-    const response = await httpClient.get(
-      `/purchase-orders/inventory-count/pdf?${params.toString()}`,
-      { responseType: 'blob' },
-    )
-
-    const url = window.URL.createObjectURL(new Blob([response.data]))
-    const link = document.createElement('a')
-    link.href = url
-    const today = new Date().toISOString().split('T')[0].replace(/-/g, '_')
-    link.setAttribute('download', `planilla_conteo_${today}.pdf`)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
+    try {
+      const response = await httpClient.get(
+        `/purchase-orders/inventory-count/pdf?${params.toString()}`,
+        { responseType: 'blob' },
+      )
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      const today = new Date().toISOString().split('T')[0].replace(/-/g, '_')
+      link.setAttribute('download', `planilla_conteo_${today}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      throw new Error(await parseBlobError(err))
+    }
   },
 
   async importCountSheetExcel(
@@ -202,20 +220,23 @@ const purchaseOrdersService = {
     if (supplierId) params.append('supplier_id', supplierId)
     if (categoryId) params.append('category_id', categoryId)
 
-    const response = await httpClient.get(
-      `/purchase-orders/inventory-count/excel?${params.toString()}`,
-      { responseType: 'blob' },
-    )
-
-    const url = window.URL.createObjectURL(new Blob([response.data]))
-    const link = document.createElement('a')
-    link.href = url
-    const today = new Date().toISOString().split('T')[0].replace(/-/g, '_')
-    link.setAttribute('download', `planilla_conteo_${today}.xlsx`)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
+    try {
+      const response = await httpClient.get(
+        `/purchase-orders/inventory-count/excel?${params.toString()}`,
+        { responseType: 'blob' },
+      )
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      const today = new Date().toISOString().split('T')[0].replace(/-/g, '_')
+      link.setAttribute('download', `planilla_conteo_${today}.xlsx`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      throw new Error(await parseBlobError(err))
+    }
   },
 
   /**

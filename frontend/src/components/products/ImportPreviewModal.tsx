@@ -30,6 +30,7 @@ interface ImportPreviewModalProps {
     rows_with_errors: number
     new_products: number
     existing_products: number
+    duplicate_rows: number
     rows: ProductImportRow[]
   } | null
   categories: Category[]
@@ -303,7 +304,7 @@ export default function ImportPreviewModal({
     <Modal isOpen={isOpen} onClose={onClose} title="Preview de Importación" size="full">
       <div className="space-y-4">
         {/* Resumen */}
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-6 gap-4">
           <div className="bg-primary-50 dark:bg-primary-900/20 p-3 rounded-lg">
             <p className="text-xs text-primary-600 dark:text-primary-400">Total Filas</p>
             <p className="text-2xl font-bold text-primary-700 dark:text-primary-300">{previewData.total_rows}</p>
@@ -315,6 +316,10 @@ export default function ImportPreviewModal({
           <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
             <p className="text-xs text-red-600 dark:text-red-400">Con Errores</p>
             <p className="text-2xl font-bold text-red-700 dark:text-red-300">{previewData.rows_with_errors}</p>
+          </div>
+          <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg">
+            <p className="text-xs text-amber-600 dark:text-amber-400">Repetidos</p>
+            <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{previewData.duplicate_rows ?? 0}</p>
           </div>
           <div className="bg-primary-50 dark:bg-primary-900/20 p-3 rounded-lg">
             <p className="text-xs text-primary-600 dark:text-primary-400">Nuevos</p>
@@ -387,11 +392,14 @@ export default function ImportPreviewModal({
                 <th className="px-2 py-2 text-left">Proveedor</th>
                 <th className="px-2 py-2 text-left">Categoría</th>
                 <th className="px-2 py-2 text-left">Nombre</th>
+                <th className="px-2 py-2 text-left">Unidad</th>
                 <th className="px-2 py-2 text-left">Stock</th>
                 <th className="px-2 py-2 text-left">P. Lista</th>
                 <th className="px-2 py-2 text-left">Bonif.</th>
                 <th className="px-2 py-2 text-left">Cargo %</th>
                 <th className="px-2 py-2 text-left">P. Venta</th>
+                <th className="px-2 py-2 text-left">Cant./Compra</th>
+                <th className="px-2 py-2 text-left">Fracc.</th>
                 <th className="px-2 py-2 text-left">Acciones</th>
               </tr>
             </thead>
@@ -404,6 +412,8 @@ export default function ImportPreviewModal({
                     className={`border-t border-gray-200 dark:border-gray-700 ${
                       selectedRows.has(row.row_number)
                         ? 'bg-primary-100 dark:bg-primary-900/30'
+                        : row.status === 'repetido'
+                        ? 'bg-amber-50 dark:bg-amber-900/10 opacity-70'
                         : row.has_errors
                         ? 'bg-red-50 dark:bg-red-900/10'
                         : row.is_new
@@ -421,7 +431,11 @@ export default function ImportPreviewModal({
                     </td>
                     <td className="px-2 py-2">{row.row_number}</td>
                     <td className="px-2 py-2">
-                      {row.has_errors ? (
+                      {row.status === 'repetido' ? (
+                        <div className="flex items-center gap-1 text-amber-600">
+                          <span className="text-xs font-medium bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">Repetido</span>
+                        </div>
+                      ) : row.has_errors ? (
                         <div className="flex items-center gap-1 text-red-600">
                           <XCircle size={16} />
                           <span className="text-xs">Error</span>
@@ -525,6 +539,25 @@ export default function ImportPreviewModal({
                         <span className="text-xs truncate block">{row.description}</span>
                       )}
                     </td>
+                    {/* Unidad */}
+                    <td className="px-2 py-2">
+                      {isEditing ? (
+                        <select
+                          value={row.unit || 'unidad'}
+                          onChange={(e) => updateRow(row.row_number, 'unit', e.target.value)}
+                          className="w-20 px-1 py-0.5 text-xs border rounded dark:bg-gray-700"
+                        >
+                          <option value="unidad">Unidad</option>
+                          <option value="m">Metro (m)</option>
+                          <option value="m2">Metro² (m²)</option>
+                          <option value="kg">Kg</option>
+                          <option value="litro">Litro</option>
+                          <option value="pack">Pack</option>
+                        </select>
+                      ) : (
+                        <span className="text-xs text-gray-600 dark:text-gray-400">{row.unit || 'unidad'}</span>
+                      )}
+                    </td>
                     {/* Stock */}
                     <td className="px-2 py-2">
                       {isEditing ? (
@@ -593,6 +626,44 @@ export default function ImportPreviewModal({
                       <span className="font-bold text-xs text-primary-600 dark:text-primary-400">
                         ${toNumber(row.sale_price).toFixed(2)}
                       </span>
+                    </td>
+                    {/* Cantidad por Compra */}
+                    <td className="px-2 py-2">
+                      {isEditing ? (
+                        <input
+                          type="number"
+                          value={row.quantity_per_package ?? ''}
+                          onChange={(e) => updateRow(row.row_number, 'quantity_per_package', e.target.value === '' ? null : parseFloat(e.target.value))}
+                          className="w-16 px-1 py-0.5 text-xs border rounded dark:bg-gray-700"
+                          min="0"
+                          step="0.01"
+                          placeholder="-"
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          {row.quantity_per_package != null ? row.quantity_per_package : '-'}
+                        </span>
+                      )}
+                    </td>
+                    {/* Fraccionado */}
+                    <td className="px-2 py-2">
+                      {isEditing ? (
+                        <label className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={row.sell_per_unit !== false}
+                            onChange={(e) => updateRow(row.row_number, 'sell_per_unit', e.target.checked)}
+                            className="w-3.5 h-3.5"
+                          />
+                          <span className="text-xs text-gray-600 dark:text-gray-400">
+                            {row.sell_per_unit !== false ? 'Sí' : 'No'}
+                          </span>
+                        </label>
+                      ) : (
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          {row.sell_per_unit === false ? 'No' : 'Sí'}
+                        </span>
+                      )}
                     </td>
                     {/* Acciones */}
                     <td className="px-2 py-2">

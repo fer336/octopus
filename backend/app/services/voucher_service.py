@@ -34,6 +34,7 @@ from app.schemas.voucher import (
     CurrentAccountClosePreviewResponse,
     CurrentAccountClosureHistoryItem,
     CurrentAccountClosureReceiptSummary,
+    ItemQuantityOverride,
     VoucherCreate,
     VoucherUpdate,
 )
@@ -324,6 +325,7 @@ class VoucherService:
         user_id: UUID | None = None,
         voucher_id: UUID | None = None,
         stockpile_id: UUID | None = None,
+        allow_zero_stock: bool = False,
     ) -> tuple[list[VoucherItem], Decimal, Decimal, Decimal]:
         """Construye items del comprobante y recalcula totales.
 
@@ -435,15 +437,19 @@ class VoucherService:
                 else:
                     reason = "Venta"
 
-                last_lot_id, _consumptions = await lot_service.fifo_consume(
-                    product_id=product.id,
-                    business_id=business_id,
-                    quantity=qty,
-                    voucher_item_id=voucher_item.id,
-                    user_id=user_id,
-                    reason=reason,
-                )
-                voucher_item.product_lot_id = last_lot_id
+                try:
+                    last_lot_id, _consumptions = await lot_service.fifo_consume(
+                        product_id=product.id,
+                        business_id=business_id,
+                        quantity=qty,
+                        voucher_item_id=voucher_item.id,
+                        user_id=user_id,
+                        reason=reason,
+                    )
+                    voucher_item.product_lot_id = last_lot_id
+                except ValueError:
+                    if not allow_zero_stock:
+                        raise
             elif qty < 0:
                 # Devolución: crear nuevo lote con la mercadería devuelta
                 from datetime import date as date_type
@@ -696,6 +702,7 @@ class VoucherService:
         voucher_id: UUID | None = None,
         user_id: UUID | None = None,
         reason: str = "Factura",
+        allow_zero_stock: bool = False,
     ) -> tuple[list[VoucherItem], Decimal, Decimal, Decimal]:
         """Construye ítems/totales de factura desde comprobantes origen.
 
@@ -790,15 +797,19 @@ class VoucherService:
                     self.db.add(voucher_item)
                     await self.db.flush()
 
-                    last_lot_id, consumptions = await lot_service.fifo_consume(
-                        product_id=product.id,
-                        business_id=business_id,
-                        quantity=qty,
-                        voucher_item_id=voucher_item.id,
-                        user_id=user_id,
-                        reason=reason,
-                    )
-                    voucher_item.product_lot_id = last_lot_id
+                    try:
+                        last_lot_id, consumptions = await lot_service.fifo_consume(
+                            product_id=product.id,
+                            business_id=business_id,
+                            quantity=qty,
+                            voucher_item_id=voucher_item.id,
+                            user_id=user_id,
+                            reason=reason,
+                        )
+                        voucher_item.product_lot_id = last_lot_id
+                    except ValueError:
+                        if not allow_zero_stock:
+                            raise
                 elif qty < 0:
                     self.db.add(voucher_item)
                     await self.db.flush()
@@ -962,12 +973,15 @@ class VoucherService:
             user_id=user_id,
             voucher_id=voucher.id,
             stockpile_id=data.stockpile_id,
+            allow_zero_stock=bool(getattr(business, "invoice_zero_stock_enabled", False)),
         )
 
         # Asignar totales al voucher
         voucher.subtotal = total_subtotal
         voucher.iva_amount = total_iva
-        voucher.total = total_final
+        # Aplicar redondeo opcional (F2): rounding_amount es el delta que el operador ajustó
+        voucher.rounding_amount = data.rounding_amount
+        voucher.total = total_final + (data.rounding_amount or Decimal("0"))
 
         if data.voucher_type in {
             VoucherType.INVOICE_A,
@@ -2192,6 +2206,7 @@ class VoucherService:
                     "subtotal": f"{abs(abs_raw + iva_no_discount):,.2f}",
                     "discount": "0%",
                     "iva": "21%",
+                    "rounding": float(voucher.rounding_amount) if voucher.rounding_amount else None,
                     "total": f"{abs(abs_raw + iva_no_discount):,.2f}",
                 }
                 if hide_discount
@@ -2199,6 +2214,7 @@ class VoucherService:
                     "subtotal": f"{item_sum_with_iva:,.2f}",
                     "discount": f"{general_discount_pct_rounded:g}%",
                     "iva": "21%",
+                    "rounding": float(voucher.rounding_amount) if voucher.rounding_amount else None,
                     "total": f"{abs_total:,.2f}",
                 }
             ),
@@ -2395,6 +2411,7 @@ class VoucherService:
         receipt_ids: builtins.list[UUID] | None,
         close_all: bool,
         notes: str | None,
+        item_quantity_overrides: builtins.list[ItemQuantityOverride] | None = None,
     ) -> CurrentAccountClosePreviewResponse:
         """
         Previsualiza un cierre de cuenta corriente SIN persistir nada.
@@ -2453,12 +2470,28 @@ class VoucherService:
         total_iva = Decimal("0")
         total_final = Decimal("0")
 
+        override_map = {o.voucher_item_id: o.quantity for o in (item_quantity_overrides or [])}
+
         for receipt in source_receipts:
             # Obtener descuento general del remito
             general_discount = receipt.general_discount or Decimal("0")
 
             for item in receipt.items:
-                # Agregar prefijo con número de remito origen
+                qty = override_map.get(item.id, item.quantity)
+                if qty <= 0:
+                    continue
+
+                # Recalcular totales si la cantidad fue modificada
+                if qty != item.quantity and item.quantity > 0:
+                    ratio = qty / item.quantity
+                    subtotal = self._round_money(Decimal(str(item.subtotal)) * ratio)
+                    iva_amount = self._round_money(Decimal(str(item.iva_amount)) * ratio)
+                    total = self._round_money(Decimal(str(item.total)) * ratio)
+                else:
+                    subtotal = Decimal(str(item.subtotal))
+                    iva_amount = Decimal(str(item.iva_amount))
+                    total = Decimal(str(item.total))
+
                 desc_with_prefix = f"[{receipt.full_number}] {item.description}"
 
                 preview_item = CurrentAccountCloseItemPreview(
@@ -2467,20 +2500,20 @@ class VoucherService:
                     receipt_date=receipt.date,
                     operating_client_name=receipt.withdrawal_client_name,
                     is_withdrawal_authorized=receipt.is_withdrawal_authorized,
-general_discount=general_discount,
+                    general_discount=general_discount,
                     code=item.code,
                     description=desc_with_prefix,
-                    quantity=item.quantity,
+                    quantity=qty,
                     unit_price=item.unit_price,
                     discount_percent=item.discount_percent,
                     iva_rate=item.iva_rate,
-                    subtotal=item.subtotal,
-                    total=item.total,
+                    subtotal=subtotal,
+                    total=total,
                 )
                 items.append(preview_item)
-                total_subtotal += Decimal(str(item.subtotal))
-                total_iva += Decimal(str(item.iva_amount))
-                total_final += Decimal(str(item.total))
+                total_subtotal += subtotal
+                total_iva += iva_amount
+                total_final += total
 
         return CurrentAccountClosePreviewResponse(
             billing_client_name=billing_client.name,
@@ -2500,6 +2533,7 @@ general_discount=general_discount,
         close_all: bool,
         notes: str | None,
         user_id: UUID,
+        item_quantity_overrides: builtins.list[ItemQuantityOverride] | None = None,
     ) -> Voucher:
         """Cierra una cuenta corriente creando cotización consolidada pendiente de facturar."""
         billing_client = await self._get_client_or_raise(billing_client_id, business_id)
@@ -2584,28 +2618,44 @@ general_discount=general_discount,
         total_iva = Decimal("0")
         total_final = Decimal("0")
 
+        override_map = {o.voucher_item_id: o.quantity for o in (item_quantity_overrides or [])}
+
         for receipt in source_receipts:
             for item in receipt.items:
+                qty = override_map.get(item.id, item.quantity)
+                if qty <= 0:
+                    continue
+
+                if qty != item.quantity and item.quantity > 0:
+                    ratio = qty / item.quantity
+                    iva_amount = self._round_money(Decimal(str(item.iva_amount)) * ratio)
+                    subtotal = self._round_money(Decimal(str(item.subtotal)) * ratio)
+                    total = self._round_money(Decimal(str(item.total)) * ratio)
+                else:
+                    iva_amount = Decimal(str(item.iva_amount))
+                    subtotal = Decimal(str(item.subtotal))
+                    total = Decimal(str(item.total))
+
                 closure_item = VoucherItem(
                     voucher_id=closure_voucher.id,
                     product_id=item.product_id,
                     code=item.code,
                     description=f"[{receipt.full_number}] {item.description}",
-                    quantity=item.quantity,
+                    quantity=qty,
                     unit=item.unit,
                     unit_price=item.unit_price,
                     discount_percent=item.discount_percent,
                     iva_rate=item.iva_rate,
-                    iva_amount=item.iva_amount,
-                    subtotal=item.subtotal,
-                    total=item.total,
+                    iva_amount=iva_amount,
+                    subtotal=subtotal,
+                    total=total,
                     line_number=line_number,
                 )
                 self.db.add(closure_item)
                 line_number += 1
-                total_subtotal += Decimal(str(item.subtotal))
-                total_iva += Decimal(str(item.iva_amount))
-                total_final += Decimal(str(item.total))
+                total_subtotal += subtotal
+                total_iva += iva_amount
+                total_final += total
 
             receipt.invoiced_voucher_id = closure_voucher.id
 
@@ -2858,6 +2908,7 @@ general_discount=general_discount,
             voucher_id=invoice.id,
             user_id=user_id,
             reason="Factura",
+            allow_zero_stock=bool(getattr(business, "invoice_zero_stock_enabled", False)),
         )
 
         # 7. Asignar totales
@@ -3078,6 +3129,7 @@ general_discount=general_discount,
             voucher_id=invoice.id,
             user_id=user_id,
             reason="Factura",
+            allow_zero_stock=bool(getattr(business, "invoice_zero_stock_enabled", False)),
         )
 
         # 14. Asignar totales

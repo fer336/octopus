@@ -94,6 +94,7 @@ class Voucher(BaseModel):
     subtotal = Column(Numeric(12, 2), default=0, nullable=False)  # Sin IVA
     iva_amount = Column(Numeric(12, 2), default=0, nullable=False)
     total = Column(Numeric(12, 2), default=0, nullable=False)
+    rounding_amount = Column(Numeric(12, 2), nullable=True)  # Redondeo opcional sobre el total
 
     # Datos ARCA (para facturas electrónicas)
     cae = Column(String(20), nullable=True)

@@ -72,6 +72,7 @@ class Business(BaseModel):
     price_update_enabled = Column(Boolean, nullable=False, default=True)
     reports_enabled = Column(Boolean, nullable=False, default=True)
     sql_backup_enabled = Column(Boolean, nullable=False, default=False)
+    invoice_zero_stock_enabled = Column(Boolean, nullable=False, default=False)
     evolution_api_key = Column(String(500), nullable=True)
     whatsapp_instance_name = Column(String(100), nullable=True)
 
