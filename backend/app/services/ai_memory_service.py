@@ -111,6 +111,93 @@ async def get_business_memory_context(
         return ""
 
 
+async def save_aggregate_memory(
+    title: str,
+    new_entry: str,
+    *,
+    topic_key: str,
+    business_id: str,
+    strategy: str,
+    cap: int = 20,
+) -> bool:
+    """
+    Read-merge-write upsert for aggregated per-business memory observations.
+
+    strategy="merge"      — dedup by entry key (text left of "->"), replace/insert.
+    strategy="append_cap" — append new_entry, keep last `cap` lines FIFO.
+
+    Returns False if ENGRAM_ENABLED is False, topic_key is None, or write fails.
+    """
+    settings = get_settings()
+    if not settings.ENGRAM_ENABLED:
+        return False
+
+    if topic_key is None:
+        return False
+
+    # Step 1: Read existing content for this topic_key
+    existing_lines: list[str] = []
+    try:
+        async with httpx.AsyncClient(
+            base_url=settings.ENGRAM_BASE_URL.rstrip("/"),
+            timeout=settings.ENGRAM_TIMEOUT_SECONDS,
+        ) as client:
+            resp = await client.get(
+                "/search",
+                params={
+                    "q": f"business_id: {business_id}",
+                    "project": settings.ENGRAM_PROJECT,
+                    "scope": "project",
+                    "limit": 5,
+                },
+            )
+            if resp.status_code == 200:
+                obs_list = _extract_observations(resp.json())
+                for obs in obs_list:
+                    obs_key = obs.get("topic_key") or obs.get("topicKey") or ""
+                    if obs_key == topic_key:
+                        raw_content = (
+                            obs.get("content") or obs.get("text") or obs.get("body") or ""
+                        )
+                        existing_lines = [
+                            line
+                            for line in raw_content.splitlines()
+                            if line.strip() and not line.startswith("business_id:")
+                        ]
+                        break
+    except Exception as exc:
+        logger.info("[Luci/Engram] read-for-aggregate failed, starting fresh: %s", exc)
+        existing_lines = []
+
+    # Step 2: Apply strategy
+    if strategy == "merge":
+        def _entry_key(line: str) -> str:
+            return line.split("->")[0].strip().lower()
+
+        new_key = _entry_key(new_entry)
+        merged = [line for line in existing_lines if _entry_key(line) != new_key]
+        merged.append(new_entry)
+        final_lines = merged
+    elif strategy == "append_cap":
+        final_lines = existing_lines + [new_entry]
+        if len(final_lines) > cap:
+            final_lines = final_lines[-cap:]
+    else:
+        logger.warning("[Luci/Engram] unknown strategy %r, falling back to append", strategy)
+        final_lines = existing_lines + [new_entry]
+
+    # Step 3: Compose content with business_id header (multi-tenancy boundary)
+    content = f"business_id: {business_id}\n" + "\n".join(final_lines)
+
+    # Step 4: Delegate to save_business_memory (handles Engram POST)
+    return await save_business_memory(
+        title=title,
+        content=content,
+        topic_key=topic_key,
+        business_id=business_id,
+    )
+
+
 async def save_business_memory(
     title: str,
     content: str,

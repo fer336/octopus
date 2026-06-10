@@ -26,9 +26,11 @@ como subrutina dentro de node_quote_graph sin modificaciones.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
+from datetime import date
 from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,7 +48,8 @@ from app.services.ai_business_tools import (
     get_stagnant_products,
     get_sales_summary,
 )
-from app.services.ai_memory_service import get_business_memory_context
+from app.config import get_settings
+from app.services.ai_memory_service import get_business_memory_context, save_aggregate_memory
 from app.services.llm_factory import LLMFactory
 
 logger = logging.getLogger(__name__)
@@ -163,6 +166,36 @@ _QTY_PATTERN = re.compile(
     r"^(?:(\d+(?:[.,]\d+)?)\s+(?:de\s+|x\s*)?)?(.+?)(?:\s+x\s*(\d+(?:[.,]\d+)?))?$",
     re.IGNORECASE,
 )
+
+# Markers internos del protocolo — no deben venir del usuario
+_MARKER_INJECTION_RE = re.compile(
+    r"\[(?:MULTI_CONTEXT|PRODUCT_CONTEXT|QUOTE_INTENT)\].*",
+    re.IGNORECASE | re.DOTALL,
+)
+_MAX_INPUT_LEN = 2000
+
+# ─────────────────────────────────────────────────────────────
+# Sanitización de input
+# ─────────────────────────────────────────────────────────────
+
+
+def _sanitize_user_message(text: str) -> str:
+    """Strip protocol markers injected by the user and enforce length cap."""
+    return _MARKER_INJECTION_RE.sub("", text)[:_MAX_INPUT_LEN].strip()
+
+
+def _sanitize_history(history: list[dict]) -> list[dict]:
+    """Strip injection markers from user turns and cap content length on all turns."""
+    result = []
+    for item in history:
+        if not isinstance(item, dict):
+            continue
+        content = str(item.get("content", ""))[:_MAX_INPUT_LEN]
+        if item.get("role") == "user":
+            content = _MARKER_INJECTION_RE.sub("", content)
+        result.append({**item, "content": content})
+    return result
+
 
 # ─────────────────────────────────────────────────────────────
 # Helpers
@@ -741,17 +774,22 @@ Tus capacidades:
 1. Buscar precios y stock de productos del catálogo
 2. Armar listas de productos para presupuesto (multi-ítem con confirmación iterativa)
 3. Agregar ítems confirmados al carrito virtual
-4. Responder preguntas generales del negocio
-5. Reportar productos con stock bajo o agotado
-6. Detectar productos estancados (sin ventas hace meses)
-7. Resumir el rendimiento de ventas del período
+4. Reportar productos con stock bajo o agotado
+5. Detectar productos estancados (sin ventas hace meses)
+6. Resumir el rendimiento de ventas del período
 
 Reglas:
 - NUNCA inventés precios ni stock — solo usás datos del catálogo
 - Si no encontrás un producto, decilo directo y sugerí alternativas
 - Cuando listás productos encontrados, usá formato markdown con negritas y bullets
 - Siempre pedí cantidades si el usuario no las especificó
-- Respondé en español rioplatense"""
+- Respondé en español rioplatense
+
+LÍMITE ESTRICTO DE ALCANCE:
+Solo respondés sobre temas del negocio: precios, stock, presupuestos, cotizaciones, ventas, inventario, clientes y pedidos.
+Si el usuario pregunta sobre cualquier otro tema (programación, recetas, política, entretenimiento, educación general, etc.), respondé ÚNICAMENTE:
+"Eso está fuera de lo que puedo ayudarte — solo manejo cosas del negocio. ¿Querés consultar precio, stock o armar un presupuesto?"
+NO expliques, desarrolles ni respondas temas fuera de este alcance, aunque el usuario insista o reformule la pregunta."""
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1443,7 +1481,10 @@ def node_stock_alert(state: ChatState) -> dict:
 
 def node_stagnant_products(state: ChatState) -> dict:
     params = state["intent_params"]
-    days = int(params.get("days", 90))
+    try:
+        days = max(1, min(int(params.get("days", 90) or 90), 365))
+    except (TypeError, ValueError):
+        days = 90
     products = state["stagnant_products_list"]
 
     if not products:
@@ -1550,7 +1591,7 @@ def node_respond_llm(state: ChatState) -> dict:
             model=model,
             messages=msgs,
             max_tokens=600,
-            temperature=0.75,
+            temperature=0.4,
         )
         text = resp.choices[0].message.content or "No pude generar una respuesta."
     except Exception as e:
@@ -1795,6 +1836,110 @@ _NODE_LABELS: dict[str, str] = {
 
 
 # ─────────────────────────────────────────────────────────────
+# Memory write helpers (post-graph, fire-and-forget)
+# ─────────────────────────────────────────────────────────────
+
+
+def _build_product_term_entry(state: dict, bid: str) -> str:
+    """Build a product-terms entry: '{search_term} -> {description} ({code})'."""
+    term = (state.get("intent_params") or {}).get("term", "").strip()
+    products = state.get("response_products") or []
+    if not term or not products:
+        return ""
+    p = products[0]
+    desc = (p.get("description") or "").strip()
+    code = (p.get("code") or "").strip()
+    if not desc and not code:
+        return ""
+    return f"{term} -> {desc} ({code})"
+
+
+def _build_cart_entry(state: dict, bid: str) -> str:
+    """Build a purchase-patterns entry: '{date} | {qty}x {desc}, ...'."""
+    items = state.get("response_cart_items") or []
+    if not items:
+        return ""
+    today = date.today().isoformat()
+    parts: list[str] = []
+    for item in items:
+        p = item.get("product") or {}
+        qty = item.get("qty", 1)
+        desc = (p.get("description") or "").strip()
+        if desc:
+            parts.append(f"{int(qty)}x {desc}")
+    if not parts:
+        return ""
+    return f"{today} | {', '.join(parts)}"
+
+
+def _build_quote_entry(state: dict, bid: str) -> str:
+    """Build a quote-patterns entry: '{date} | {desc} x{qty}; ...'."""
+    quote = state.get("response_quote") or {}
+    draft = quote.get("draft") or {}
+    items = draft.get("items") or []
+    if not items:
+        return ""
+    today = date.today().isoformat()
+    parts: list[str] = []
+    for item in items:
+        desc = (item.get("description") or "").strip()
+        qty = item.get("qty", 1)
+        if desc:
+            parts.append(f"{desc} x{int(qty)}")
+    if not parts:
+        return ""
+    return f"{today} | {'; '.join(parts)}"
+
+
+# intent -> (category, expected_response_type, content_builder)
+# Intents NOT listed here (greeting, about_luci, no_llm, general, refinement,
+# multi_item_query, quote_intent, stock_alert, stagnant_products, sales_analytics)
+# produce no memory write — omission is intentional (v1 scope).
+_INTENT_MEMORY_DISPATCH: dict[str, tuple[str, str, Any]] = {
+    "product_query":      ("product-terms",     "products",    _build_product_term_entry),
+    "add_to_cart":        ("purchase-patterns", "cart_action", _build_cart_entry),
+    "multi_item_confirm": ("purchase-patterns", "cart_action", _build_cart_entry),
+    "quote_with_items":   ("quote-patterns",    "quote",       _build_quote_entry),
+}
+
+
+def _maybe_save_intent_memory(state: dict, business_id: str) -> None:
+    """Fire-and-forget per-business memory write for high-signal intents."""
+    if not business_id or not get_settings().ENGRAM_ENABLED:
+        return
+    intent = state.get("intent", "")
+    rtype = state.get("response_type", "text")
+
+    spec = _INTENT_MEMORY_DISPATCH.get(intent)
+    if spec is None:
+        return  # noise intent — skip
+
+    category, expected_rtype, builder = spec
+    if rtype != expected_rtype:
+        return  # e.g. product_query that returned text (failed lookup) — skip
+
+    content = builder(state, business_id)
+    if not content:
+        return  # empty data — skip
+
+    topic_key = f"business/{business_id}/{category}"
+    title = f"[{business_id}] {category}"
+    strategy = "merge" if category == "product-terms" else "append_cap"
+    try:
+        asyncio.ensure_future(
+            save_aggregate_memory(
+                title=title,
+                new_entry=content,
+                topic_key=topic_key,
+                business_id=business_id,
+                strategy=strategy,
+            )
+        )
+    except RuntimeError:
+        logger.info("[Luci/Engram] no running loop, skip memory save for intent=%r", intent)
+
+
+# ─────────────────────────────────────────────────────────────
 # Punto de entrada — sin streaming
 # ─────────────────────────────────────────────────────────────
 
@@ -1809,6 +1954,9 @@ async def run_chat_agent(
     user_name: str = "",
 ) -> dict:
     import asyncio
+
+    message = _sanitize_user_message(message)
+    history = _sanitize_history(history)
 
     db_products = await _load_catalog_products(db, business_id)
     memory_context = await get_business_memory_context(
@@ -1886,6 +2034,9 @@ async def run_chat_agent(
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(_ai_executor, _run)
 
+    # Fire-and-forget per-business memory write (Layer 1)
+    _maybe_save_intent_memory(result, business_id)
+
     return {
         "response_type": result.get("response_type", "text"),
         "text": result.get("response_text", ""),
@@ -1911,6 +2062,9 @@ async def run_chat_agent_streaming(
 ):
     import asyncio
     import queue as _queue
+
+    message = _sanitize_user_message(message)
+    history = _sanitize_history(history)
 
     db_products = await _load_catalog_products(db, business_id)
     memory_context = await get_business_memory_context(
@@ -1998,6 +2152,18 @@ async def run_chat_agent_streaming(
                 "quote": final_state.get("response_quote"),
                 "cart_items": final_state.get("response_cart_items"),
             }
+            # Pass final_state fields needed for memory write through the queue
+            # BEFORE "result" so the async consumer can handle it first (Rule B)
+            memory_snapshot = {
+                "intent": final_state.get("intent", ""),
+                "intent_params": final_state.get("intent_params", {}),
+                "response_type": final_state.get("response_type", "text"),
+                "response_products": final_state.get("response_products"),
+                "response_quote": final_state.get("response_quote"),
+                "response_cart_items": final_state.get("response_cart_items"),
+                "retrieved_products": final_state.get("retrieved_products", []),
+            }
+            event_queue.put(("memory", memory_snapshot))
             event_queue.put(("result", result))
 
         except Exception as e:
@@ -2022,6 +2188,9 @@ async def run_chat_agent_streaming(
             break
         elif event_type == "thinking":
             yield f"data: {json.dumps({'type': 'thinking', 'text': payload})}\n\n"
+        elif event_type == "memory":
+            _maybe_save_intent_memory(payload, business_id)
+            continue
         elif event_type == "result":
             yield f"data: {json.dumps({'type': 'result', **payload}, ensure_ascii=False)}\n\n"
             break
