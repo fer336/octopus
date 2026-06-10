@@ -78,6 +78,19 @@ let failedQueue: Array<{
   reject: (reason?: unknown) => void
 }> = []
 
+// Evita redirigir múltiples veces si varios requests fallan por suscripción
+let redirectingToBlocked = false
+
+function isSubscriptionBlockedError(detail: string): boolean {
+  const lower = detail.toLowerCase()
+  return (
+    lower.includes('vencido') ||
+    lower.includes('bloqueado por falta de pago') ||
+    lower.includes('no tenés acceso activo a ningún negocio') ||
+    lower.includes('no tenés acceso a ningún negocio')
+  )
+}
+
 const processQueue = (error: Error | null, token: string | null = null) => {
   failedQueue.forEach((prom) => {
     if (error) {
@@ -181,6 +194,18 @@ httpClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean
+    }
+
+    // Suscripción vencida o bloqueada — redirigir a pantalla de bloqueo
+    if (error.response?.status === 403 && !redirectingToBlocked) {
+      const detail: string =
+        (error.response.data as { detail?: string })?.detail ?? ''
+      if (isSubscriptionBlockedError(detail)) {
+        redirectingToBlocked = true
+        sessionStorage.setItem('subscription_blocked_reason', detail)
+        window.location.hash = '/blocked'
+        return Promise.reject(error)
+      }
     }
 
     // Si es 401 y no es un retry, intentar refresh

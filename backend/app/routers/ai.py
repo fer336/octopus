@@ -267,6 +267,12 @@ async def chat(
     """
     business_id = str(current_business)
 
+    if len(message) > 2000:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="El mensaje no puede superar los 2000 caracteres.",
+        )
+
     # Solo el primer nombre — Google devuelve nombre completo ("Fernando Cassera")
     full_name = getattr(current_user, "name", "") or ""
     user_name = full_name.strip().split()[0].capitalize() if full_name.strip() else ""
@@ -276,8 +282,11 @@ async def chat(
         parsed_history = json.loads(history)
         if not isinstance(parsed_history, list):
             parsed_history = []
-        # Tomar solo los últimos 10 mensajes
-        parsed_history = parsed_history[-10:]
+        # Tomar solo los últimos 10 mensajes, validando estructura básica
+        parsed_history = [
+            h for h in parsed_history[-10:]
+            if isinstance(h, dict) and h.get("role") in ("user", "assistant")
+        ]
     except (json.JSONDecodeError, ValueError):
         parsed_history = []
 
@@ -393,6 +402,12 @@ async def chat_stream(
     """
     business_id = str(current_business)
 
+    if len(message) > 2000:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="El mensaje no puede superar los 2000 caracteres.",
+        )
+
     # Solo el primer nombre
     full_name = getattr(current_user, "name", "") or ""
     user_name = full_name.strip().split()[0].capitalize() if full_name.strip() else ""
@@ -402,7 +417,10 @@ async def chat_stream(
         parsed_history = json.loads(history)
         if not isinstance(parsed_history, list):
             parsed_history = []
-        parsed_history = parsed_history[-10:]
+        parsed_history = [
+            h for h in parsed_history[-10:]
+            if isinstance(h, dict) and h.get("role") in ("user", "assistant")
+        ]
     except (json.JSONDecodeError, ValueError):
         parsed_history = []
 
