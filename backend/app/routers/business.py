@@ -85,6 +85,9 @@ async def get_my_business(
         for vt, key in all_types.items()
     }
 
+    def _last_number(key: str) -> str:
+        return str(last_voucher_numbers.get(key) or "00000000").zfill(8)
+
     return BusinessResponse(
         id=str(business.id),
         name=business.name,
@@ -125,6 +128,12 @@ async def get_my_business(
         invoice_zero_stock_enabled=bool(getattr(business, "invoice_zero_stock_enabled", False)),
         arca_environment=business.arca_environment,
         last_voucher_numbers=last_voucher_numbers,
+        last_quotation_number=_last_number("quotation"),
+        last_receipt_number=_last_number("receipt"),
+        last_invoice_a_number=_last_number("invoice_a"),
+        last_invoice_b_number=_last_number("invoice_b"),
+        last_invoice_c_number=_last_number("invoice_c"),
+        last_invoice_x_number=_last_number("invoice_x"),
     )
 
 

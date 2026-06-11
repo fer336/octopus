@@ -36,6 +36,7 @@ interface ProductItem {
   supplier_code?: string
   description: string
   sale_price: number
+  net_price: number
   current_stock?: number
   photo_url?: string
 }
@@ -58,7 +59,6 @@ interface Props {
 
 // ── Helpers ────────────────────────────────────────────────
 
-const safeText = (v: unknown): string => (typeof v === 'string' ? v : '')
 const safeNumber = (v: unknown): number => {
   const n = Number(v)
   return Number.isFinite(n) ? n : 0

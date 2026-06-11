@@ -123,5 +123,14 @@ class BusinessResponse(BaseModel):
         "invoice_x": "00000000",
     }
 
+    # Campos legacy usados por frontend existente.
+    # Se completan desde vouchers en /business/me, no desde fallback local.
+    last_quotation_number: str = "00000000"
+    last_receipt_number: str = "00000000"
+    last_invoice_a_number: str = "00000000"
+    last_invoice_b_number: str = "00000000"
+    last_invoice_c_number: str = "00000000"
+    last_invoice_x_number: str = "00000000"
+
     class Config:
         from_attributes = True
