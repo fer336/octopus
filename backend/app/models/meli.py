@@ -67,7 +67,7 @@ class MeliCredentials(BaseModel):
     refresh_token_enc = Column(Text, nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     scopes = Column(String(500), nullable=True)
-    status = Column(
+    status: MeliCredentialStatus = Column(  # type: ignore[assignment]
         Enum(MeliCredentialStatus),
         nullable=False,
         default=MeliCredentialStatus.CONNECTED,
@@ -139,9 +139,9 @@ class MeliSyncQueue(BaseModel):
         nullable=True,
         index=True,
     )
-    kind = Column(Enum(MeliSyncKind), nullable=False)
+    kind: MeliSyncKind = Column(Enum(MeliSyncKind), nullable=False)  # type: ignore[assignment]
     payload = Column(JSONB, nullable=False, default=dict)
-    status = Column(
+    status: MeliSyncStatus = Column(  # type: ignore[assignment]
         Enum(MeliSyncStatus),
         nullable=False,
         default=MeliSyncStatus.PENDING,
