@@ -24,10 +24,7 @@ logger = logging.getLogger(__name__)
 def _is_paid(order_data: dict) -> bool:
     if order_data.get("status") == "paid":
         return True
-    for p in order_data.get("payments", []):
-        if p.get("status") == "approved":
-            return True
-    return False
+    return any(p.get("status") == "approved" for p in order_data.get("payments", []))
 
 
 async def process_order(

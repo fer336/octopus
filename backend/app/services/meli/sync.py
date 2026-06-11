@@ -118,8 +118,7 @@ class SyncWorker:
             await asyncio.sleep(_WORKER_INTERVAL)
 
     async def _tick(self) -> None:
-        async with self._session_factory() as session:
-            async with session.begin():
+        async with self._session_factory() as session, session.begin():
                 result = await session.execute(
                     select(MeliSyncQueue)
                     .where(MeliSyncQueue.status == MeliSyncStatus.PENDING)

@@ -105,9 +105,8 @@ async def test_publish_raises_if_no_price():
     product = _mock_product(sale_price=0)
     pub, session = _publisher()
 
-    with patch.object(pub, "_load_product", AsyncMock(return_value=product)):
-        with pytest.raises(ValueError, match="sale_price"):
-            await pub.publish(product_id=_PROD_ID, category_id="MLA1000", listing_type_id="gold_special")
+    with patch.object(pub, "_load_product", AsyncMock(return_value=product)), pytest.raises(ValueError, match="sale_price"):
+        await pub.publish(product_id=_PROD_ID, category_id="MLA1000", listing_type_id="gold_special")
 
 
 @pytest.mark.asyncio
@@ -115,9 +114,8 @@ async def test_publish_raises_if_no_stock():
     product = _mock_product(sale_price=1000, stock=0)
     pub, session = _publisher()
 
-    with patch.object(pub, "_load_product", AsyncMock(return_value=product)):
-        with pytest.raises(ValueError, match="stock"):
-            await pub.publish(product_id=_PROD_ID, category_id="MLA1000", listing_type_id="gold_special")
+    with patch.object(pub, "_load_product", AsyncMock(return_value=product)), pytest.raises(ValueError, match="stock"):
+        await pub.publish(product_id=_PROD_ID, category_id="MLA1000", listing_type_id="gold_special")
 
 
 @pytest.mark.asyncio
@@ -129,9 +127,8 @@ async def test_publish_raises_if_active_listing_exists():
     r.scalar_one_or_none.return_value = _mock_listing(status="active")
     session.execute = AsyncMock(return_value=r)
 
-    with patch.object(pub, "_load_product", AsyncMock(return_value=product)):
-        with pytest.raises(ValueError, match="activa"):
-            await pub.publish(product_id=_PROD_ID, category_id="MLA1000", listing_type_id="gold_special")
+    with patch.object(pub, "_load_product", AsyncMock(return_value=product)), pytest.raises(ValueError, match="activa"):
+        await pub.publish(product_id=_PROD_ID, category_id="MLA1000", listing_type_id="gold_special")
 
 
 @pytest.mark.asyncio
@@ -180,9 +177,9 @@ async def test_publish_ml_error_body_raises():
             "create_item",
             AsyncMock(return_value={"error": "invalid_category", "message": "Bad cat"}),
         ),
+        pytest.raises(ValueError, match="Bad cat"),
     ):
-        with pytest.raises(ValueError, match="Bad cat"):
-            await pub.publish(product_id=_PROD_ID, category_id="MLA9999", listing_type_id="gold_special")
+        await pub.publish(product_id=_PROD_ID, category_id="MLA9999", listing_type_id="gold_special")
 
 
 # ── link() ───────────────────────────────────────────────────────────────────
@@ -224,9 +221,9 @@ async def test_link_raises_if_wrong_seller():
         patch.object(pub, "_load_product", AsyncMock(return_value=product)),
         patch.object(pub, "_load_credentials", AsyncMock(return_value=cred)),
         patch.object(pub._client, "get_item", AsyncMock(return_value=ml_item)),
+        pytest.raises(ValueError, match="different seller"),
     ):
-        with pytest.raises(ValueError, match="different seller"):
-            await pub.link(product_id=_PROD_ID, meli_item_id="MLA777")
+        await pub.link(product_id=_PROD_ID, meli_item_id="MLA777")
 
 
 # ── patch_listing() ───────────────────────────────────────────────────────────

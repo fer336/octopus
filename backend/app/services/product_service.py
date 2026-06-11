@@ -6,6 +6,7 @@ Contiene toda la lógica de negocio para productos.
 from __future__ import annotations
 
 import builtins
+import logging
 from datetime import date, datetime
 from uuid import UUID
 
@@ -21,6 +22,8 @@ from app.schemas.product import ProductBulkUpdateItem, ProductCreate, ProductLis
 from app.schemas.product_lot import ProductLotCreate
 from app.services.brand_service import BrandService
 from app.services.product_lot_service import ProductLotService
+
+logger = logging.getLogger(__name__)
 
 
 class ProductService:
