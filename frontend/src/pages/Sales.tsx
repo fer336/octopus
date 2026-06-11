@@ -3887,7 +3887,8 @@ export default function Sales() {
                 return null
               }
 
-              const nextNumber = String(parseInt(lastNumber || '0') + 1).padStart(8, '0')
+              const normalizedLastNumber = String(lastNumber || '0').padStart(8, '0')
+              const nextNumber = String(Number.parseInt(normalizedLastNumber, 10) + 1).padStart(8, '0')
               const nextFormatted = `${salePoint}-${nextNumber}`
 
               return (
@@ -4508,8 +4509,9 @@ export default function Sales() {
                 return null
               }
 
-              const lastFormatted = `${salePoint}-${lastNumber}`
-              const nextNumber = String(parseInt(lastNumber || '0') + 1).padStart(8, '0')
+              const normalizedLastNumber = String(lastNumber || '0').padStart(8, '0')
+              const lastFormatted = `${salePoint}-${normalizedLastNumber}`
+              const nextNumber = String(Number.parseInt(normalizedLastNumber, 10) + 1).padStart(8, '0')
               const nextFormatted = `${salePoint}-${nextNumber}`
 
               return (
