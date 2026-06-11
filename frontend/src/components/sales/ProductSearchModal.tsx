@@ -36,7 +36,7 @@ interface ProductItem {
   supplier_code?: string
   description: string
   sale_price: number
-  net_price?: number
+  net_price: number
   current_stock?: number
   photo_url?: string
 }
