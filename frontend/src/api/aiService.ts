@@ -119,6 +119,20 @@ const aiService = {
   },
 
   /**
+   * Guarda toda la conversación en Engram.
+   * Se llama automáticamente al cerrar el panel del asistente.
+   */
+  saveConversation: async (
+    messages: { role: string; content: string }[],
+  ): Promise<void> => {
+    try {
+      await httpClient.post(`${AI_BASE}/chat/save-conversation`, { messages })
+    } catch (e) {
+      console.warn('[aiService] No se pudo guardar conversación en Engram:', e)
+    }
+  },
+
+  /**
    * Versión streaming de chat(). Usa fetch nativo + ReadableStream para leer
    * eventos SSE del endpoint /ai/chat/stream.
    *
