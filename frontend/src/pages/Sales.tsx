@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { ShoppingCart, FileText, Truck, Receipt, Plus, Trash2, Search, RotateCcw, Save, Download, Printer, X, ClipboardList, CheckCircle, AlertCircle, AlertTriangle, DollarSign, ZoomIn, ZoomOut, Settings, MoreVertical, Archive, ScanLine, Copy } from 'lucide-react'
-import { Button, Modal, Select, Input } from '../components/ui'
+import { Button, Modal, Select, Input, Pagination } from '../components/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
 import productsService from '../api/productsService'
@@ -29,7 +29,9 @@ import { readSalesDraft, writeSalesDraft, clearSalesDraft } from '../stores/sale
 import { hasModuleAccess } from '../utils/acl'
 import { TAX_CONDITIONS, getTaxConditionLabel } from '../types'
 import { isMobile } from '../utils/device'
+import { useDebounce } from '../hooks/useDebounce'
 import QrScanner from '../components/sales/QrScanner'
+import ProductSearchModal from '../components/sales/ProductSearchModal'
 import WhatsAppSendModal from '../components/messaging/WhatsAppSendModal'
 import WhatsAppIcon from '../components/messaging/WhatsAppIcon'
 
@@ -373,12 +375,26 @@ export default function Sales() {
     [invoicingEnabled, receiptsEnabled, quotationEnabled, stockpileEnabled, currentAccountEnabled],
   )
 
-  // React Query para productos
+  // ── Product search state y búsqueda server-side ────────────────
+  const [productSearch, setProductSearch] = useState('')
+  const debouncedProductSearch = useDebounce(productSearch, 300)
+  const normalizedProductSearch = safeText(debouncedProductSearch).toLowerCase()
+  const [productPage, setProductPage] = useState(1)
+
+  // Reset a página 1 cuando cambia la búsqueda
+  useEffect(() => { setProductPage(1) }, [normalizedProductSearch])
+
+  // React Query para productos — búsqueda server-side con paginación
   const { data: productsData } = useQuery({
-    queryKey: ['products-for-sales'],
-    queryFn: () => productsService.getAll({ per_page: 100, is_active: true }),
+    queryKey: ['products-for-sales', normalizedProductSearch, productPage],
+    queryFn: () => {
+      const params: Record<string, unknown> = { per_page: 100, is_active: true, page: productPage }
+      if (normalizedProductSearch) params.search = normalizedProductSearch
+      return productsService.getAll(params as any)
+    },
     retry: false,
   })
+  const allProducts = Array.isArray(productsData?.items) ? productsData.items : []
 
   // React Query para clientes
   const { data: clientsData } = useQuery({
@@ -394,7 +410,6 @@ export default function Sales() {
     retry: false,
   })
 
-  const allProducts = Array.isArray(productsData?.items) ? productsData.items : []
   const allClients = Array.isArray(clientsData?.items) ? clientsData.items : []
   const billingClients = allClients.filter((client) => (client.current_account_mode || 'disabled') !== 'disabled')
 
@@ -413,7 +428,6 @@ export default function Sales() {
   const [clientSearch, setClientSearch] = useState('')
   const [selectedClient, setSelectedClient] = useState<Client | null>(() => (_draft?.selectedClient as Client | null) ?? null)
   const [selectedOperatingClientId, setSelectedOperatingClientId] = useState<string>(() => _draft?.selectedOperatingClientId ?? '')
-  const [productSearch, setProductSearch] = useState('')
   const [budgetCode, setBudgetCode] = useState('')
   const [isLoadingBudget, setIsLoadingBudget] = useState(false)
   const [loadedBudgets, setLoadedBudgets] = useState<LoadedBudget[]>(() => (_draft?.loadedBudgets as LoadedBudget[]) ?? [])
@@ -1087,6 +1101,9 @@ export default function Sales() {
     },
   })
 
+  // Estado del modal de búsqueda rápida (F8)
+  const [showSearchModal, setShowSearchModal] = useState(false)
+
   // Modales
   const [showQuantityModal, setShowQuantityModal] = useState(false)
   const [showClientModal, setShowClientModal] = useState(false)
@@ -1219,7 +1236,6 @@ export default function Sales() {
     tax_condition: 'CF',
   })
 
-  const normalizedProductSearch = safeText(productSearch).toLowerCase()
   const normalizedClientSearch = safeText(clientSearch).toLowerCase()
 
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -1241,7 +1257,7 @@ export default function Sales() {
     })
   }, [selectedStockpile])
 
-  // Filtrar productos según búsqueda
+  // Productos normalizados — la búsqueda la hace el server-side query
   const filteredProducts = allProducts
     .map(p => ({
       id: p.id,
@@ -1255,11 +1271,6 @@ export default function Sales() {
       current_stock: typeof p.current_stock === 'number' ? p.current_stock : undefined,
       photo_url: typeof p.photo_url === 'string' ? p.photo_url : undefined,
     }))
-    .filter(p =>
-      p.code.toLowerCase().includes(normalizedProductSearch) ||
-      (p.supplier_code?.toLowerCase() ?? '').includes(normalizedProductSearch) ||
-      p.description.toLowerCase().includes(normalizedProductSearch)
-    )
 
   // Filtrar clientes según búsqueda
   const clientsForSelection = voucherType === 'current_account' ? billingClients : allClients
@@ -1430,6 +1441,13 @@ export default function Sales() {
   // Manejar eventos de teclado
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Abrir modal de búsqueda rápida con F8
+      if (e.key === 'F8') {
+        e.preventDefault()
+        setShowSearchModal(true)
+        return
+      }
+
       // Cerrar modal de productos con F1
       if (showQuantityModal && e.key === 'F1') {
         e.preventDefault()
@@ -1438,7 +1456,7 @@ export default function Sales() {
       }
 
       // Bloquear eventos si están bloqueados temporalmente o hay modales abiertas
-      if (blockKeyboardEventsRef.current || showQuantityModal || showClientModal || showDraftsModal) return
+      if (blockKeyboardEventsRef.current || showQuantityModal || showClientModal || showDraftsModal || showSearchModal) return
 
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -1481,13 +1499,13 @@ export default function Sales() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [filteredProducts, selectedProductIndex, showQuantityModal, showClientModal, showDraftsModal, tempSelectedProducts])
+  }, [filteredProducts, selectedProductIndex, showQuantityModal, showClientModal, showDraftsModal, showSearchModal, tempSelectedProducts])
 
-  // Reset selected index y página mobile cuando cambia la búsqueda
+  // Reset selected index y página mobile cuando cambia la búsqueda o página
   useEffect(() => {
     setSelectedProductIndex(0)
     setMobileProductPage(0)
-  }, [productSearch])
+  }, [productSearch, productPage])
 
   // Auto-scroll: cuando el índice seleccionado cambia por teclado,
   // hace scroll para que el item quede visible dentro del contenedor
@@ -1628,6 +1646,11 @@ export default function Sales() {
       }
       return [...prev, { ...product, product_id: product.id, quantity, discount: 0 }]
     })
+  }
+
+  const handleAddProductFromSearch = (product: Product, quantity: number) => {
+    addScannedProduct(product, quantity)
+    toast.success(`${product.description} — agregado`, { icon: '🛒', duration: 1500 })
   }
 
   useEffect(() => {
@@ -4407,6 +4430,13 @@ export default function Sales() {
                 </tbody>
               </table>
             </div>
+            <Pagination
+              currentPage={productPage}
+              totalPages={productsData?.pages ?? 0}
+              onPageChange={setProductPage}
+              totalItems={productsData?.total ?? 0}
+              itemsPerPage={100}
+            />
             <div className="px-2 py-1.5 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -5118,6 +5148,16 @@ export default function Sales() {
           )}
         </div>
       </Modal>
+
+      {/* Modal de búsqueda rápida de productos (F8) */}
+      <ProductSearchModal
+        isOpen={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        onAddProduct={(product, quantity) => {
+          handleAddProductFromSearch(product, quantity)
+          setShowSearchModal(false)
+        }}
+      />
 
       {/* Modal cliente - REUTILIZA ESTE EN LA PÁGINA DE CLIENTES */}
       <Modal isOpen={showClientModal} onClose={() => setShowClientModal(false)} title="Nuevo Cliente">

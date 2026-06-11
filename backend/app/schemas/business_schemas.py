@@ -109,29 +109,19 @@ class BusinessResponse(BaseModel):
     electronic_sale_point: str | None = None
     alternative_sale_point: str | None = None
     srx_enabled: bool | None = False
-    last_invoice_x_number: str | None = None
 
     # Configuración ARCA (solo lectura, se edita en /arca)
     arca_environment: str | None
 
-    # Últimos números de comprobante emitidos (para mostrar en UI)
-    last_quotation_number: str = "00000000"
-    last_receipt_number: str = "00000000"
-    last_invoice_a_number: str = "00000000"
-    last_invoice_b_number: str = "00000000"
-    last_invoice_c_number: str = "00000000"
-
-    @field_validator(
-        "last_quotation_number",
-        "last_receipt_number",
-        "last_invoice_a_number",
-        "last_invoice_b_number",
-        "last_invoice_c_number",
-        mode="before",
-    )
-    @classmethod
-    def coerce_number(cls, v: object) -> str:
-        return str(v) if v is not None else "00000000"
+    # Últimos números de comprobante emitidos por tipo (dict dinámico)
+    last_voucher_numbers: dict[str, str] = {
+        "quotation": "00000000",
+        "receipt": "00000000",
+        "invoice_a": "00000000",
+        "invoice_b": "00000000",
+        "invoice_c": "00000000",
+        "invoice_x": "00000000",
+    }
 
     class Config:
         from_attributes = True

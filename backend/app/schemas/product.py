@@ -229,7 +229,19 @@ class StockDeltaResponse(BaseSchema):
 class ProductListParams(BaseSchema):
     """Parámetros para listar productos."""
 
-    search: str | None = Field(None, description="Buscar por código o descripción")
+    search: str | None = Field(None, description="Búsqueda parcial por código, descripción, etc.")
+    search_field: str | None = Field(
+        None,
+        description=(
+            "Campo específico para buscar con ILIKE. "
+            "Valores válidos: code, supplier_code, description, brand, line, "
+            "application_area, finish."
+        ),
+    )
+    code: str | None = Field(None, description="Búsqueda exacta por código de producto")
+    supplier_code: str | None = Field(
+        None, description="Búsqueda exacta por código de proveedor"
+    )
     category_id: UUID | None = None
     supplier_id: UUID | None = None
     brand: str | None = None

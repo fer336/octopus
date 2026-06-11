@@ -9,7 +9,7 @@ import builtins
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import asc, desc, func, or_, select
+from sqlalchemy import asc, case, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -116,20 +116,43 @@ class ProductService:
         ]
 
         # Aplicar filtros
-        uses_brand_join = bool(params.search)
+        uses_brand_join = False  # se activa si el search multi-campo o brand filter lo requiere
+        if params.code:
+            base_conditions.append(Product.code == params.code)
+
+        if params.supplier_code:
+            base_conditions.append(Product.supplier_code == params.supplier_code)
+
+        _SEARCHABLE_FIELDS_MAP = {
+            "code": Product.code,
+            "supplier_code": Product.supplier_code,
+            "description": Product.description,
+            "brand": Product.brand,
+            "line": Product.line,
+            "application_area": Product.application_area,
+            "finish": Product.finish,
+        }
+
         if params.search:
-            search_filter = or_(
-                Product.code.ilike(f"%{params.search}%"),
-                Product.supplier_code.ilike(f"%{params.search}%"),
-                Product.description.ilike(f"%{params.search}%"),
-                Product.brand.ilike(f"%{params.search}%"),
-                Brand.name.ilike(f"%{params.search}%"),
-                Product.line.ilike(f"%{params.search}%"),
-                Product.application_area.ilike(f"%{params.search}%"),
-                Product.finish.ilike(f"%{params.search}%"),
-                Product.customer_terms.ilike(f"%{params.search}%"),
-            )
-            base_conditions.append(search_filter)
+            if params.search_field and params.search_field in _SEARCHABLE_FIELDS_MAP:
+                # Búsqueda ILIKE solo en el campo específico
+                field = _SEARCHABLE_FIELDS_MAP[params.search_field]
+                base_conditions.append(field.ilike(f"%{params.search}%"))
+            else:
+                # Búsqueda multi-campo estándar
+                search_filter = or_(
+                    Product.code.ilike(f"%{params.search}%"),
+                    Product.supplier_code.ilike(f"%{params.search}%"),
+                    Product.description.ilike(f"%{params.search}%"),
+                    Product.brand.ilike(f"%{params.search}%"),
+                    Brand.name.ilike(f"%{params.search}%"),
+                    Product.line.ilike(f"%{params.search}%"),
+                    Product.application_area.ilike(f"%{params.search}%"),
+                    Product.finish.ilike(f"%{params.search}%"),
+                    Product.customer_terms.ilike(f"%{params.search}%"),
+                )
+                base_conditions.append(search_filter)
+                uses_brand_join = True
 
         if params.category_id:
             base_conditions.append(Product.category_id == params.category_id)
@@ -207,6 +230,15 @@ class ProductService:
 
         # Query paginada
         offset = (params.page - 1) * params.per_page
+
+        # Orden por relevancia si hay search_field
+        if params.search and params.search_field and params.search_field in _SEARCHABLE_FIELDS_MAP:
+            field = _SEARCHABLE_FIELDS_MAP[params.search_field]
+            prefix_match = field.ilike(f"{params.search}%")
+            order_by = [case((prefix_match, 0), else_=1), field.asc()]
+        else:
+            order_by = [sort_direction(sort_column), Product.description.asc()]
+
         query = (
             select(Product)
             .options(selectinload(Product.lots), selectinload(Product.brand_ref))
@@ -215,7 +247,7 @@ class ProductService:
                 stock_by_product,
                 stock_by_product.c.product_id == Product.id,
             )
-            .order_by(sort_direction(sort_column), Product.description.asc())
+            .order_by(*order_by)
             .offset(offset)
             .limit(params.per_page)
         )
