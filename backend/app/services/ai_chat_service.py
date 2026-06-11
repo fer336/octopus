@@ -12,8 +12,12 @@ Flujo:
             ├── "refinement"         → node_retrieve → node_respond → END
             ├── "multi_item_query"   → node_multi_lookup → node_respond → END
             ├── "multi_item_confirm" → node_multi_confirm → node_respond → END
-            ├── "quote_intent"       → node_respond_static → END
+            ├── "quote_intent"       → node_respond_llm → END
             ├── "quote_with_items"   → node_quote_graph → node_respond → END
+            ├── "stock_alert"        → node_stock_alert → END
+            ├── "stagnant_products"  → node_stagnant_products → END
+            ├── "sales_analytics"    → node_sales_analytics → END
+            ├── "memory_recall"      → node_memory_recall → END
             └── "general"            → node_respond_llm → END
 
 El clasificador usa el modelo rápido/barato del proveedor (ej: gpt-4o-mini)
@@ -57,9 +61,7 @@ logger = logging.getLogger(__name__)
 try:
     from langgraph.graph import END, START, StateGraph
 except ImportError as e:
-    raise ImportError(
-        "LangGraph no está instalado. Ejecutá: pip install langgraph"
-    ) from e
+    raise ImportError("LangGraph no está instalado. Ejecutá: pip install langgraph") from e
 
 # ─────────────────────────────────────────────────────────────
 # Estado del grafo
@@ -301,9 +303,7 @@ def _extract_multi_context(history: list[dict]) -> dict | None:
     return None
 
 
-def _get_last_single_product(
-    history: list[dict], db_products: list[dict]
-) -> dict | None:
+def _get_last_single_product(history: list[dict], db_products: list[dict]) -> dict | None:
     """
     Retorna el producto si el último mensaje del asistente mostró exactamente 1 producto.
     Busca en estos formatos (en orden):
@@ -346,11 +346,7 @@ def _get_last_single_product(
             try:
                 ctx = json.loads(content.split("[MULTI_CONTEXT]", 1)[1].strip())
                 items = ctx.get("items", [])
-                resolved = [
-                    i
-                    for i in items
-                    if i.get("chosen") and i.get("status") != "not_found"
-                ]
+                resolved = [i for i in items if i.get("chosen") and i.get("status") != "not_found"]
                 if len(resolved) == 1:
                     chosen = resolved[0]["chosen"]
                     pid = str(chosen.get("id", ""))
@@ -381,9 +377,7 @@ def _has_quote_intent_pending(history: list[dict]) -> bool:
     return False
 
 
-def _get_products_from_history(
-    history: list[dict], db_products: list[dict]
-) -> list[dict]:
+def _get_products_from_history(history: list[dict], db_products: list[dict]) -> list[dict]:
     by_id = {str(p.get("id", "")): p for p in db_products}
     by_code = {str(p.get("code", "")).strip().lower(): p for p in db_products}
     for h in reversed(history):
@@ -449,8 +443,7 @@ def _apply_refinement(message: str, products: list[dict]) -> list[dict]:
         )
     )
     is_expensive = any(
-        k in msg
-        for k in ("caro", "cara", "caros", "caras", "premium", "mas caro", "mas cara")
+        k in msg for k in ("caro", "cara", "caros", "caras", "premium", "mas caro", "mas cara")
     )
 
     if is_cheap:
@@ -511,7 +504,11 @@ INTENTS disponibles:
 - "stagnant_products"  → productos que no se vendieron hace mucho tiempo
                          params: {"days": 90}
 - "sales_analytics"    → resumen de ventas, qué se vende más/menos, revenue
-                         params: {"period": "month|quarter|year"}
+                          params: {"period": "month|quarter|year"}
+- "memory_recall"      → preguntan qué recordás de algo, qué sabe Luci del usuario/negocio,
+                          "qué te acordás", "buscá en Engram", "buscá en tu memoria",
+                          "qué sabés de...", consultas sobre memoria persistente
+                          params: {"query": "texto de la consulta"}
 - "general"            → cualquier otra consulta, pregunta libre
 
 Reglas importantes:
@@ -520,10 +517,14 @@ Reglas importantes:
 - "anotame N", "quiero N", "dame N", "x N" después de ver 1 producto → "add_to_cart"
 - "presupuesto", "cotización", "cotizar" sin productos → "quote_intent"
 - "presupuesto" con lista de productos → "quote_with_items"
-- Consultas como "precio de X", "cuánto sale X", "tenés X" → "product_query"
-- "stock bajo", "qué falta", "productos agotados", "qué hay que reponer" → "stock_alert"
+- "precio de X", "cuánto sale X", "tenés X", "hay X", "stock de X", "cuánto stock hay de X" → "product_query"
+  (el usuario pregunta por UN producto específico)
+- "stock bajo", "qué falta", "productos agotados", "qué hay que reponer", "productos con menos/más/bajo stock", "pasame X productos con (menos|más) stock", "cuáles tienen (menos|más) stock" → "stock_alert"
+  (el usuario pregunta por LOS productos en general, no por uno específico)
 - "productos parados", "sin movimiento", "no se vendió", "estancados" → "stagnant_products"
 - "ventas del mes", "qué se vendió más", "resumen de ventas", "facturación" → "sales_analytics"
+- Mensajes MUY CORTOS de 1-2 palabras como "sí", "no", "dale", "ok", "claro", "si", "np" que responden a la pregunta anterior del asistente → "general"
+- "guardá en engram", "guardá esto", "anotalo", "acordate", "recordalo", "memoria" SIN preguntar por el contenido → "general" (el sistema guarda automáticamente)
 
 Respondé SOLO con JSON. Ejemplos:
 {"intent": "product_query", "params": {"term": "canilla jardín 1/2", "fields": "price"}}
@@ -550,10 +551,7 @@ def _classify_with_llm(
         content = str(h.get("content", ""))
         # Mantener el marcador MULTI_CONTEXT pero truncar el JSON
         if "[MULTI_CONTEXT]" in content:
-            content = (
-                content.split("[MULTI_CONTEXT]")[0].strip()
-                + "\n[MULTI_CONTEXT] <pendiente>"
-            )
+            content = content.split("[MULTI_CONTEXT]")[0].strip() + "\n[MULTI_CONTEXT] <pendiente>"
         elif len(content) > 200:
             content = content[:200] + "..."
         history_summary.append(f"{h['role']}: {content}")
@@ -596,12 +594,11 @@ def _classify_with_llm(
             "stock_alert",
             "stagnant_products",
             "sales_analytics",
+            "memory_recall",
             "general",
         }
         if intent not in valid_intents:
-            logger.warning(
-                f"[Luci/classifier] Intent desconocido {intent!r}, usando heurística"
-            )
+            logger.warning(f"[Luci/classifier] Intent desconocido {intent!r}, usando heurística")
             return _classify_heuristic(message, history)
 
         # Si dice quote_with_items pero no tiene productos claros → degradar a multi_item_query
@@ -637,6 +634,35 @@ def _classify_heuristic(message: str, history: list[dict]) -> tuple[str, dict]:
         return "greeting", {}
     if any(a in text for a in _ABOUT_KW):
         return "about_luci", {}
+
+    # Memory recall — preguntas sobre memoria persistente / Engram
+    memory_kw = frozenset(
+        {
+            "te acordas",
+            "te acordás",
+            "recordas",
+            "recordás",
+            "que sabes",
+            "qué sabés",
+            "que sabe",
+            "qué sabe",
+            "buscá en engram",
+            "busca en engram",
+            "busca en tu memoria",
+            "buscá en tu memoria",
+            "buscar en engram",
+            "que me pediste",
+            "qué me pediste",
+            "que dijiste",
+            "qué dijiste",
+            "que paso",
+            "qué pasó",
+            "conversacion",
+            "conversación",
+        }
+    )
+    if any(k in text for k in memory_kw):
+        return "memory_recall", {"query": message}
 
     ctx = _extract_multi_context(history)
     if ctx is not None:
@@ -685,9 +711,7 @@ def _classify_heuristic(message: str, history: list[dict]) -> tuple[str, dict]:
     )
     if any(k in text for k in quote_kw):
         parts = [
-            p.strip()
-            for p in _ITEM_SEPARATORS.split(message)
-            if p.strip() and len(p.strip()) > 2
+            p.strip() for p in _ITEM_SEPARATORS.split(message) if p.strip() and len(p.strip()) > 2
         ]
         meaningful = [p for p in parts if len(p.split()) >= 1]
         if len(meaningful) >= 3:
@@ -695,24 +719,82 @@ def _classify_heuristic(message: str, history: list[dict]) -> tuple[str, dict]:
         return "quote_intent", {}
 
     # Multi-ítem por estructura (comas / conjunciones)
-    parts = [
-        p.strip()
-        for p in _ITEM_SEPARATORS.split(message)
-        if p.strip() and len(p.strip()) > 2
-    ]
+    parts = [p.strip() for p in _ITEM_SEPARATORS.split(message) if p.strip() and len(p.strip()) > 2]
     if len([p for p in parts if len(p.split()) >= 1]) >= 2:
         return "multi_item_query", {"items": [{"term": p, "qty": None} for p in parts]}
 
-    price_kw = frozenset({"precio", "cuanto", "cuánto", "valor", "costo", "sale"})
-    stock_kw = frozenset(
-        {"stock", "disponible", "tenes", "tenés", "hay", "queda", "quedan"}
+    # Intentos específicos de negocio (antes que product_query genérico)
+    # stock_alert: requiere "stock" + indicador de bajo/falta
+    has_stock_alert = any(
+        k in text
+        for k in {
+            "stock bajo",
+            "stockbajo",
+            "bajo stock",
+            "sin stock",
+            "poco stock",
+            "falta stock",
+            "menos stock",
+            "productos agotados",
+            "productos sin stock",
+            "qué falta",
+            "qué hay que reponer",
+            "que falta",
+            "que hay que reponer",
+            "reponer",
+        }
+    ) or ("stock" in words and any(w in words for w in ("bajo", "baja", "poco", "falta", "menos")))
+    if has_stock_alert:
+        return "stock_alert", {}
+
+    stagnant_kw = frozenset(
+        {
+            "productos parados",
+            "sin movimiento",
+            "no se vendio",
+            "no se vendió",
+            "estancados",
+            "estancado",
+            "sin ventas",
+        }
     )
+    if any(k in text for k in stagnant_kw):
+        return "stagnant_products", {"days": 90}
+
+    sales_kw = frozenset(
+        {
+            "ventas del mes",
+            "ventas mensuales",
+            "resumen de ventas",
+            "se vendio mas",
+            "se vendió más",
+            "se vendio más",
+            "se vendió mas",
+            "facturacion",
+            "facturación",
+            "qué se vende",
+            "que se vende",
+            "producto mas vendido",
+            "producto más vendido",
+            "mas vendido",
+            "más vendido",
+            "rendimiento",
+            "ventas del",
+            "ventas del periodo",
+        }
+    )
+    if any(k in text for k in sales_kw):
+        period = "month"
+        if any(p in text for p in ("trimestre", "semestre", "año", "anual")):
+            period = "quarter" if "trimestre" in text else "year"
+        return "sales_analytics", {"period": period}
+
+    price_kw = frozenset({"precio", "cuanto", "cuánto", "valor", "costo", "sale"})
+    stock_kw = frozenset({"stock", "disponible", "tenes", "tenés", "hay", "queda", "quedan"})
     has_price = any(k in text for k in price_kw)
     has_stock = any(k in text for k in stock_kw)
     if has_price or has_stock:
-        fields = (
-            "both" if has_price and has_stock else ("stock" if has_stock else "price")
-        )
+        fields = "both" if has_price and has_stock else ("stock" if has_stock else "price")
         return "product_query", {"term": message, "fields": fields}
 
     open_q = frozenset(
@@ -743,7 +825,77 @@ def _classify_heuristic(message: str, history: list[dict]) -> tuple[str, dict]:
 # ─────────────────────────────────────────────────────────────
 
 
-def _build_system_prompt(user_name: str = "", memory_context: str = "") -> str:
+def _build_catalog_context(db_products: list[dict]) -> str:
+    """Build a compact catalog summary for the LLM system prompt.
+    Returns product descriptions and codes (no prices/stock — those come from tools).
+    """
+    if not db_products:
+        return ""
+    total = len(db_products)
+    # Take top 50 as reference
+    sample = db_products[:50]
+    lines = [f"Total de productos en el catálogo: {total}"]
+    for p in sample:
+        desc = (p.get("description") or "").strip()
+        code = (p.get("code") or "").strip()
+        if desc:
+            lines.append(f"- {desc}" + (f" (código: {code})" if code else ""))
+    if total > 50:
+        lines.append(f"... y {total - 50} productos más.")
+    return "\n".join(lines)
+
+
+def _build_business_data_context(
+    low_stock: list[dict] | None = None,
+    stagnant: list[dict] | None = None,
+    sales: dict | None = None,
+) -> str:
+    """Build a business-data summary for the LLM system prompt."""
+    parts = []
+
+    if low_stock:
+        lines = [f"📉 PRODUCTOS CON STOCK BAJO ({len(low_stock)}):"]
+        for p in low_stock[:10]:
+            desc = (p.get("description") or "").strip()
+            stock = p.get("stock", "?")
+            lines.append(f"  - {desc} — stock: {stock}")
+        if len(low_stock) > 10:
+            lines.append(f"  ... y {len(low_stock) - 10} más.")
+        parts.append("\n".join(lines))
+
+    if stagnant:
+        lines = [f"🗄️ PRODUCTOS ESTANCADOS (sin venta, {len(stagnant)}):"]
+        for p in stagnant[:10]:
+            desc = (p.get("description") or "").strip()
+            lines.append(f"  - {desc}")
+        if len(stagnant) > 10:
+            lines.append(f"  ... y {len(stagnant) - 10} más.")
+        parts.append("\n".join(lines))
+
+    if sales:
+        for period, summary in sales.items():
+            if not summary or not summary.get("total_amount"):
+                continue
+            lines = [
+                f"💰 VENTAS {period.upper()}:",
+                f"  Total: ${summary.get('total_amount', 0):,.2f}",
+            ]
+            top = (summary.get("top_by_revenue") or [])[:5]
+            if top:
+                lines.append("  Top productos por facturación:")
+                for p in top:
+                    lines.append(f"    - {p.get('description', '?')} — ${p.get('amount', 0):,.2f}")
+            parts.append("\n".join(lines))
+
+    return "\n\n".join(parts) if parts else ""
+
+
+def _build_system_prompt(
+    user_name: str = "",
+    memory_context: str = "",
+    catalog_context: str = "",
+    business_data_context: str = "",
+) -> str:
     name_ctx = (
         (
             f"El nombre del usuario es {user_name}. "
@@ -752,42 +904,71 @@ def _build_system_prompt(user_name: str = "", memory_context: str = "") -> str:
         if user_name
         else ""
     )
+    catalog_ctx = (
+        f"\n📦 CATÁLOGO DEL NEGOCIO (datos reales):\n{catalog_context}\n" if catalog_context else ""
+    )
+    biz_ctx = (
+        f"\n📊 DATOS DEL NEGOCIO (actualizados):\n{business_data_context}\n"
+        if business_data_context
+        else ""
+    )
     memory_ctx = (
-        "\nContexto de memoria del negocio (Engram, no fuente de verdad):\n"
-        f"{memory_context}\n"
-        "Usalo solo como orientación semántica. Para precios, stock, saldos, comprobantes, pagos y datos fiscales, confiá únicamente en la base de datos y herramientas del sistema.\n"
+        f"\n🧠 MEMORIA DE CONVERSACIONES (NO son datos del catálogo):\n{memory_context}\n"
         if memory_context
         else ""
     )
     return f"""Sos Luci, la asistente del negocio en OctopusTrack. Hablás como una secretaria argentina: amigable, directa y eficiente.
 
 {name_ctx}
+{catalog_ctx}
+{biz_ctx}
 {memory_ctx}
 
-Tu forma de hablar:
-- Español rioplatense con tuteo ("¿en qué te puedo ayudar?", "anotado", "dale", "perfecto", "¿algo más?")
+━━━ SISTEMA — DATOS DISPONIBLES ━━━
+
+Tenés los siguientes datasets del negocio pre-cargados en esta conversación. Usalos para responder cualquier consulta:
+
+📦 CATÁLOGO — lista de productos del negocio (descripción, código). NO tiene precios ni stock actualizados.
+📉 STOCK BAJO — productos con poco stock (descripción + cantidad actual).
+🗄️ ESTANCADOS — productos sin ventas recientes (solo descripción).
+💰 VENTAS — total facturado y top productos por período.
+
+El sistema carga estos datos AL INICIO de la conversación y se mantienen actualizados.
+
+HERRAMIENTAS ADICIONALES (se activan según el intent):
+• Búsqueda de productos por nombre → busca en el catálogo real y devuelve precios + stock exactos
+• Multi-ítem → búsqueda de varios productos a la vez con confirmación interactiva
+• Carrito → agrega productos confirmados
+• Presupuesto → arma cotización con los productos seleccionados
+
+REGLAS ESTRICTAS — LEÉLAS SIEMPRE:
+1. NUNCA inventes productos, precios, stock ni datos. Usá ÚNICAMENTE los datasets y herramientas que el sistema te provee.
+2. Si un dataset está vacío o no contiene lo que el usuario pregunta, decí que no tenés esa información. No inventes.
+3. 📦 CATÁLOGO: solo contiene descripción y código. Para precios o stock exactos, esperá a que el sistema ejecute la herramienta de búsqueda.
+4. 📊 DATOS DEL NEGOCIO: son reales y actualizados. Stock bajo, estancados y ventas están disponibles acá arriba.
+5. 🧠 MEMORIA: SOLO para recordar conversaciones pasadas. NO es fuente de datos de productos, stock o precios.
+
+━━━ PERSONALIDAD ━━━
+
+Hablás como una secretaria argentita: amigable, directa y eficiente.
+- Español rioplatense ("¿en qué te puedo ayudar?", "anotado", "dale", "perfecto", "¿algo más?")
 - Cálida pero concisa — sin rodeos
 - Expresiones naturales: "Listo", "Anotado", "Ya lo tengo", "Dale"
 - Nunca robótica ni formal
 
-Tus capacidades:
-1. Buscar precios y stock de productos del catálogo
-2. Armar listas de productos para presupuesto (multi-ítem con confirmación iterativa)
-3. Agregar ítems confirmados al carrito virtual
-4. Reportar productos con stock bajo o agotado
-5. Detectar productos estancados (sin ventas hace meses)
-6. Resumir el rendimiento de ventas del período
+━━━ MEMORIA PERSISTENTE (ENGRAM) ━━━
 
-Reglas:
-- NUNCA inventés precios ni stock — solo usás datos del catálogo
-- Si no encontrás un producto, decilo directo y sugerí alternativas
-- Cuando listás productos encontrados, usá formato markdown con negritas y bullets
-- Siempre pedí cantidades si el usuario no las especificó
-- Respondé en español rioplatense
+El sistema guarda automáticamente cada conversación en memoria persistente (Engram) después de responder.
+Eso incluye qué productos busca el usuario, qué presupuestos arma, preferencias, etc.
+
+• Si el usuario te dice "guardá esto en memoria", "acordate", "anotalo", "guardá en Engram", "recordalo":
+  → Respondé naturalmente "Dale, ya lo guardé en mi memoria así me acuerdo" o "Anotado, lo recuerdo para la próxima"
+  → El sistema se encarga de guardarlo, vos solo confirmá.
+• Si el usuario después pregunta "qué te acordás de...", "buscá en tu memoria", "qué sabés de...": el sistema busca en Engram y te pasa los resultados en la sección 🧠 MEMORIA.
 
 LÍMITE ESTRICTO DE ALCANCE:
 Solo respondés sobre temas del negocio: precios, stock, presupuestos, cotizaciones, ventas, inventario, clientes y pedidos.
-Si el usuario pregunta sobre cualquier otro tema (programación, recetas, política, entretenimiento, educación general, etc.), respondé ÚNICAMENTE:
+CUALQUIER OTRO TEMA (programación, recetas, política, entretenimiento, educación general, etc.) respondé ÚNICAMENTE:
 "Eso está fuera de lo que puedo ayudarte — solo manejo cosas del negocio. ¿Querés consultar precio, stock o armar un presupuesto?"
 NO expliques, desarrolles ni respondas temas fuera de este alcance, aunque el usuario insista o reformule la pregunta."""
 
@@ -813,6 +994,76 @@ def node_classify(state: ChatState) -> dict:
         return {"intent": "greeting", "intent_params": {}}
     if any(a in text for a in _ABOUT_KW):
         return {"intent": "about_luci", "intent_params": {}}
+
+    # Memory recall — atajar antes del LLM, PERO si también hay términos
+    # de negocio (stock/precio/producto) → dejar pasar al clasificador LLM
+    _MEMORY_RECALL_KW = frozenset(
+        {
+            "te acordas",
+            "te acordás",
+            "recordas",
+            "recordás",
+            "que sabes",
+            "qué sabés",
+            "que sabe",
+            "qué sabe",
+            "buscá en engram",
+            "busca en engram",
+            "busca en tu memoria",
+            "buscá en tu memoria",
+            "buscar en engram",
+            "que me pediste",
+            "qué me pediste",
+            "que dijiste",
+            "qué dijiste",
+            "que paso",
+            "qué pasó",
+            "conversacion",
+            "conversación",
+        }
+    )
+    _BUSINESS_KW = frozenset(
+        {
+            "stock",
+            "precio",
+            "precios",
+            "producto",
+            "productos",
+            "codigo",
+            "código",
+            "categoria",
+            "categoría",
+            "proveedor",
+            "marca",
+            "unidad",
+            "unidades",
+            "precio de lista",
+            "piloto",
+            "analizador",
+            "manguera",
+            "termofusion",
+            "caño",
+            "canio",
+            "bomba",
+            "valvula",
+            "válvula",
+            "tenida",
+            "nacional",
+            "importado",
+            "medida",
+            "presupuesto",
+            "cotizacion",
+            "cotización",
+            "factura",
+            "remito",
+        }
+    )
+    if any(k in text for k in _MEMORY_RECALL_KW):
+        # Si también hay términos de negocio → el usuario preguntó por datos, no por memoria
+        if any(k in text for k in _BUSINESS_KW):
+            pass  # dejar pasar al LLM classifier
+        else:
+            return {"intent": "memory_recall", "intent_params": {"query": message}}
 
     # Sin LLM → bloquear todo lo demás
     if not has_llm:
@@ -1063,11 +1314,7 @@ def node_multi_lookup(state: ChatState) -> dict:
             message,
             flags=re.IGNORECASE,
         ).strip()
-        parts = [
-            p.strip()
-            for p in _ITEM_SEPARATORS.split(raw)
-            if p.strip() and len(p.strip()) > 1
-        ]
+        parts = [p.strip() for p in _ITEM_SEPARATORS.split(raw) if p.strip() and len(p.strip()) > 1]
         parsed_items = []
         for part in parts:
             qty, term = _parse_item_with_qty(part)
@@ -1134,9 +1381,7 @@ def node_multi_lookup(state: ChatState) -> dict:
     lines: list[str] = []
 
     found_clear = [
-        i
-        for i in items_state
-        if i["status"] in ("clear", "needs_qty") and i.get("chosen")
+        i for i in items_state if i["status"] in ("clear", "needs_qty") and i.get("chosen")
     ]
     ambiguous = [i for i in items_state if i["status"] == "ambiguous"]
     not_found = [i for i in items_state if i["status"] == "not_found"]
@@ -1171,17 +1416,13 @@ def node_multi_lookup(state: ChatState) -> dict:
         if found_clear or ambiguous:
             lines.append("")
         nf_names = ", ".join(f"**{i['term']}**" for i in not_found)
-        lines.append(
-            f"No encontré en el catálogo: {nf_names}. ¿Tienen otro nombre o código?"
-        )
+        lines.append(f"No encontré en el catálogo: {nf_names}. ¿Tienen otro nombre o código?")
 
     needs_qty = [i for i in found_clear if i["status"] == "needs_qty"]
     if needs_qty or ambiguous:
         lines.append("")
         if needs_qty and not ambiguous:
-            qty_names = ", ".join(
-                f"**{i['chosen']['description']}**" for i in needs_qty
-            )
+            qty_names = ", ".join(f"**{i['chosen']['description']}**" for i in needs_qty)
             lines.append(f"¿Con cuántas unidades vas de {qty_names}?")
         elif needs_qty and ambiguous:
             lines.append(
@@ -1267,9 +1508,7 @@ def node_multi_confirm(state: ChatState) -> dict:
             total += subtotal
             full_product = _enrich_product(chosen, db_prods)
             cart_items.append({"product": full_product, "qty": qty})
-            lines.append(
-                f"- {chosen['description']} x{int(qty)} — {_format_price(subtotal)}"
-            )
+            lines.append(f"- {chosen['description']} x{int(qty)} — {_format_price(subtotal)}")
 
         lines.append(f"\nTotal estimado: **{_format_price(total)}**")
         lines.append("\n¿Querés agregar algo más o pasamos a Ventas?")
@@ -1302,9 +1541,7 @@ def node_multi_confirm(state: ChatState) -> dict:
     if still_needs_qty:
         if still_ambiguous:
             lines.append("")
-        qty_names = ", ".join(
-            f"**{i['chosen']['description']}**" for i in still_needs_qty
-        )
+        qty_names = ", ".join(f"**{i['chosen']['description']}**" for i in still_needs_qty)
         lines.append(f"¿Cuántas unidades de {qty_names}?")
 
     new_ctx = {"items": updated, "user_name": stored_name}
@@ -1460,7 +1697,9 @@ def node_stock_alert(state: ChatState) -> dict:
             "response_cart_items": None,
         }
 
-    lines = [f"Encontré **{len(products)}** producto{'s' if len(products) != 1 else ''} con stock bajo:\n"]
+    lines = [
+        f"Encontré **{len(products)}** producto{'s' if len(products) != 1 else ''} con stock bajo:\n"
+    ]
     for p in products:
         deficit = p["minimum_stock"] - p["current_stock"]
         lines.append(
@@ -1549,7 +1788,10 @@ def node_sales_analytics(state: ChatState) -> dict:
     for i, p in enumerate(summary["top_by_revenue"], 1):
         lines.append(f"{i}. {p['description']} — ${p['amount']:,.2f} ({p['quantity']:.0f} u.)")
 
-    if summary["top_by_qty"] and summary["top_by_qty"][0]["description"] != summary["top_by_revenue"][0]["description"]:
+    if (
+        summary["top_by_qty"]
+        and summary["top_by_qty"][0]["description"] != summary["top_by_revenue"][0]["description"]
+    ):
         lines.append("\n**Top 5 por cantidad:**")
         for i, p in enumerate(summary["top_by_qty"], 1):
             lines.append(f"{i}. {p['description']} — {p['quantity']:.0f} u. (${p['amount']:,.2f})")
@@ -1563,19 +1805,57 @@ def node_sales_analytics(state: ChatState) -> dict:
     }
 
 
+def node_memory_recall(state: ChatState) -> dict:
+    """
+    Nodo: responde con el contenido de la memoria de Engram.
+    El memory_context ya fue pre-buscado con la consulta del usuario.
+    """
+    memory = state.get("memory_context", "")
+    if not memory or not memory.strip():
+        return {
+            "response_type": "text",
+            "response_text": "No encontré nada en mi memoria sobre eso. ¿Qué más te puedo ayudar?",
+            "response_products": None,
+            "response_quote": None,
+            "response_cart_items": None,
+        }
+
+    return {
+        "response_type": "text",
+        "response_text": f"Esto es lo que encontré en mi memoria:\n\n{memory}",
+        "response_products": None,
+        "response_quote": None,
+        "response_cart_items": None,
+    }
+
+
 def node_respond_llm(state: ChatState) -> dict:
     """
     Nodo: respuesta conversacional libre con el LLM principal.
+    Pasa catálogo + datos del negocio para que el LLM pueda responder
+    cualquier consulta sin inventar.
     """
     message = state["message"]
     history = state["history"]
     name = state["user_name"]
     memory_context = state["memory_context"]
+    db_products = state.get("db_products", [])
     client = state["ai_client"]
     model = state["ai_model"]
     n = f", {name}" if name else ""
 
-    system = _build_system_prompt(name, memory_context=memory_context)
+    catalog_context = _build_catalog_context(db_products)
+    business_data_context = _build_business_data_context(
+        low_stock=state.get("low_stock_products"),
+        stagnant=state.get("stagnant_products_list"),
+        sales=state.get("sales_summaries"),
+    )
+    system = _build_system_prompt(
+        user_name=name,
+        memory_context=memory_context,
+        catalog_context=catalog_context,
+        business_data_context=business_data_context,
+    )
     msgs: list[dict] = [{"role": "system", "content": system}]
     for h in history[-10:]:
         content = str(h.get("content", ""))
@@ -1630,9 +1910,7 @@ def _resolve_confirm_with_llm(
         if status == "not_found":
             items_summary.append(f"{idx}: '{term}' — NO ENCONTRADO")
         elif status == "ambiguous":
-            opts = "; ".join(
-                f"{j + 1}={c['description']}" for j, c in enumerate(candidates)
-            )
+            opts = "; ".join(f"{j + 1}={c['description']}" for j, c in enumerate(candidates))
             items_summary.append(f"{idx}: '{term}' — AMBIGUO [{opts}], qty={qty}")
         else:
             desc = chosen["description"] if chosen else "?"
@@ -1680,22 +1958,98 @@ def _resolve_confirm_with_llm(
         return None
 
 
+_ORDINAL_MAP = {
+    "primero": 1,
+    "primer": 1,
+    "1ro": 1,
+    "1er": 1,
+    "segundo": 2,
+    "segund": 2,
+    "2do": 2,
+    "2nd": 2,
+    "tercero": 3,
+    "tercer": 3,
+    "3ro": 3,
+    "3er": 3,
+    "cuarto": 4,
+    "4to": 4,
+    "quinto": 5,
+    "5to": 5,
+    "sexto": 6,
+    "6to": 6,
+    "septimo": 7,
+    "7mo": 7,
+    "octavo": 8,
+    "8vo": 8,
+    "noveno": 9,
+    "9no": 9,
+    "decimo": 10,
+    "10mo": 10,
+    "ultimo": 999,
+    "último": 999,
+    "ultim": 999,
+    "últim": 999,
+    "el": None,
+    "la": None,
+    "del": None,
+    "de": None,
+    "un": None,
+    "una": None,
+}
+
+
 def _resolve_confirm_heuristic(message: str, items_state: list[dict]) -> list[dict]:
+    lower_msg = _normalize(message)
+    msg_words = set(lower_msg.split())
     numbers = re.findall(r"\b(\d+(?:[.,]\d+)?)\b", message)
     num_iter = iter(numbers)
     updated = []
     for item in items_state:
         item = dict(item)
         status = item.get("status", "")
+
         if status == "ambiguous":
-            try:
-                n = int(float(next(num_iter).replace(",", ".")))
-                cands = item.get("candidates", [])
-                if 1 <= n <= len(cands):
-                    item["chosen"] = cands[n - 1]
-                    item["status"] = "needs_qty"
-            except StopIteration:
-                pass
+            cands = item.get("candidates", [])
+            chosen = None
+
+            # 1. Text matching: score each candidate, pick if unique, filter if tie
+            scored: list[tuple[int, dict]] = []
+            for c in cands:
+                desc_words = set(_normalize(c.get("description", "")).split())
+                sig = desc_words & msg_words
+                score = sum(1 for w in sig if len(w) >= 3 and w not in _ORDINAL_MAP)
+                scored.append((score, c))
+
+            best_score = max(s for s, _ in scored)
+            if best_score > 0:
+                best_candidates = [c for s, c in scored if s == best_score]
+                if len(best_candidates) == 1:
+                    chosen = best_candidates[0]
+                else:
+                    # Tie — filter candidates to tied ones and re-ask
+                    item["candidates"] = best_candidates
+
+            # 2. Ordinal word match: "primero", "segundo", etc.
+            if chosen is None:
+                for w in sorted(msg_words, key=lambda x: len(x), reverse=True):
+                    ord_idx = _ORDINAL_MAP.get(w)
+                    if ord_idx is not None and 1 <= ord_idx <= len(cands):
+                        chosen = cands[ord_idx - 1]
+                        break
+
+            # 3. Fallback: number-based selection
+            if chosen is None:
+                try:
+                    n = int(float(next(num_iter).replace(",", ".")))
+                    if 1 <= n <= len(cands):
+                        chosen = cands[n - 1]
+                except (StopIteration, ValueError):
+                    pass
+
+            if chosen is not None:
+                item["chosen"] = chosen
+                item["status"] = "needs_qty"
+
         if not item.get("qty"):
             try:
                 n = float(next(num_iter).replace(",", "."))
@@ -1703,11 +2057,11 @@ def _resolve_confirm_heuristic(message: str, items_state: list[dict]) -> list[di
                     item["qty"] = n
                     if item.get("status") == "needs_qty":
                         item["status"] = "clear"
-            except StopIteration:
+            except (StopIteration, ValueError):
                 pass
-        lower = _normalize(message)
+
         if not item.get("qty") and any(
-            w in lower for w in ("todos", "todo", "si", "dale", "ok", "listo")
+            w in lower_msg for w in ("todos", "todo", "si", "dale", "ok", "listo")
         ):
             item["qty"] = 1.0
             if item.get("status") == "needs_qty":
@@ -1733,11 +2087,14 @@ def route_by_intent(
     "node_stock_alert",
     "node_stagnant_products",
     "node_sales_analytics",
+    "node_memory_recall",
     "node_respond_llm",
 ]:
     intent = state["intent"]
-    if intent in ("greeting", "about_luci", "no_llm", "quote_intent"):
+    if intent in ("greeting", "about_luci", "no_llm"):
         return "node_respond_static"
+    if intent == "quote_intent":
+        return "node_respond_llm"
     if intent in ("product_query", "refinement"):
         return "node_retrieve"
     if intent == "multi_item_query":
@@ -1754,6 +2111,8 @@ def route_by_intent(
         return "node_stagnant_products"
     if intent == "sales_analytics":
         return "node_sales_analytics"
+    if intent == "memory_recall":
+        return "node_memory_recall"
     return "node_respond_llm"
 
 
@@ -1776,6 +2135,7 @@ def _build_chat_graph():
     builder.add_node("node_stock_alert", node_stock_alert)
     builder.add_node("node_stagnant_products", node_stagnant_products)
     builder.add_node("node_sales_analytics", node_sales_analytics)
+    builder.add_node("node_memory_recall", node_memory_recall)
     builder.add_node("node_respond_llm", node_respond_llm)
 
     builder.add_edge(START, "node_classify")
@@ -1793,6 +2153,7 @@ def _build_chat_graph():
             "node_stock_alert",
             "node_stagnant_products",
             "node_sales_analytics",
+            "node_memory_recall",
             "node_respond_llm",
         ],
     )
@@ -1807,6 +2168,7 @@ def _build_chat_graph():
     builder.add_edge("node_stock_alert", END)
     builder.add_edge("node_stagnant_products", END)
     builder.add_edge("node_sales_analytics", END)
+    builder.add_edge("node_memory_recall", END)
     builder.add_edge("node_respond_llm", END)
 
     return builder.compile()
@@ -1830,6 +2192,7 @@ _NODE_LABELS: dict[str, str] = {
     "node_stock_alert": "Revisando stock...",
     "node_stagnant_products": "Buscando productos sin movimiento...",
     "node_sales_analytics": "Analizando ventas...",
+    "node_memory_recall": "Buscando en mi memoria...",
     "node_respond_llm": "Formulando respuesta...",
     "node_respond_static": "Respondiendo...",
 }
@@ -1888,7 +2251,6 @@ def _build_quote_entry(state: dict, bid: str) -> str:
             parts.append(f"{desc} x{int(qty)}")
     if not parts:
         return ""
-    return f"{today} | {'; '.join(parts)}"
 
 
 # intent -> (category, expected_response_type, content_builder)
@@ -1896,47 +2258,91 @@ def _build_quote_entry(state: dict, bid: str) -> str:
 # multi_item_query, quote_intent, stock_alert, stagnant_products, sales_analytics)
 # produce no memory write — omission is intentional (v1 scope).
 _INTENT_MEMORY_DISPATCH: dict[str, tuple[str, str, Any]] = {
-    "product_query":      ("product-terms",     "products",    _build_product_term_entry),
-    "add_to_cart":        ("purchase-patterns", "cart_action", _build_cart_entry),
+    "product_query": ("product-terms", "products", _build_product_term_entry),
+    "add_to_cart": ("purchase-patterns", "cart_action", _build_cart_entry),
     "multi_item_confirm": ("purchase-patterns", "cart_action", _build_cart_entry),
-    "quote_with_items":   ("quote-patterns",    "quote",       _build_quote_entry),
+    "quote_with_items": ("quote-patterns", "quote", _build_quote_entry),
 }
 
 
-def _maybe_save_intent_memory(state: dict, business_id: str) -> None:
-    """Fire-and-forget per-business memory write for high-signal intents."""
+def _build_conversation_entry(state: dict, business_id: str) -> str:
+    """Build a general conversation entry: 'msg -> response'."""
+    msg = (state.get("message") or "").strip()
+    resp = (state.get("response_text") or "").strip()
+    if not msg or not resp:
+        return ""
+    # Truncate long messages
+    if len(msg) > 200:
+        msg = msg[:200] + "..."
+    if len(resp) > 500:
+        resp = resp[:500] + "..."
+    from datetime import date
+
+    return f"{date.today().isoformat()} | Usuario: {msg} → Luci: {resp}"
+
+
+_NOISE_INTENTS = frozenset({"greeting", "about_luci", "no_llm"})
+
+
+def _maybe_save_intent_memory(state: dict, business_id: str) -> bool:
+    """Fire-and-forget per-business memory write for high-signal intents
+    AND general conversations. Returns True if memory was saved."""
     if not business_id or not get_settings().ENGRAM_ENABLED:
-        return
+        return False
     intent = state.get("intent", "")
     rtype = state.get("response_type", "text")
 
+    # --- High-signal structured dispatch ---
     spec = _INTENT_MEMORY_DISPATCH.get(intent)
-    if spec is None:
-        return  # noise intent — skip
+    if spec is not None:
+        category, expected_rtype, builder = spec
+        if rtype == expected_rtype:
+            content = builder(state, business_id)
+            if content:
+                topic_key = f"business/{business_id}/{category}"
+                title = f"[{business_id}] {category}"
+                strategy = "merge" if category == "product-terms" else "append_cap"
+                try:
+                    asyncio.ensure_future(
+                        save_aggregate_memory(
+                            title=title,
+                            new_entry=content,
+                            topic_key=topic_key,
+                            business_id=business_id,
+                            strategy=strategy,
+                        )
+                    )
+                    return True
+                except RuntimeError:
+                    logger.info(
+                        "[Luci/Engram] no running loop, skip memory save for intent=%r", intent
+                    )
+        return False  # handled — no fallback
 
-    category, expected_rtype, builder = spec
-    if rtype != expected_rtype:
-        return  # e.g. product_query that returned text (failed lookup) — skip
+    # --- General conversation save (non-noise intents) ---
+    if intent in _NOISE_INTENTS:
+        return False
 
-    content = builder(state, business_id)
+    content = _build_conversation_entry(state, business_id)
     if not content:
-        return  # empty data — skip
+        return False
 
-    topic_key = f"business/{business_id}/{category}"
-    title = f"[{business_id}] {category}"
-    strategy = "merge" if category == "product-terms" else "append_cap"
+    topic_key = f"business/{business_id}/conversations"
+    title = f"[{business_id}] conversations"
     try:
         asyncio.ensure_future(
             save_aggregate_memory(
-                title=title,
-                new_entry=content,
                 topic_key=topic_key,
                 business_id=business_id,
-                strategy=strategy,
+                strategy="append_cap",
             )
         )
+        return True
     except RuntimeError:
-        logger.info("[Luci/Engram] no running loop, skip memory save for intent=%r", intent)
+        logger.info(
+            "[Luci/Engram] no running loop, skip conversation memory save for intent=%r", intent
+        )
+        return False
 
 
 # ─────────────────────────────────────────────────────────────
@@ -2035,11 +2441,14 @@ async def run_chat_agent(
     result = await loop.run_in_executor(_ai_executor, _run)
 
     # Fire-and-forget per-business memory write (Layer 1)
-    _maybe_save_intent_memory(result, business_id)
+    memory_saved = _maybe_save_intent_memory(result, business_id)
+    result_text = result.get("response_text", "")
+    if memory_saved and result_text:
+        result_text += "\n\n[MEMORIA GUARDADA]"
 
     return {
         "response_type": result.get("response_type", "text"),
-        "text": result.get("response_text", ""),
+        "text": result_text,
         "products": result.get("response_products"),
         "quote": result.get("response_quote"),
         "cart_items": result.get("response_cart_items"),
@@ -2158,10 +2567,12 @@ async def run_chat_agent_streaming(
                 "intent": final_state.get("intent", ""),
                 "intent_params": final_state.get("intent_params", {}),
                 "response_type": final_state.get("response_type", "text"),
+                "response_text": final_state.get("response_text", ""),
                 "response_products": final_state.get("response_products"),
                 "response_quote": final_state.get("response_quote"),
                 "response_cart_items": final_state.get("response_cart_items"),
                 "retrieved_products": final_state.get("retrieved_products", []),
+                "message": final_state.get("message", ""),
             }
             event_queue.put(("memory", memory_snapshot))
             event_queue.put(("result", result))
@@ -2175,6 +2586,7 @@ async def run_chat_agent_streaming(
     loop = asyncio.get_event_loop()
     loop.run_in_executor(_ai_executor, _run)
 
+    memory_saved = False
     while True:
         try:
             event_type, payload = await loop.run_in_executor(
@@ -2189,9 +2601,13 @@ async def run_chat_agent_streaming(
         elif event_type == "thinking":
             yield f"data: {json.dumps({'type': 'thinking', 'text': payload})}\n\n"
         elif event_type == "memory":
-            _maybe_save_intent_memory(payload, business_id)
+            saved = _maybe_save_intent_memory(payload, business_id)
+            if saved:
+                memory_saved = True
             continue
         elif event_type == "result":
+            if memory_saved and payload.get("text"):
+                payload["text"] += "\n\n[MEMORIA GUARDADA]"
             yield f"data: {json.dumps({'type': 'result', **payload}, ensure_ascii=False)}\n\n"
             break
         elif event_type == "error":

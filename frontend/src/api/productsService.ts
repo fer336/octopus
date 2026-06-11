@@ -223,6 +223,9 @@ export const productsService = {
     page?: number
     per_page?: number
     search?: string
+    search_field?: string
+    code?: string
+    supplier_code?: string
     category_id?: string
     supplier_id?: string
     brand_id?: string

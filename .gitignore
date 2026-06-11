@@ -89,6 +89,9 @@ certificates/
 frontend/playwright-report/
 frontend/test-results/
 
+# Type checking
+.mypy_cache/
+
 # Temporary files
 tmp/
 temp/

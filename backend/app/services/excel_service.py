@@ -153,7 +153,8 @@ class ExcelService:
             if not s or s.lower() in ('nan', 'none', '-', ''):
                 return default
             # Remove currency symbols and non-breaking spaces
-            s = s.replace('$', '').replace('\xa0', '').replace(' ', '')
+            # Clean currency symbols, percentage signs, and non-breaking spaces
+            s = s.replace('$', '').replace('%', '').replace('\xa0', '').replace(' ', '')
             # Handle Argentine Excel imports.
             # Thousands separator = "." (between groups of 3 digits).
             # Decimal separator = ",".
@@ -182,11 +183,12 @@ class ExcelService:
             return Decimal(0), Decimal(0), Decimal(0)
 
         discounts_str = str(discounts_str).strip()
-        if not discounts_str or discounts_str == '0':
+        if not discounts_str or discounts_str in ('0', 'nan', 'none', '-'):
             return Decimal(0), Decimal(0), Decimal(0)
 
         try:
-            parts = discounts_str.replace(',', '.').split('+')
+            # Clean percentage signs and normalize decimal separator
+            parts = discounts_str.replace('%', '').replace(',', '.').split('+')
             discounts = []
             for part in parts[:3]:  # Solo tomar los primeros 3
                 part = part.strip()
@@ -318,6 +320,26 @@ class ExcelService:
         existing_count = 0
         duplicate_count = 0
 
+        # ── Batch: cargar TODOS los productos existentes por código de una sola vez ──
+        all_codes: set[str] = set()
+        raw_codes = df.get('codigo')
+        if raw_codes is not None:
+            for val in raw_codes:
+                code = str(val).strip()
+                if code:
+                    all_codes.add(code)
+
+        existing_by_code: dict[str, Product] = {}
+        if all_codes:
+            existing_batch_query = select(Product).where(
+                Product.code.in_(all_codes),
+                Product.business_id == business_id,
+                Product.deleted_at.is_(None)
+            )
+            existing_batch_result = await self.db.execute(existing_batch_query)
+            for prod in existing_batch_result.scalars().all():
+                existing_by_code[prod.code] = prod
+
         for index, row in df.iterrows():
             row_number = index + 2  # +2 porque Excel empieza en 1 y la fila 1 es header
 
@@ -353,7 +375,7 @@ class ExcelService:
                 if list_price <= 0:
                     raise ValueError("El precio de lista debe ser mayor a 0")
 
-                d1, d2, d3 = self._parse_discounts(row.get('bonificaciones', ''))
+                d1, d2, d3 = self._parse_discounts(str(row.get('bonificaciones', '')))
                 extra_cost = self._safe_decimal(row.get('cargo_extra'))
                 profit_margin = self._safe_decimal(row.get('ganancia'))
                 iva_rate = self._safe_decimal(row.get('iva'), default=Decimal(21))
@@ -478,14 +500,8 @@ class ExcelService:
                         continue
                     seen_intra.add(dup_key)
 
-                # Verificar si el producto ya existe
-                existing_query = select(Product).where(
-                    Product.code == code,
-                    Product.business_id == business_id,
-                    Product.deleted_at.is_(None)
-                )
-                existing_result = await self.db.execute(existing_query)
-                existing_product = existing_result.scalar_one_or_none()
+                # Verificar si el producto ya existe (batch lookup, 0 queries)
+                existing_product = existing_by_code.get(code)
 
                 is_new = existing_product is None
                 existing_id = existing_product.id if existing_product else None
@@ -536,6 +552,7 @@ class ExcelService:
                 valid_count += 1
 
             except Exception as e:
+                import traceback
                 rows.append(ProductImportRow(
                     row_number=row_number,
                     code=code,
@@ -544,6 +561,9 @@ class ExcelService:
                     error_message=f"Error al procesar: {str(e)}"
                 ))
                 error_count += 1
+                # Log full traceback para diagnóstico
+                logger = __import__('logging').getLogger(__name__)
+                logger.error("Error en preview_import fila %s:\n%s", row_number, traceback.format_exc())
 
         return ImportPreviewResponse(
             total_rows=len(df),
@@ -643,6 +663,24 @@ class ExcelService:
             brand_cache[key] = brand
             return brand
 
+        # ── Batch: cargar todos los productos existentes con sus lotes ──
+        from sqlalchemy.orm import selectinload
+
+        existing_ids = [
+            row.existing_id for row in request.rows
+            if not row.is_new and row.existing_id is not None
+        ]
+        existing_products_by_id: dict[UUID, Product] = {}
+        if existing_ids:
+            batch_query = (
+                select(Product)
+                .options(selectinload(Product.lots))
+                .where(Product.id.in_(existing_ids))
+            )
+            batch_result = await self.db.execute(batch_query)
+            for prod in batch_result.scalars().all():
+                existing_products_by_id[prod.id] = prod
+
         for row in request.rows:
             # Saltar filas marcadas como repetido (F1b)
             if row.status == "repetido":
@@ -675,10 +713,14 @@ class ExcelService:
                         resolved_brand_id = brand.id
                         resolved_brand_name = brand.name
 
+                import uuid as _uuid
+
                 if row.is_new:
-                    # Crear nuevo producto
+                    # Crear nuevo producto (ID pre-generado, sin flush)
                     initial_stock = row.current_stock
+                    product_id = _uuid.uuid4()
                     new_product = Product(
+                        id=product_id,
                         business_id=business_id,
                         code=row.code,
                         supplier_code=row.supplier_code,
@@ -698,18 +740,19 @@ class ExcelService:
                         units_per_pack=row.units_per_pack,
                         quantity_per_package=row.quantity_per_package,
                         sell_per_unit=row.sell_per_unit,
-                        cost_price=Decimal(0),  # Se puede calcular después
+                        cost_price=Decimal(0),
                     )
                     new_product.calculate_prices()
                     self.db.add(new_product)
 
-                    # Crear lote inicial si hay stock
+                    # Crear lote inicial si hay stock (ID pre-generado, sin flush)
                     if initial_stock > 0:
-                        await self.db.flush()
+                        lot_id = _uuid.uuid4()
                         lot = ProductLot(
-                            product_id=new_product.id,
+                            id=lot_id,
+                            product_id=product_id,
                             business_id=business_id,
-                            code=f"IMP-{str(new_product.id)[:8]}",
+                            code=f"IMP-{str(product_id)[:8]}",
                             quantity=initial_stock,
                             initial_quantity=initial_stock,
                             received_date=date.today(),
@@ -717,19 +760,15 @@ class ExcelService:
                         )
                         self.db.add(lot)
 
-                        # Flushear para obtener lot.id antes de auditoría
-                        await self.db.flush()
-
-                        # Registrar auditoría de creación de lote
                         if user_id:
                             audit = AuditLog(
                                 user_id=user_id,
                                 business_id=business_id,
                                 action="create",
                                 resource_type="lot_operation",
-                                resource_id=lot.id,
+                                resource_id=lot_id,
                                 details={
-                                    "product_id": str(new_product.id),
+                                    "product_id": str(product_id),
                                     "quantity": initial_stock,
                                     "code": lot.code,
                                     "delta": initial_stock,
@@ -740,15 +779,9 @@ class ExcelService:
 
                     created += 1
                 else:
-                    # Actualizar producto existente
+                    # Actualizar producto existente (batch lookup, 0 queries)
                     if row.existing_id:
-                        from sqlalchemy.orm import selectinload
-
-                        query = select(Product).options(
-                            selectinload(Product.lots)
-                        ).where(Product.id == row.existing_id)
-                        result = await self.db.execute(query)
-                        existing_product = result.scalar_one_or_none()
+                        existing_product = existing_products_by_id.get(row.existing_id)
 
                         if existing_product:
                             existing_product.code = row.code
@@ -777,7 +810,9 @@ class ExcelService:
                             current_stock_val = int(existing_product.current_stock)
                             stock_diff = new_stock_val - current_stock_val
                             if stock_diff > 0:
+                                lot_id = _uuid.uuid4()
                                 lot = ProductLot(
+                                    id=lot_id,
                                     product_id=existing_product.id,
                                     business_id=business_id,
                                     quantity=stock_diff,
@@ -787,17 +822,13 @@ class ExcelService:
                                 )
                                 self.db.add(lot)
 
-                                # Flushear para obtener lot.id antes de auditoría
-                                await self.db.flush()
-
-                                # Registrar auditoría de creación de lote
                                 if user_id:
                                     audit = AuditLog(
                                         user_id=user_id,
                                         business_id=business_id,
                                         action="create",
                                         resource_type="lot_operation",
-                                        resource_id=lot.id,
+                                        resource_id=lot_id,
                                         details={
                                             "product_id": str(existing_product.id),
                                             "quantity": stock_diff,
@@ -888,8 +919,8 @@ class ExcelService:
                 if not code:
                     continue
 
-                # Parsear descuentos
-                discounts_str = str(row.get('bonificaciones', '0'))
+                # Parsear descuentos (tolera % y coma decimal)
+                discounts_str = str(row.get('bonificaciones', '0')).replace('%', '').replace(',', '.')
                 discounts = [Decimal(d.strip()) for d in discounts_str.split('+') if d.strip().replace('.', '', 1).isdigit()]
 
                 d1 = discounts[0] if len(discounts) > 0 else Decimal(0)

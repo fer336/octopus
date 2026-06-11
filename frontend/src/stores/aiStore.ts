@@ -82,7 +82,17 @@ export const useAIStore = create<AIState>((set, get) => ({
   // ── Panel ──────────────────────────────────────────────────
   toggle: () => set((s) => ({ isOpen: !s.isOpen })),
   open:   () => set({ isOpen: true }),
-  close:  () => set({ isOpen: false }),
+  close:  () => {
+    // Guardar conversación en Engram antes de cerrar (fire-and-forget)
+    const state = get()
+    if (state.messages.length > 0) {
+      const history = state.getHistoryForAPI(20)
+      import('../api/aiService').then(({ default: svc }) => {
+        svc.saveConversation(history)
+      })
+    }
+    set({ isOpen: false })
+  },
   setThinking: (v) => set({ isThinking: v }),
 
   // ── Chat ───────────────────────────────────────────────────

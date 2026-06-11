@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.services.ai_chat_service import run_chat_agent, run_chat_agent_streaming
+from app.services.ai_memory_service import save_aggregate_memory
 from app.services.ai_quote_service import add_customer_term, run_quote_agent
 from app.services.chat_history_service import (
     clear_history,
@@ -95,6 +96,14 @@ class CreateQuoteRequest(BaseModel):
     notes: str = Field(default="", description="Notas adicionales")
     due_date: str | None = Field(
         default=None, description="Fecha de vencimiento YYYY-MM-DD"
+    )
+
+
+class SaveConversationRequest(BaseModel):
+    """Cuerpo para guardar la conversación en Engram al cerrar el panel."""
+
+    messages: list[dict] = Field(
+        ..., description="Historial completo de la conversación [{role, content}, ...]"
     )
 
 
@@ -545,3 +554,46 @@ async def delete_chat_history(
     await clear_history(db, current_user.id, business_id)
     await db.commit()
     return JSONResponse(content={"ok": True})
+
+
+@router.post(
+    "/chat/save-conversation",
+    summary="Guardar conversación completa en Engram al cerrar el panel",
+)
+async def save_conversation(
+    body: SaveConversationRequest,
+    current_business=Depends(get_current_business_with_ai_enabled),
+    current_user=Depends(get_current_user),
+):
+    """
+    Guarda toda la conversación en Engram cuando el usuario cierra el panel.
+    Acumula las entradas bajo el topic_key `business/{id}/conversations`.
+    """
+    business_id = str(current_business)
+    user_name = getattr(current_user, "name", "") or ""
+    messages = body.messages[-20:]  # últimas 20 entradas
+
+    if not messages:
+        return JSONResponse(content={"saved": False, "reason": "empty"})
+
+    # Armar un resumen legible de la conversación
+    lines: list[str] = []
+    for msg in messages:
+        role = "Usuario" if msg.get("role") == "user" else "Luci"
+        content = (msg.get("content") or "").strip()
+        if content:
+            lines.append(f"{role}: {content[:200]}")
+
+    summary = "\n".join(lines)
+    title = f"Conversación {user_name} — {len(messages)} mensajes"
+
+    saved = await save_aggregate_memory(
+        title=title,
+        new_entry=summary,
+        topic_key=f"business/{business_id}/conversations",
+        business_id=business_id,
+        strategy="append_cap",
+        cap=30,
+    )
+
+    return JSONResponse(content={"saved": saved, "messages_count": len(messages)})

@@ -71,6 +71,20 @@ async def get_my_business(
     )
     last_by_type: dict[VoucherType, str] = {row[0]: row[1] for row in rows.all()}
 
+    # Construir dict dinámico con todos los tipos de comprobante
+    all_types = {
+        VoucherType.QUOTATION: "quotation",
+        VoucherType.RECEIPT: "receipt",
+        VoucherType.INVOICE_A: "invoice_a",
+        VoucherType.INVOICE_B: "invoice_b",
+        VoucherType.INVOICE_C: "invoice_c",
+        VoucherType.INVOICE_X: "invoice_x",
+    }
+    last_voucher_numbers: dict[str, str] = {
+        key: last_by_type.get(vt) or "00000000"
+        for vt, key in all_types.items()
+    }
+
     return BusinessResponse(
         id=str(business.id),
         name=business.name,
@@ -110,12 +124,7 @@ async def get_my_business(
         sql_backup_enabled=bool(getattr(business, "sql_backup_enabled", False)),
         invoice_zero_stock_enabled=bool(getattr(business, "invoice_zero_stock_enabled", False)),
         arca_environment=business.arca_environment,
-        last_quotation_number=last_by_type.get(VoucherType.QUOTATION) or "00000000",
-        last_receipt_number=last_by_type.get(VoucherType.RECEIPT) or "00000000",
-        last_invoice_a_number=last_by_type.get(VoucherType.INVOICE_A) or "00000000",
-        last_invoice_b_number=last_by_type.get(VoucherType.INVOICE_B) or "00000000",
-        last_invoice_c_number=last_by_type.get(VoucherType.INVOICE_C) or "00000000",
-        last_invoice_x_number=last_by_type.get(VoucherType.INVOICE_X) or "00000000",
+        last_voucher_numbers=last_voucher_numbers,
     )
 
 
