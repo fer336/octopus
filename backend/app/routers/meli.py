@@ -1,30 +1,42 @@
 """
-Router de Mercado Libre — OAuth + gestión de conexión.
+Router de Mercado Libre — OAuth + gestión de conexión + publicaciones.
 
 Endpoints:
   GET  /oauth/authorize-url  → URL de autorización ML con state JWT firmado
   GET  /oauth/callback       → Intercambia code por tokens, upsert en meli_credentials
   GET  /status               → Estado de la conexión del negocio
   DELETE /connection         → Desconecta (marca revoked)
+
+  GET  /categories/predict              → Predice categoría por título
+  GET  /categories/{id}/attributes      → Atributos de una categoría
+
+  POST  /listings                       → Publica producto en ML
+  GET   /listings                       → Lista publicaciones del negocio
+  POST  /listings/link                  → Vincula item ML existente a producto local
+  PATCH /listings/{listing_id}          → Edita configuración de sincronización
+  POST  /listings/{listing_id}/pause    → Encola acción PAUSE
+  POST  /listings/{listing_id}/activate → Encola acción ACTIVATE
 """
 
 import logging
 import secrets
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import get_db
-from app.models.meli import MeliCredentialStatus, MeliCredentials
-from app.services.meli.client import _decrypt, _encrypt
+from app.models.meli import MeliCredentialStatus, MeliCredentials, MeliSyncKind
+from app.services.meli.client import MeliClient, _decrypt, _encrypt
+from app.services.meli.publisher import MeliPublisher
 from app.utils.security import get_current_business, get_current_user
 
 settings = get_settings()
@@ -255,4 +267,204 @@ async def disconnect(
         )
 
     cred.status = MeliCredentialStatus.REVOKED
+    await db.commit()
+
+
+# ── Listing schemas ───────────────────────────────────────────────────────────
+
+
+class PublishListingRequest(BaseModel):
+    product_id: UUID
+    category_id: str
+    listing_type_id: str = "gold_special"
+    price: Decimal | None = None
+    title: str | None = None
+    attributes: list[dict] = []
+    pictures: list[str] = []
+    condition: str = "new"
+    description: str | None = None
+    price_markup_pct: Decimal = Decimal("0")
+    sync_price: bool = True
+    sync_stock: bool = True
+
+
+class LinkListingRequest(BaseModel):
+    product_id: UUID
+    meli_item_id: str
+
+
+class PatchListingRequest(BaseModel):
+    sync_price: bool | None = None
+    sync_stock: bool | None = None
+    price_markup_pct: Decimal | None = None
+
+
+class ListingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    product_id: UUID
+    meli_item_id: str
+    meli_permalink: str | None
+    listing_type_id: str | None
+    status: str
+    sync_price: bool
+    sync_stock: bool
+    price_markup_pct: Decimal | None
+    last_synced_at: datetime | None
+    last_sync_error: str | None
+
+
+class ListingsPage(BaseModel):
+    items: list[ListingResponse]
+    total: int
+    offset: int
+    limit: int
+
+
+# ── Category endpoints ────────────────────────────────────────────────────────
+
+
+@router.get("/categories/predict")
+async def predict_category(
+    title: str = Query(..., min_length=1),
+    business_id: UUID = Depends(get_current_business),
+    db: AsyncSession = Depends(get_db),
+):
+    """Predict the best ML category for a given product title."""
+    client = MeliClient(db, business_id)
+    return await client.predict_category(title)
+
+
+@router.get("/categories/{category_id}/attributes")
+async def get_category_attributes(
+    category_id: str,
+    business_id: UUID = Depends(get_current_business),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the required and optional attributes for a ML category."""
+    client = MeliClient(db, business_id)
+    return await client.get_category_attributes(category_id)
+
+
+# ── Listing endpoints ─────────────────────────────────────────────────────────
+
+
+@router.post("/listings", response_model=ListingResponse, status_code=201)
+async def create_listing(
+    body: PublishListingRequest,
+    business_id: UUID = Depends(get_current_business),
+    db: AsyncSession = Depends(get_db),
+):
+    """Publish a local product to Mercado Libre and create a MeliListing record."""
+    publisher = MeliPublisher(db, business_id)
+    try:
+        listing = await publisher.publish(
+            product_id=body.product_id,
+            category_id=body.category_id,
+            listing_type_id=body.listing_type_id,
+            price=body.price,
+            title=body.title,
+            attributes=body.attributes,
+            pictures=body.pictures,
+            condition=body.condition,
+            description=body.description,
+            price_markup_pct=body.price_markup_pct,
+            sync_price=body.sync_price,
+            sync_stock=body.sync_stock,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    await db.commit()
+    return listing
+
+
+@router.get("/listings", response_model=ListingsPage)
+async def list_listings(
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    status: str | None = Query(None),
+    product_id: UUID | None = Query(None),
+    business_id: UUID = Depends(get_current_business),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return paginated listings for the current business."""
+    publisher = MeliPublisher(db, business_id)
+    items, total = await publisher.get_listings(
+        offset=offset,
+        limit=limit,
+        status=status,
+        product_id=product_id,
+    )
+    return ListingsPage(items=items, total=total, offset=offset, limit=limit)
+
+
+@router.post("/listings/link", response_model=ListingResponse, status_code=201)
+async def link_listing(
+    body: LinkListingRequest,
+    business_id: UUID = Depends(get_current_business),
+    db: AsyncSession = Depends(get_db),
+):
+    """Link an existing ML item to a local product without publishing a new one."""
+    publisher = MeliPublisher(db, business_id)
+    try:
+        listing = await publisher.link(
+            product_id=body.product_id,
+            meli_item_id=body.meli_item_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    await db.commit()
+    return listing
+
+
+@router.patch("/listings/{listing_id}", response_model=ListingResponse)
+async def patch_listing(
+    listing_id: UUID,
+    body: PatchListingRequest,
+    business_id: UUID = Depends(get_current_business),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update sync settings for a listing."""
+    publisher = MeliPublisher(db, business_id)
+    try:
+        listing = await publisher.patch_listing(
+            listing_id,
+            sync_price=body.sync_price,
+            sync_stock=body.sync_stock,
+            price_markup_pct=body.price_markup_pct,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    await db.commit()
+    return listing
+
+
+@router.post("/listings/{listing_id}/pause", status_code=204)
+async def pause_listing(
+    listing_id: UUID,
+    business_id: UUID = Depends(get_current_business),
+    db: AsyncSession = Depends(get_db),
+):
+    """Enqueue a PAUSE action for the given listing."""
+    publisher = MeliPublisher(db, business_id)
+    try:
+        await publisher.enqueue_action(listing_id, MeliSyncKind.PAUSE)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    await db.commit()
+
+
+@router.post("/listings/{listing_id}/activate", status_code=204)
+async def activate_listing(
+    listing_id: UUID,
+    business_id: UUID = Depends(get_current_business),
+    db: AsyncSession = Depends(get_db),
+):
+    """Enqueue an ACTIVATE action for the given listing."""
+    publisher = MeliPublisher(db, business_id)
+    try:
+        await publisher.enqueue_action(listing_id, MeliSyncKind.ACTIVATE)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     await db.commit()
