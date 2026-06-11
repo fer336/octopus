@@ -35,8 +35,9 @@ const CurrentAccount = lazy(() => import('../pages/CurrentAccount'))
 const Stockpiles  = lazy(() => import('../pages/Stockpiles'))
 const Messaging   = lazy(() => import('../pages/Messaging'))
 const Settings    = lazy(() => import('../pages/Settings'))
-const Brands      = lazy(() => import('../pages/Brands'))
-const PriceLists  = lazy(() => import('../pages/PriceLists'))
+const Brands        = lazy(() => import('../pages/Brands'))
+const PriceLists    = lazy(() => import('../pages/PriceLists'))
+const MercadoLibre  = lazy(() => import('../pages/MercadoLibre'))
 
 // Error boundary para capturar crashes de páginas individuales
 class PageErrorBoundary extends Component<
@@ -221,6 +222,9 @@ export default function App() {
               } />
               <Route path="price-lists" element={
                 <Suspense fallback={<PageLoader />}><PriceLists /></Suspense>
+              } />
+              <Route path="mercadolibre" element={
+                <Suspense fallback={<PageLoader />}><MercadoLibre /></Suspense>
               } />
             </Route>
 
