@@ -37,7 +37,8 @@ const Feedback   = lazy(() => import('./pages/Feedback'))
 const Authorizations = lazy(() => import('./pages/Authorizations'))
 const Messaging  = lazy(() => import('./pages/Messaging'))
 const PriceLists  = lazy(() => import('./pages/PriceLists'))
-const Stockpiles  = lazy(() => import('./pages/Stockpiles'))
+const Stockpiles     = lazy(() => import('./pages/Stockpiles'))
+const MercadoLibre   = lazy(() => import('./pages/MercadoLibre'))
 
 // Skeleton de carga entre navegaciones
 function PageLoader() {
@@ -189,6 +190,9 @@ export default function App() {
               } />
               <Route path="stockpiles" element={
                 <Suspense fallback={<PageLoader />}><Stockpiles /></Suspense>
+              } />
+              <Route path="mercadolibre" element={
+                <Suspense fallback={<PageLoader />}><MercadoLibre /></Suspense>
               } />
             </Route>
 
