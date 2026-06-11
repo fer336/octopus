@@ -450,6 +450,15 @@ class VoucherService:
                 except ValueError:
                     if not allow_zero_stock:
                         raise
+
+                # Enqueue MELI stock sync for this product (outbox — committed with the voucher)
+                try:
+                    from app.services.meli.sync import enqueue_product_sync
+                    await enqueue_product_sync(
+                        self.db, product.id, business_id, {"stock"}
+                    )
+                except Exception:
+                    pass  # MELI sync must never break a local sale
             elif qty < 0:
                 # Devolución: crear nuevo lote con la mercadería devuelta
                 from datetime import date as date_type

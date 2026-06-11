@@ -9,7 +9,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.database import close_db
+from app.database import async_session_maker, close_db
+from app.services.meli.sync import SyncWorker
 from app.routers import (
     admin,
     ai,
@@ -54,8 +55,11 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Maneja el ciclo de vida de la aplicación."""
     # Startup
+    _sync_worker = SyncWorker(async_session_maker)
+    _sync_worker.start()
     yield
     # Shutdown
+    await _sync_worker.stop()
     await close_db()
 
 
