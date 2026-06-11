@@ -51,6 +51,15 @@ from app.models.product_lot import ProductLot
 from app.models.stockpile import Stockpile, StockpileItem, StockpilePriceSnapshot, StockpileStatus
 from app.models.price_list import PriceList, PriceListItem
 from app.models.cc_draft import CCDraft
+from app.models.meli import (
+    MeliCredentialStatus,
+    MeliCredentials,
+    MeliListing,
+    MeliOrder,
+    MeliSyncKind,
+    MeliSyncQueue,
+    MeliSyncStatus,
+)
 
 __all__ = [
     # Base
@@ -120,4 +129,12 @@ __all__ = [
     "PriceListItem",
     # CC Drafts
     "CCDraft",
+    # Mercado Libre
+    "MeliCredentials",
+    "MeliCredentialStatus",
+    "MeliListing",
+    "MeliSyncQueue",
+    "MeliSyncKind",
+    "MeliSyncStatus",
+    "MeliOrder",
 ]
