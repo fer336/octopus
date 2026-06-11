@@ -19,6 +19,7 @@ Endpoints:
 """
 
 import logging
+import re
 import secrets
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -34,7 +35,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import get_db
-from app.models.meli import MeliCredentialStatus, MeliCredentials, MeliSyncKind
+from app.models.meli import (
+    MeliCredentialStatus,
+    MeliCredentials,
+    MeliSyncKind,
+    MeliSyncQueue,
+    MeliSyncStatus,
+)
 from app.services.meli.client import MeliClient, _decrypt, _encrypt
 from app.services.meli.publisher import MeliPublisher
 from app.utils.security import get_current_business, get_current_user
@@ -468,3 +475,59 @@ async def activate_listing(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     await db.commit()
+
+
+# ── Webhook notifications ─────────────────────────────────────────────────────
+
+
+class MeliNotification(BaseModel):
+    resource: str
+    user_id: int
+    topic: str | None = None
+
+
+def _extract_order_id(resource: str) -> int | None:
+    """Extract numeric order_id from ML resource paths like /orders/123 or /orders/v2/123."""
+    m = re.search(r"/orders(?:/v\d+)?/(\d+)", resource)
+    return int(m.group(1)) if m else None
+
+
+@router.post("/notifications", status_code=200)
+async def ml_notifications(
+    body: MeliNotification,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Public ML webhook endpoint. Always returns 200 immediately.
+    Order processing is delegated to SyncWorker via outbox (PROCESS_ORDER job).
+    """
+    if body.topic != "orders_v2":
+        return {}
+
+    order_id = _extract_order_id(body.resource)
+    if not order_id:
+        return {}
+
+    result = await db.execute(
+        select(MeliCredentials).where(
+            MeliCredentials.meli_user_id == body.user_id,
+            MeliCredentials.status == MeliCredentialStatus.CONNECTED,
+            MeliCredentials.deleted_at.is_(None),
+        )
+    )
+    cred = result.scalar_one_or_none()
+    if not cred:
+        return {}
+
+    db.add(
+        MeliSyncQueue(
+            business_id=cred.business_id,
+            listing_id=None,
+            kind=MeliSyncKind.PROCESS_ORDER,
+            payload={"order_id": order_id},
+            status=MeliSyncStatus.PENDING,
+        )
+    )
+    await db.commit()
+
+    return {}

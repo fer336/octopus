@@ -155,6 +155,25 @@ class SyncWorker:
         job.status = MeliSyncStatus.PROCESSING
         job.attempts += 1
 
+        # PROCESS_ORDER has no associated listing — handle before the listing load
+        if job.kind == MeliSyncKind.PROCESS_ORDER:
+            try:
+                from app.services.meli.order_processor import process_order
+                order_id = job.payload.get("order_id")
+                if not order_id:
+                    job.status = MeliSyncStatus.DONE
+                    return
+                await process_order(session, job.business_id, int(order_id))
+                job.status = MeliSyncStatus.DONE
+            except Exception as exc:
+                logger.error("PROCESS_ORDER job %s failed: %s", job.id, exc)
+                if job.attempts >= _MAX_ATTEMPTS:
+                    job.status = MeliSyncStatus.FAILED
+                    job.last_error = str(exc)[:500]
+                else:
+                    job.status = MeliSyncStatus.PENDING
+            return
+
         # Load listing
         listing_result = await session.execute(
             select(MeliListing).where(
