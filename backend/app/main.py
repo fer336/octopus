@@ -30,6 +30,7 @@ from app.routers import (
     drafts,
     exchange_rate,
     feedback,
+    meli,
     payment_methods,
     pdf_test,
     price_lists,
@@ -127,6 +128,7 @@ app.include_router(stockpiles.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(audit_logs.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(price_lists.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(cc_drafts.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(meli.router, prefix="/api/v1")
 app.include_router(admin.router)  # /api/admin/* (prefijo interno)
 app.include_router(feedback.admin_router)
 app.include_router(billing.router)
