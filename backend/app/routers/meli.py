@@ -183,7 +183,7 @@ async def oauth_callback(
             f"meli_user_id {meli_user_id} ya está conectado a otro negocio"
         )
         return RedirectResponse(
-            url=f"{settings.FRONTEND_URL}/settings/integrations?meli=already_connected",
+            url=f"{settings.FRONTEND_URL}/#/mercadolibre?meli=already_connected",
             status_code=status.HTTP_302_FOUND,
         )
 
@@ -221,7 +221,7 @@ async def oauth_callback(
     await db.commit()
 
     return RedirectResponse(
-        url=f"{settings.FRONTEND_URL}/settings/integrations?meli=connected",
+        url=f"{settings.FRONTEND_URL}/#/mercadolibre?meli=connected",
         status_code=status.HTTP_302_FOUND,
     )
 
