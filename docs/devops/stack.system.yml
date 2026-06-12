@@ -42,6 +42,13 @@ services:
         - "traefik.http.routers.octopus-auth.tls.certresolver=letsencryptresolver"
         - "traefik.http.routers.octopus-auth.priority=110"
         - "traefik.http.routers.octopus-auth.service=octopus-backend"
+
+        - "traefik.http.routers.octopus-api-v1.rule=(Host(`app.octopustrack.shop`) || Host(`cms.octopustrack.shop`)) && PathPrefix(`/api/v1`)"
+        - "traefik.http.routers.octopus-api-v1.entrypoints=websecure"
+        - "traefik.http.routers.octopus-api-v1.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.octopus-api-v1.priority=100"
+        - "traefik.http.routers.octopus-api-v1.service=octopus-backend"
+
         - "traefik.http.services.octopus-backend.loadbalancer.server.port=8000"
 
   frontend:
