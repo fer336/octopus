@@ -105,7 +105,9 @@ export default function MercadoLibre() {
 
   const handleConnect = async () => {
     try {
-      const { url } = await meliService.getAuthorizeUrl()
+      const result = await meliService.getAuthorizeUrl()
+      const url = result?.url
+      if (!url) throw new Error('authorize url missing in response')
       window.location.href = url
     } catch {
       toast.error('No se pudo obtener la URL de conexión')

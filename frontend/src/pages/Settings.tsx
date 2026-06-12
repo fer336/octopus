@@ -441,8 +441,12 @@ export default function Settings() {
                 size="sm"
                 className="gap-1.5"
                 onClick={async () => {
-                  try { const { url } = await meliService.getAuthorizeUrl(); window.location.href = url }
-                  catch { toast.error('No se pudo obtener la URL de conexión') }
+                  try {
+                    const result = await meliService.getAuthorizeUrl()
+                    const url = result?.url
+                    if (!url) throw new Error('authorize url missing in response')
+                    window.location.href = url
+                  } catch { toast.error('No se pudo obtener la URL de conexión') }
                 }}
               >
                 <div className="w-4 h-4 rounded bg-[#fff159] flex items-center justify-center text-[8px] font-black text-[#2d3277]">ML</div>
