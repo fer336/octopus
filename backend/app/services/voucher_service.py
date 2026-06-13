@@ -1836,6 +1836,9 @@ class VoucherService:
                 "iibb": "-",
                 "start_date": "-",
                 "logo_url": voucher.business.logo_url,
+                "logo_position": getattr(voucher.business, "logo_position", "left") or "left",
+                "logo_display_mode": getattr(voucher.business, "logo_display_mode", "alongside_text") or "alongside_text",
+                "hide_business_name_in_pdf": bool(getattr(voucher.business, "hide_business_name_in_pdf", False)),
             },
             "client": {
                 "name": voucher.client.name,
@@ -1952,6 +1955,9 @@ class VoucherService:
                 "cuit": voucher.business.cuit,
                 "tax_condition": voucher.business.tax_condition,
                 "logo_url": voucher.business.logo_url,
+                "logo_position": getattr(voucher.business, "logo_position", "left") or "left",
+                "logo_display_mode": getattr(voucher.business, "logo_display_mode", "alongside_text") or "alongside_text",
+                "hide_business_name_in_pdf": bool(getattr(voucher.business, "hide_business_name_in_pdf", False)),
             },
             "client": {
                 "name": voucher.billing_client.name
@@ -2168,6 +2174,9 @@ class VoucherService:
                 "start_date": "-",
                 "tax_condition": voucher.business.tax_condition,
                 "logo_url": voucher.business.logo_url,
+                "logo_position": getattr(voucher.business, "logo_position", "left") or "left",
+                "logo_display_mode": getattr(voucher.business, "logo_display_mode", "alongside_text") or "alongside_text",
+                "hide_business_name_in_pdf": bool(getattr(voucher.business, "hide_business_name_in_pdf", False)),
             },
             "client": {
                 "name": voucher.client.name if voucher.client else "Consumidor Final",
