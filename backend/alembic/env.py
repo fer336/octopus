@@ -8,10 +8,11 @@ from sqlalchemy import engine_from_config, pool
 # Agregar el directorio raíz al path para importar los modelos
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Importar los modelos
-# Importar configuración
+# Importar configuración y modelos
+# Los modelos deben importarse antes de usar Base.metadata para que Alembic los detecte
 from app.config import get_settings
 from app.database import Base
+import app.models  # noqa: F401 — registra todos los modelos en Base.metadata
 
 settings = get_settings()
 
@@ -76,8 +77,18 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
 
+    def include_object(object, name, type_, reflected, compare_to):
+        # Ignorar tablas que existen en la DB pero no tienen modelo SA registrado
+        if type_ == "table" and reflected and compare_to is None:
+            return False
+        return True
+
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
+        )
 
         with context.begin_transaction():
             context.run_migrations()

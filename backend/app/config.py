@@ -104,6 +104,17 @@ class Settings(BaseSettings):
     STOCKPILE_SNAPSHOT_PRESIGNED_URL_EXPIRE_SECONDS: int = 1800
     # Configurar lifecycle del bucket privado en MinIO para borrar snapshots en <=24h.
 
+    # Mercado Libre
+    MELI_CLIENT_ID: str = ""
+    MELI_CLIENT_SECRET: str = ""
+    MELI_REDIRECT_URI: str = "http://localhost:8000/api/v1/meli/oauth/callback"
+    MELI_SITE_ID: str = "MLA"
+    MELI_API_BASE: str = "https://api.mercadolibre.com"
+    MELI_AUTH_BASE: str = "https://auth.mercadolibre.com.ar"
+    # Generar con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    MELI_TOKEN_ENCRYPTION_KEY: str = ""
+    MELI_WEBHOOK_SECRET: str = ""
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):

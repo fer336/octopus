@@ -6,6 +6,7 @@ Contiene toda la lógica de negocio para productos.
 from __future__ import annotations
 
 import builtins
+import logging
 from datetime import date, datetime
 from uuid import UUID
 
@@ -21,6 +22,8 @@ from app.schemas.product import ProductBulkUpdateItem, ProductCreate, ProductLis
 from app.schemas.product_lot import ProductLotCreate
 from app.services.brand_service import BrandService
 from app.services.product_lot_service import ProductLotService
+
+logger = logging.getLogger(__name__)
 
 
 class ProductService:
@@ -310,6 +313,14 @@ class ProductService:
                     change_reason="Manual",
                 )
                 self.db.add(history)
+
+        # Enqueue MELI sync for price changes (same transaction — outbox pattern)
+        if price_fields & set(update_data.keys()) and product.sale_price != old_sale_price:
+            try:
+                from app.services.meli.sync import enqueue_product_sync
+                await enqueue_product_sync(self.db, product.id, business_id, {"price"})
+            except Exception:
+                logger.warning("MELI price sync enqueue failed for product %s", product.id, exc_info=True)
 
         await self.db.commit()
         refreshed = await self.get_by_id(product.id, business_id)
@@ -655,7 +666,16 @@ class ProductService:
             )
             self.db.add(audit)
             await self.db.flush()
-            await self.db.commit()
+
+        # Enqueue MELI sync for stock changes (same transaction — outbox pattern)
+        if quantity_change != 0:
+            try:
+                from app.services.meli.sync import enqueue_product_sync
+                await enqueue_product_sync(self.db, product_id, business_id, {"stock"})
+            except Exception:
+                logger.warning("MELI stock sync enqueue failed for product %s", product_id, exc_info=True)
+
+        await self.db.commit()
 
         refreshed = await self.get_by_id(product.id, business_id)
         return refreshed if refreshed else product

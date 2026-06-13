@@ -3,19 +3,28 @@
  * Datos del negocio, membrete y preferencias.
  */
 import { useState, useEffect } from 'react'
-import { Building2, FileText, Bell, Shield, MessageSquare } from 'lucide-react'
+import { Building2, FileText, Bell, Shield, MessageSquare, ExternalLink, Puzzle } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import WhatsAppSettings from '../components/settings/WhatsAppSettings'
 import { Button, Input, Select } from '../components/ui'
 import { TAX_CONDITIONS } from '../types'
 import AIConfiguration from '../components/settings/AIConfiguration'
 import businessService, { BusinessUpdate } from '../api/businessService'
 import arcaService, { AfipSdkConfig } from '../api/arcaService'
+import meliService from '../api/meliService'
 import toast from 'react-hot-toast'
 
 export default function Settings() {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [businessId, setBusinessId] = useState<string>('')
   const [arcaConfig, setArcaConfig] = useState<AfipSdkConfig | null>(null)
+
+  const { data: meliStatus } = useQuery({
+    queryKey: ['meli-status'],
+    queryFn: meliService.getStatus,
+  })
   
   // Form state
   const [formData, setFormData] = useState({
@@ -362,6 +371,90 @@ export default function Settings() {
           </div>
         </div>
         <WhatsAppSettings />
+      </div>
+
+      {/* Integraciones */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="p-2 bg-[#f5f2fa] dark:bg-[#2d1f4a] rounded-lg">
+            <Puzzle className="text-[#5c3a8c]" size={20} />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Integraciones</h2>
+            <p className="text-sm text-[#7b6b95]">Conectá tus canales de venta externos</p>
+          </div>
+        </div>
+
+        {/* ML card */}
+        <div className="flex items-center justify-between p-4 rounded-xl border border-[#d9caeb] dark:border-gray-600 bg-[#fdfcff] dark:bg-gray-700/30">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#fff159] flex items-center justify-center text-[12px] font-black text-[#2d3277] flex-shrink-0">
+              ML
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">Mercado Libre</p>
+                {meliStatus?.connected ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    Conectado
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                    No conectado
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-[#7b6b95]">
+                {meliStatus?.connected && meliStatus.meli_nickname
+                  ? `Cuenta: ${meliStatus.meli_nickname}`
+                  : 'Sincronizá publicaciones, precios y stock con ML'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {meliStatus?.connected ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => navigate('/mercadolibre')}
+                >
+                  <ExternalLink size={13} />
+                  Gestionar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-red-500 border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/10"
+                  onClick={async () => {
+                    try { await meliService.disconnect(); toast.success('Cuenta desconectada') }
+                    catch { toast.error('Error al desconectar') }
+                  }}
+                >
+                  Desconectar
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="sm"
+                className="gap-1.5"
+                onClick={async () => {
+                  try {
+                    const result = await meliService.getAuthorizeUrl()
+                    const url = result?.url
+                    if (!url) throw new Error('authorize url missing in response')
+                    window.location.href = url
+                  } catch { toast.error('No se pudo obtener la URL de conexión') }
+                }}
+              >
+                <div className="w-4 h-4 rounded bg-[#fff159] flex items-center justify-center text-[8px] font-black text-[#2d3277]">ML</div>
+                Conectar
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Seguridad */}
