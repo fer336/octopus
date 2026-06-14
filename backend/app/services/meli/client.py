@@ -146,7 +146,7 @@ class MeliClient:
 
             async with httpx.AsyncClient(timeout=15.0) as http:
                 resp = await http.post(
-                    f"{settings.MELI_AUTH_BASE}/oauth/token",
+                    f"{settings.MELI_API_BASE}/oauth/token",
                     data={
                         "grant_type": "refresh_token",
                         "client_id": settings.MELI_CLIENT_ID,

@@ -167,6 +167,34 @@ async def test_callback_creates_credential_and_redirects():
 
 
 @pytest.mark.asyncio
+async def test_callback_token_exchange_failure_redirects_with_error():
+    """Si ML rechaza el code, el callback redirige con meli=error (no retorna 502)."""
+    from app.database import get_db
+    from app.routers.meli import MeliTokenExchangeError
+
+    db = _make_db_mock()
+    state = _valid_state()
+    app.dependency_overrides[get_db] = lambda: db
+
+    try:
+        with (
+            patch(
+                "app.routers.meli._exchange_code",
+                AsyncMock(side_effect=MeliTokenExchangeError(400, '{"message":"invalid_code"}')),
+            ),
+            TestClient(app, raise_server_exceptions=True, follow_redirects=False) as client,
+        ):
+            resp = client.get(f"/api/v1/meli/oauth/callback?code=EXPIRED&state={state}")
+
+        assert resp.status_code in (302, 307)
+        location = resp.headers["location"]
+        assert "meli=error" in location
+        assert "token_exchange_failed" in location
+    finally:
+        _clear_overrides()
+
+
+@pytest.mark.asyncio
 async def test_callback_invalid_state_returns_400():
     from app.database import get_db
 

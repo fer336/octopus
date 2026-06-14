@@ -79,11 +79,19 @@ def _decode_state(state: str) -> dict:
         )
 
 
+class MeliTokenExchangeError(Exception):
+    """Token exchange falló — redirigir al frontend con error."""
+    def __init__(self, ml_status: int, ml_body: str) -> None:
+        self.ml_status = ml_status
+        self.ml_body = ml_body
+        super().__init__(f"ML token exchange failed: {ml_status} {ml_body}")
+
+
 async def _exchange_code(code: str) -> dict:
     """POST a ML para intercambiar code por tokens."""
     async with httpx.AsyncClient(timeout=15.0) as http:
         resp = await http.post(
-            f"{settings.MELI_AUTH_BASE}/oauth/token",
+            f"{settings.MELI_API_BASE}/oauth/token",
             data={
                 "grant_type": "authorization_code",
                 "client_id": settings.MELI_CLIENT_ID,
@@ -93,11 +101,8 @@ async def _exchange_code(code: str) -> dict:
             },
         )
     if resp.status_code != 200:
-        logger.error(f"ML token exchange failed: {resp.status_code} {resp.text}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Error al obtener tokens de Mercado Libre",
-        )
+        logger.error("ML token exchange failed: %s %s", resp.status_code, resp.text)
+        raise MeliTokenExchangeError(resp.status_code, resp.text)
     return resp.json()
 
 
@@ -160,7 +165,13 @@ async def oauth_callback(
     state_data = _decode_state(state)
     business_id = UUID(state_data["business_id"])
 
-    token_data = await _exchange_code(code)
+    try:
+        token_data = await _exchange_code(code)
+    except MeliTokenExchangeError:
+        return RedirectResponse(
+            url=f"{settings.FRONTEND_URL}/#/mercadolibre?meli=error&reason=token_exchange_failed",
+            status_code=status.HTTP_302_FOUND,
+        )
     access_token = token_data["access_token"]
     refresh_token = token_data["refresh_token"]
     expires_in = token_data.get("expires_in", 21600)

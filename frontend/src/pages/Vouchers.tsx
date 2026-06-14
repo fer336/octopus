@@ -1241,6 +1241,7 @@ export default function Vouchers() {
                   </button>
                 )}
                 
+                {!isInvoiceVoucher(item) && (
                 <button
                   onClick={(e) => {
                     animateButton(e)
@@ -1266,6 +1267,7 @@ export default function Vouchers() {
                 >
                   <Trash2 size={14} />
                 </button>
+                )}
               </>
             )}
             {isDeleted && (
@@ -1818,7 +1820,8 @@ export default function Vouchers() {
                           <Menu size={16} />
                         </button>
                       )}
-                      <button onClick={(e) => { 
+                      {!isInvoiceVoucher(voucher) && (
+                      <button onClick={(e) => {
                         animateButton(e)
                         if (!voucher.is_current_account_closure && !voucher.is_receipt_linked_to_current_account_closure) {
                           setVoucherToDelete(voucher)
@@ -1827,6 +1830,7 @@ export default function Vouchers() {
                       }} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg" title="Eliminar">
                         <Trash2 size={16} />
                       </button>
+                      )}
                     </>
                   )}
                 </div>
