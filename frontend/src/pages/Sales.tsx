@@ -5155,8 +5155,8 @@ export default function Sales() {
       <ProductSearchModal
         isOpen={showSearchModal}
         onClose={() => setShowSearchModal(false)}
-        onAddProduct={(product, quantity) => {
-          handleAddProductFromSearch(product, quantity)
+        onAddProducts={(products) => {
+          products.forEach((p) => handleAddProductFromSearch(p, 1))
           setShowSearchModal(false)
         }}
       />
