@@ -6,7 +6,9 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { version } from '../../../package.json'
+import { version as pkgVersion } from '../../../package.json'
+
+const version = import.meta.env.VITE_APP_VERSION || pkgVersion
 import { useCurrentCash } from '../../hooks/useCash'
 import { useAuthStore } from '../../stores/authStore'
 import { hasPathAccess } from '../../utils/acl'

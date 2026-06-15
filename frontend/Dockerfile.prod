@@ -10,8 +10,10 @@ COPY . .
 # Variables de build para producción
 ARG VITE_API_URL
 ARG VITE_BACKEND_URL
+ARG APP_VERSION=dev
 ENV VITE_API_URL=${VITE_API_URL:-https://app.octopustrack.shop/api/tenant}
 ENV VITE_BACKEND_URL=${VITE_BACKEND_URL:-https://app.octopustrack.shop}
+ENV VITE_APP_VERSION=${APP_VERSION}
 
 RUN npm run build
 
