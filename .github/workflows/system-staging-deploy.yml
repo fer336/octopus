@@ -107,7 +107,7 @@ jobs:
           cache-from: type=gha,scope=staging-${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=staging-${{ matrix.service }}
           build-args: |
-            APP_VERSION=${{ steps.docker_tags.outputs.tag }}
+            APP_VERSION=${{ steps.docker_tags.outputs.sha_tag }}
             BUILD_DATE=${{ steps.docker_tags.outputs.build_date }}
             GIT_SHA=${{ github.sha }}
             VITE_BACKEND_URL=${{ env.STAGING_BACKEND_URL }}

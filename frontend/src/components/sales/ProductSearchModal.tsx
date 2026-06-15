@@ -9,6 +9,7 @@
  *   🏭 Proveedor  → muestra proveedores, al elegir uno muestra sus productos
  *
  * Filtros combinables: categoría y proveedor como dropdowns adicionales.
+ * F8 cicla entre modos. Enter = staging. ESC con items staged = confirmar y cerrar.
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
@@ -54,7 +55,7 @@ interface SupplierItem {
 interface Props {
   isOpen: boolean
   onClose: () => void
-  onAddProduct: (product: ProductItem, quantity: number) => void
+  onAddProducts: (products: ProductItem[]) => void
 }
 
 // ── Helpers ────────────────────────────────────────────────
@@ -87,12 +88,13 @@ const MODE_PLACEHOLDER: Record<SearchMode, string> = {
 
 // ── Component ──────────────────────────────────────────────
 
-export default function ProductSearchModal({ isOpen, onClose, onAddProduct }: Props) {
+export default function ProductSearchModal({ isOpen, onClose, onAddProducts }: Props) {
   const [mode, setMode] = useState<SearchMode>('description')
   const [search, setSearch] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [staged, setStaged] = useState<ProductItem[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -106,8 +108,29 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProduct }: Pr
       setSelectedCategoryId(null)
       setSelectedSupplierId(null)
       setSelectedIndex(0)
+      setStaged([])
       setTimeout(() => inputRef.current?.focus(), 100)
     }
+  }, [isOpen])
+
+  // F8 cycles through modes while modal is open
+  useEffect(() => {
+    if (!isOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'F8') return
+      e.preventDefault()
+      setMode((prev) => {
+        const idx = MODES.findIndex((m) => m.value === prev)
+        const next = MODES[(idx + 1) % MODES.length]
+        setSearch('')
+        setSelectedIndex(0)
+        setSelectedCategoryId(null)
+        setSelectedSupplierId(null)
+        return next.value
+      })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [isOpen])
 
   // Focus input when mode changes
@@ -134,7 +157,7 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProduct }: Pr
   // Suppliers for the filter dropdown and supplier mode
   const suppliersQuery = useQuery({
     queryKey: ['suppliers-for-search-modal'],
-    queryFn: () => suppliersService.getAll({ per_page: 200 }),
+    queryFn: () => suppliersService.getAll({ per_page: 100 }),
     enabled: isOpen,
     staleTime: 60_000,
   })
@@ -159,14 +182,12 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProduct }: Pr
       if (selectedSupplierId) params.supplier_id = selectedSupplierId
 
       if (debouncedSearch) {
-        // Cada modo busca con ILIKE solo en su campo, con relevance sort
         params.search = debouncedSearch
         if (mode === 'code') {
           params.search_field = 'code'
         } else if (mode === 'supplier_code') {
           params.search_field = 'supplier_code'
         } else {
-          // description y demás campos textuales
           params.search_field = 'description'
         }
       }
@@ -200,10 +221,35 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProduct }: Pr
   // Reset selectedIndex when results change
   useEffect(() => { setSelectedIndex(0) }, [products.length, filteredCategories.length, filteredSuppliers.length, mode])
 
+  // Scroll selected row into view
+  useEffect(() => {
+    if (!listRef.current) return
+    const row = listRef.current.querySelector<HTMLElement>(`[data-index="${selectedIndex}"]`)
+    row?.scrollIntoView({ block: 'nearest' })
+  }, [selectedIndex])
+
+  // ── Staging helpers ──────────────────────────────────────
+
+  const toggleStaging = useCallback((p: ProductItem) => {
+    setStaged((prev) =>
+      prev.some((s) => s.id === p.id)
+        ? prev.filter((s) => s.id !== p.id)
+        : [...prev, p],
+    )
+  }, [])
+
+  const confirmStaged = useCallback(() => {
+    onAddProducts(staged)
+    onClose()
+  }, [staged, onAddProducts, onClose])
+
   // ── Keyboard navigation ──────────────────────────────────
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // F8 is handled by the window listener above — skip here to avoid double-fire
+      if (e.key === 'F8') return
+
       const isCategoryList = mode === 'category' && !selectedCategoryId
       const isSupplierList = mode === 'supplier' && !selectedSupplierId
       const listLength = isCategoryList ? filteredCategories.length
@@ -227,10 +273,13 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProduct }: Pr
           setSearch('')
           setSelectedIndex(0)
         } else if (products[selectedIndex]) {
-          onAddProduct(products[selectedIndex], 1)
+          toggleStaging(products[selectedIndex])
         }
       } else if (e.key === 'Escape') {
-        if (mode === 'category' && selectedCategoryId) {
+        e.preventDefault()
+        if (staged.length > 0) {
+          confirmStaged()
+        } else if (mode === 'category' && selectedCategoryId) {
           setSelectedCategoryId(null)
           setSearch('')
         } else if (mode === 'supplier' && selectedSupplierId) {
@@ -241,7 +290,7 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProduct }: Pr
         }
       }
     },
-    [mode, selectedCategoryId, selectedSupplierId, filteredCategories, filteredSuppliers, products, selectedIndex, onAddProduct, onClose],
+    [mode, selectedCategoryId, selectedSupplierId, filteredCategories, filteredSuppliers, products, selectedIndex, staged, toggleStaging, confirmStaged, onClose],
   )
 
   // ── Render helpers ───────────────────────────────────────
@@ -276,7 +325,6 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProduct }: Pr
         type="text"
         value={search}
         onChange={(e) => { setSearch(e.target.value); setSelectedIndex(0) }}
-        onKeyDown={handleKeyDown}
         placeholder={placeholder ?? MODE_PLACEHOLDER[mode]}
         className="w-full pl-9 pr-4 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-primary-400 dark:focus:ring-primary-500 focus:border-transparent text-gray-800 dark:text-gray-200 placeholder-gray-400"
       />
@@ -360,24 +408,35 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProduct }: Pr
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {products.map((p, i) => (
-                  <tr
-                    key={p.id}
-                    onClick={() => onAddProduct(p, 1)}
-                    onDoubleClick={() => onAddProduct(p, 1)}
-                    className={`cursor-pointer text-xs ${
-                      i === selectedIndex
-                        ? 'bg-primary-100 dark:bg-primary-900'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    <td className="px-2 py-2 font-medium truncate">{p.code}</td>
-                    <td className="px-2 py-2 text-gray-500 dark:text-gray-400 truncate hidden md:table-cell">{p.supplier_code || '—'}</td>
-                    <td className="px-2 py-2 truncate" title={p.description}>{p.description}</td>
-                    <td className="px-2 py-2 text-right">{p.current_stock ?? '—'}</td>
-                    <td className="px-2 py-2 text-right font-semibold">${formatPrice(safeNumber(p.sale_price))}</td>
-                  </tr>
-                ))}
+                {products.map((p, i) => {
+                  const isStaged = staged.some((s) => s.id === p.id)
+                  const isHighlighted = i === selectedIndex
+                  return (
+                    <tr
+                      key={p.id}
+                      data-index={i}
+                      onClick={() => toggleStaging(p)}
+                      className={`cursor-pointer text-xs transition-colors ${
+                        isStaged
+                          ? 'bg-green-50 dark:bg-green-900/30'
+                          : isHighlighted
+                          ? 'bg-primary-100 dark:bg-primary-900'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <td className="px-2 py-2 font-medium truncate">
+                        {isStaged && (
+                          <span className="text-green-600 dark:text-green-400 mr-1 font-bold">✓</span>
+                        )}
+                        {p.code}
+                      </td>
+                      <td className="px-2 py-2 text-gray-500 dark:text-gray-400 truncate hidden md:table-cell">{p.supplier_code || '—'}</td>
+                      <td className="px-2 py-2 truncate" title={p.description}>{p.description}</td>
+                      <td className="px-2 py-2 text-right">{p.current_stock ?? '—'}</td>
+                      <td className="px-2 py-2 text-right font-semibold">${formatPrice(safeNumber(p.sale_price))}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}
@@ -386,7 +445,9 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProduct }: Pr
         {/* Footer help */}
         {!isEmpty && (
           <div className="text-xs text-gray-400 mt-1.5 text-center">
-            ↑↓ Navegar · Enter: Agregar · ESC: Cerrar
+            {staged.length > 0
+              ? `${staged.length} seleccionado${staged.length !== 1 ? 's' : ''} · ESC: Agregar y cerrar · Enter: Seleccionar/Deseleccionar`
+              : '↑↓ Navegar · Enter: Seleccionar · ESC: Cerrar · F8: Siguiente modo'}
           </div>
         )}
       </div>
@@ -431,6 +492,7 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProduct }: Pr
               {filteredCategories.map((cat, i) => (
                 <button
                   key={cat.id}
+                  data-index={i}
                   onClick={() => { setSelectedCategoryId(cat.id); setSearch(''); setSelectedIndex(0) }}
                   className={`text-left px-3 py-3 rounded-lg border text-sm transition-colors ${
                     i === selectedIndex
@@ -485,6 +547,7 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProduct }: Pr
               {filteredSuppliers.map((s, i) => (
                 <button
                   key={s.id}
+                  data-index={i}
                   onClick={() => { setSelectedSupplierId(s.id); setSearch(''); setSelectedIndex(0) }}
                   className={`text-left px-3 py-3 rounded-lg border text-sm transition-colors ${
                     i === selectedIndex
@@ -532,6 +595,11 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProduct }: Pr
                 {productsQuery.data.total} producto{productsQuery.data.total !== 1 ? 's' : ''}
               </span>
             )}
+            {staged.length > 0 && (
+              <span className="text-xs font-semibold text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-2 py-0.5 rounded-full">
+                {staged.length} seleccionado{staged.length !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
           <button onClick={onClose} className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400">
             <X size={18} />
@@ -561,8 +629,15 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProduct }: Pr
 
         {/* Footer */}
         <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs text-gray-400 flex justify-between">
-          <span>F8: Abrir búsqueda · Click o Enter: Agregar producto</span>
-          <span>ESC: Cerrar</span>
+          <span>F8: Ciclar modo · Enter: Seleccionar · ESC: {staged.length > 0 ? 'Agregar y cerrar' : 'Cerrar'}</span>
+          {staged.length > 0 && (
+            <button
+              onClick={confirmStaged}
+              className="text-green-600 dark:text-green-400 font-semibold hover:underline"
+            >
+              Agregar {staged.length} producto{staged.length !== 1 ? 's' : ''} →
+            </button>
+          )}
         </div>
       </div>
     </div>
