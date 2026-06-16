@@ -304,6 +304,7 @@ class PublishListingRequest(BaseModel):
     price_markup_pct: Decimal = Decimal("0")
     sync_price: bool = True
     sync_stock: bool = True
+    available_quantity: int | None = None
 
 
 class LinkListingRequest(BaseModel):
@@ -390,6 +391,7 @@ async def create_listing(
             price_markup_pct=body.price_markup_pct,
             sync_price=body.sync_price,
             sync_stock=body.sync_stock,
+            available_quantity=body.available_quantity,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))

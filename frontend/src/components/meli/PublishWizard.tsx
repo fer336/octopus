@@ -1,18 +1,16 @@
-import { useState } from 'react'
-import { Check, ChevronRight, ChevronLeft, Sparkles, ExternalLink } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Check, ChevronRight, ChevronLeft, Sparkles, ExternalLink, Search } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { clsx } from 'clsx'
 import { Button, Input } from '../ui'
 import meliService from '../../api/meliService'
+import { productsService, type Product } from '../../api/productsService'
 import type { MeliCategorySuggestion, MeliCategoryAttribute } from '../../types/meli'
 import toast from 'react-hot-toast'
 
 interface Props {
   isOpen: boolean
   onClose: () => void
-  productId?: string
-  productName?: string
-  salePrice?: number
   onSuccess: () => void
 }
 
@@ -26,11 +24,17 @@ const LISTING_TYPES = [
   { id: 'free', label: 'Gratuita' },
 ]
 
-export default function PublishWizard({ isOpen, onClose, productId = '', productName = '', salePrice = 0, onSuccess }: Props) {
+export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
   const [step, setStep] = useState<Step>(1)
 
-  // Step 1
-  const [title, setTitle] = useState(productName)
+  // Step 1 — product selection
+  const [productSearch, setProductSearch] = useState('')
+  const [productResults, setProductResults] = useState<Product[]>([])
+  const [searchingProducts, setSearchingProducts] = useState(false)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [title, setTitle] = useState('')
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Step 2
   const [suggestions, setSuggestions] = useState<MeliCategorySuggestion[]>([])
@@ -44,11 +48,79 @@ export default function PublishWizard({ isOpen, onClose, productId = '', product
 
   // Step 4
   const [markup, setMarkup] = useState('0')
+  const [mlStock, setMlStock] = useState('')
   const [listingType, setListingType] = useState('gold_special')
   const [description, setDescription] = useState('')
   const [publishing, setPublishing] = useState(false)
 
+  const salePrice = selectedProduct?.sale_price ?? 0
   const finalPrice = salePrice * (1 + parseFloat(markup || '0') / 100)
+
+  // Reset all state when modal opens
+  useEffect(() => {
+    if (!isOpen) return
+    setStep(1)
+    setProductSearch('')
+    setProductResults([])
+    setShowDropdown(false)
+    setSelectedProduct(null)
+    setTitle('')
+    setSuggestions([])
+    setSelectedCategory(null)
+    setAttributes([])
+    setAttrValues({})
+    setMarkup('0')
+    setMlStock('')
+    setListingType('gold_special')
+    setDescription('')
+  }, [isOpen])
+
+  // Debounced product search
+  useEffect(() => {
+    if (!productSearch.trim() || selectedProduct) {
+      setProductResults([])
+      setShowDropdown(false)
+      return
+    }
+    const t = setTimeout(async () => {
+      setSearchingProducts(true)
+      try {
+        const data = await productsService.getAll({ search: productSearch, per_page: 8, is_active: true })
+        setProductResults(data.items)
+        setShowDropdown(data.items.length > 0)
+      } catch {
+        // silently ignore transient search errors
+      } finally {
+        setSearchingProducts(false)
+      }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [productSearch, selectedProduct])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const selectProduct = (p: Product) => {
+    setSelectedProduct(p)
+    setTitle(p.description)
+    setShowDropdown(false)
+    setProductSearch('')
+  }
+
+  const clearProduct = () => {
+    setSelectedProduct(null)
+    setProductSearch('')
+    setMlStock('')
+    setTitle('')
+  }
 
   const handlePredictCategory = async () => {
     if (!title.trim()) return
@@ -82,6 +154,7 @@ export default function PublishWizard({ isOpen, onClose, productId = '', product
 
   const handleNext = async () => {
     if (step === 1) {
+      if (!selectedProduct) { toast.error('Seleccioná un producto'); return }
       if (!title.trim()) { toast.error('Ingresá un título'); return }
       setStep(2)
     } else if (step === 2) {
@@ -94,7 +167,7 @@ export default function PublishWizard({ isOpen, onClose, productId = '', product
   }
 
   const handlePublish = async () => {
-    if (!selectedCategory) return
+    if (!selectedProduct || !selectedCategory) return
     const requiredMissing = attributes
       .filter((a) => a.tags?.required && !attrValues[a.id])
       .map((a) => a.name)
@@ -106,12 +179,13 @@ export default function PublishWizard({ isOpen, onClose, productId = '', product
     setPublishing(true)
     try {
       const listing = await meliService.publish({
-        product_id: productId,
+        product_id: selectedProduct.id,
         category_id: selectedCategory.category_id,
         listing_type_id: listingType,
         title: title || undefined,
         price_markup_pct: markup,
         description: description || undefined,
+        available_quantity: mlStock ? parseInt(mlStock, 10) : undefined,
         attributes: Object.entries(attrValues)
           .filter(([, v]) => v)
           .map(([id, value_name]) => ({ id, value_name })),
@@ -191,9 +265,60 @@ export default function PublishWizard({ isOpen, onClose, productId = '', product
                 <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#7b6b95] mb-1.5">
                   Producto
                 </label>
-                <div className="p-3 rounded-lg bg-[#f5f2fa] dark:bg-gray-800 border border-[#d9caeb] dark:border-gray-700 text-sm text-[#121325] dark:text-white">
-                  {productName || <span className="text-[#9d84bf]">Producto seleccionado</span>}
-                </div>
+                {selectedProduct ? (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-[#f5f2fa] dark:bg-gray-800 border border-[#d9caeb] dark:border-gray-700">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#121325] dark:text-white truncate">{selectedProduct.description}</p>
+                      <p className="text-xs text-[#9d84bf] mt-0.5">
+                        Stock: {selectedProduct.current_stock} · Código: {selectedProduct.code}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearProduct}
+                      className="flex-shrink-0 text-[#9d84bf] hover:text-[#5c3a8c] transition-colors text-lg leading-none"
+                      title="Cambiar producto"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative" ref={dropdownRef}>
+                    <div className="relative">
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9d84bf]" />
+                      <Input
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        placeholder="Buscar producto por nombre o código..."
+                        className="pl-8"
+                        autoFocus
+                      />
+                      {searchingProducts && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-[#5c3a8c]" />
+                        </div>
+                      )}
+                    </div>
+                    {showDropdown && (
+                      <div className="absolute z-20 w-full mt-1 bg-white dark:bg-gray-800 border border-[#d9caeb] dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {productResults.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => selectProduct(p)}
+                            className="w-full text-left px-3 py-2.5 text-sm hover:bg-[#f5f2fa] dark:hover:bg-gray-700 transition-colors border-b border-[#f0eaf8] dark:border-gray-700 last:border-0"
+                          >
+                            <span className="font-medium text-[#121325] dark:text-white">{p.description}</span>
+                            <span className="text-xs text-[#9d84bf] ml-2">· Stock: {p.current_stock}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {productSearch.trim() && !searchingProducts && !showDropdown && productResults.length === 0 && (
+                      <p className="mt-1.5 text-xs text-[#9d84bf]">Sin resultados para "{productSearch}"</p>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#7b6b95] mb-1.5">
@@ -363,6 +488,29 @@ export default function PublishWizard({ isOpen, onClose, productId = '', product
                       </p>
                     </div>
                   )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#7b6b95] mb-1.5">
+                  Stock a publicar en ML
+                  <span className="ml-2 font-normal normal-case tracking-normal text-[#9d84bf]">
+                    (disponible: {selectedProduct?.current_stock ?? 0})
+                  </span>
+                </label>
+                <div className="flex items-start gap-3">
+                  <Input
+                    type="number"
+                    min="1"
+                    max={selectedProduct?.current_stock ?? undefined}
+                    value={mlStock}
+                    onChange={(e) => setMlStock(e.target.value)}
+                    placeholder={String(selectedProduct?.current_stock ?? '')}
+                    className="w-32"
+                  />
+                  <p className="text-xs text-[#9d84bf] pt-2.5 leading-relaxed">
+                    Dejalo vacío para publicar todo el stock. Si el stock real llega a 0, la publicación se pausa automáticamente.
+                  </p>
                 </div>
               </div>
 
