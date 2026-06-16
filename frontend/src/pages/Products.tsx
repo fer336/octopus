@@ -2,7 +2,7 @@
  * Página de Productos.
  * Lista, búsqueda y gestión de productos con cálculo de precio final.
  */
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Plus, Edit, Trash2, Calculator, Upload, Download, Search, AlertTriangle, FileCode, RotateCcw, Loader2, Package, ChevronDown, QrCode } from 'lucide-react'
 import { Button, Pagination, Modal, Select } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
@@ -20,6 +20,8 @@ import QrPrintPreview from '../components/products/QrPrintPreview'
 import BulkDeleteModal from '../components/products/BulkDeleteModal'
 import ImportProgressModal from '../components/products/ImportProgressModal'
 import exchangeRateService from '../api/exchangeRateService'
+import meliService from '../api/meliService'
+import type { MeliListing } from '../types/meli'
 
 type ProductFormData = Partial<Product> & {
   expiration_date?: string
@@ -142,6 +144,37 @@ export default function Products() {
   })
   const blueRate = exchangeRates?.blue.promedio ?? 0
   const activeRate = rateType === 'blue' ? blueRate : (exchangeRates?.oficial.promedio ?? 0)
+
+  // Query para estado de publicaciones ML (falla silenciosamente si ML no está configurado)
+  const { data: meliListingsData } = useQuery({
+    queryKey: ['meli-listings-index'],
+    queryFn: () => meliService.getListings({ limit: 200 }),
+    staleTime: 30_000,
+    gcTime: 60_000,
+    retry: 0,
+  })
+
+  const meliListingsMap = useMemo(() => {
+    const map = new Map<string, MeliListing>()
+    for (const listing of meliListingsData?.items ?? []) {
+      // Primer listing gana (resultados ordenados por created_at desc → más reciente primero)
+      if (!map.has(listing.product_id)) {
+        map.set(listing.product_id, listing)
+      }
+    }
+    return map
+  }, [meliListingsData])
+
+  const getMeliBadgeProps = (listing: MeliListing | undefined) => {
+    if (!listing) return null
+    if (listing.status === 'active') {
+      return { cls: 'bg-[#fff159] text-[#2d3277]', title: 'Publicado en ML (activo)' }
+    }
+    if (listing.status === 'paused') {
+      return { cls: 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400', title: 'Publicado en ML (pausado)' }
+    }
+    return { cls: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400', title: `ML: ${listing.status}` }
+  }
 
   // Valores seguros con fallback a array vacío
   const categories = Array.isArray(categoriesData) ? categoriesData : []
@@ -1220,6 +1253,14 @@ export default function Products() {
                               Bajo
                             </span>
                           )}
+                          {(() => {
+                            const badge = getMeliBadgeProps(meliListingsMap.get(item.id))
+                            return badge ? (
+                              <span title={badge.title} className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black leading-none ${badge.cls}`}>
+                                ML
+                              </span>
+                            ) : null
+                          })()}
                         </div>
                         <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
                           <span>{formatUnit(item)}</span>
@@ -1353,6 +1394,14 @@ export default function Products() {
                           Stock bajo
                         </span>
                       )}
+                      {(() => {
+                        const badge = getMeliBadgeProps(meliListingsMap.get(item.id))
+                        return badge ? (
+                          <span title={badge.title} className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black leading-none ${badge.cls}`}>
+                            ML
+                          </span>
+                        ) : null
+                      })()}
                     </div>
                     <h3 className="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
                       {item.description}
