@@ -24,6 +24,11 @@ const LISTING_TYPES = [
   { id: 'free', label: 'Gratuita' },
 ]
 
+const CONDITIONS = [
+  { id: 'new', label: 'Nuevo' },
+  { id: 'used', label: 'Usado' },
+]
+
 export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
   const [step, setStep] = useState<Step>(1)
 
@@ -34,6 +39,8 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
   const [showDropdown, setShowDropdown] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [title, setTitle] = useState('')
+  const [generatingContent, setGeneratingContent] = useState(false)
+  const [aiGenerated, setAiGenerated] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Step 2
@@ -49,6 +56,7 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
   // Step 4
   const [markup, setMarkup] = useState('0')
   const [mlStock, setMlStock] = useState('')
+  const [condition, setCondition] = useState('new')
   const [listingType, setListingType] = useState('gold_special')
   const [description, setDescription] = useState('')
   const [publishing, setPublishing] = useState(false)
@@ -65,12 +73,15 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
     setShowDropdown(false)
     setSelectedProduct(null)
     setTitle('')
+    setGeneratingContent(false)
+    setAiGenerated(false)
     setSuggestions([])
     setSelectedCategory(null)
     setAttributes([])
     setAttrValues({})
     setMarkup('0')
     setMlStock('')
+    setCondition('new')
     setListingType('gold_special')
     setDescription('')
   }, [isOpen])
@@ -108,11 +119,26 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const selectProduct = (p: Product) => {
+  const selectProduct = async (p: Product) => {
     setSelectedProduct(p)
     setTitle(p.description)
     setShowDropdown(false)
     setProductSearch('')
+
+    // Auto-generate AI content
+    setGeneratingContent(true)
+    setAiGenerated(false)
+    try {
+      const content = await meliService.generateListingContent(p.id)
+      setTitle(content.title)
+      setDescription(content.description)
+      setCondition(content.condition)
+      setAiGenerated(true)
+    } catch {
+      toast('Sin IA configurada — completá los campos manualmente', { icon: '⚠️' })
+    } finally {
+      setGeneratingContent(false)
+    }
   }
 
   const clearProduct = () => {
@@ -120,6 +146,9 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
     setProductSearch('')
     setMlStock('')
     setTitle('')
+    setDescription('')
+    setCondition('new')
+    setAiGenerated(false)
   }
 
   const handlePredictCategory = async () => {
@@ -135,7 +164,7 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
     }
   }
 
-  const handleSelectCategory = async (cat: MeliCategorySuggestion) => {
+  const handleSelectCategory = (cat: MeliCategorySuggestion) => {
     setSelectedCategory(cat)
   }
 
@@ -156,6 +185,8 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
     if (step === 1) {
       if (!selectedProduct) { toast.error('Seleccioná un producto'); return }
       if (!title.trim()) { toast.error('Ingresá un título'); return }
+      // Auto-trigger category prediction when entering step 2
+      handlePredictCategory()
       setStep(2)
     } else if (step === 2) {
       if (!selectedCategory) { toast.error('Seleccioná una categoría'); return }
@@ -184,6 +215,7 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
         listing_type_id: listingType,
         title: title || undefined,
         price_markup_pct: markup,
+        condition,
         description: description || undefined,
         available_quantity: mlStock ? parseInt(mlStock, 10) : undefined,
         attributes: Object.entries(attrValues)
@@ -276,7 +308,8 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
                     <button
                       type="button"
                       onClick={clearProduct}
-                      className="flex-shrink-0 text-[#9d84bf] hover:text-[#5c3a8c] transition-colors text-lg leading-none"
+                      disabled={generatingContent}
+                      className="flex-shrink-0 text-[#9d84bf] hover:text-[#5c3a8c] transition-colors text-lg leading-none disabled:opacity-40"
                       title="Cambiar producto"
                     >
                       ✕
@@ -289,7 +322,7 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
                       <Input
                         value={productSearch}
                         onChange={(e) => setProductSearch(e.target.value)}
-                        placeholder="Buscar producto por nombre o código..."
+                        placeholder="Buscar por nombre o código..."
                         className="pl-8"
                         autoFocus
                       />
@@ -309,7 +342,7 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
                             className="w-full text-left px-3 py-2.5 text-sm hover:bg-[#f5f2fa] dark:hover:bg-gray-700 transition-colors border-b border-[#f0eaf8] dark:border-gray-700 last:border-0"
                           >
                             <span className="font-medium text-[#121325] dark:text-white">{p.description}</span>
-                            <span className="text-xs text-[#9d84bf] ml-2">· Stock: {p.current_stock}</span>
+                            <span className="text-xs text-[#9d84bf] ml-2">· Cód: {p.code} · Stock: {p.current_stock}</span>
                           </button>
                         ))}
                       </div>
@@ -320,18 +353,30 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
                   </div>
                 )}
               </div>
+
+              {/* AI generation indicator */}
+              {generatingContent && (
+                <div className="flex items-center gap-2 text-xs text-[#9d84bf] py-1">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-[#5c3a8c]" />
+                  Generando contenido con IA...
+                </div>
+              )}
+
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#7b6b95] mb-1.5">
-                  Título de la publicación
+                  Título de la publicación <span className="text-red-500">*</span>
+                  {aiGenerated && <span className="ml-2 font-normal normal-case tracking-normal text-[#9d84bf]">✨ Generado con IA</span>}
                 </label>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Título que verán los compradores en ML"
                   maxLength={60}
+                  disabled={generatingContent}
                 />
                 <p className="text-xs text-[#9d84bf] mt-1">{title.length}/60 caracteres</p>
               </div>
+
               {salePrice > 0 && (
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-[#f5f2fa] dark:bg-gray-800 border border-[#d9caeb] dark:border-gray-700">
                   <div>
@@ -349,13 +394,14 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
             <div className="space-y-4">
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#7b6b95] mb-1.5">
-                  Título de la publicación
+                  Categoría <span className="text-red-500">*</span>
                 </label>
                 <div className="flex gap-2">
                   <Input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     className="flex-1"
+                    placeholder="Título para sugerir categoría"
                   />
                   <Button
                     type="button"
@@ -370,6 +416,13 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
                   </Button>
                 </div>
               </div>
+
+              {predicting && (
+                <div className="flex items-center gap-2 text-xs text-[#9d84bf]">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-[#5c3a8c]" />
+                  Buscando categorías...
+                </div>
+              )}
 
               {suggestions.length > 0 && (
                 <div>
@@ -418,7 +471,7 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
 
               {suggestions.length === 0 && !predicting && (
                 <div className="flex items-center justify-center py-8 text-[#9d84bf] text-sm">
-                  Hacé clic en "Sugerir" para obtener categorías recomendadas
+                  Buscando categorías automáticamente...
                 </div>
               )}
             </div>
@@ -467,6 +520,38 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
 
           {step === 4 && (
             <div className="space-y-4">
+              {/* Condition — required ML field */}
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#7b6b95] mb-1.5">
+                  Condición <span className="text-red-500">*</span>
+                  {aiGenerated && <span className="ml-2 font-normal normal-case tracking-normal text-[#9d84bf]">✨ Sugerido por IA</span>}
+                </label>
+                <div className="flex gap-3">
+                  {CONDITIONS.map((c) => (
+                    <label
+                      key={c.id}
+                      className={clsx(
+                        'flex items-center gap-2 p-3 rounded-lg border cursor-pointer flex-1 transition-all',
+                        condition === c.id
+                          ? 'border-[#5c3a8c] bg-[#f5f2fa] dark:bg-[#3a2459]/30'
+                          : 'border-[#d9caeb] dark:border-gray-700 hover:border-[#9d84bf]',
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="condition"
+                        value={c.id}
+                        checked={condition === c.id}
+                        onChange={() => setCondition(c.id)}
+                        className="accent-[#5c3a8c]"
+                      />
+                      <span className="text-sm text-[#121325] dark:text-white">{c.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Markup */}
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#7b6b95] mb-1.5">
                   Markup sobre precio local (%)
@@ -491,6 +576,7 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
                 </div>
               </div>
 
+              {/* ML Stock */}
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#7b6b95] mb-1.5">
                   Stock a publicar en ML
@@ -509,11 +595,12 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
                     className="w-32"
                   />
                   <p className="text-xs text-[#9d84bf] pt-2.5 leading-relaxed">
-                    Dejalo vacío para publicar todo el stock. Si el stock real llega a 0, la publicación se pausa automáticamente.
+                    Dejalo vacío para publicar todo el stock. Si llega a 0, la publicación se pausa automáticamente.
                   </p>
                 </div>
               </div>
 
+              {/* Listing type */}
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#7b6b95] mb-1.5">
                   Tipo de publicación
@@ -543,14 +630,16 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
                 </div>
               </div>
 
+              {/* Description */}
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wide text-[#7b6b95] mb-1.5">
-                  Descripción (opcional)
+                  Descripción
+                  {aiGenerated && <span className="ml-2 font-normal normal-case tracking-normal text-[#9d84bf]">✨ Generada con IA</span>}
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
+                  rows={5}
                   placeholder="Descripción detallada del producto..."
                   className="w-full border border-[#d9caeb] dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-[#121325] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#5c3a8c]/40 resize-none"
                 />
@@ -575,9 +664,24 @@ export default function PublishWizard({ isOpen, onClose, onSuccess }: Props) {
           <span className="text-xs text-[#9d84bf]">Paso {step} de 4</span>
 
           {step < 4 ? (
-            <Button type="button" size="sm" onClick={handleNext} className="gap-1">
-              Siguiente
-              <ChevronRight size={15} />
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleNext}
+              disabled={step === 1 && generatingContent}
+              className="gap-1"
+            >
+              {step === 1 && generatingContent ? (
+                <>
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white" />
+                  Generando...
+                </>
+              ) : (
+                <>
+                  Siguiente
+                  <ChevronRight size={15} />
+                </>
+              )}
             </Button>
           ) : (
             <Button type="button" size="sm" onClick={handlePublish} isLoading={publishing} className="gap-1.5">

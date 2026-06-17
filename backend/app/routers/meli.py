@@ -18,6 +18,8 @@ Endpoints:
   POST  /listings/{listing_id}/activate → Encola acción ACTIVATE
 """
 
+import asyncio
+import json
 import logging
 import re
 import secrets
@@ -42,6 +44,8 @@ from app.models.meli import (
     MeliSyncQueue,
     MeliSyncStatus,
 )
+from app.models.product import Product
+from app.services.llm_factory import LLMFactory
 from app.services.meli.client import MeliClient, _decrypt, _encrypt
 from app.services.meli.publisher import MeliPublisher
 from app.utils.security import get_current_business, get_current_user
@@ -544,3 +548,88 @@ async def ml_notifications(
     await db.commit()
 
     return {}
+
+
+# ── AI content generation ─────────────────────────────────────────────────────
+
+
+class GenerateListingContentRequest(BaseModel):
+    product_id: UUID
+
+
+class GenerateListingContentResponse(BaseModel):
+    title: str
+    description: str
+    condition: str
+
+
+@router.post("/generate-listing-content", response_model=GenerateListingContentResponse)
+async def generate_listing_content(
+    body: GenerateListingContentRequest,
+    business_id: UUID = Depends(get_current_business),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate ML listing title, description and condition using the business AI provider."""
+    result = await db.execute(
+        select(Product).where(
+            Product.id == body.product_id,
+            Product.business_id == business_id,
+            Product.deleted_at.is_(None),
+        )
+    )
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    try:
+        provider, api_key, model = await LLMFactory.resolve(str(business_id), db)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    client = LLMFactory.build_openai_compatible(api_key, provider)
+
+    parts = [f"Nombre: {product.description}", f"Código: {product.code}"]
+    if product.brand:
+        parts.append(f"Marca: {product.brand}")
+    if product.line:
+        parts.append(f"Línea: {product.line}")
+    if product.application_area:
+        parts.append(f"Área de aplicación: {product.application_area}")
+    if product.finish:
+        parts.append(f"Terminación: {product.finish}")
+    if product.quality_tier:
+        parts.append(f"Calidad: {product.quality_tier}")
+    if product.details:
+        parts.append(f"Detalles: {product.details}")
+
+    prompt = (
+        "Sos un experto en ecommerce en MercadoLibre Argentina. "
+        "Generá contenido optimizado para una publicación de ML para este producto:\n\n"
+        + "\n".join(parts)
+        + "\n\nRespondé SOLO con un JSON válido (sin markdown, sin texto extra):\n"
+        '{"title": "título máx 60 chars, atractivo y con palabras clave de búsqueda", '
+        '"description": "descripción de 3-5 párrafos destacando características, usos y ventajas del producto", '
+        '"condition": "new o used según corresponda al tipo de producto"}'
+    )
+
+    def _call_llm() -> str:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=800,
+            temperature=0.7,
+        )
+        return resp.choices[0].message.content or ""
+
+    try:
+        raw = await asyncio.to_thread(_call_llm)
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        data: dict = json.loads(match.group()) if match else {}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Error al generar contenido con IA: {exc}")
+
+    return GenerateListingContentResponse(
+        title=(data.get("title") or product.description)[:60],
+        description=data.get("description") or "",
+        condition=data.get("condition") if data.get("condition") in ("new", "used") else "new",
+    )
