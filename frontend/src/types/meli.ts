@@ -40,6 +40,7 @@ export interface PublishListingRequest {
   price_markup_pct?: string
   sync_price?: boolean
   sync_stock?: boolean
+  available_quantity?: number
 }
 
 export interface LinkListingRequest {

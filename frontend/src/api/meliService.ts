@@ -77,6 +77,13 @@ const meliService = {
     const { data } = await httpClient.get(`${base()}/categories/${categoryId}/attributes`)
     return data
   },
+
+  // ── AI content generation ────────────────────────────────────────────────────
+
+  async generateListingContent(productId: string): Promise<{ title: string; description: string; condition: string }> {
+    const { data } = await httpClient.post(`${base()}/generate-listing-content`, { product_id: productId })
+    return data
+  },
 }
 
 export default meliService

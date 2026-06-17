@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ExternalLink,
@@ -66,6 +66,13 @@ function RelativeTime({ iso }: { iso: string | null }) {
 const PAGE_SIZE = 20
 
 export default function MercadoLibre() {
+  useEffect(() => {
+    const links = document.querySelectorAll<HTMLLinkElement>("link[rel~='icon']")
+    const originals = Array.from(links).map((el) => ({ el, href: el.href }))
+    links.forEach((el) => { el.href = '/images/favicon/meli-32.png' })
+    return () => { originals.forEach(({ el, href }) => { el.href = href }) }
+  }, [])
+
   const qc = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
@@ -131,9 +138,7 @@ export default function MercadoLibre() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-[#fff159] flex items-center justify-center text-[11px] font-black text-[#2d3277] flex-shrink-0">
-            ML
-          </div>
+          <img src="/images/favicon/meli-32.png" alt="Mercado Libre" className="w-8 h-8 rounded-lg object-contain flex-shrink-0" />
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Mercado Libre</h1>
         </div>
 

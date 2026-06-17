@@ -85,6 +85,7 @@ class MeliPublisher:
         price_markup_pct: Decimal = Decimal("0"),
         sync_price: bool = True,
         sync_stock: bool = True,
+        available_quantity: int | None = None,
     ) -> MeliListing:
         if attributes is None:
             attributes = []
@@ -122,7 +123,7 @@ class MeliPublisher:
             "category_id": category_id,
             "price": float(round(effective_price, 2)),
             "currency_id": "ARS",
-            "available_quantity": product.current_stock,
+            "available_quantity": available_quantity if available_quantity is not None else product.current_stock,
             "condition": condition,
             "listing_type_id": listing_type_id,
             "pictures": [{"source": url} for url in pictures],
