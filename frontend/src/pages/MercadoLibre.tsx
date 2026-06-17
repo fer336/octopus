@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ExternalLink,
@@ -66,6 +66,13 @@ function RelativeTime({ iso }: { iso: string | null }) {
 const PAGE_SIZE = 20
 
 export default function MercadoLibre() {
+  useEffect(() => {
+    const links = document.querySelectorAll<HTMLLinkElement>("link[rel~='icon']")
+    const originals = Array.from(links).map((el) => ({ el, href: el.href }))
+    links.forEach((el) => { el.href = '/images/favicon/meli.ico' })
+    return () => { originals.forEach(({ el, href }) => { el.href = href }) }
+  }, [])
+
   const qc = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
