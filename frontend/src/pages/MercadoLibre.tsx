@@ -69,7 +69,7 @@ export default function MercadoLibre() {
   useEffect(() => {
     const links = document.querySelectorAll<HTMLLinkElement>("link[rel~='icon']")
     const originals = Array.from(links).map((el) => ({ el, href: el.href }))
-    links.forEach((el) => { el.href = '/images/favicon/meli.ico' })
+    links.forEach((el) => { el.href = '/images/favicon/meli-32.png' })
     return () => { originals.forEach(({ el, href }) => { el.href = href }) }
   }, [])
 
@@ -138,7 +138,7 @@ export default function MercadoLibre() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2.5">
-          <img src="/images/favicon/meli.ico" alt="Mercado Libre" className="w-8 h-8 rounded-lg object-contain flex-shrink-0" />
+          <img src="/images/favicon/meli-32.png" alt="Mercado Libre" className="w-8 h-8 rounded-lg object-contain flex-shrink-0" />
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Mercado Libre</h1>
         </div>
 
