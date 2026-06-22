@@ -1267,7 +1267,7 @@ class ExcelService:
 
         return output.getvalue()
 
-    async def export_price_list(self, price_list: "PriceList", items: list) -> bytes:
+    async def export_price_list(self, price_list: PriceList, items: list) -> bytes:
         """Export a customer-facing price list to Excel. Never includes cost or margin data."""
         from openpyxl import Workbook
         from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
