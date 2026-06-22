@@ -7,6 +7,16 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import toast from 'react-hot-toast'
 
+function getCallbackParam(searchParams: URLSearchParams, name: string): string | null {
+  const value = searchParams.get(name)
+  if (value) return value
+
+  const hashQuery = window.location.hash.split('?')[1]
+  if (!hashQuery) return null
+
+  return new URLSearchParams(hashQuery).get(name)
+}
+
 export default function AuthCallback() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -17,8 +27,8 @@ export default function AuthCallback() {
     if (hasProcessed.current) return
     hasProcessed.current = true
 
-    const accessToken = searchParams.get('access_token')
-    const refreshToken = searchParams.get('refresh_token')
+    const accessToken = getCallbackParam(searchParams, 'access_token')
+    const refreshToken = getCallbackParam(searchParams, 'refresh_token')
 
     if (accessToken && refreshToken) {
       // Guardar tokens en el store

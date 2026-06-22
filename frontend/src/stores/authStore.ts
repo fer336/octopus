@@ -130,9 +130,9 @@ export const useAuthStore = create<AuthState>()(
       // incluso cuando no hay datos persistidos (primera visita).
       // Si no se hace, ProtectedRoute se queda mostrando el spinner
       // porque isLoading nunca pasa a false.
-      onRehydrateStorage: () => () => {
-        // No confiar en la mutación del state — usar setState directo
-        useAuthStore.setState({ isLoading: false })
+      onRehydrateStorage: () => (state) => {
+        // Evita referenciar el store mientras Zustand todavía lo está creando.
+        state?.setLoading(false)
       },
     }
   )
