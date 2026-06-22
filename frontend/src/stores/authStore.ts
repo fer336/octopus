@@ -132,7 +132,7 @@ export const useAuthStore = create<AuthState>()(
       // porque isLoading nunca pasa a false.
       onRehydrateStorage: () => () => {
         // No confiar en la mutación del state — usar setState directo
-        ;(useAuthStore as any).setState({ isLoading: false })
+        useAuthStore.setState({ isLoading: false })
       },
     }
   )
