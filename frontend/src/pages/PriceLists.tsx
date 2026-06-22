@@ -55,6 +55,7 @@ function PriceListDetailModal({
   })
 
   const detail = data as PriceListDetail | undefined
+  const canEditItems = detail?.status === 'draft'
 
   return (
     <Modal isOpen onClose={onClose} title={list.name} size="lg">
@@ -122,7 +123,7 @@ function PriceListDetailModal({
                   ? 'Esta lista no tiene ítems.'
                   : `${detail.items.length.toLocaleString('es-AR')} ítems`}
               </p>
-              {detail.items.length > 0 && (
+              {canEditItems && detail.items.length > 0 && (
                 <Button size="sm" variant="outline" onClick={onBulkAdjust}>
                   Aplicar aumento
                 </Button>

@@ -8,6 +8,7 @@ import { formatErrorMessage } from '../utils/errorHelpers'
 import DuplicatePriceListModal from '../components/price-lists/DuplicatePriceListModal'
 import BulkAdjustModal from '../components/price-lists/BulkAdjustModal'
 import PriceListSendLogPanel from '../components/price-lists/PriceListSendLogPanel'
+import AddProductsToPriceListModal from '../components/price-lists/AddProductsToPriceListModal'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -312,10 +313,12 @@ function WholesaleDetailModal({
   list,
   onClose,
   onBulkAdjust,
+  onAddProducts,
 }: {
   list: PriceList
   onClose: () => void
   onBulkAdjust: () => void
+  onAddProducts: (detail: PriceListDetail) => void
 }) {
   const { data, isLoading } = useQuery({
     queryKey: ['price-lists', list.id],
@@ -324,6 +327,7 @@ function WholesaleDetailModal({
   })
 
   const detail = data as PriceListDetail | undefined
+  const canEditItems = detail?.status === 'draft'
   const visibleColumns: string[] = list.column_config?.visible_columns ?? DEFAULT_COLUMNS
   const conditions: PaymentCondition[] = list.payment_conditions ?? []
 
@@ -380,12 +384,14 @@ function WholesaleDetailModal({
           {detail.items.length === 0 ? (
             <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
               Esta lista no tiene ítems.{' '}
-              <button
-                onClick={onBulkAdjust}
-                className="text-primary-600 underline hover:text-primary-700 dark:text-primary-400"
-              >
-                Agregar productos
-              </button>
+              {canEditItems ? (
+                <button
+                  onClick={() => onAddProducts(detail)}
+                  className="text-primary-600 underline hover:text-primary-700 dark:text-primary-400"
+                >
+                  Agregar productos
+                </button>
+              ) : null}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -442,7 +448,21 @@ function WholesaleDetailModal({
             <PriceListSendLogPanel priceListId={list.id} />
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex flex-wrap justify-end gap-2">
+            {canEditItems && (
+              <>
+                <Button variant="secondary" onClick={() => onAddProducts(detail)}>
+                  <Plus size={14} className="mr-1" />
+                  Agregar productos
+                </Button>
+                {detail.items.length > 0 && (
+                  <Button variant="ghost" onClick={onBulkAdjust}>
+                    <RefreshCw size={14} className="mr-1" />
+                    Aplicar aumento
+                  </Button>
+                )}
+              </>
+            )}
             <Button variant="outline" onClick={onClose}>
               Cerrar
             </Button>
@@ -465,6 +485,7 @@ export default function WholesalePriceLists() {
   const [duplicatingList, setDuplicatingList] = useState<PriceList | null>(null)
   const [archivingList, setArchivingList] = useState<PriceList | null>(null)
   const [bulkAdjustListId, setBulkAdjustListId] = useState<string | null>(null)
+  const [addProductsTarget, setAddProductsTarget] = useState<PriceListDetail | null>(null)
 
   const { data: lists = [], isLoading, error, refetch } = useQuery({
     queryKey: ['price-lists', 'wholesale'],
@@ -542,6 +563,20 @@ export default function WholesalePriceLists() {
       }
       toast.success(`Aumento aplicado a ${result.affected} ítem(s)`, { duration: 3000 })
       setBulkAdjustListId(null)
+    },
+    onError: (err: unknown) => toast.error(formatErrorMessage(err)),
+  })
+
+  const addProductsMutation = useMutation({
+    mutationFn: ({ id, productIds }: { id: string; productIds: string[] }) =>
+      priceListsService.addProducts(id, { product_ids: productIds }),
+    onSuccess: (items) => {
+      if (addProductsTarget) {
+        queryClient.invalidateQueries({ queryKey: ['price-lists', addProductsTarget.id] })
+      }
+      queryClient.invalidateQueries({ queryKey: ['price-lists', 'wholesale'] })
+      toast.success(`Se importaron ${items.length} producto(s)`, { duration: 3000 })
+      setAddProductsTarget(null)
     },
     onError: (err: unknown) => toast.error(formatErrorMessage(err)),
   })
@@ -763,6 +798,18 @@ export default function WholesalePriceLists() {
           list={viewingList}
           onClose={() => setViewingList(null)}
           onBulkAdjust={() => setBulkAdjustListId(viewingList.id)}
+          onAddProducts={(detail) => setAddProductsTarget(detail)}
+        />
+      )}
+
+      {addProductsTarget && (
+        <AddProductsToPriceListModal
+          isOpen
+          listName={addProductsTarget.name}
+          existingItems={addProductsTarget.items}
+          onClose={() => setAddProductsTarget(null)}
+          onConfirm={(productIds) => addProductsMutation.mutate({ id: addProductsTarget.id, productIds })}
+          isPending={addProductsMutation.isPending}
         />
       )}
 
