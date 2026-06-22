@@ -47,6 +47,7 @@ interface SidebarProps {
   onCloseMobile?: () => void
   currentAccountMode?: 'disabled' | 'automatic' | 'manual'
   priceUpdateEnabled?: boolean
+  wholesaleListsEnabled?: boolean
   reportsEnabled?: boolean
   inventoryEnabled?: boolean
   stockpileEnabled?: boolean
@@ -59,6 +60,7 @@ export default function Sidebar({
   onCloseMobile,
   currentAccountMode = 'disabled',
   priceUpdateEnabled = true,
+  wholesaleListsEnabled = false,
   reportsEnabled = true,
   inventoryEnabled = true,
   stockpileEnabled = true,
@@ -80,6 +82,9 @@ export default function Sidebar({
         if (item.path === '/price-lists' && !priceUpdateEnabled && !currentAccountEnabled) {
           return false
         }
+        if (item.path === '/wholesale-lists' && !wholesaleListsEnabled) {
+          return false
+        }
         if (item.path === '/reports' && !reportsEnabled) {
           return false
         }
@@ -94,7 +99,7 @@ export default function Sidebar({
         }
         return hasPathAccess(user, item.path)
       }),
-    [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, whatsappEnabled, user],
+    [currentAccountEnabled, priceUpdateEnabled, wholesaleListsEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, whatsappEnabled, user],
   )
 
   const getActiveSection = (pathname: string) =>

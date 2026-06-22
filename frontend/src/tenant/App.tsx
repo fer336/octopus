@@ -37,6 +37,7 @@ const Messaging   = lazy(() => import('../pages/Messaging'))
 const Settings    = lazy(() => import('../pages/Settings'))
 const Brands        = lazy(() => import('../pages/Brands'))
 const PriceLists    = lazy(() => import('../pages/PriceLists'))
+const WholesalePriceLists = lazy(() => import('../pages/WholesalePriceLists'))
 const MercadoLibre  = lazy(() => import('../pages/MercadoLibre'))
 
 // Error boundary para capturar crashes de páginas individuales
@@ -167,7 +168,7 @@ export default function App() {
               }
             >
               <Route index element={
-                <Suspense fallback={<PageLoader />}><Dashboard /></Suspense>
+                <PageErrorBoundary><Suspense fallback={<PageLoader />}><Dashboard /></Suspense></PageErrorBoundary>
               } />
               <Route path="sales" element={
                 <PageErrorBoundary><Suspense fallback={<PageLoader />}><Sales /></Suspense></PageErrorBoundary>
@@ -222,6 +223,9 @@ export default function App() {
               } />
               <Route path="price-lists" element={
                 <Suspense fallback={<PageLoader />}><PriceLists /></Suspense>
+              } />
+              <Route path="wholesale-lists" element={
+                <PageErrorBoundary><Suspense fallback={<PageLoader />}><WholesalePriceLists /></Suspense></PageErrorBoundary>
               } />
               <Route path="mercadolibre" element={
                 <Suspense fallback={<PageLoader />}><MercadoLibre /></Suspense>

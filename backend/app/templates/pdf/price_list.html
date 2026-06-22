@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Lista de Precios</title>
+    <style type="text/css">
+        @page {
+            size: A4 portrait;
+            margin: 15mm 15mm 15mm 15mm;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 11px;
+            color: #212121;
+            background: #fff;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            width: 100%;
+            border-bottom: 3px solid #1A237E;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+        }
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .header-table td {
+            vertical-align: top;
+            padding: 0;
+        }
+        .business-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1A237E;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .business-info {
+            font-size: 10px;
+            color: #555;
+            margin-top: 2px;
+        }
+        .doc-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #1A237E;
+            text-align: right;
+            text-transform: uppercase;
+        }
+        .doc-meta {
+            font-size: 10px;
+            color: #555;
+            text-align: right;
+            margin-top: 2px;
+        }
+
+        /* ===== SUBHEADER BAR ===== */
+        .subheader-bar {
+            background-color: #E8EAF6;
+            border: 1px solid #C5CAE9;
+            padding: 6px 10px;
+            margin-bottom: 8px;
+        }
+        .subheader-bar table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .subheader-bar td {
+            font-size: 10px;
+            color: #333;
+            padding: 1px 4px;
+            vertical-align: middle;
+        }
+        .subheader-label {
+            font-weight: bold;
+            color: #1A237E;
+            white-space: nowrap;
+        }
+        .list-name {
+            font-size: 13px;
+            font-weight: bold;
+            color: #212121;
+        }
+
+        /* ===== TERMS SECTION ===== */
+        .terms-section {
+            border: 1px solid #C5CAE9;
+            background: #F5F5F5;
+            padding: 5px 8px;
+            margin-bottom: 8px;
+            font-size: 9px;
+            color: #444;
+        }
+        .terms-label {
+            font-weight: bold;
+            font-size: 9px;
+            text-transform: uppercase;
+            color: #1A237E;
+            margin-bottom: 2px;
+        }
+
+        /* ===== ITEMS TABLE ===== */
+        table.items {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table.items thead tr {
+            background-color: #283593;
+        }
+        table.items thead th {
+            padding: 5px 4px;
+            text-align: center;
+            font-size: 9px;
+            font-weight: bold;
+            color: #FFFFFF;
+            border: 1px solid #1A237E;
+            white-space: nowrap;
+        }
+        table.items tbody td {
+            padding: 4px 4px;
+            border: 1px solid #E0E0E0;
+            font-size: 10px;
+            vertical-align: middle;
+        }
+        table.items tbody td.text-right {
+            text-align: right;
+        }
+        table.items tbody td.text-center {
+            text-align: center;
+        }
+        table.items tbody td.col-final {
+            text-align: right;
+            font-weight: bold;
+            background-color: #E8EAF6;
+        }
+        table.items tbody tr.row-odd {
+            background-color: #FFFFFF;
+        }
+        table.items tbody tr.row-even {
+            background-color: #FAFAFA;
+        }
+
+        /* Column widths */
+        col.col-code      { width: 9%; }
+        col.col-desc      { width: 28%; }
+        col.col-brand     { width: 10%; }
+        col.col-unit      { width: 6%; }
+        col.col-list      { width: 10%; }
+        col.col-disc      { width: 7%; }
+        col.col-net       { width: 10%; }
+        col.col-iva       { width: 6%; }
+        col.col-final     { width: 14%; }
+
+        /* Avoid row page breaks */
+        table.items tbody tr { page-break-inside: avoid; }
+        table.items thead    { display: table-header-group; }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            margin-top: 10px;
+            border-top: 1px solid #C5CAE9;
+            padding-top: 5px;
+        }
+        .footer-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .footer-table td {
+            font-size: 9px;
+            color: #777;
+            vertical-align: top;
+        }
+        .footer-disclaimer {
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <div class="header">
+        <table class="header-table">
+            <tr>
+                <td style="width: 60%;">
+                    <div class="business-name">{{ business.name if business else '' }}</div>
+                    {% if business and business.address %}
+                    <div class="business-info">{{ business.address }}</div>
+                    {% endif %}
+                    {% if business and business.cuit %}
+                    <div class="business-info">CUIT: {{ business.cuit }}</div>
+                    {% endif %}
+                </td>
+                <td style="width: 40%;">
+                    <div class="doc-title">Lista de Precios</div>
+                    <div class="doc-meta">Emitida el: {{ issued_date.strftime('%d/%m/%Y') if issued_date else '—' }}</div>
+                    <div class="doc-meta">
+                        Moneda: {{ price_list.currency | default('ARS') }}
+                        {% if price_list.includes_tax %}— Precios con IVA incluido{% else %}— Precios sin IVA{% endif %}
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- SUBHEADER BAR -->
+    <div class="subheader-bar">
+        <table>
+            <tr>
+                <td style="width: 5%;"><span class="subheader-label">Lista:</span></td>
+                <td style="width: 45%;"><span class="list-name">{{ price_list.name }}</span></td>
+                <td style="width: 10%;"><span class="subheader-label">Desde:</span></td>
+                <td style="width: 15%;">{{ price_list.valid_from.strftime('%d/%m/%Y') if price_list.valid_from else '—' }}</td>
+                <td style="width: 10%;"><span class="subheader-label">Hasta:</span></td>
+                <td style="width: 15%;">{{ price_list.valid_until.strftime('%d/%m/%Y') if price_list.valid_until else '—' }}</td>
+            </tr>
+            {% if price_list.description %}
+            <tr>
+                <td><span class="subheader-label">Desc.:</span></td>
+                <td colspan="5" style="font-size: 10px; color: #444;">{{ price_list.description }}</td>
+            </tr>
+            {% endif %}
+        </table>
+    </div>
+
+    <!-- TERMS AND CONDITIONS -->
+    {% if price_list.terms_and_conditions %}
+    <div class="terms-section">
+        <div class="terms-label">Términos y Condiciones</div>
+        <div>{{ price_list.terms_and_conditions }}</div>
+    </div>
+    {% endif %}
+
+    <!-- ITEMS TABLE -->
+    <table class="items">
+        <colgroup>
+            <col class="col-code">
+            <col class="col-desc">
+            <col class="col-brand">
+            <col class="col-unit">
+            <col class="col-list">
+            <col class="col-disc">
+            <col class="col-net">
+            <col class="col-iva">
+            <col class="col-final">
+        </colgroup>
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Descripción</th>
+                <th>Marca</th>
+                <th>Unidad</th>
+                <th>Precio lista</th>
+                <th>Desc.%</th>
+                <th>Precio neto</th>
+                <th>IVA%</th>
+                <th>Precio final</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr class="{{ 'row-even' if loop.index is even else 'row-odd' }}">
+                <td>{{ item.product_code or '—' }}</td>
+                <td>{{ item.category_name or '' }}{% if item.category_name and item.brand_name %} · {% endif %}</td>
+                <td class="text-center">{{ item.brand_name or '—' }}</td>
+                <td class="text-center">{{ item.unit or '—' }}</td>
+                <td class="text-right">
+                    {% if item.base_price %}
+                        $ {{ "%.2f"|format(item.base_price|float) }}
+                    {% else %}
+                        $ {{ "%.2f"|format(item.unit_price|float) }}
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    {% if item.discount_percent and item.discount_percent|float > 0 %}
+                        {{ "%.1f"|format(item.discount_percent|float) }}%
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td class="text-right">
+                    {% if item.net_price %}
+                        $ {{ "%.2f"|format(item.net_price|float) }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    {{ "%.0f"|format((item.iva_rate or item.tax_percent or 21)|float) }}%
+                </td>
+                <td class="col-final">
+                    {% if item.final_price %}
+                        $ {{ "%.2f"|format(item.final_price|float) }}
+                    {% else %}
+                        $ {{ "%.2f"|format(item.unit_price|float) }}
+                    {% endif %}
+                </td>
+            </tr>
+            {% if item.item_notes %}
+            <tr class="{{ 'row-even' if loop.index is even else 'row-odd' }}">
+                <td></td>
+                <td colspan="8" style="font-size: 9px; color: #666; font-style: italic; padding-left: 8px;">
+                    {{ item.item_notes }}
+                </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- FOOTER -->
+    <div class="footer">
+        <table class="footer-table">
+            <tr>
+                <td class="footer-disclaimer">
+                    Precios sujetos a modificación sin previo aviso. Stock sujeto a disponibilidad.
+                </td>
+                <td style="text-align: right;">
+                    {{ business.name if business else '' }} — Sistema OctopusTrack
+                </td>
+            </tr>
+        </table>
+    </div>
+
+</body>
+</html>

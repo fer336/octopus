@@ -37,6 +37,7 @@ const Feedback   = lazy(() => import('./pages/Feedback'))
 const Authorizations = lazy(() => import('./pages/Authorizations'))
 const Messaging  = lazy(() => import('./pages/Messaging'))
 const PriceLists  = lazy(() => import('./pages/PriceLists'))
+const WholesalePriceLists = lazy(() => import('./pages/WholesalePriceLists'))
 const Stockpiles     = lazy(() => import('./pages/Stockpiles'))
 const MercadoLibre   = lazy(() => import('./pages/MercadoLibre'))
 
@@ -145,6 +146,9 @@ export default function App() {
               } />
               <Route path="price-lists" element={
                 <Suspense fallback={<PageLoader />}><PriceLists /></Suspense>
+              } />
+              <Route path="wholesale-lists" element={
+                <Suspense fallback={<PageLoader />}><WholesalePriceLists /></Suspense>
               } />
               <Route path="clients" element={
                 <Suspense fallback={<PageLoader />}><Clients /></Suspense>

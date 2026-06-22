@@ -441,6 +441,19 @@ class PdfService:
             traceback.print_exc()
             raise
 
+    def generate_price_list_pdf(self, context: dict[str, Any]) -> bytes:
+        """
+        Generate a customer-facing price list PDF.
+
+        Context keys: business, price_list, items, issued_date.
+        """
+        try:
+            template = env.get_template("price_list.html")
+            html_content = template.render(**context)
+            return HTML(string=html_content).write_pdf()
+        except Exception as e:
+            raise RuntimeError(f"Error generating price list PDF: {e}") from e
+
     def _format_currency(self, value: float) -> str:
         return f"{value:,.2f}"
 

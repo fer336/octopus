@@ -70,6 +70,7 @@ class Business(BaseModel):
     inventory_enabled = Column(Boolean, nullable=False, default=True)
     stockpile_enabled = Column(Boolean, nullable=False, default=True)
     price_update_enabled = Column(Boolean, nullable=False, default=True)
+    wholesale_lists_enabled = Column(Boolean, nullable=False, default=False)
     reports_enabled = Column(Boolean, nullable=False, default=True)
     sql_backup_enabled = Column(Boolean, nullable=False, default=False)
     invoice_zero_stock_enabled = Column(Boolean, nullable=False, default=False)

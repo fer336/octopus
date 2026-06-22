@@ -404,6 +404,13 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
             : 'Actualización de precios deshabilitada',
         )
       }
+      if (typeof payload.wholesale_lists_enabled === 'boolean') {
+        toast.success(
+          payload.wholesale_lists_enabled
+            ? 'Listas mayoristas habilitadas'
+            : 'Listas mayoristas deshabilitadas',
+        )
+      }
       if (typeof payload.reports_enabled === 'boolean') {
         toast.success(payload.reports_enabled ? 'Reportes habilitados' : 'Reportes deshabilitados')
       }
@@ -490,6 +497,7 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
   const inventoryEnabled = flagsQuery.data?.inventory_enabled ?? true
   const stockpileEnabled = flagsQuery.data?.stockpile_enabled ?? true
   const priceUpdateEnabled = flagsQuery.data?.price_update_enabled ?? true
+  const wholesaleListsEnabled = flagsQuery.data?.wholesale_lists_enabled ?? false
   const reportsEnabled = flagsQuery.data?.reports_enabled ?? true
   const sqlBackupEnabled = flagsQuery.data?.sql_backup_enabled ?? false
   const invoiceZeroStockEnabled = flagsQuery.data?.invoice_zero_stock_enabled ?? false
@@ -832,6 +840,33 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
                 <span
                   className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
                     priceUpdateEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Listas de Precios Mayoristas</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Habilita la creación y gestión de listas de precios mayoristas con condiciones de pago personalizadas.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={wholesaleListsEnabled}
+                onClick={() => updateMutation.mutate({ wholesale_lists_enabled: !wholesaleListsEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  wholesaleListsEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    wholesaleListsEnabled ? 'translate-x-6' : 'translate-x-1'
                   }`}
                 />
               </button>

@@ -49,7 +49,7 @@ from app.models.voucher_item import VoucherItem
 from app.models.voucher_payment import VoucherPayment
 from app.models.product_lot import ProductLot
 from app.models.stockpile import Stockpile, StockpileItem, StockpilePriceSnapshot, StockpileStatus
-from app.models.price_list import PriceList, PriceListItem
+from app.models.price_list import PriceList, PriceListItem, PriceListSendLog
 from app.models.cc_draft import CCDraft
 from app.models.meli import (
     MeliCredentialStatus,
@@ -127,6 +127,7 @@ __all__ = [
     # Price Lists
     "PriceList",
     "PriceListItem",
+    "PriceListSendLog",
     # CC Drafts
     "CCDraft",
     # Mercado Libre

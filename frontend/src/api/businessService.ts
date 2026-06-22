@@ -32,6 +32,7 @@ export interface Business {
   inventory_enabled: boolean
   stockpile_enabled: boolean
   price_update_enabled: boolean
+  wholesale_lists_enabled: boolean
   reports_enabled: boolean
   sql_backup_enabled: boolean
   invoice_zero_stock_enabled: boolean

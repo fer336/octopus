@@ -41,6 +41,7 @@ export default function MainLayout() {
   const aiEnabled = business?.ai_agent_enabled ?? false
   const currentAccountEnabled = (business?.current_account_mode ?? 'disabled') !== 'disabled'
   const priceUpdateEnabled = business?.price_update_enabled ?? true
+  const wholesaleListsEnabled = business?.wholesale_lists_enabled ?? false
   const reportsEnabled = business?.reports_enabled ?? true
   const inventoryEnabled = business?.inventory_enabled ?? true
   const stockpileEnabled = business?.stockpile_enabled ?? true
@@ -69,6 +70,11 @@ export default function MainLayout() {
       return
     }
 
+    if (location.pathname.startsWith('/wholesale-lists') && !wholesaleListsEnabled) {
+      navigate('/', { replace: true })
+      return
+    }
+
     if (location.pathname.startsWith('/reports') && !reportsEnabled) {
       navigate('/', { replace: true })
       return
@@ -93,7 +99,7 @@ export default function MainLayout() {
       const fallbackPath = navigationItems.find((item) => hasPathAccess(user, item.path))?.path ?? '/'
       navigate(fallbackPath, { replace: true })
     }
-  }, [currentAccountEnabled, priceUpdateEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, whatsappEnabled, business, location.pathname, navigate, user])
+  }, [currentAccountEnabled, priceUpdateEnabled, wholesaleListsEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, whatsappEnabled, business, location.pathname, navigate, user])
 
   const toggleSidebar = () => {
     if (window.innerWidth < 768) return // mobile: MobileNav handles navigation
@@ -155,6 +161,7 @@ export default function MainLayout() {
           onCloseMobile={closeMobileSidebar}
           currentAccountMode={business?.current_account_mode}
           priceUpdateEnabled={priceUpdateEnabled}
+          wholesaleListsEnabled={wholesaleListsEnabled}
           reportsEnabled={reportsEnabled}
           inventoryEnabled={inventoryEnabled}
           stockpileEnabled={stockpileEnabled}

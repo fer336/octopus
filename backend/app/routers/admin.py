@@ -180,6 +180,7 @@ class FeatureFlagsResponse(BaseModel):
     inventory_enabled: bool
     stockpile_enabled: bool
     price_update_enabled: bool
+    wholesale_lists_enabled: bool = False
     reports_enabled: bool
     sql_backup_enabled: bool = False
     srx_enabled: bool = False
@@ -200,6 +201,7 @@ class FeatureFlagsUpdate(BaseModel):
     inventory_enabled: bool | None = None
     stockpile_enabled: bool | None = None
     price_update_enabled: bool | None = None
+    wholesale_lists_enabled: bool | None = None
     reports_enabled: bool | None = None
     sql_backup_enabled: bool | None = None
     srx_enabled: bool | None = None
@@ -1687,6 +1689,7 @@ async def get_feature_flags(
         inventory_enabled=bool(getattr(business, "inventory_enabled", True)),
         stockpile_enabled=bool(getattr(business, "stockpile_enabled", True)),
         price_update_enabled=bool(business.price_update_enabled),
+        wholesale_lists_enabled=bool(getattr(business, "wholesale_lists_enabled", False)),
         reports_enabled=bool(business.reports_enabled),
         sql_backup_enabled=bool(business.sql_backup_enabled),
         srx_enabled=bool(getattr(business, "srx_enabled", False)),
@@ -1754,6 +1757,7 @@ async def update_feature_flags(
         inventory_enabled=bool(getattr(business, "inventory_enabled", True)),
         stockpile_enabled=bool(getattr(business, "stockpile_enabled", True)),
         price_update_enabled=bool(business.price_update_enabled),
+        wholesale_lists_enabled=bool(getattr(business, "wholesale_lists_enabled", False)),
         reports_enabled=bool(business.reports_enabled),
         sql_backup_enabled=bool(business.sql_backup_enabled),
         srx_enabled=bool(getattr(business, "srx_enabled", False)),
