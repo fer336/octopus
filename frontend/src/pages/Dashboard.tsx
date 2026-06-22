@@ -555,7 +555,7 @@ export default function Dashboard() {
           {[
             {
               label: 'Productos',
-              value: summary?.total_products.toString() || '0',
+              value: summary?.total_products?.toString() ?? '0',
               sub: hasLowStock ? `${summary?.low_stock_products} bajo stock` : 'Stock saludable',
               icon: Package,
               color: hasLowStock ? 'text-orange-600' : 'text-primary-600',
