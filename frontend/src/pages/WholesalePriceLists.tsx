@@ -334,7 +334,14 @@ function WholesaleDetailModal({
   const colLabel = (key: string) => AVAILABLE_COLUMNS.find((c) => c.key === key)?.label ?? key
 
   return (
-    <Modal isOpen onClose={onClose} title={list.name} size="xl">
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={list.name}
+      size="xl"
+      containerClassName="flex max-h-[calc(100vh-2rem)] flex-col"
+      contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
+    >
       {isLoading ? (
         <div className="space-y-2 py-2">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -346,109 +353,111 @@ function WholesaleDetailModal({
           No se pudo cargar el detalle.
         </p>
       ) : (
-        <div className="space-y-4">
-          {/* Metadata */}
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg bg-gray-50 px-4 py-3 text-sm dark:bg-gray-800/60 sm:grid-cols-3">
-            <div className="flex gap-2">
-              <span className="text-gray-500 dark:text-gray-400">Estado:</span>
-              <StatusBadge status={detail.status} />
-            </div>
-            <div className="flex gap-2">
-              <span className="text-gray-500 dark:text-gray-400">Moneda:</span>
-              <span className="font-medium text-gray-800 dark:text-gray-200">{detail.currency}</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-gray-500 dark:text-gray-400">Versión:</span>
-              <span className="font-medium text-gray-800 dark:text-gray-200">v{detail.version}</span>
-            </div>
-            {detail.valid_from && (
-              <div className="flex gap-2 sm:col-span-2">
-                <span className="text-gray-500 dark:text-gray-400">Vigencia:</span>
-                <span className="font-medium text-gray-800 dark:text-gray-200">
-                  {new Date(`${detail.valid_from}T00:00:00`).toLocaleDateString('es-AR')}
-                  {detail.valid_until && ` → ${new Date(`${detail.valid_until}T00:00:00`).toLocaleDateString('es-AR')}`}
-                </span>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+            {/* Metadata */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg bg-gray-50 px-4 py-3 text-sm dark:bg-gray-800/60 sm:grid-cols-3">
+              <div className="flex gap-2">
+                <span className="text-gray-500 dark:text-gray-400">Estado:</span>
+                <StatusBadge status={detail.status} />
               </div>
-            )}
-            {conditions.length > 0 && (
-              <div className="flex gap-2 sm:col-span-3">
-                <span className="text-gray-500 dark:text-gray-400">Condiciones:</span>
-                <span className="font-medium text-gray-800 dark:text-gray-200">
-                  {conditions.map((c) => `${c.label} +${c.surcharge_pct}%`).join(' · ')}
-                </span>
+              <div className="flex gap-2">
+                <span className="text-gray-500 dark:text-gray-400">Moneda:</span>
+                <span className="font-medium text-gray-800 dark:text-gray-200">{detail.currency}</span>
               </div>
-            )}
-          </div>
+              <div className="flex gap-2">
+                <span className="text-gray-500 dark:text-gray-400">Versión:</span>
+                <span className="font-medium text-gray-800 dark:text-gray-200">v{detail.version}</span>
+              </div>
+              {detail.valid_from && (
+                <div className="flex gap-2 sm:col-span-2">
+                  <span className="text-gray-500 dark:text-gray-400">Vigencia:</span>
+                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                    {new Date(`${detail.valid_from}T00:00:00`).toLocaleDateString('es-AR')}
+                    {detail.valid_until && ` → ${new Date(`${detail.valid_until}T00:00:00`).toLocaleDateString('es-AR')}`}
+                  </span>
+                </div>
+              )}
+              {conditions.length > 0 && (
+                <div className="flex gap-2 sm:col-span-3">
+                  <span className="text-gray-500 dark:text-gray-400">Condiciones:</span>
+                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                    {conditions.map((c) => `${c.label} +${c.surcharge_pct}%`).join(' · ')}
+                  </span>
+                </div>
+              )}
+            </div>
 
-          {/* Items table */}
-          {detail.items.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-              Esta lista no tiene ítems.{' '}
-              {canEditItems ? (
-                <button
-                  onClick={() => onAddProducts(detail)}
-                  className="text-primary-600 underline hover:text-primary-700 dark:text-primary-400"
-                >
-                  Agregar productos
-                </button>
-              ) : null}
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 dark:border-gray-700">
-                    {visibleColumns.map((col) => (
-                      <th
-                        key={col}
-                        className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
-                      >
-                        {colLabel(col)}
-                      </th>
-                    ))}
-                    {conditions.map((cond) => (
-                      <th
-                        key={cond.label}
-                        className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-400"
-                      >
-                        {cond.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
-                  {detail.items.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                      {visibleColumns.map((col) => {
-                        const raw = (item as unknown as Record<string, unknown>)[col]
-                        return (
-                          <td key={col} className="px-3 py-2 text-gray-800 dark:text-gray-200">
-                            {raw !== null && raw !== undefined ? String(raw) : '—'}
-                          </td>
-                        )
-                      })}
-                      {conditions.map((cond) => {
-                        const base = item.final_price ?? item.unit_price
-                        const price = base * (1 + cond.surcharge_pct / 100)
-                        return (
-                          <td key={cond.label} className="px-3 py-2 text-right tabular-nums text-gray-800 dark:text-gray-200">
-                            {price.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                        )
-                      })}
+            {/* Items table */}
+            {detail.items.length === 0 ? (
+              <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                Esta lista no tiene ítems.{' '}
+                {canEditItems ? (
+                  <button
+                    onClick={() => onAddProducts(detail)}
+                    className="text-primary-600 underline hover:text-primary-700 dark:text-primary-400"
+                  >
+                    Agregar productos
+                  </button>
+                ) : null}
+              </p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-700/60">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-white dark:bg-gray-800">
+                    <tr className="border-b border-gray-100 dark:border-gray-700">
+                      {visibleColumns.map((col) => (
+                        <th
+                          key={col}
+                          className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                        >
+                          {colLabel(col)}
+                        </th>
+                      ))}
+                      {conditions.map((cond) => (
+                        <th
+                          key={cond.label}
+                          className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-400"
+                        >
+                          {cond.label}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+                    {detail.items.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                        {visibleColumns.map((col) => {
+                          const raw = (item as unknown as Record<string, unknown>)[col]
+                          return (
+                            <td key={col} className="px-3 py-2 text-gray-800 dark:text-gray-200">
+                              {raw !== null && raw !== undefined ? String(raw) : '—'}
+                            </td>
+                          )
+                        })}
+                        {conditions.map((cond) => {
+                          const base = item.final_price ?? item.unit_price
+                          const price = base * (1 + cond.surcharge_pct / 100)
+                          return (
+                            <td key={cond.label} className="px-3 py-2 text-right tabular-nums text-gray-800 dark:text-gray-200">
+                              {price.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
-          {/* Send log */}
-          <div className="border-t border-gray-200 pt-4 dark:border-gray-700">
-            <PriceListSendLogPanel priceListId={list.id} />
+            {/* Send log */}
+            <div className="border-t border-gray-200 pt-4 dark:border-gray-700">
+              <PriceListSendLogPanel priceListId={list.id} />
+            </div>
           </div>
 
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="mt-4 flex shrink-0 flex-wrap justify-end gap-2 border-t border-gray-200 pt-4 dark:border-gray-700">
             {canEditItems && (
               <>
                 <Button variant="secondary" onClick={() => onAddProducts(detail)}>

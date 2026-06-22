@@ -68,7 +68,7 @@ class PriceListService:
         """Return a price list with items eagerly loaded."""
         result = await self.db.execute(
             select(PriceList)
-            .options(selectinload(PriceList.items))
+            .options(selectinload(PriceList.items).selectinload(PriceListItem.product))
             .where(
                 PriceList.id == id,
                 PriceList.business_id == business_id,
@@ -162,8 +162,10 @@ class PriceListService:
         for product in products:
             item = PriceListItem(
                 price_list_id=price_list.id,
+                product_id=product.id,
                 product_code=product.code,
                 unit_price=product.sale_price,
+                description=product.description,
             )
             self.db.add(item)
 
@@ -270,6 +272,7 @@ class PriceListService:
 
             item = PriceListItem(
                 price_list_id=price_list_id,
+                product=product,
                 product_id=product.id,
                 product_code=product.code,
                 description=product.description,
@@ -305,7 +308,9 @@ class PriceListService:
         if not pl:
             return None
         result = await self.db.execute(
-            select(PriceListItem).where(
+            select(PriceListItem)
+            .options(selectinload(PriceListItem.product))
+            .where(
                 PriceListItem.id == item_id,
                 PriceListItem.price_list_id == price_list_id,
                 PriceListItem.deleted_at.is_(None),
@@ -472,6 +477,7 @@ class PriceListService:
                 product_id=orig_item.product_id,
                 product_code=orig_item.product_code,
                 unit_price=orig_item.unit_price,
+                description=orig_item.description,
                 supplier_code=orig_item.supplier_code,
                 brand_name=orig_item.brand_name,
                 category_name=orig_item.category_name,

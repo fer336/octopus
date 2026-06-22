@@ -1319,12 +1319,15 @@ class ExcelService:
         vu_str = price_list.valid_until.strftime('%d/%m/%Y') if price_list.valid_until else ""
 
         for row_idx, item in enumerate(items, 3):
+            product = getattr(item, "product", None)
+            product_description = getattr(product, "description", None)
+            description = product_description or getattr(item, "description", None) or item.product_code or ""
             row_data = [
                 item.product_code or "",
                 item.supplier_code or "",
                 item.brand_name or "",
                 item.category_name or "",
-                getattr(item, "description", "") or item.product_code or "",
+                description,
                 item.unit or "",
                 float(item.pack_quantity) if item.pack_quantity else "",
                 float(item.min_quantity) if item.min_quantity else "",

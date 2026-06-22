@@ -19,7 +19,8 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.business import Business
-from app.models.price_list import PriceList
+from app.models.price_list import PriceList, PriceListItem
+from app.models.product import Product
 from app.models.tenant_membership import TenantMembership
 from app.models.user import User
 from app.schemas.price_list import PaymentCondition, PriceListCreate, PriceListItemCreate
@@ -479,6 +480,54 @@ async def test_router_get_detail_includes_wholesale_fields(
     assert data["list_type"] == "wholesale"
     assert data["column_config"]["visible_columns"] == cols
     assert data["payment_conditions"][0]["label"] == "Contado"
+
+
+@pytest.mark.asyncio
+async def test_router_get_detail_prefers_product_description_over_snapshot(
+    client: AsyncClient,
+    db: AsyncSession,
+    user_a: User,
+    business_a: Business,
+    membership_a: TenantMembership,
+):
+    await _enable_price_lists(db, membership_a)
+    headers = make_auth_header(user_a)
+
+    product = Product(
+        business_id=business_a.id,
+        code="ROD001",
+        description="Rodillo profesional",
+        sale_price=Decimal("121.00"),
+        net_price=Decimal("100.00"),
+        iva_rate=Decimal("21.00"),
+        unit="unidad",
+        cost_price=Decimal("50.00"),
+        list_price=Decimal("100.00"),
+    )
+    db.add(product)
+    await db.flush()
+
+    price_list = await _make_wholesale_list(
+        db,
+        business_a,
+        visible_columns=["product_code", "description", "final_price"],
+    )
+    item = PriceListItem(
+        price_list_id=price_list.id,
+        product_id=product.id,
+        product_code=product.code,
+        description="Pintureria",
+        unit_price=Decimal("121.00"),
+        final_price=Decimal("121.00"),
+    )
+    db.add(item)
+    await db.commit()
+
+    resp = await client.get(f"/api/tenant/price-lists/{price_list.id}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["items"][0]["description"] == "Rodillo profesional"
 
 
 @pytest.mark.asyncio

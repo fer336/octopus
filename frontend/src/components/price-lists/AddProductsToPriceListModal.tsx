@@ -186,14 +186,22 @@ export default function AddProductsToPriceListModal({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Agregar productos a la lista" size="xl">
-      <div className="space-y-4">
-        <div className="rounded-lg bg-primary-50 px-4 py-3 text-sm text-primary-900 dark:bg-primary-900/20 dark:text-primary-100">
-          <p className="font-medium">{listName}</p>
-          <p className="mt-0.5 text-xs text-primary-700 dark:text-primary-200">
-            Filtrá productos, revisá la vista previa y marcá explícitamente qué ítems importar.
-          </p>
-        </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Agregar productos a la lista"
+      size="xl"
+      containerClassName="flex max-h-[calc(100vh-2rem)] flex-col"
+      contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
+    >
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+          <div className="rounded-lg bg-primary-50 px-4 py-3 text-sm text-primary-900 dark:bg-primary-900/20 dark:text-primary-100">
+            <p className="font-medium">{listName}</p>
+            <p className="mt-0.5 text-xs text-primary-700 dark:text-primary-200">
+              Filtrá productos, revisá la vista previa y marcá explícitamente qué ítems importar.
+            </p>
+          </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <div className="md:col-span-2">
@@ -255,7 +263,7 @@ export default function AddProductsToPriceListModal({
           </button>
         </div>
 
-        <div className="max-h-[46vh] overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
           {productsQuery.isLoading ? (
             <div className="space-y-2 p-3">
               {Array.from({ length: 6 }).map((_, index) => (
@@ -324,7 +332,9 @@ export default function AddProductsToPriceListModal({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+        </div>
+
+        <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
           <div className="flex items-center gap-2">
             <Button
               variant="outline"

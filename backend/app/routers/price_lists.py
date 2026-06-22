@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -27,6 +28,29 @@ router = APIRouter(
     tags=["Price Lists"],
     dependencies=[Depends(require_module_access("price_lists"))],
 )
+
+
+def _effective_item_description(item) -> str | None:
+    product = None
+    try:
+        if "product" not in sa_inspect(item).unloaded:
+            product = getattr(item, "product", None)
+    except Exception:
+        product = getattr(item, "product", None)
+    product_description = getattr(product, "description", None)
+    return product_description or getattr(item, "description", None)
+
+
+def _item_response(item) -> PriceListItemResponse:
+    response = PriceListItemResponse.model_validate(item)
+    response.description = _effective_item_description(item)
+    return response
+
+
+def _detail_response(price_list) -> PriceListDetailResponse:
+    response = PriceListDetailResponse.model_validate(price_list)
+    response.items = [_item_response(item) for item in price_list.items]
+    return response
 
 
 @router.get("", response_model=list[PriceListResponse])
@@ -59,7 +83,7 @@ async def create_price_list(
     await db.commit()
     # Re-fetch with items loaded
     refreshed = await service.get_by_id(price_list.id, business_id)
-    return PriceListDetailResponse.model_validate(refreshed)
+    return _detail_response(refreshed)
 
 
 @router.post("/snapshot", response_model=PriceListDetailResponse, status_code=status.HTTP_201_CREATED)
@@ -73,7 +97,7 @@ async def create_snapshot(
     price_list = await service.snapshot_from_products(name, business_id)
     await db.commit()
     refreshed = await service.get_by_id(price_list.id, business_id)
-    return PriceListDetailResponse.model_validate(refreshed)
+    return _detail_response(refreshed)
 
 
 @router.get("/{price_list_id}", response_model=PriceListDetailResponse)
@@ -87,7 +111,7 @@ async def get_price_list(
     price_list = await service.get_by_id(price_list_id, business_id)
     if not price_list:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Price list not found")
-    return PriceListDetailResponse.model_validate(price_list)
+    return _detail_response(price_list)
 
 
 @router.delete("/{price_list_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -118,7 +142,7 @@ async def update_price_list(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Price list not found")
     await db.commit()
     refreshed = await service.get_by_id(price_list_id, business_id)
-    return PriceListDetailResponse.model_validate(refreshed)
+    return _detail_response(refreshed)
 
 
 @router.post("/{price_list_id}/archive", status_code=status.HTTP_204_NO_CONTENT)
@@ -151,7 +175,7 @@ async def add_products_to_price_list(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     await db.commit()
-    return [PriceListItemResponse.model_validate(i) for i in items]
+    return [_item_response(i) for i in items]
 
 
 @router.put("/{price_list_id}/items/{item_id}", response_model=PriceListItemResponse)
@@ -168,7 +192,7 @@ async def update_price_list_item(
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
     await db.commit()
-    return PriceListItemResponse.model_validate(item)
+    return _item_response(item)
 
 
 @router.delete("/{price_list_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -231,7 +255,7 @@ async def duplicate_price_list(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     await db.commit()
     refreshed = await service.get_by_id(new_pl.id, business_id)
-    return PriceListDetailResponse.model_validate(refreshed)
+    return _detail_response(refreshed)
 
 
 @router.get("/{price_list_id}/export.xlsx")

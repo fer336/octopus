@@ -126,6 +126,30 @@ async def test_excel_no_cost_fields():
     assert not found, f"Forbidden cost/margin headers found: {found}"
 
 
+@pytest.mark.asyncio
+async def test_excel_export_prefers_product_description_over_snapshot():
+    """Excel export must show the linked product name, not a stale snapshot category."""
+    import io
+
+    from openpyxl import load_workbook
+
+    from app.services.excel_service import ExcelService
+
+    mock_db = AsyncMock()
+    svc = ExcelService(mock_db)
+
+    pl = _make_price_list()
+    item = _make_item()
+    item.description = "Pintureria"
+    item.product = types.SimpleNamespace(description="Rodillo profesional")
+
+    raw = await svc.export_price_list(pl, [item])
+    wb = load_workbook(io.BytesIO(raw))
+    ws = wb.active
+
+    assert ws.cell(row=3, column=5).value == "Rodillo profesional"
+
+
 # ---------------------------------------------------------------------------
 # PDF export tests
 # ---------------------------------------------------------------------------

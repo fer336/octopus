@@ -267,7 +267,7 @@
             {% for item in items %}
             <tr class="{{ 'row-even' if loop.index is even else 'row-odd' }}">
                 <td>{{ item.product_code or '—' }}</td>
-                <td>{{ item.category_name or '' }}{% if item.category_name and item.brand_name %} · {% endif %}</td>
+                <td>{{ (item.product.description if item.product and item.product.description else item.description) or '—' }}</td>
                 <td class="text-center">{{ item.brand_name or '—' }}</td>
                 <td class="text-center">{{ item.unit or '—' }}</td>
                 <td class="text-right">
