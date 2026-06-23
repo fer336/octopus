@@ -22,6 +22,7 @@ from app.models.client_account import ClientAccount, MovementType
 from app.models.client_authorization import ClientAuthorization
 from app.models.client_type import ClientType
 from app.models.draft import Draft
+from app.models.expense import Expense, ExpenseCategory
 from app.models.lot_consumption import LotConsumption
 from app.models.feedback_ticket import FeedbackTicket
 from app.models.payment import Payment, PaymentMethod
@@ -78,6 +79,9 @@ __all__ = [
     "AuthorizationRequest",
     "AuthorizationStatus",
     "AuthorizationType",
+    # Gastos
+    "Expense",
+    "ExpenseCategory",
     # Entidades principales
     "Category",
     "Supplier",
