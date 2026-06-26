@@ -38,7 +38,7 @@ async def test_get_current_business_falls_back_when_memberships_table_missing():
     business_id = uuid4()
 
     current_user = SimpleNamespace(id=user_id)
-    business = SimpleNamespace(id=business_id)
+    business = SimpleNamespace(id=business_id, subscription_status="active", subscription_blocked_reason=None, subscription_ends_at=None)
 
     missing_table_error = ProgrammingError(
         "SELECT * FROM tenant_memberships",
@@ -52,7 +52,8 @@ async def test_get_current_business_falls_back_when_memberships_table_missing():
                 missing_table_error,
                 _ScalarOneResult(business),
             ]
-        )
+        ),
+        rollback=AsyncMock(),
     )
 
     resolved_business_id = await get_current_business(db=db, current_user=current_user)

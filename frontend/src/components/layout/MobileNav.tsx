@@ -33,6 +33,7 @@ interface MobileNavProps {
   inventoryEnabled?: boolean
   stockpileEnabled?: boolean
   whatsappEnabled?: boolean
+  profitabilityEnabled?: boolean
 }
 
 export default function MobileNav({
@@ -42,6 +43,7 @@ export default function MobileNav({
   inventoryEnabled = true,
   stockpileEnabled = true,
   whatsappEnabled = true,
+  profitabilityEnabled = true,
 }: MobileNavProps) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const location = useLocation()
@@ -62,6 +64,7 @@ export default function MobileNav({
     if (item.path === '/inventory' && !inventoryEnabled) return false
     if (item.path === '/stockpiles' && !stockpileEnabled) return false
     if (item.path === '/messaging' && !whatsappEnabled) return false
+    if (item.path === '/rentabilidad' && !profitabilityEnabled) return false
     return hasPathAccess(user, item.path)
   })
 

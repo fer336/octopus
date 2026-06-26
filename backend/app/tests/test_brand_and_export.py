@@ -55,7 +55,6 @@ def _make_product(
     p.supplier = supplier
     p.category = category
     p.unit = "unidad"
-    p.current_stock = 0
     p.next_expiration = None
     p.units_per_pack = None
     p.sale_price = Decimal("1210.00")

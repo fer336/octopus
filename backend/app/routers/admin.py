@@ -903,18 +903,24 @@ async def delete_empty_tenant(
         )
 
     # Remover accesos/configuración asociados para que el comercio deje de aparecer.
-    await db.execute(
-        text("DELETE FROM tenant_memberships WHERE business_id = :tenant_id"),
-        {"tenant_id": str(tenant_id)},
+    # Usamos ORM en lugar de raw SQL para compatibilidad cross-backend (PostgreSQL vs SQLite)
+    memberships = await db.execute(
+        select(TenantMembership).where(TenantMembership.business_id == tenant_id)
     )
-    await db.execute(
-        text("DELETE FROM tenant_secrets WHERE business_id = :tenant_id"),
-        {"tenant_id": str(tenant_id)},
+    for m in memberships.scalars().all():
+        await db.delete(m)
+
+    secrets = await db.execute(
+        select(TenantSecret).where(TenantSecret.business_id == tenant_id)
     )
-    await db.execute(
-        text("DELETE FROM ai_provider_configs WHERE business_id = :tenant_id"),
-        {"tenant_id": str(tenant_id)},
+    for s in secrets.scalars().all():
+        await db.delete(s)
+
+    ai_configs = await db.execute(
+        select(AIProviderConfig).where(AIProviderConfig.business_id == tenant_id)
     )
+    for cfg in ai_configs.scalars().all():
+        await db.delete(cfg)
 
     business.owner_id = None
     business.deleted_at = datetime.utcnow()
@@ -2485,9 +2491,11 @@ async def purge_tenant_data(
     )
     ai_count = ai_result.scalar() or 0
     if ai_count > 0:
-        await db.execute(
-            text(f"DELETE FROM ai_provider_configs WHERE business_id = '{tenant_id}'")
+        configs = await db.execute(
+            select(AIProviderConfig).where(AIProviderConfig.business_id == tenant_id)
         )
+        for cfg in configs.scalars().all():
+            await db.delete(cfg)
     purged_tables["ai_provider_configs"] = ai_count
 
     # 15. Tenant Memberships (hard delete)
@@ -2498,9 +2506,11 @@ async def purge_tenant_data(
     )
     member_count = member_result.scalar() or 0
     if member_count > 0:
-        await db.execute(
-            text(f"DELETE FROM tenant_memberships WHERE business_id = '{tenant_id}'")
+        members = await db.execute(
+            select(TenantMembership).where(TenantMembership.business_id == tenant_id)
         )
+        for m in members.scalars().all():
+            await db.delete(m)
     purged_tables["tenant_memberships"] = member_count
 
     # Marcar business como purgado

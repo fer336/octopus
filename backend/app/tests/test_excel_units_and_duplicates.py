@@ -272,7 +272,6 @@ class TestConfirmImportPackagingFields:
 
         existing_product = MagicMock(spec=Product)
         existing_product.id = uuid4()
-        existing_product.current_stock = 0
         existing_product.lots = []
         existing_product.calculate_prices = MagicMock()
 

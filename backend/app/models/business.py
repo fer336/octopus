@@ -71,6 +71,7 @@ class Business(BaseModel):
     stockpile_enabled = Column(Boolean, nullable=False, default=True)
     price_update_enabled = Column(Boolean, nullable=False, default=True)
     wholesale_lists_enabled = Column(Boolean, nullable=False, default=False)
+    profitability_enabled = Column(Boolean, nullable=False, default=True)
     reports_enabled = Column(Boolean, nullable=False, default=True)
     sql_backup_enabled = Column(Boolean, nullable=False, default=False)
     invoice_zero_stock_enabled = Column(Boolean, nullable=False, default=False)
@@ -123,6 +124,12 @@ class Business(BaseModel):
     )
     product_lots = relationship(
         "ProductLot", back_populates="business", cascade="all, delete-orphan", lazy="dynamic"
+    )
+    expenses = relationship(
+        "Expense", back_populates="business", lazy="dynamic"
+    )
+    expense_categories = relationship(
+        "ExpenseCategory", back_populates="business", lazy="dynamic"
     )
 
     def __repr__(self) -> str:

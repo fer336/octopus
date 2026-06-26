@@ -63,7 +63,6 @@ def _make_product(
     p.sale_price = Decimal("0")
     p.net_price = Decimal("0")
     p.unit = "unidad"
-    p.current_stock = 0
     p.next_expiration = None
     p.supplier = supplier
     p.category = category

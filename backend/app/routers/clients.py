@@ -18,8 +18,10 @@ from app.schemas.client import (
     ClientResponse,
     ClientUpdate,
 )
+from app.schemas.profitability import AccountSummary
 from app.services.afip_sdk_service import AfipSdkService
 from app.services.client_service import ClientService
+from app.services.profitability_service import ProfitabilityService
 from app.utils.security import get_current_business, require_module_access
 
 router = APIRouter(
@@ -166,6 +168,31 @@ async def update_client(
         )
 
     return ClientResponse.model_validate(client)
+
+
+@router.get(
+    "/{client_id}/account-summary",
+    response_model=AccountSummary,
+    dependencies=[Depends(require_module_access("profitability"))],
+)
+async def get_client_account_summary(
+    client_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """
+    Resumen de cuenta corriente de un cliente.
+    Incluye deuda total, vencido, pagado este mes, saldo y antigüedad.
+    """
+    service = ProfitabilityService(db)
+    try:
+        summary = await service.get_account_summary(client_id, business_id)
+        return summary
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
 
 
 @router.delete("/{client_id}", response_model=MessageResponse)

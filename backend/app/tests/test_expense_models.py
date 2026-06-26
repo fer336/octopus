@@ -16,11 +16,12 @@ pytestmark = pytest.mark.asyncio
 class TestExpenseCategoryModel:
     """RED → ExpenseCategory se crea y persiste correctamente."""
 
-    async def test_create_expense_category(self, db):
+    async def test_create_expense_category(self, db, business_a):
         """GREEN → Crear categoría de gasto con datos básicos."""
         cat = ExpenseCategory(
             name="Fletes",
             description="Gastos de flete y logística",
+            business_id=business_a.id,
         )
         db.add(cat)
         await db.commit()
@@ -31,28 +32,28 @@ class TestExpenseCategoryModel:
         assert cat.is_active is True
         assert cat.created_at is not None
 
-    async def test_category_name_unique(self, db):
+    async def test_category_name_unique(self, db, business_a):
         """GREEN → El nombre de categoría debe ser único."""
-        cat1 = ExpenseCategory(name="Servicios", description="Servicios generales")
+        cat1 = ExpenseCategory(name="Servicios", description="Servicios generales", business_id=business_a.id)
         db.add(cat1)
         await db.commit()
 
-        cat2 = ExpenseCategory(name="Servicios", description="Duplicado")
+        cat2 = ExpenseCategory(name="Servicios", description="Duplicado", business_id=business_a.id)
         db.add(cat2)
         with pytest.raises(Exception):
             await db.commit()
 
-    async def test_category_default_is_active(self, db):
+    async def test_category_default_is_active(self, db, business_a):
         """GREEN → is_active debe ser True por defecto."""
-        cat = ExpenseCategory(name="Test Activo")
+        cat = ExpenseCategory(name="Test Activo", business_id=business_a.id)
         db.add(cat)
         await db.commit()
 
         assert cat.is_active is True
 
-    async def test_category_description_optional(self, db):
+    async def test_category_description_optional(self, db, business_a):
         """GREEN → description debe ser opcional."""
-        cat = ExpenseCategory(name="Sin Descripción")
+        cat = ExpenseCategory(name="Sin Descripción", business_id=business_a.id)
         db.add(cat)
         await db.commit()
 
@@ -66,11 +67,12 @@ class TestExpenseModel:
 
     async def test_create_expense(self, db, business_a, user_a):
         """GREEN → Crear gasto con datos básicos."""
-        cat = ExpenseCategory(name="Fletes Test")
+        cat = ExpenseCategory(name="Fletes Test", business_id=business_a.id)
         db.add(cat)
         await db.flush()
 
         expense = Expense(
+            business_id=business_a.id,
             category_id=cat.id,
             description="Flete proveedor XYZ",
             amount=Decimal("15000.50"),
@@ -88,11 +90,12 @@ class TestExpenseModel:
 
     async def test_expense_category_relationship(self, db, business_a, user_a):
         """GREEN → Expense accede a su categoría vía relationship."""
-        cat = ExpenseCategory(name="Gastos Admin")
+        cat = ExpenseCategory(name="Gastos Admin", business_id=business_a.id)
         db.add(cat)
         await db.flush()
 
         expense = Expense(
+            business_id=business_a.id,
             category_id=cat.id,
             description="Papelería",
             amount=Decimal("2500.00"),
@@ -109,12 +112,13 @@ class TestExpenseModel:
 
     async def test_category_expenses_relationship(self, db, business_a, user_a):
         """GREEN → ExpenseCategory accede a sus gastos vía relationship."""
-        cat = ExpenseCategory(name="Servicios Varios")
+        cat = ExpenseCategory(name="Servicios Varios", business_id=business_a.id)
         db.add(cat)
         await db.flush()
 
         for i in range(3):
             expense = Expense(
+                business_id=business_a.id,
                 category_id=cat.id,
                 description=f"Gasto {i}",
                 amount=Decimal(f"{i+1}000.00"),
@@ -130,11 +134,12 @@ class TestExpenseModel:
 
     async def test_expense_notes_optional(self, db, business_a, user_a):
         """GREEN → notes debe ser opcional."""
-        cat = ExpenseCategory(name="Varios")
+        cat = ExpenseCategory(name="Varios", business_id=business_a.id)
         db.add(cat)
         await db.flush()
 
         expense = Expense(
+            business_id=business_a.id,
             category_id=cat.id,
             description="Gasto sin notas",
             amount=Decimal("100.00"),
@@ -149,11 +154,12 @@ class TestExpenseModel:
 
     async def test_expense_creator_relationship(self, db, business_a, user_a):
         """GREEN → Expense accede al usuario creador."""
-        cat = ExpenseCategory(name="Gastos Test Creator")
+        cat = ExpenseCategory(name="Gastos Test Creator", business_id=business_a.id)
         db.add(cat)
         await db.flush()
 
         expense = Expense(
+            business_id=business_a.id,
             category_id=cat.id,
             description="Gasto con creador",
             amount=Decimal("500.00"),

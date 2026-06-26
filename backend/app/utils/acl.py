@@ -29,6 +29,13 @@ MODULE_KEYS = [
     "settings",
     "sql_backup",
     "srx",
+    "profitability.view_costs",
+    "profitability.view_margin",
+    "profitability.view_by_seller",
+    "profitability.view_documents",
+    "profitability.export",
+    "profitability.configure",
+    "profitability.view_alerts",
 ]
 
 

@@ -34,6 +34,7 @@ export interface Business {
   price_update_enabled: boolean
   wholesale_lists_enabled: boolean
   reports_enabled: boolean
+  profitability_enabled?: boolean
   sql_backup_enabled: boolean
   invoice_zero_stock_enabled: boolean
   arca_environment?: string

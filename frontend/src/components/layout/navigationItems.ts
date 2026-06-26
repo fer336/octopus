@@ -63,6 +63,7 @@ export const navigationItems: NavigationItem[] = [
   { path: '/brands', icon: Tags, label: 'Marcas', section: 'contactos' },
   { path: '/messaging', icon: MessagesSquare, label: 'WhatsApp CRM', section: 'comunicaciones' },
   { path: '/reports', icon: BarChart3, label: 'Reportes', section: 'analisis' },
+  { path: '/rentabilidad', icon: TrendingUp, label: 'Rentabilidad', section: 'analisis' },
   { path: '/feedback', icon: MessageSquare, label: 'Feedback', section: 'analisis' },
 ]
 

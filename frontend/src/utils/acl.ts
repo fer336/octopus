@@ -17,6 +17,7 @@ export const MODULE_ROUTE_MAP: Record<string, string> = {
   '/feedback': 'feedback',
   '/current-account': 'current_account',
   '/stockpiles': 'stockpiles',
+  '/rentabilidad': 'profitability',
   '/messaging': 'messaging',
   '/settings': 'settings',
 }

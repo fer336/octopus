@@ -22,6 +22,16 @@ class ExpenseCategory(BaseModel):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
 
+    business_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("businesses.id"),
+        nullable=False,
+        index=True,
+    )
+    business: Mapped["Business"] = relationship(  # noqa: F821
+        "Business", back_populates="expense_categories"
+    )
+
     # Relaciones
     expenses: Mapped[list["Expense"]] = relationship(
         "Expense", back_populates="category", cascade="all, delete-orphan"
@@ -35,6 +45,16 @@ class Expense(BaseModel):
     """Gasto registrado del negocio."""
 
     __tablename__ = "expenses"
+
+    business_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("businesses.id"),
+        nullable=False,
+        index=True,
+    )
+    business: Mapped["Business"] = relationship(  # noqa: F821
+        "Business", back_populates="expenses"
+    )
 
     category_id = Column(
         UUID(as_uuid=True),
