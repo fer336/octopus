@@ -87,6 +87,13 @@ services:
         - "traefik.http.routers.octopus-staging-api-v1.priority=100"
         - "traefik.http.routers.octopus-staging-api-v1.service=octopus-staging-backend"
 
+        # Ruta dedicada para health check — apunta al backend /health
+        - "traefik.http.routers.octopus-staging-health.rule=Host(`staging.octopustrack.shop`) && Path(`/health`)"
+        - "traefik.http.routers.octopus-staging-health.entrypoints=websecure"
+        - "traefik.http.routers.octopus-staging-health.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.octopus-staging-health.priority=110"
+        - "traefik.http.routers.octopus-staging-health.service=octopus-staging-backend"
+
         - "traefik.http.services.octopus-staging-backend.loadbalancer.server.port=8000"
 
   frontend:
