@@ -247,6 +247,34 @@ async def get_current_business(
                     first_blocked_detail = "Negocio no encontrado"
                     continue
 
+                # Validar estado de acceso de la membresía (suspended / trial vencido)
+                if membership.access_status == "suspended":
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=membership.blocked_reason
+                        or "Tu acceso al negocio está suspendido. Contactá al administrador.",
+                    )
+
+                if membership.access_status == "trial":
+                    if membership.access_ends_at and datetime.utcnow() > membership.access_ends_at:
+                        membership.access_status = "expired"
+                        membership.blocked_reason = "Período de prueba vencido"
+                        try:
+                            await db.commit()
+                        except Exception:
+                            await db.rollback()
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Tu período de prueba venció. Contactá al administrador para continuar.",
+                        )
+
+                if membership.access_status == "expired":
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=membership.blocked_reason
+                        or "Tu acceso al negocio expiró. Contactá al administrador.",
+                    )
+
                 # La membresía define pertenencia/rol. El bloqueo por pago vive en el comercio.
                 await ensure_business_subscription_active(db, business)
                 return UUID(str(membership.business_id))
@@ -377,6 +405,7 @@ def require_module_access(module_key: str):
             "sql_backup": "sql_backup_enabled",
             "inventory": "inventory_enabled",
             "stockpiles": "stockpile_enabled",
+            "profitability": "profitability_enabled",
         }
         feature_field = feature_by_module.get(module_key)
         if feature_field:
@@ -400,6 +429,85 @@ def require_module_access(module_key: str):
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Funcionalidad deshabilitada para este tenant desde CMS.",
                 )
+
+        return current_business
+
+    return _dependency
+
+
+def require_profitability_permission(permission: str):
+    """
+    Dependency factory para permisos granulares de rentabilidad.
+
+    Valida que el usuario tenga el permiso específico dentro del
+    módulo profitability (ej: profitability.view_costs).
+
+    Uso::
+
+        @router.get("/costs")
+        async def get_costs(
+            _=Depends(require_profitability_permission("profitability.view_costs")),
+            ...
+        )
+    """
+
+    async def _dependency(
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_user),
+        current_business: UUID = Depends(get_current_business),
+    ) -> UUID:
+        # Superadmin siempre tiene acceso total
+        if getattr(current_user, "platform_role", None) == "superadmin":
+            return current_business
+
+        from app.models.tenant_membership import TenantMembership
+
+        result = await db.execute(
+            select(TenantMembership).where(
+                TenantMembership.user_id == current_user.id,
+                TenantMembership.business_id == current_business,
+                TenantMembership.deleted_at.is_(None),
+            )
+        )
+        membership = result.scalar_one_or_none()
+
+        if not membership:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tenés membresía activa para este negocio.",
+            )
+
+        module_permissions = parse_module_permissions(
+            membership.module_permissions,
+            membership.role,
+        )
+
+        if not module_permissions.get(permission, False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"No tenés permiso '{permission}' para esta operación.",
+            )
+
+        # Verificar feature flag del tenant
+        from app.models.business import Business
+
+        business_result = await db.execute(
+            select(Business).where(
+                Business.id == current_business,
+                Business.deleted_at.is_(None),
+            )
+        )
+        business = business_result.scalar_one_or_none()
+        if not business:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Negocio no encontrado",
+            )
+        if not business.profitability_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Funcionalidad de rentabilidad deshabilitada para este tenant.",
+            )
 
         return current_business
 

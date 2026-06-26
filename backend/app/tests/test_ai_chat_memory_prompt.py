@@ -7,7 +7,7 @@ def test_build_system_prompt_includes_memory_context_and_guardrails():
         memory_context="Cliente X suele pedir reposición los viernes.",
     )
 
-    assert "Contexto de memoria del negocio (Engram, no fuente de verdad)" in prompt
+    assert "🧠 MEMORIA DE CONVERSACIONES (NO son datos del catálogo)" in prompt
     assert "Cliente X suele pedir reposición los viernes." in prompt
-    assert "NUNCA inventés precios ni stock" in prompt
-    assert "confiá únicamente en la base de datos" in prompt
+    assert "NUNCA inventes productos, precios, stock ni datos" in prompt
+    assert "Usá ÚNICAMENTE los datasets y herramientas" in prompt

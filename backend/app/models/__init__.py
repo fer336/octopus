@@ -22,6 +22,7 @@ from app.models.client_account import ClientAccount, MovementType
 from app.models.client_authorization import ClientAuthorization
 from app.models.client_type import ClientType
 from app.models.draft import Draft
+from app.models.expense import Expense, ExpenseCategory
 from app.models.lot_consumption import LotConsumption
 from app.models.feedback_ticket import FeedbackTicket
 from app.models.payment import Payment, PaymentMethod
@@ -49,7 +50,7 @@ from app.models.voucher_item import VoucherItem
 from app.models.voucher_payment import VoucherPayment
 from app.models.product_lot import ProductLot
 from app.models.stockpile import Stockpile, StockpileItem, StockpilePriceSnapshot, StockpileStatus
-from app.models.price_list import PriceList, PriceListItem
+from app.models.price_list import PriceList, PriceListItem, PriceListSendLog
 from app.models.cc_draft import CCDraft
 from app.models.meli import (
     MeliCredentialStatus,
@@ -78,6 +79,9 @@ __all__ = [
     "AuthorizationRequest",
     "AuthorizationStatus",
     "AuthorizationType",
+    # Gastos
+    "Expense",
+    "ExpenseCategory",
     # Entidades principales
     "Category",
     "Supplier",
@@ -127,6 +131,7 @@ __all__ = [
     # Price Lists
     "PriceList",
     "PriceListItem",
+    "PriceListSendLog",
     # CC Drafts
     "CCDraft",
     # Mercado Libre

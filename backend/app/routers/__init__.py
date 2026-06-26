@@ -10,6 +10,7 @@ from app.routers import (
     clients,
     feedback,
     products,
+    profitability,
     reports,
     suppliers,
 )
@@ -23,5 +24,6 @@ __all__ = [
     "suppliers",
     "categories",
     "feedback",
+    "profitability",
     "reports",
 ]

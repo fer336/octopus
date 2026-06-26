@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.audit_log import AuditLog
 from app.models.business import Business
 from app.models.product import Product
+from app.models.product_lot import ProductLot
 from app.models.tenant_membership import TenantMembership
 from app.models.tenant_secret import TenantSecret
 from app.models.user import User
@@ -31,6 +32,7 @@ async def test_user_a_cannot_access_tenant_b_data(
     user_a: User,
     business_a: Business,
     business_b: Business,
+    membership_a: TenantMembership,
     db: AsyncSession,
 ):
     """Usuario A solo ve productos de su tenant, no de tenant B."""
@@ -40,7 +42,6 @@ async def test_user_a_cannot_access_tenant_b_data(
         code="A-001",
         cost_price=100.0,
         sale_price=150.0,
-        current_stock=10,
         business_id=business_a.id,
     )
     product_b = Product(
@@ -48,10 +49,25 @@ async def test_user_a_cannot_access_tenant_b_data(
         code="B-001",
         cost_price=200.0,
         sale_price=300.0,
-        current_stock=5,
         business_id=business_b.id,
     )
     db.add_all([product_a, product_b])
+    await db.flush()
+
+    # Crear lotes para que current_stock > 0
+    lot_a = ProductLot(
+        product_id=product_a.id,
+        business_id=business_a.id,
+        quantity=10,
+        initial_quantity=10,
+    )
+    lot_b = ProductLot(
+        product_id=product_b.id,
+        business_id=business_b.id,
+        quantity=5,
+        initial_quantity=5,
+    )
+    db.add_all([lot_a, lot_b])
     await db.commit()
 
     # User A intenta acceder a los productos
@@ -186,6 +202,7 @@ async def test_user_b_cannot_access_tenant_a_data(
     user_b: User,
     business_a: Business,
     business_b: Business,
+    membership_b: TenantMembership,
     db: AsyncSession,
 ):
     """Usuario B solo ve productos de su tenant, no de tenant A."""
@@ -195,7 +212,6 @@ async def test_user_b_cannot_access_tenant_a_data(
         code="A-001",
         cost_price=100.0,
         sale_price=150.0,
-        current_stock=10,
         business_id=business_a.id,
     )
     product_b = Product(
@@ -203,10 +219,25 @@ async def test_user_b_cannot_access_tenant_a_data(
         code="B-001",
         cost_price=200.0,
         sale_price=300.0,
-        current_stock=5,
         business_id=business_b.id,
     )
     db.add_all([product_a, product_b])
+    await db.flush()
+
+    # Crear lotes para que current_stock > 0
+    lot_a = ProductLot(
+        product_id=product_a.id,
+        business_id=business_a.id,
+        quantity=10,
+        initial_quantity=10,
+    )
+    lot_b = ProductLot(
+        product_id=product_b.id,
+        business_id=business_b.id,
+        quantity=5,
+        initial_quantity=5,
+    )
+    db.add_all([lot_a, lot_b])
     await db.commit()
 
     # User B intenta acceder a los productos

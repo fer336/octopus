@@ -53,6 +53,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        # CAMBIO 6: historial completo + tags. Sin esto, GitHub Actions clona shallow
+        # y `git describe` falla por no encontrar el último tag estable.
+        with:
+          fetch-depth: 0
 
       - name: Compute Docker tags
         id: docker_tags
@@ -61,8 +65,21 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
+          # CAMBIO 7: versión pre-release SemVer derivada del último tag estable X.Y.Z.
+          # Ej: si el último release es 1.6.1 y develop lleva 7 commits encima →
+          #     1.6.1-7-gabc1234  ("7 commits por delante de 1.6.1, commit abc1234").
+          # El --match filtra solo tags numéricos (ignora "staging", "develop", etc.).
+          # El --always evita que falle si todavía no hay ningún tag (cae al short sha).
+          VERSION="$(git describe --tags --match '[0-9]*.[0-9]*.[0-9]*' --always)"
+          echo "Versión pre-release calculada: $VERSION"
+
+          # Versión legible para staging: staging.YYYYMMDD (ej: staging.20260626)
+          STAGING_VERSION="staging.$(date -u +'%Y%m%d')"
+
           echo "tag=${{ env.EFFECTIVE_TAG }}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "sha_tag=staging-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "staging_version=${STAGING_VERSION}" >> "$GITHUB_OUTPUT"
           echo "build_date=${BUILD_DATE}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
@@ -91,6 +108,7 @@ jobs:
           tags: |
             type=raw,value=${{ steps.docker_tags.outputs.tag }}
             type=raw,value=develop
+            type=raw,value=${{ steps.docker_tags.outputs.version }}
             type=raw,value=${{ steps.docker_tags.outputs.sha_tag }}
             type=sha,prefix=sha-
 
@@ -107,7 +125,7 @@ jobs:
           cache-from: type=gha,scope=staging-${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=staging-${{ matrix.service }}
           build-args: |
-            APP_VERSION=${{ steps.docker_tags.outputs.sha_tag }}
+            APP_VERSION=${{ steps.docker_tags.outputs.staging_version }}
             BUILD_DATE=${{ steps.docker_tags.outputs.build_date }}
             GIT_SHA=${{ github.sha }}
             VITE_BACKEND_URL=${{ env.STAGING_BACKEND_URL }}
@@ -169,21 +187,27 @@ jobs:
 
           echo "Webhook staging disparado correctamente. HTTP $HTTP_STATUS"
 
+      # CAMBIO 5: mismo arreglo que en prod. El health check de staging ahora
+      # REINTENTA y FALLA de verdad si no levanta, en vez de imprimir "revisá
+      # Portainer manualmente" y salir en verde. Esto importa especialmente ahora
+      # que los tests bloquean: querés que staging sea el lugar donde te enterás de
+      # los problemas ANTES de sacar el tag de prod.
       - name: Verify staging deployment health
         run: |
-          sleep 30
-
           URL="${{ secrets.SYSTEM_STAGING_HEALTH_URL }}"
-
           if [ -z "$URL" ]; then
-            echo "SYSTEM_STAGING_HEALTH_URL no configurado. Saltando verificación."
-            exit 0
+            echo "::error::SYSTEM_STAGING_HEALTH_URL no configurado"
+            exit 1
           fi
-
-          STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 "$URL" || echo "000")
-
-          if [ "$STATUS" = "200" ]; then
-            echo "Deploy staging verificado correctamente. HTTP 200"
-          else
-            echo "Health check staging retornó HTTP $STATUS. Revisá Portainer manualmente."
-          fi
+          echo "Verificando salud en: $URL"
+          for i in $(seq 1 10); do
+            STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 "$URL" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Deploy staging verificado correctamente. HTTP 200 (intento $i)"
+              exit 0
+            fi
+            echo "Intento $i/10: HTTP $STATUS. Reintento en 15s..."
+            sleep 15
+          done
+          echo "::error::Health check staging falló tras 10 intentos (último HTTP $STATUS)."
+          exit 1

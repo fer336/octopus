@@ -394,6 +394,10 @@ class VoucherService:
             total_iva += iva_line
             total_final += total_line
 
+            # Snapshot del costo al momento de la venta (para rentabilidad)
+            item_cost_price = product.cost_price if product.cost_price else None
+            item_cost_price_estimated = False
+
             voucher_item = VoucherItem(
                 product_id=product.id,
                 code=product.code,
@@ -407,6 +411,8 @@ class VoucherService:
                 subtotal=subtotal_line,
                 total=total_line,
                 line_number=i + 1,
+                cost_price=item_cost_price,
+                cost_price_estimated=item_cost_price_estimated,
             )
             if voucher_id:
                 voucher_item.voucher_id = voucher_id
@@ -780,6 +786,10 @@ class VoucherService:
                     description = source_item.description
                     unit = source_item.unit
 
+                # Snapshot del costo al momento de la venta (para rentabilidad)
+                item_cost_price = product.cost_price if product.cost_price else None
+                item_cost_price_estimated = False
+
                 voucher_item = VoucherItem(
                     product_id=product.id,
                     code=code,
@@ -793,6 +803,8 @@ class VoucherService:
                     subtotal=subtotal_line,
                     total=total_line,
                     line_number=line_number,
+                    cost_price=item_cost_price,
+                    cost_price_estimated=item_cost_price_estimated,
                 )
                 if voucher_id:
                     voucher_item.voucher_id = voucher_id

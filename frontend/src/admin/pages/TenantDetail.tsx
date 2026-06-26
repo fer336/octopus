@@ -32,6 +32,8 @@ const permissionModules: Array<{ key: string; label: string }> = [
   { key: 'reports', label: 'Reportes' },
   { key: 'feedback', label: 'Feedback' },
   { key: 'current_account', label: 'Cuenta Corriente' },
+  { key: 'profitability', label: 'Rentabilidad' },
+  { key: 'srx', label: 'SRX-User' },
 ]
 
 function getApiErrorDetail(error: unknown, fallback: string): string {
@@ -404,6 +406,13 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
             : 'Actualización de precios deshabilitada',
         )
       }
+      if (typeof payload.wholesale_lists_enabled === 'boolean') {
+        toast.success(
+          payload.wholesale_lists_enabled
+            ? 'Listas mayoristas habilitadas'
+            : 'Listas mayoristas deshabilitadas',
+        )
+      }
       if (typeof payload.reports_enabled === 'boolean') {
         toast.success(payload.reports_enabled ? 'Reportes habilitados' : 'Reportes deshabilitados')
       }
@@ -422,6 +431,12 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
       }
       if (typeof payload.qr_scanner_enabled === 'boolean') {
         toast.success(payload.qr_scanner_enabled ? 'Scanner QR habilitado' : 'Scanner QR deshabilitado')
+      }
+      if (typeof payload.srx_enabled === 'boolean') {
+        toast.success(payload.srx_enabled ? 'SRX-User habilitado' : 'SRX-User deshabilitado')
+      }
+      if (typeof payload.profitability_enabled === 'boolean') {
+        toast.success(payload.profitability_enabled ? 'Rentabilidad habilitada' : 'Rentabilidad deshabilitada')
       }
       queryClient.invalidateQueries({ queryKey: ['admin-feature-flags', tenantId] })
     },
@@ -490,8 +505,11 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
   const inventoryEnabled = flagsQuery.data?.inventory_enabled ?? true
   const stockpileEnabled = flagsQuery.data?.stockpile_enabled ?? true
   const priceUpdateEnabled = flagsQuery.data?.price_update_enabled ?? true
+  const wholesaleListsEnabled = flagsQuery.data?.wholesale_lists_enabled ?? false
   const reportsEnabled = flagsQuery.data?.reports_enabled ?? true
   const sqlBackupEnabled = flagsQuery.data?.sql_backup_enabled ?? false
+  const srxEnabled = flagsQuery.data?.srx_enabled ?? false
+  const profitabilityEnabled = flagsQuery.data?.profitability_enabled ?? true
   const invoiceZeroStockEnabled = flagsQuery.data?.invoice_zero_stock_enabled ?? false
   const linearConfigured = Boolean(linearSecretsQuery.data?.secrets?.linear_api_key?.configured)
   const linearLast4 = linearSecretsQuery.data?.secrets?.linear_api_key?.last4
@@ -684,6 +702,33 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between gap-4">
               <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">SRX-User</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Facturación alternativa sin validez fiscal (Comprobante X).
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={srxEnabled}
+                onClick={() => updateMutation.mutate({ srx_enabled: !srxEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  srxEnabled ? 'bg-red-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    srxEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
                 <h3 className="text-base font-semibold text-gray-900 dark:text-white">Cotizaciones</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-300">
                   Permite generar presupuestos/cotizaciones desde Ventas.
@@ -841,6 +886,33 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between gap-4">
               <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Listas de Precios Mayoristas</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Habilita la creación y gestión de listas de precios mayoristas con condiciones de pago personalizadas.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={wholesaleListsEnabled}
+                onClick={() => updateMutation.mutate({ wholesale_lists_enabled: !wholesaleListsEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  wholesaleListsEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    wholesaleListsEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
                 <h3 className="text-base font-semibold text-gray-900 dark:text-white">Reportes</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-300">
                   Habilita la sección de reportes y exportaciones.
@@ -859,6 +931,33 @@ function FeaturesTab({ tenantId }: { tenantId: string }) {
                 <span
                   className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
                     reportsEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Rentabilidad</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Muestra márgenes, costos y rentabilidad por producto, cliente y período.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={profitabilityEnabled}
+                onClick={() => updateMutation.mutate({ profitability_enabled: !profitabilityEnabled })}
+                disabled={updateMutation.isPending}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  profitabilityEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                    profitabilityEnabled ? 'translate-x-6' : 'translate-x-1'
                   }`}
                 />
               </button>

@@ -126,12 +126,13 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
-      // Cuando se restaura del localStorage, ajustar isLoading según isAuthenticated
+      // Forzar isLoading=false después de la rehidratación,
+      // incluso cuando no hay datos persistidos (primera visita).
+      // Si no se hace, ProtectedRoute se queda mostrando el spinner
+      // porque isLoading nunca pasa a false.
       onRehydrateStorage: () => (state) => {
-        if (state) {
-          // Si hay tokens válidos al restaurar, establecer isLoading en false
-          state.isLoading = false
-        }
+        // Evita referenciar el store mientras Zustand todavía lo está creando.
+        state?.setLoading(false)
       },
     }
   )

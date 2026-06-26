@@ -180,9 +180,11 @@ class FeatureFlagsResponse(BaseModel):
     inventory_enabled: bool
     stockpile_enabled: bool
     price_update_enabled: bool
+    wholesale_lists_enabled: bool = False
     reports_enabled: bool
     sql_backup_enabled: bool = False
     srx_enabled: bool = False
+    profitability_enabled: bool = True
     invoice_zero_stock_enabled: bool = False
 
 
@@ -200,9 +202,11 @@ class FeatureFlagsUpdate(BaseModel):
     inventory_enabled: bool | None = None
     stockpile_enabled: bool | None = None
     price_update_enabled: bool | None = None
+    wholesale_lists_enabled: bool | None = None
     reports_enabled: bool | None = None
     sql_backup_enabled: bool | None = None
     srx_enabled: bool | None = None
+    profitability_enabled: bool | None = None
     invoice_zero_stock_enabled: bool | None = None
 
 
@@ -901,18 +905,24 @@ async def delete_empty_tenant(
         )
 
     # Remover accesos/configuración asociados para que el comercio deje de aparecer.
-    await db.execute(
-        text("DELETE FROM tenant_memberships WHERE business_id = :tenant_id"),
-        {"tenant_id": str(tenant_id)},
+    # Usamos ORM en lugar de raw SQL para compatibilidad cross-backend (PostgreSQL vs SQLite)
+    memberships = await db.execute(
+        select(TenantMembership).where(TenantMembership.business_id == tenant_id)
     )
-    await db.execute(
-        text("DELETE FROM tenant_secrets WHERE business_id = :tenant_id"),
-        {"tenant_id": str(tenant_id)},
+    for m in memberships.scalars().all():
+        await db.delete(m)
+
+    secrets = await db.execute(
+        select(TenantSecret).where(TenantSecret.business_id == tenant_id)
     )
-    await db.execute(
-        text("DELETE FROM ai_provider_configs WHERE business_id = :tenant_id"),
-        {"tenant_id": str(tenant_id)},
+    for s in secrets.scalars().all():
+        await db.delete(s)
+
+    ai_configs = await db.execute(
+        select(AIProviderConfig).where(AIProviderConfig.business_id == tenant_id)
     )
+    for cfg in ai_configs.scalars().all():
+        await db.delete(cfg)
 
     business.owner_id = None
     business.deleted_at = datetime.utcnow()
@@ -1423,8 +1433,6 @@ async def delete_arca_secrets(
     business.afip_cert = None
     business.afip_key = None
 
-    await db.commit()
-
     await log_audit(
         db=db,
         user_id=admin.user_id,
@@ -1437,6 +1445,8 @@ async def delete_arca_secrets(
             "invalidated_count": len(invalidated_types),
         },
     )
+
+    await db.commit()
 
     logger.info(
         "Secretos ARCA invalidados para tenant %s: %s",
@@ -1687,9 +1697,11 @@ async def get_feature_flags(
         inventory_enabled=bool(getattr(business, "inventory_enabled", True)),
         stockpile_enabled=bool(getattr(business, "stockpile_enabled", True)),
         price_update_enabled=bool(business.price_update_enabled),
+        wholesale_lists_enabled=bool(getattr(business, "wholesale_lists_enabled", False)),
         reports_enabled=bool(business.reports_enabled),
         sql_backup_enabled=bool(business.sql_backup_enabled),
         srx_enabled=bool(getattr(business, "srx_enabled", False)),
+        profitability_enabled=bool(getattr(business, "profitability_enabled", True)),
         invoice_zero_stock_enabled=bool(getattr(business, "invoice_zero_stock_enabled", False)),
     )
 
@@ -1754,9 +1766,11 @@ async def update_feature_flags(
         inventory_enabled=bool(getattr(business, "inventory_enabled", True)),
         stockpile_enabled=bool(getattr(business, "stockpile_enabled", True)),
         price_update_enabled=bool(business.price_update_enabled),
+        wholesale_lists_enabled=bool(getattr(business, "wholesale_lists_enabled", False)),
         reports_enabled=bool(business.reports_enabled),
         sql_backup_enabled=bool(business.sql_backup_enabled),
         srx_enabled=bool(getattr(business, "srx_enabled", False)),
+        profitability_enabled=bool(getattr(business, "profitability_enabled", True)),
         invoice_zero_stock_enabled=bool(getattr(business, "invoice_zero_stock_enabled", False)),
     )
 
@@ -2481,9 +2495,11 @@ async def purge_tenant_data(
     )
     ai_count = ai_result.scalar() or 0
     if ai_count > 0:
-        await db.execute(
-            text(f"DELETE FROM ai_provider_configs WHERE business_id = '{tenant_id}'")
+        configs = await db.execute(
+            select(AIProviderConfig).where(AIProviderConfig.business_id == tenant_id)
         )
+        for cfg in configs.scalars().all():
+            await db.delete(cfg)
     purged_tables["ai_provider_configs"] = ai_count
 
     # 15. Tenant Memberships (hard delete)
@@ -2494,9 +2510,11 @@ async def purge_tenant_data(
     )
     member_count = member_result.scalar() or 0
     if member_count > 0:
-        await db.execute(
-            text(f"DELETE FROM tenant_memberships WHERE business_id = '{tenant_id}'")
+        members = await db.execute(
+            select(TenantMembership).where(TenantMembership.business_id == tenant_id)
         )
+        for m in members.scalars().all():
+            await db.delete(m)
     purged_tables["tenant_memberships"] = member_count
 
     # Marcar business como purgado

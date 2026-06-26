@@ -53,7 +53,8 @@ export const navigationItems: NavigationItem[] = [
   { path: '/stockpiles', icon: Archive, label: 'Acopios', section: 'ventas' },
   { path: '/products', icon: Package, label: 'Productos', section: 'catalogo' },
   { path: '/price-update', icon: TrendingUp, label: 'Actualizar Precios', section: 'catalogo' },
-  { path: '/price-lists', icon: List, label: 'Listas de Precios', section: 'catalogo' },
+  { path: '/price-lists', icon: List, label: 'L.Precios Cta. Cte.', section: 'catalogo' },
+  { path: '/wholesale-lists', icon: List, label: 'L.Precios Mayoristas', section: 'catalogo' },
   { path: '/inventory', icon: ClipboardList, label: 'Inventario', section: 'catalogo' },
   { path: '/mercadolibre', icon: Store, label: 'Mercado Libre', section: 'catalogo' },
   { path: '/clients', icon: Users, label: 'Clientes', section: 'contactos' },
@@ -62,6 +63,7 @@ export const navigationItems: NavigationItem[] = [
   { path: '/brands', icon: Tags, label: 'Marcas', section: 'contactos' },
   { path: '/messaging', icon: MessagesSquare, label: 'WhatsApp CRM', section: 'comunicaciones' },
   { path: '/reports', icon: BarChart3, label: 'Reportes', section: 'analisis' },
+  { path: '/rentabilidad', icon: TrendingUp, label: 'Rentabilidad', section: 'analisis' },
   { path: '/feedback', icon: MessageSquare, label: 'Feedback', section: 'analisis' },
 ]
 

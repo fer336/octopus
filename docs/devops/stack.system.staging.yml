@@ -7,12 +7,19 @@
 # - Ese secret debe apuntar a una DB staging, nunca a producción.
 # - Este stack usa IMAGE_TAG=staging por defecto para no consumir `latest` productivo.
 # - Si necesitás probar una imagen puntual, seteá IMAGE_TAG=staging-<sha> en Portainer.
+#
+# CAMBIO EN ESTE ARCHIVO (vs. original):
+#   - Se agregó `healthcheck` a backend y frontend.
+# Por qué: este stack YA tenía `update_config: failure_action: rollback` y
+# `rollback_config`, pero SIN healthcheck ese rollback nunca se disparaba por estado
+# de salud (Swarm daba por "sana" cualquier tarea que arrancara). Con el healthcheck,
+# el rollback que ya tenías configurado por fin funciona como esperás.
 
 version: "3.9"
 
 services:
   backend:
-    image: ghcr.io/fer336/octopustrack-backend:${IMAGE_TAG:-staging-e9e8882}
+    image: ghcr.io/fer336/octopustrack-backend:${IMAGE_TAG:-staging-c4a17c6}
     networks:
       - network_public
       - octopus-staging-internal
@@ -25,6 +32,13 @@ services:
       ENVIRONMENT: "staging"
       API_TENANT_PREFIX: "/api/tenant"
       RUN_ALEMBIC_MIGRATIONS: "true"
+    # CAMBIO: healthcheck del backend (urllib, no curl). Confirmá la ruta real `/health`.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/health', timeout=5).status==200 else sys.exit(1)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
     deploy:
       mode: replicated
       replicas: 1
@@ -38,6 +52,10 @@ services:
       update_config:
         order: start-first
         failure_action: rollback
+        # CAMBIO: agregado `monitor` para que el rollback evalúe el healthcheck
+        # durante una ventana, en vez de decidir apenas arranca la tarea.
+        monitor: 60s
+        max_failure_ratio: 0
         delay: 10s
       rollback_config:
         order: stop-first
@@ -69,13 +87,28 @@ services:
         - "traefik.http.routers.octopus-staging-api-v1.priority=100"
         - "traefik.http.routers.octopus-staging-api-v1.service=octopus-staging-backend"
 
+        # Ruta dedicada para health check — apunta al backend /health
+        - "traefik.http.routers.octopus-staging-health.rule=Host(`staging.octopustrack.shop`) && Path(`/health`)"
+        - "traefik.http.routers.octopus-staging-health.entrypoints=websecure"
+        - "traefik.http.routers.octopus-staging-health.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.octopus-staging-health.priority=110"
+        - "traefik.http.routers.octopus-staging-health.service=octopus-staging-backend"
+
         - "traefik.http.services.octopus-staging-backend.loadbalancer.server.port=8000"
 
   frontend:
-    image: ghcr.io/fer336/octopustrack-frontend:${IMAGE_TAG:-staging-e9e8882}
+    image: ghcr.io/fer336/octopustrack-frontend:${IMAGE_TAG:-staging-c4a17c6}
     networks:
       - network_public
       - octopus-staging-internal
+    # CAMBIO: healthcheck del frontend (nginx -t en vez de wget --spider).
+    # nginx:alpine no incluye wget, lo que hacía fallar siempre el healthcheck.
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     deploy:
       mode: replicated
       replicas: 1
@@ -89,6 +122,8 @@ services:
       update_config:
         order: start-first
         failure_action: rollback
+        monitor: 30s
+        max_failure_ratio: 0
         delay: 10s
       rollback_config:
         order: stop-first

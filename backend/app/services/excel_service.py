@@ -2,11 +2,17 @@
 Servicio de Importación/Exportación Excel.
 Maneja la carga masiva de productos.
 """
+from __future__ import annotations
+
 import io
 import math
 from datetime import date
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from app.models.price_list import PriceList
 
 import pandas as pd
 from sqlalchemy import select
@@ -1260,6 +1266,106 @@ class ExcelService:
             df.to_excel(writer, index=False, sheet_name='Backup_Productos')
 
         return output.getvalue()
+
+    async def export_price_list(self, price_list: PriceList, items: list) -> bytes:
+        """Export a customer-facing price list to Excel. Never includes cost or margin data."""
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+        from datetime import date as date_t
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Lista de Precios"
+
+        # Title row
+        title = price_list.name
+        if price_list.valid_from or price_list.valid_until:
+            vf = price_list.valid_from.strftime('%d/%m/%Y') if price_list.valid_from else '—'
+            vu = price_list.valid_until.strftime('%d/%m/%Y') if price_list.valid_until else '—'
+            title += f"  |  Vigencia: {vf} – {vu}"
+        ws.merge_cells("A1:Q1")
+        title_cell = ws["A1"]
+        title_cell.value = title
+        title_cell.font = Font(bold=True, size=13, color="FFFFFF")
+        title_cell.fill = PatternFill(start_color="1A237E", end_color="1A237E", fill_type="solid")
+        title_cell.alignment = Alignment(horizontal="left", vertical="center")
+        ws.row_dimensions[1].height = 22
+
+        # Header row (row 2)
+        headers = [
+            "Código", "Cód. prov.", "Marca", "Categoría", "Descripción",
+            "Unidad", "Bulto/pack", "Cant. mín.",
+            "Precio lista", "Descuento %", "Recargo %",
+            "Precio neto", "IVA %", "Precio final",
+            "Vigencia desde", "Vigencia hasta", "Observaciones",
+        ]
+        header_fill = PatternFill(start_color="283593", end_color="283593", fill_type="solid")
+        thin_border = Border(
+            left=Side(style="thin", color="BDBDBD"),
+            right=Side(style="thin", color="BDBDBD"),
+            top=Side(style="thin", color="BDBDBD"),
+            bottom=Side(style="thin", color="BDBDBD"),
+        )
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=2, column=col_idx, value=h)
+            cell.font = Font(bold=True, color="FFFFFF", size=10)
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border = thin_border
+        ws.row_dimensions[2].height = 30
+
+        # Data rows (start at row 3)
+        vf_str = price_list.valid_from.strftime('%d/%m/%Y') if price_list.valid_from else ""
+        vu_str = price_list.valid_until.strftime('%d/%m/%Y') if price_list.valid_until else ""
+
+        for row_idx, item in enumerate(items, 3):
+            product = getattr(item, "product", None)
+            product_description = getattr(product, "description", None)
+            description = product_description or getattr(item, "description", None) or item.product_code or ""
+            row_data = [
+                item.product_code or "",
+                item.supplier_code or "",
+                item.brand_name or "",
+                item.category_name or "",
+                description,
+                item.unit or "",
+                float(item.pack_quantity) if item.pack_quantity else "",
+                float(item.min_quantity) if item.min_quantity else "",
+                float(item.base_price) if item.base_price else "",
+                float(item.discount_percent) if item.discount_percent else 0.0,
+                float(item.surcharge_percent) if item.surcharge_percent else 0.0,
+                float(item.net_price) if item.net_price else "",
+                float(item.iva_rate or item.tax_percent or 21),
+                float(item.final_price) if item.final_price else float(item.unit_price),
+                vf_str,
+                vu_str,
+                item.item_notes or "",
+            ]
+            for col_idx, val in enumerate(row_data, 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=val)
+                cell.border = thin_border
+                cell.alignment = Alignment(
+                    horizontal="right" if isinstance(val, (int, float)) else "left",
+                    vertical="center",
+                )
+                if col_idx in (9, 12, 14):  # price columns
+                    cell.number_format = '#,##0.00'
+                elif col_idx in (10, 11, 13):  # percent columns
+                    cell.number_format = '0.00'
+                if row_idx % 2 == 0:
+                    cell.fill = PatternFill(start_color="F5F5F5", end_color="F5F5F5", fill_type="solid")
+
+        # Column widths
+        col_widths = [12, 14, 16, 18, 40, 9, 10, 10, 13, 12, 11, 13, 8, 13, 14, 14, 25]
+        for col_idx, w in enumerate(col_widths, 1):
+            ws.column_dimensions[ws.cell(row=2, column=col_idx).column_letter].width = w
+
+        ws.freeze_panes = "A3"
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return buf.read()
 
     async def delete_all_products(self, business_id: UUID) -> dict:
         """

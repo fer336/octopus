@@ -63,10 +63,11 @@ def _make_product(
     p.sale_price = Decimal("0")
     p.net_price = Decimal("0")
     p.unit = "unidad"
-    p.current_stock = 0
     p.next_expiration = None
     p.supplier = supplier
     p.category = category
+    p.brand_ref = None       # avoid MagicMock when excel_service checks brand_ref.name
+    p.current_stock = 0      # avoid MagicMock — pandas chokes on mock's tzinfo
     p.lots = lots or []
     return p
 

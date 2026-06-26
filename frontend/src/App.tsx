@@ -37,8 +37,10 @@ const Feedback   = lazy(() => import('./pages/Feedback'))
 const Authorizations = lazy(() => import('./pages/Authorizations'))
 const Messaging  = lazy(() => import('./pages/Messaging'))
 const PriceLists  = lazy(() => import('./pages/PriceLists'))
+const WholesalePriceLists = lazy(() => import('./pages/WholesalePriceLists'))
 const Stockpiles     = lazy(() => import('./pages/Stockpiles'))
 const MercadoLibre   = lazy(() => import('./pages/MercadoLibre'))
+const Rentabilidad   = lazy(() => import('./pages/Rentabilidad'))
 
 // Skeleton de carga entre navegaciones
 function PageLoader() {
@@ -146,6 +148,9 @@ export default function App() {
               <Route path="price-lists" element={
                 <Suspense fallback={<PageLoader />}><PriceLists /></Suspense>
               } />
+              <Route path="wholesale-lists" element={
+                <Suspense fallback={<PageLoader />}><WholesalePriceLists /></Suspense>
+              } />
               <Route path="clients" element={
                 <Suspense fallback={<PageLoader />}><Clients /></Suspense>
               } />
@@ -193,6 +198,9 @@ export default function App() {
               } />
               <Route path="mercadolibre" element={
                 <Suspense fallback={<PageLoader />}><MercadoLibre /></Suspense>
+              } />
+              <Route path="rentabilidad" element={
+                <Suspense fallback={<PageLoader />}><Rentabilidad /></Suspense>
               } />
             </Route>
 

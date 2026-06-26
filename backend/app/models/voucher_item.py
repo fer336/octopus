@@ -2,7 +2,7 @@
 Modelo de Ítem de Comprobante.
 Representa cada línea/producto de un comprobante.
 """
-from sqlalchemy import Column, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -32,6 +32,10 @@ class VoucherItem(BaseModel):
     # Snapshot del producto al momento de la venta
     code = Column(String(50), nullable=False)
     description = Column(String(500), nullable=False)
+
+    # Precio de costo al momento de la venta (para cálculo de rentabilidad)
+    cost_price = Column(Numeric(12, 2), default=None, nullable=True)
+    cost_price_estimated = Column(Boolean, default=False, nullable=False)
 
     # Cantidades y precios
     quantity = Column(Numeric(12, 2), nullable=False)

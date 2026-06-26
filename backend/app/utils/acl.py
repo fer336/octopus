@@ -17,6 +17,7 @@ MODULE_KEYS = [
     "cash",
     "products",
     "price_update",
+    "price_lists",
     "inventory",
     "stockpiles",
     "clients",
@@ -28,6 +29,13 @@ MODULE_KEYS = [
     "settings",
     "sql_backup",
     "srx",
+    "profitability.view_costs",
+    "profitability.view_margin",
+    "profitability.view_by_seller",
+    "profitability.view_documents",
+    "profitability.export",
+    "profitability.configure",
+    "profitability.view_alerts",
 ]
 
 
@@ -42,6 +50,7 @@ DEFAULT_MODULE_PERMISSIONS_BY_ROLE: dict[str, dict[str, bool]] = {
         "cash": True,
         "products": True,
         "price_update": False,
+        "price_lists": False,
         "inventory": False,
         "stockpiles": False,
         "clients": True,

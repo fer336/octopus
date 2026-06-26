@@ -272,20 +272,18 @@ class TestConfirmImportPackagingFields:
 
         existing_product = MagicMock(spec=Product)
         existing_product.id = uuid4()
-        existing_product.current_stock = 0
         existing_product.lots = []
+        existing_product.current_stock = 0      # avoid stock_diff < 0 path
         existing_product.calculate_prices = MagicMock()
 
         from sqlalchemy.orm import selectinload
-        product_result = MagicMock()
-        product_result.scalar_one_or_none.return_value = existing_product
-
-        empty_result = MagicMock()
-        empty_result.scalars.return_value.all.return_value = []
+        # confirm_import hace batch_query: select(Product).where(...) → scalars().all()
+        batch_result = MagicMock()
+        batch_result.scalars.return_value.all.return_value = [existing_product]
 
         # No category_is_new ni supplier_is_new en el row, is_new=False
-        # confirm_import buscará el producto por existing_id usando selectinload
-        db.execute = AsyncMock(return_value=product_result)
+        # La única db.execute es el batch de productos
+        db.execute = AsyncMock(return_value=batch_result)
 
         business_id = uuid4()
         existing_id = existing_product.id
@@ -424,11 +422,12 @@ class TestPreviewImportDBDuplicate:
         db_codes_result.all.return_value = [existing_code_row]
 
         # La fila no llega al lookup de producto existente porque es duplicada
+        # 4 queries: categories, suppliers, supplier_codes, existing_by_code
         db.execute = AsyncMock(side_effect=[
             empty_list_result,      # categories
             supplier_list_result,   # suppliers
             db_codes_result,        # supplier_codes batch → contiene PROV-DUP
-            # no hay lookup de producto porque continua con 'repetido'
+            empty_list_result,      # existing_by_code — no hay lookup porque es repetido
         ])
 
         business_id = uuid4()
