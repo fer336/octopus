@@ -78,6 +78,18 @@ jobs:
             --no-strict-optional \
             --allow-untyped-defs
 
+      # CAMBIO 1: se quitó el `|| true` del final y el flag `-x`.
+      # ANTES: `... --cov-fail-under=40 -x || true`
+      #   - `|| true` hacía que el step SIEMPRE saliera con código 0, así que tests
+      #     en rojo o cobertura < 40% nunca frenaban nada. Como system-deploy.yml y
+      #     system-staging-deploy.yml usan este workflow como `needs: ci`, tests rotos
+      #     igual llegaban a deploy. Sacándolo, el gate pasa a ser real.
+      #   - `-x` cortaba al primer fallo; lo saco para que el suite reporte TODOS los
+      #     fallos de una (mejor señal al depurar). Si preferís que corte rápido,
+      #     volvé a agregar `-x` (pero NUNCA el `|| true`).
+      # OJO: la primera vez que corra esto puede ponerse rojo si ya hay tests fallando
+      #      o si la cobertura real está por debajo de 40. Ajustá --cov-fail-under al
+      #      número real de hoy y subilo de a poco; no lo dejes en 40 a ciegas.
       - name: Tests con pytest
         env:
           DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/octopus_test
@@ -88,8 +100,7 @@ jobs:
             --tb=short \
             --cov=backend \
             --cov-report=term-missing \
-            --cov-fail-under=40 \
-            -x || true
+            --cov-fail-under=40
 
   frontend:
     name: Frontend — lint & test

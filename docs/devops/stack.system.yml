@@ -1,3 +1,21 @@
+# stack.system.yml — Sistema OctopusTrack Producción
+#
+# CAMBIOS EN ESTE ARCHIVO (vs. original):
+#   - Se agregó `healthcheck` a backend y frontend.
+#   - Se agregó `update_config` (con failure_action: rollback) y `rollback_config`
+#     al backend y al frontend.
+# Por qué juntos: el `failure_action: rollback` SOLO se dispara si Swarm sabe que la
+# tarea nueva está "unhealthy". Sin un `healthcheck`, Swarm considera "sana" a cualquier
+# tarea que simplemente arranque, aunque la app esté caída por dentro. Con healthcheck +
+# rollback, si la versión nueva no responde sano, Swarm vuelve SOLO a la anterior.
+#
+# OJO PARA EL AGENTE — confirmá antes de aplicar:
+#   1. La RUTA real del endpoint de salud del backend (acá se asume `/health` en :8000).
+#   2. Que la imagen del backend tenga Python (sí: es FastAPI) → uso urllib, no curl,
+#      porque muchas imágenes Python no traen curl.
+#   3. La imagen del frontend: se asume nginx en :80 con `wget` disponible (alpine lo trae).
+#      Si no, ajustá el test del healthcheck.
+
 version: "3.9"
 
 services:
@@ -14,6 +32,14 @@ services:
       DEBUG: "false"
       API_TENANT_PREFIX: "/api/tenant"
       RUN_ALEMBIC_MIGRATIONS: "true"
+    # CAMBIO: healthcheck del backend. Usa urllib (Python ya está en la imagen).
+    # Ajustá la ruta `/health` si tu endpoint real es otro (ej: /api/v1/health).
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/health', timeout=5).status==200 else sys.exit(1)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
     deploy:
       mode: replicated
       replicas: 1
@@ -24,6 +50,17 @@ services:
         condition: on-failure
         delay: 10s
         max_attempts: 5
+      # CAMBIO: rollback automático. start-first levanta la nueva antes de bajar la
+      # vieja (sin downtime); si la nueva no pasa el healthcheck dentro de `monitor`,
+      # Swarm ejecuta failure_action: rollback y vuelve a la versión anterior.
+      update_config:
+        order: start-first
+        failure_action: rollback
+        monitor: 60s
+        max_failure_ratio: 0
+        delay: 10s
+      rollback_config:
+        order: start-first
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=network_public"
@@ -56,6 +93,14 @@ services:
     networks:
       - network_public
       - octopus-internal
+    # CAMBIO: healthcheck del frontend (nginx en :80). Usa wget (presente en alpine).
+    # Si tu imagen no tiene wget, cambialo por curl o por el chequeo que aplique.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:80/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     deploy:
       mode: replicated
       replicas: 1
@@ -66,6 +111,15 @@ services:
         condition: on-failure
         delay: 10s
         max_attempts: 3
+      # CAMBIO: mismo rollback automático que el backend.
+      update_config:
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+        max_failure_ratio: 0
+        delay: 10s
+      rollback_config:
+        order: start-first
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=network_public"
