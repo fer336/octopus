@@ -17,7 +17,7 @@ interface AccountCurrentTabProps {
   filters?: ProfitabilityFilters
 }
 
-export default function AccountCurrentTab({ dateFrom, dateTo, filters }: AccountCurrentTabProps) {
+export default function AccountCurrentTab({ dateFrom: _dateFrom, dateTo: _dateTo, filters }: AccountCurrentTabProps) {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
 
@@ -42,12 +42,15 @@ export default function AccountCurrentTab({ dateFrom, dateTo, filters }: Account
           <Users size={18} className="text-purple-500" />
           <h3 className="font-semibold text-gray-900 dark:text-white">Seleccionar Cliente</h3>
         </div>
-        <Input
-          placeholder="Buscar cliente..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          icon={<Search size={16} />}
-        />
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Input
+            placeholder="Buscar cliente..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
         <div className="mt-3 space-y-1 max-h-96 overflow-y-auto">
           {(clients?.items ?? []).map((client: any) => (
             <button

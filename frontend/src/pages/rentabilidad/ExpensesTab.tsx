@@ -26,7 +26,6 @@ export default function ExpensesTab({ dateFrom, dateTo, filters }: ExpensesTabPr
     amount: 0,
     category_id: '',
     date: new Date().toISOString().slice(0, 10),
-    payment_method: 'cash',
     notes: '',
   })
 
@@ -78,7 +77,7 @@ export default function ExpensesTab({ dateFrom, dateTo, filters }: ExpensesTabPr
           <Receipt size={18} className="text-orange-500" />
           <h3 className="font-semibold text-gray-900 dark:text-white">Gastos del Período</h3>
         </div>
-        <Button size="sm" onClick={() => { setEditId(null); setForm({ description: '', amount: 0, category_id: '', date: new Date().toISOString().slice(0, 10), payment_method: 'cash', notes: '' }); setShowModal(true) }}>
+        <Button size="sm" onClick={() => { setEditId(null); setForm({ description: '', amount: 0, category_id: '', date: new Date().toISOString().slice(0, 10), notes: '' }); setShowModal(true) }}>
           <Plus size={16} className="mr-1" /> Nuevo Gasto
         </Button>
       </div>
@@ -88,14 +87,13 @@ export default function ExpensesTab({ dateFrom, dateTo, filters }: ExpensesTabPr
           { key: 'date', header: 'Fecha' },
           { key: 'description', header: 'Descripción' },
           { key: 'category_name', header: 'Categoría', render: (row: ExpenseOut) => row.category_name ?? '—' },
-          { key: 'amount', header: 'Monto', render: (row: ExpenseOut) => <span className="font-medium text-red-600 dark:text-red-400">${row.amount.toLocaleString()}</span> },
-          { key: 'payment_method', header: 'Método Pago', render: (row: ExpenseOut) => row.payment_method === 'cash' ? 'Efectivo' : row.payment_method === 'transfer' ? 'Transferencia' : row.payment_method === 'check' ? 'Cheque' : row.payment_method === 'card' ? 'Tarjeta' : row.payment_method ?? '—' },
+          { key: 'amount', header: 'Monto', render: (row: any) => <span className="font-medium text-red-600 dark:text-red-400">${row.amount.toLocaleString()}</span> },
           {
             key: 'actions',
             header: 'Acciones',
             render: (row: ExpenseOut) => (
               <div className="flex gap-1">
-                <button onClick={() => { setEditId(row.id); setForm({ description: row.description, amount: row.amount, category_id: row.category_id ?? '', date: row.date, payment_method: row.payment_method || 'cash', notes: '' }); setShowModal(true) }} className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded">
+                <button onClick={() => { setEditId(row.id); setForm({ description: row.description, amount: row.amount, category_id: row.category_id ?? '', date: row.date, notes: row.notes ?? '' }); setShowModal(true) }} className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded">
                   <Pencil size={14} />
                 </button>
                 <button onClick={() => { if (confirm('¿Eliminar este gasto?')) deleteMutation.mutate(row.id) }} className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">

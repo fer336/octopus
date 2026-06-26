@@ -32,8 +32,8 @@ interface TabProps {
 const formatCurrency = (value: number) =>
   `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-const marginAccent = (pct: number) => (pct >= 0 ? 'emerald' : 'rose') as const
-const neutralAccent = (v: number) => (v >= 0 ? 'emerald' : 'rose') as const
+const marginAccent = (pct: number): 'emerald' | 'rose' => (pct >= 0 ? 'emerald' : 'rose')
+const neutralAccent = (v: number): 'emerald' | 'rose' => (v >= 0 ? 'emerald' : 'rose')
 
 /** Calcula el delta absoluto a partir del valor actual y el cambio porcentual. */
 const computeDelta = (current: number, changePct: number): number =>

@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   TrendingDown,
   HelpCircle,
-  DollarSign,
   Package,
 } from 'lucide-react'
 import profitabilityService from '../../api/profitabilityService'

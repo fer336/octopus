@@ -102,6 +102,7 @@ export interface ExpenseOut {
   description: string
   amount: number
   date: string
+  notes?: string
   is_recurring: boolean
   created_by: string
   created_at: string
@@ -112,6 +113,7 @@ export interface ExpenseCreate {
   description: string
   amount: number
   date: string
+  notes?: string
   is_recurring?: boolean
 }
 
