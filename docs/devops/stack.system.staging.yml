@@ -94,9 +94,10 @@ services:
     networks:
       - network_public
       - octopus-staging-internal
-    # CAMBIO: healthcheck del frontend (nginx en :80, wget de alpine).
+    # CAMBIO: healthcheck del frontend (nginx -t en vez de wget --spider).
+    # nginx:alpine no incluye wget, lo que hacía fallar siempre el healthcheck.
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:80/ || exit 1"]
+      test: ["CMD", "nginx", "-t"]
       interval: 15s
       timeout: 5s
       retries: 5
