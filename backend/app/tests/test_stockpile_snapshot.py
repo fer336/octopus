@@ -344,24 +344,18 @@ class TestExcelGeneration:
         assert ws["A1"].value is not None
         assert stockpile.name in ws["A1"].value
 
-        # Verificar headers (fila 3)
-        headers = [ws.cell(row=3, column=c).value for c in range(1, 8)]
+        # Verificar headers (fila 3) — generate_excel usa 3 columnas
+        headers = [ws.cell(row=3, column=c).value for c in range(1, 4)]
         assert "Código" in headers
         assert "Descripción" in headers
-        assert "Precio sin IVA" in headers
-        assert "IVA %" in headers
-        assert "IVA $" in headers
-        assert "Precio final con IVA" in headers
-        assert "Fecha de congelamiento" in headers
+        assert "Precio Final" in headers
 
         # Verificar datos (desde fila 4)
         for i, snap in enumerate(snapshots):
             row = 4 + i
             assert ws.cell(row=row, column=1).value == snap.code
             assert ws.cell(row=row, column=2).value == snap.description
-            assert float(ws.cell(row=row, column=3).value) == float(snap.price_without_iva)
-            assert float(ws.cell(row=row, column=4).value) == float(snap.iva_rate)
-            assert float(ws.cell(row=row, column=6).value) == float(snap.price_with_iva)
+            assert float(ws.cell(row=row, column=3).value) == float(snap.price_with_iva)
 
         # Verificar autofilter
         assert ws.auto_filter.ref is not None

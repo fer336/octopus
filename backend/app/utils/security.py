@@ -247,6 +247,34 @@ async def get_current_business(
                     first_blocked_detail = "Negocio no encontrado"
                     continue
 
+                # Validar estado de acceso de la membresía (suspended / trial vencido)
+                if membership.access_status == "suspended":
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=membership.blocked_reason
+                        or "Tu acceso al negocio está suspendido. Contactá al administrador.",
+                    )
+
+                if membership.access_status == "trial":
+                    if membership.access_ends_at and datetime.utcnow() > membership.access_ends_at:
+                        membership.access_status = "expired"
+                        membership.blocked_reason = "Período de prueba vencido"
+                        try:
+                            await db.commit()
+                        except Exception:
+                            await db.rollback()
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Tu período de prueba venció. Contactá al administrador para continuar.",
+                        )
+
+                if membership.access_status == "expired":
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=membership.blocked_reason
+                        or "Tu acceso al negocio expiró. Contactá al administrador.",
+                    )
+
                 # La membresía define pertenencia/rol. El bloqueo por pago vive en el comercio.
                 await ensure_business_subscription_active(db, business)
                 return UUID(str(membership.business_id))

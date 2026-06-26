@@ -1431,8 +1431,6 @@ async def delete_arca_secrets(
     business.afip_cert = None
     business.afip_key = None
 
-    await db.commit()
-
     await log_audit(
         db=db,
         user_id=admin.user_id,
@@ -1445,6 +1443,8 @@ async def delete_arca_secrets(
             "invalidated_count": len(invalidated_types),
         },
     )
+
+    await db.commit()
 
     logger.info(
         "Secretos ARCA invalidados para tenant %s: %s",

@@ -61,6 +61,8 @@ def _make_product(
     p.extra_cost = Decimal("0")
     p.profit_margin = Decimal("0")
     p.iva_rate = Decimal("21")
+    p.brand_ref = None       # avoid MagicMock when excel_service checks brand_ref.name
+    p.current_stock = 0      # avoid MagicMock — pandas chokes on mock's tzinfo
     # lots used by current_stock property via mocked attribute
     p.lots = lots or []
     return p

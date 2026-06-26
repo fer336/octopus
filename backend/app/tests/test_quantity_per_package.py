@@ -66,6 +66,8 @@ def _make_product(
     p.next_expiration = None
     p.supplier = supplier
     p.category = category
+    p.brand_ref = None       # avoid MagicMock when excel_service checks brand_ref.name
+    p.current_stock = 0      # avoid MagicMock — pandas chokes on mock's tzinfo
     p.lots = lots or []
     return p
 
