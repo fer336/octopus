@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.models.expense import Expense, ExpenseCategory
 
@@ -40,7 +41,7 @@ class TestExpenseCategoryModel:
 
         cat2 = ExpenseCategory(name="Servicios", description="Duplicado", business_id=business_a.id)
         db.add(cat2)
-        with pytest.raises(Exception):
+        with pytest.raises(IntegrityError):
             await db.commit()
 
     async def test_category_default_is_active(self, db, business_a):
