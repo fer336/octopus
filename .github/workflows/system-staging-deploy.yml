@@ -73,9 +73,13 @@ jobs:
           VERSION="$(git describe --tags --match '[0-9]*.[0-9]*.[0-9]*' --always)"
           echo "Versión pre-release calculada: $VERSION"
 
+          # Versión legible para staging: staging.YYYYMMDD (ej: staging.20260626)
+          STAGING_VERSION="staging.$(date -u +'%Y%m%d')"
+
           echo "tag=${{ env.EFFECTIVE_TAG }}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "sha_tag=staging-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "staging_version=${STAGING_VERSION}" >> "$GITHUB_OUTPUT"
           echo "build_date=${BUILD_DATE}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
@@ -121,7 +125,7 @@ jobs:
           cache-from: type=gha,scope=staging-${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=staging-${{ matrix.service }}
           build-args: |
-            APP_VERSION=${{ steps.docker_tags.outputs.sha_tag }}
+            APP_VERSION=${{ steps.docker_tags.outputs.staging_version }}
             BUILD_DATE=${{ steps.docker_tags.outputs.build_date }}
             GIT_SHA=${{ github.sha }}
             VITE_BACKEND_URL=${{ env.STAGING_BACKEND_URL }}
