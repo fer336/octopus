@@ -4,13 +4,17 @@ Representa categorías de gastos y gastos del negocio.
 """
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import Column, Date, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
+
+if TYPE_CHECKING:
+    from app.models.business import Business
+    from app.models.user import User
 
 
 class ExpenseCategory(BaseModel):
@@ -28,7 +32,7 @@ class ExpenseCategory(BaseModel):
         nullable=False,
         index=True,
     )
-    business: Mapped["Business"] = relationship(  # noqa: F821
+    business: Mapped["Business"] = relationship(
         "Business", back_populates="expense_categories"
     )
 
