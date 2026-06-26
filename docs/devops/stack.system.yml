@@ -86,6 +86,13 @@ services:
         - "traefik.http.routers.octopus-api-v1.priority=100"
         - "traefik.http.routers.octopus-api-v1.service=octopus-backend"
 
+        # Ruta dedicada para health check
+        - "traefik.http.routers.octopus-health.rule=Host(`app.octopustrack.shop`) && Path(`/health`)"
+        - "traefik.http.routers.octopus-health.entrypoints=websecure"
+        - "traefik.http.routers.octopus-health.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.octopus-health.priority=110"
+        - "traefik.http.routers.octopus-health.service=octopus-backend"
+
         - "traefik.http.services.octopus-backend.loadbalancer.server.port=8000"
 
   frontend:
@@ -93,10 +100,10 @@ services:
     networks:
       - network_public
       - octopus-internal
-    # CAMBIO: healthcheck del frontend (nginx en :80). Usa wget (presente en alpine).
-    # Si tu imagen no tiene wget, cambialo por curl o por el chequeo que aplique.
+    # CAMBIO: healthcheck del frontend (nginx -t en vez de wget --spider).
+    # nginx:alpine no incluye wget funcional, lo que hacía fallar el healthcheck.
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:80/ || exit 1"]
+      test: ["CMD", "nginx", "-t"]
       interval: 15s
       timeout: 5s
       retries: 5
