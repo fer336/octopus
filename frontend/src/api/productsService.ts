@@ -12,6 +12,8 @@ export interface Product {
   brand_id?: string | null
   code: string
   supplier_code?: string
+  meli_sku?: string | null
+  similarity_group_code?: string | null
   photo_url?: string
   description: string
   details?: string
@@ -52,6 +54,8 @@ export interface Product {
 export interface ProductCreate {
   code: string
   supplier_code?: string
+  meli_sku?: string | null
+  similarity_group_code?: string | null
   description: string
   brand?: string
   brand_id?: string
@@ -86,6 +90,8 @@ export interface ProductCreate {
 export interface ProductUpdate {
   code?: string
   supplier_code?: string
+  meli_sku?: string | null
+  similarity_group_code?: string | null
   description?: string
   brand?: string
   brand_id?: string | null
@@ -237,6 +243,8 @@ export const productsService = {
     sort_by?: 'description' | 'sale_price' | 'current_stock'
     sort_order?: 'asc' | 'desc'
     is_active?: boolean
+    low_stock?: boolean
+    similarity_group_code?: string
   }): Promise<PaginatedResponse<Product>> => {
     const response = await httpClient.get('/products', { params })
     return response.data
@@ -441,6 +449,11 @@ export const productsService = {
       `/products/${productId}/sync-price-from-lot`,
       data,
     )
+    return response.data
+  },
+
+  getAlternatives: async (id: string): Promise<Product[]> => {
+    const response = await httpClient.get<Product[]>(`/products/${id}/alternatives`)
     return response.data
   },
 }

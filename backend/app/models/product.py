@@ -51,6 +51,8 @@ class Product(BaseModel):
     supplier_code = Column(
         String(50), nullable=True, index=True
     )  # Código del proveedor
+    meli_sku = Column(String(100), nullable=True, index=True)  # SKU en MercadoLibre
+    similarity_group_code = Column(String(50), nullable=True, index=True)  # Grupo de productos equivalentes
     photo_url = Column(String(500), nullable=True)
 
     # Descripción
