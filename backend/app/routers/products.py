@@ -203,6 +203,9 @@ async def list_products(
     quality_tier: str | None = Query(
         None, description="Filtrar por nivel de calidad"
     ),
+    similarity_group_code: str | None = Query(
+        None, description="Filtrar por código de grupo de similitud (exacto)"
+    ),
     is_active: bool | None = Query(True, description="Filtrar por estado activo"),
     low_stock: bool | None = Query(
         None, description="Filtrar productos con stock bajo"
@@ -237,6 +240,7 @@ async def list_products(
         application_area=application_area,
         finish=finish,
         quality_tier=quality_tier,
+        similarity_group_code=similarity_group_code,
         is_active=is_active,
         low_stock=low_stock,
         sort_by=sort_by,
@@ -301,6 +305,29 @@ async def get_product(
         )
 
     return ProductResponse.model_validate(product)
+
+
+@router.get("/{product_id}/alternatives", response_model=list[ProductResponse])
+async def get_product_alternatives(
+    product_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """
+    Retorna productos equivalentes con stock disponible del mismo grupo de similitud.
+    Si el producto no tiene grupo asignado, devuelve lista vacía.
+    """
+    service = ProductService(db)
+    product = await service.get_by_id(product_id, business_id)
+
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Producto no encontrado",
+        )
+
+    alternatives = await service.get_similar_available_products(product_id, business_id)
+    return [ProductResponse.model_validate(p) for p in alternatives]
 
 
 @router.post("/bulk-update", response_model=ProductBulkUpdateResponse)

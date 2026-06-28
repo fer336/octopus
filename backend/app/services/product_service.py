@@ -191,6 +191,11 @@ class ProductService:
                 Product.quality_tier.ilike(f"%{params.quality_tier}%")
             )
 
+        if params.similarity_group_code:
+            base_conditions.append(
+                Product.similarity_group_code == params.similarity_group_code
+            )
+
         if params.is_active is not None:
             base_conditions.append(Product.is_active == params.is_active)
 
@@ -679,3 +684,48 @@ class ProductService:
 
         refreshed = await self.get_by_id(product.id, business_id)
         return refreshed if refreshed else product
+
+    async def get_similar_available_products(
+        self,
+        product_id: UUID,
+        business_id: UUID,
+    ) -> builtins.list[Product]:
+        """Retorna productos del mismo similarity_group_code con stock suficiente.
+
+        Útil para sugerir alternativas cuando un producto está con stock bajo.
+        """
+        product = await self.get_by_id(product_id, business_id)
+        if not product or not product.similarity_group_code:
+            return []
+
+        stock_subq = (
+            select(
+                ProductLot.product_id.label("product_id"),
+                func.coalesce(func.sum(ProductLot.quantity), 0).label("stock"),
+            )
+            .where(
+                ProductLot.business_id == business_id,
+                ProductLot.deleted_at.is_(None),
+            )
+            .group_by(ProductLot.product_id)
+            .subquery()
+        )
+        current_stock_expr = func.coalesce(stock_subq.c.stock, 0)
+
+        query = (
+            select(Product)
+            .options(selectinload(Product.lots), selectinload(Product.brand_ref))
+            .outerjoin(stock_subq, stock_subq.c.product_id == Product.id)
+            .where(
+                Product.business_id == business_id,
+                Product.similarity_group_code == product.similarity_group_code,
+                Product.id != product_id,
+                Product.deleted_at.is_(None),
+                Product.is_active.is_(True),
+                current_stock_expr > Product.minimum_stock,
+            )
+            .order_by(current_stock_expr.desc())
+        )
+
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
