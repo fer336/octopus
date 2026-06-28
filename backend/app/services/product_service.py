@@ -689,7 +689,7 @@ class ProductService:
         self,
         product_id: UUID,
         business_id: UUID,
-    ) -> list[Product]:
+    ) -> builtins.list[Product]:
         """Retorna productos del mismo similarity_group_code con stock suficiente.
 
         Útil para sugerir alternativas cuando un producto está con stock bajo.
