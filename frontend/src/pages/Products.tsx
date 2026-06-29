@@ -1042,6 +1042,15 @@ export default function Products() {
       return
     }
 
+    // Costo = lista × (1-d1) × (1-d2) × (1-d3)
+    const computedCostPrice = Math.round(
+      resolvedListPrice
+      * (1 - (formData.discount_1 || 0) / 100)
+      * (1 - (formData.discount_2 || 0) / 100)
+      * (1 - (formData.discount_3 || 0) / 100)
+      * 100
+    ) / 100
+
     // Preparar datos para enviar al backend
     if (isEditing && editingId) {
       // En edición NO se envía current_stock (se gestiona por lotes)
@@ -1065,6 +1074,7 @@ export default function Products() {
         extra_cost: formData.extra_cost || 0,
         profit_margin: formData.profit_margin || 0,
         iva_rate: formData.iva_rate || 21,
+        cost_price: computedCostPrice,
         minimum_stock: formData.minimum_stock || 0,
         unit: formData.unit || 'unidad',
         units_per_pack: formData.units_per_pack || null,
@@ -1106,6 +1116,7 @@ export default function Products() {
         extra_cost: formData.extra_cost || 0,
         profit_margin: formData.profit_margin || 0,
         iva_rate: formData.iva_rate || 21,
+        cost_price: computedCostPrice,
         current_stock: formData.current_stock || 0,
         expiration_date: formData.expiration_date || null,
         minimum_stock: formData.minimum_stock || 0,
@@ -2050,7 +2061,7 @@ export default function Products() {
             )}
 
             {/* Inputs de precios */}
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5 lg:gap-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-6 lg:gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   {priceCurrency === 'USD' ? 'Precio USD *' : 'P. Lista *'}
@@ -2095,6 +2106,25 @@ export default function Products() {
                   placeholder="10+5"
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-green-500"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Costo
+                </label>
+                {(() => {
+                  const lp = priceCurrency === 'USD'
+                    ? (parseFloat(listPriceUsd) || 0) * (formData.list_price || 1) / (parseFloat(listPriceUsd) || 1)
+                    : (formData.list_price || 0)
+                  const d1 = formData.discount_1 || 0
+                  const d2 = formData.discount_2 || 0
+                  const d3 = formData.discount_3 || 0
+                  const netBase = lp * (1 - d1 / 100) * (1 - d2 / 100) * (1 - d3 / 100)
+                  return (
+                    <div className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-200 font-mono tabular-nums">
+                      ${netBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  )
+                })()}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
