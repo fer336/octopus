@@ -317,7 +317,7 @@ jobs:
           # Ejecuta pg_dump DENTRO del contenedor de Postgres en el host del Swarm.
           ssh -i ~/.ssh/id_deploy "${{ secrets.DEPLOY_SSH_USER }}@${{ secrets.DEPLOY_SSH_HOST }}" \
             "docker exec \$(docker ps -qf name=${{ secrets.PG_CONTAINER_NAME }} | head -n1) \
-             pg_dump -U \"${PG_USER:-postgres}\" \"${PG_DB:-octopus}\"" \
+             pg_dump -U \"${PG_USER:-postgres}\" \"${PG_DB:-octopustrack}\"" \
             | gzip > "$FILE"
           SIZE=$(wc -c < "$FILE")
           echo "Backup generado: $FILE ($SIZE bytes)"
