@@ -1,73 +1,43 @@
-# 🐙 OctopusTrack
+<p align="center">
+  <img src="docs/screenshots/portada.png" alt="OctopusTrack — ERP comercial" width="100%" />
+</p>
 
-Sistema ERP para sanitarios, ferreterías y corralones.
+# OctopusTrack
 
----
-
-## 🚀 Probar el sistema
-
-🌐 **Demo online:** https://app.octopustrack.shop
-
-📲 **Acceso de prueba con autorización previa por WhatsApp:**
-
-- WhatsApp: **+54 9 2254 59-6618**
-- Link directo: https://wa.me/5492254596618
-
-> Al ingresar, solicitá acceso por WhatsApp para habilitar la prueba.
+ERP comercial para sanitarios, ferreterías y corralones. Ventas, facturación electrónica ARCA, stock, cuenta corriente y rentabilidad, todo en un solo sistema.
 
 ---
 
-## ✨ ¿Qué tiene hoy OctopusTrack? (paso a paso)
+## Probar el sistema
 
-1. 🧾 **Cotizaciones**
-   - Creación rápida de presupuestos.
-   - Conversión posterior a remito o factura.
+**Demo online:** https://app.octopustrack.shop
 
-2. 🧷 **Remitos con y sin precios**
-   - Emisión de remitos según necesidad operativa.
-   - Ideal para entrega con control comercial.
+Solicitá acceso de prueba por WhatsApp: [+54 9 2254 59-6618](https://wa.me/5492254596618)
 
-3. 🧮 **Facturación electrónica ARCA (vía AFIP SDK)**
-   - Emisión de comprobantes fiscales.
-   - Flujo integrado con datos fiscales del sistema.
-
-4. 💸 **Actualización masiva de precios**
-   - Herramientas para modificar grandes volúmenes de productos.
-   - Pensado para rubros con listas cambiantes.
-
-5. 🤝 **Cuenta corriente por cliente**
-   - Gestión de saldo, movimientos y seguimiento comercial.
-
-6. 🏗️ **Cuenta corriente + retiro autorizado de mercadería**
-   - Un cliente titular puede autorizar a otro cliente a retirar mercadería.
-   - Caso real: arquitecto titular + instalador/plomero/electricista autorizado.
-
-7. 💳 **Métodos de pago**
-   - Configuración de métodos y registro operativo.
-
-8. 👥 **Clientes y proveedores**
-   - Gestión completa de contactos comerciales.
-
-9. 🤖 **Agente de IA**
-   - Consulta de precios por lenguaje natural.
-   - Asistencia para crear cotizaciones.
-   - Módulo en evolución continua para nuevas mejoras.
-
-10. 📦 **Inventario y stock**
-    - Control de stock y conteo.
-    - Reportes para contabilizar mercadería.
-    - Reportes exportables para compartir con proveedores.
-
-11. 📊 **Área de reportes**
-    - Reportes operativos del negocio para análisis diario.
-
-12. 🛟 **Soporte y seguimiento de incidencias**
-    - El usuario puede enviar feedback/problemas desde el sistema.
-    - El mensaje se integra con **Linear App** para gestión de tickets.
+> Al ingresar, pedí habilitación por WhatsApp para activar la prueba.
 
 ---
 
-## 🖼️ Capturas del sistema
+## Qué tiene hoy
+
+| Módulo | Qué hace |
+|--------|----------|
+| **Ventas y comprobantes** | Cotizaciones, remitos y facturas electrónicas ARCA; conversión entre tipos en un click |
+| **Catálogo y precios** | ABM de productos con precio lista, bonificaciones, cargo extra, ganancia e IVA; actualización masiva |
+| **Inventario** | Órdenes de pedido por proveedor, control de stock, reportes exportables en PDF |
+| **Caja diaria** | Registro de movimientos reales de caja, apertura y cierre por turno |
+| **Cuenta Corriente** | Saldo por cliente; el titular puede autorizar retiro a un subcliente (p. ej. arquitecto → plomero) |
+| **Acopios** | Anticipos de clientes para obras; seguimiento de importe retirado y saldo disponible |
+| **Listas de precios** | Snapshot del catálogo para compartir con clientes en cuenta corriente |
+| **Métodos de pago** | Configuración de medios de cobro: efectivo, cheque, débito, crédito, MP, transferencia |
+| **Rentabilidad** | KPIs de margen bruto, margen neto, COGS y gastos operativos por período |
+| **Mercado Libre** | Publicación y sincronización de precios y stock via OAuth + webhook |
+| **Agente IA** | Consulta de precios por lenguaje natural y asistencia para armar cotizaciones |
+| **Soporte** | Feedback desde el sistema, integrado con Linear App para gestión de tickets |
+
+---
+
+## Capturas del sistema
 
 ### Login
 ![Login](docs/screenshots/login.png)
@@ -75,54 +45,57 @@ Sistema ERP para sanitarios, ferreterías y corralones.
 ### Dashboard
 ![Dashboard](docs/screenshots/dashboard.png)
 
-### Productos
-![Productos](docs/screenshots/productos.png)
-
-### Actualización Masiva de Precios
-![Actualización de Precios](docs/screenshots/actualizar-bd.png)
-
-### Clientes
-![Clientes](docs/screenshots/clientes.png)
-
-### Proveedores
-![Proveedores](docs/screenshots/proveedores.png)
-
-### Categorías
-![Categorías](docs/screenshots/categorias.png)
+### Ventas — Nuevo comprobante
+![Ventas](docs/screenshots/ventas.png)
 
 ### Comprobantes
 ![Comprobantes](docs/screenshots/comprobantes.png)
 
+### Productos
+![Productos](docs/screenshots/productos.png)
+
+### Nuevo Producto
+![Crear Producto](docs/screenshots/crear-producto.png)
+
+### Actualizar Precios
+![Actualizar Precios](docs/screenshots/actualizar-precios.png)
+
+### Listas de Precios — Cuenta Corriente
+![Listas de Precios](docs/screenshots/listadeprecios-ctate.png)
+
+### Inventario
+![Inventario](docs/screenshots/inventario.png)
+
+### Caja Diaria
+![Caja](docs/screenshots/caja-diaria.png)
+
 ### Cuenta Corriente
 ![Cuenta Corriente](docs/screenshots/cta-cte.png)
 
-### Resumen Cuenta Corriente
-![Resumen Cuenta Corriente](docs/screenshots/resumen-cta-cte.png)
-
-### Caja
-![Caja](docs/screenshots/caja.png)
+### Acopios
+![Acopios](docs/screenshots/acopios.png)
 
 ### Métodos de Pago
 ![Métodos de Pago](docs/screenshots/metodosdepago.png)
 
-### Inventario
-![Inventario](docs/screenshots/inventario.png)
+### Mercado Libre
+![Mercado Libre](docs/screenshots/mercadolibre.png)
 
 ### PDF — Cotización
 ![Cotización PDF](docs/screenshots/pdf-cotizacion.png)
 
 ### PDF — Remito
-![Remito PDF](docs/screenshots/pdf-remit.png)
+![Remito PDF](docs/screenshots/pdf-remito.png)
 
-### PDF — Factura
-![Factura PDF](docs/screenshots/pdf-factura.png)
+### PDF — Factura B (ARCA)
+![Factura PDF](docs/screenshots/pdf-fac-arca.png)
 
-### PDF — Inventario
-![Inventario PDF](docs/screenshots/pdf-inventario.png)
+### PDF — Orden de Pedido
+![Orden de Pedido PDF](docs/screenshots/pdf-inventario.png)
 
 ---
 
-## 🛒 Integración Mercado Libre
+## Integración Mercado Libre
 
 OctopusTrack puede conectarse a una cuenta de Mercado Libre para publicar productos del inventario y sincronizar precios y stock automáticamente.
 
@@ -130,7 +103,7 @@ OctopusTrack puede conectarse a una cuenta de Mercado Libre para publicar produc
 
 1. Crear una aplicación en el [DevCenter de ML](https://developers.mercadolibre.com.ar/devcenter):
    - **Redirect URI**: `https://<tu-dominio>/api/v1/meli/oauth/callback`
-   - Activar el topic **`orders_v2`** en Notifications y configurar la URL: `https://<tu-dominio>/api/v1/meli/notifications`
+   - Activar el topic **`orders_v2`** en Notifications con URL: `https://<tu-dominio>/api/v1/meli/notifications`
    - Anotar **App ID** (client_id) y **Secret Key** (client_secret)
 
 2. Generar una clave Fernet para cifrar los tokens en la base de datos:
@@ -152,10 +125,6 @@ MELI_AUTH_BASE=https://auth.mercadolibre.com.ar
 MELI_TOKEN_ENCRYPTION_KEY=<clave Fernet generada arriba>
 ```
 
-### Usuarios de prueba (desarrollo)
-
-ML permite crear sellers y compradores de prueba desde el DevCenter → *Usuarios de prueba*. Con esos usuarios podés hacer el flujo completo (OAuth, publicar, webhook de venta) sin afectar cuentas reales.
-
 ### Arquitectura de la sincronización
 
 ```
@@ -174,16 +143,18 @@ Webhook ML (orders_v2)
 - El refresh_token es de un solo uso; se rota atómicamente con `SELECT … FOR UPDATE`.
 - Los webhooks se procesan con idempotencia por `meli_order_id`.
 
+### Usuarios de prueba (desarrollo)
+
+ML permite crear sellers y compradores de prueba desde el DevCenter → *Usuarios de prueba*. Con esos usuarios podés hacer el flujo completo (OAuth, publicar, webhook de venta) sin afectar cuentas reales.
+
 ---
 
-## 💜 Colaboración
+## Colaboración
 
-Este proyecto está en crecimiento constante.
+Este proyecto está en crecimiento constante. Si querés colaborar con ideas, feedback funcional o mejoras:
 
-Si querés colaborar con ideas, feedback funcional o mejoras:
-
-- abrí un issue
-- o escribinos por WhatsApp para coordinar una prueba guiada
+- Abrí un issue en este repositorio
+- O escribinos por [WhatsApp](https://wa.me/5492254596618) para coordinar una prueba guiada
 
 ---
 

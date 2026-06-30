@@ -75,6 +75,7 @@ export default function SummaryTab({ dateFrom, dateTo, filters }: TabProps) {
           color="emerald"
           isLoading={isLoading}
           comparison={cmp ? { value: computeDelta(summary.total_revenue, cmp.revenue_change_pct), pct: cmp.revenue_change_pct, isUp: cmp.revenue_change_pct >= 0 } : undefined}
+          tooltip="Todo lo que facturaste en el período. Incluye todas las ventas registradas, sin descontar costos ni impuestos."
         />
         <KpiCard
           title="Costo (COGS)"
@@ -84,6 +85,7 @@ export default function SummaryTab({ dateFrom, dateTo, filters }: TabProps) {
           color="orange"
           isLoading={isLoading}
           comparison={cmp ? { value: computeDelta(summary.total_cost, cmp.cost_change_pct), pct: cmp.cost_change_pct, isUp: cmp.cost_change_pct >= 0 } : undefined}
+          tooltip="Costo de la mercadería que vendiste (COGS). Es lo que te costó comprar o producir exactamente lo que salió. No incluye gastos operativos."
         />
         <KpiCard
           title="Margen Bruto"
@@ -98,6 +100,7 @@ export default function SummaryTab({ dateFrom, dateTo, filters }: TabProps) {
           featured
           isLoading={isLoading}
           comparison={cmp ? { value: computeDelta(summary.gross_margin, cmp.profit_change_pct), pct: cmp.profit_change_pct, isUp: cmp.profit_change_pct >= 0 } : undefined}
+          tooltip="Ingreso Total menos el Costo de mercadería. Te dice cuánto generás antes de pagar gastos operativos. El porcentaje indica qué fracción de cada venta es ganancia bruta."
         />
         <KpiCard
           title="Gastos Operativos"
@@ -106,6 +109,7 @@ export default function SummaryTab({ dateFrom, dateTo, filters }: TabProps) {
           icon={CreditCard}
           color="rose"
           isLoading={isLoading}
+          tooltip="Gastos fijos y variables del negocio: alquiler, sueldos, servicios, etc. Se restan del Margen Bruto para obtener la Ganancia Neta."
         />
       </div>
 
@@ -119,14 +123,20 @@ export default function SummaryTab({ dateFrom, dateTo, filters }: TabProps) {
           color={summary ? neutralAccent(summary.net_profit) : 'blue'}
           featured
           isLoading={isLoading}
+          tooltip="Lo que realmente te quedó: Margen Bruto menos todos los Gastos Operativos. Si es negativo, el negocio perdió plata en el período."
         />
         <KpiCard
-          title="Markup %"
-          value={summary ? `${summary.markup_pct.toFixed(1)}%` : '—'}
-          subtitle="Margen / Costo × 100"
+          title="Margen Neto %"
+          value={
+            summary && summary.total_revenue > 0
+              ? `${((summary.net_profit / summary.total_revenue) * 100).toFixed(1)}%`
+              : '—'
+          }
+          subtitle="Ganancia Neta / Ingreso"
           icon={Percent}
-          color="amber"
+          color={summary ? neutralAccent(summary.net_profit) : 'amber'}
           isLoading={isLoading}
+          tooltip="De cada $100 que vendiste, cuántos pesos te quedaron limpios después de costos y gastos. Un 10% significa que por cada $100 vendidos te quedaron $10."
         />
         <KpiCard
           title="Unidades Vendidas"
@@ -135,6 +145,7 @@ export default function SummaryTab({ dateFrom, dateTo, filters }: TabProps) {
           icon={ShoppingBag}
           color="blue"
           isLoading={isLoading}
+          tooltip="Cantidad total de unidades vendidas en el período. Abajo se muestra la cantidad de comprobantes (facturas/remitos) que generaron esas ventas."
         />
         <KpiCard
           title="Ticket Promedio"
@@ -143,6 +154,7 @@ export default function SummaryTab({ dateFrom, dateTo, filters }: TabProps) {
           icon={Receipt}
           color="slate"
           isLoading={isLoading}
+          tooltip="Valor promedio de cada comprobante emitido. Se calcula dividiendo el Ingreso Total por la cantidad de comprobantes. Útil para medir si tus ventas están creciendo en volumen o en valor."
         />
       </div>
 
@@ -155,6 +167,7 @@ export default function SummaryTab({ dateFrom, dateTo, filters }: TabProps) {
           icon={Package}
           color="violet"
           isLoading={isLoading}
+          tooltip="Cobros recibidos que están vinculados a acopios (anticipos de clientes para reservar mercadería). Se muestran separados porque no siempre representan una venta cerrada."
         />
         <KpiCard
           title="Comprobantes"
@@ -163,6 +176,7 @@ export default function SummaryTab({ dateFrom, dateTo, filters }: TabProps) {
           icon={FileText}
           color="slate"
           isLoading={isLoading}
+          tooltip="Cantidad total de facturas, remitos o notas emitidas en el período. Combinado con el Ticket Promedio te ayuda a entender si vendés más veces o en montos más altos."
         />
       </div>
 

@@ -19,6 +19,10 @@ class ProductCreate(BaseSchema):
     supplier_code: str | None = Field(
         None, max_length=50, description="Código del proveedor"
     )
+    meli_sku: str | None = Field(None, max_length=100, description="SKU en MercadoLibre")
+    similarity_group_code: str | None = Field(
+        None, max_length=50, description="Código de grupo de similitud para recomendación por bajo stock"
+    )
     photo_url: str | None = None
     description: str = Field(
         ..., max_length=500, description="Descripción del producto"
@@ -74,6 +78,8 @@ class ProductUpdate(BaseSchema):
 
     code: str | None = Field(None, max_length=50)
     supplier_code: str | None = Field(None, max_length=50)
+    meli_sku: str | None = Field(None, max_length=100)
+    similarity_group_code: str | None = Field(None, max_length=50)
     photo_url: str | None = None
     description: str | None = Field(None, max_length=500)
     details: str | None = None
@@ -140,6 +146,8 @@ class ProductResponse(BaseResponse):
 
     code: str
     supplier_code: str | None
+    meli_sku: str | None
+    similarity_group_code: str | None
     description: str
     details: str | None
     brand: str | None
@@ -250,6 +258,9 @@ class ProductListParams(BaseSchema):
     application_area: str | None = None
     finish: str | None = None
     quality_tier: str | None = None
+    similarity_group_code: str | None = Field(
+        None, description="Filtrar por código de grupo de similitud (exacto)"
+    )
     is_active: bool | None = True
     low_stock: bool | None = Field(
         None, description="Filtrar productos con stock bajo"

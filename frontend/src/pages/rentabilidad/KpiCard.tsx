@@ -2,7 +2,7 @@
  * KpiCard — Tarjeta de indicador KPI con valor, ícono y delta de comparación.
  * Soporta formato de moneda, porcentaje y número, con skeleton de carga.
  */
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, Info } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 // ── Props ────────────────────────────────────────────────────────────
@@ -22,6 +22,7 @@ export interface KpiCardProps {
   featured?: boolean
   comparison?: Comparison | null
   isLoading?: boolean
+  tooltip?: string
 }
 
 // ── Color map ────────────────────────────────────────────────────────
@@ -114,6 +115,7 @@ export default function KpiCard({
   featured = false,
   comparison,
   isLoading,
+  tooltip,
 }: KpiCardProps) {
   if (isLoading) return <Skeleton />
 
@@ -136,9 +138,20 @@ export default function KpiCard({
 
       <div className="p-4">
         <div className="flex items-start justify-between gap-3 mb-2">
-          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.08em] pt-0.5">
-            {title}
-          </span>
+          <div className="flex items-center gap-1 pt-0.5">
+            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.08em]">
+              {title}
+            </span>
+            {tooltip && (
+              <div className="relative group/tip">
+                <Info size={11} className="text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 cursor-help transition-colors" />
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 rounded-lg bg-slate-800 dark:bg-slate-700 text-white text-[11px] leading-relaxed p-2.5 opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 pointer-events-none z-50 shadow-xl">
+                  {tooltip}
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800 dark:border-t-slate-700" />
+                </div>
+              </div>
+            )}
+          </div>
           {Icon && (
             <div className={`p-2 rounded-lg ${a.bg} ${a.icon} shrink-0 transition-transform duration-200 group-hover:scale-110`}>
               <Icon size={featured ? 18 : 15} />

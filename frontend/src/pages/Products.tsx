@@ -3,7 +3,8 @@
  * Lista, búsqueda y gestión de productos con cálculo de precio final.
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Plus, Edit, Trash2, Calculator, Upload, Download, Search, AlertTriangle, FileCode, RotateCcw, Loader2, Package, ChevronDown, QrCode } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { Plus, Edit, Trash2, Calculator, Upload, Download, Search, AlertTriangle, FileCode, RotateCcw, Loader2, Package, ChevronDown, QrCode, Layers } from 'lucide-react'
 import { Button, Pagination, Modal, Select } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import toast from 'react-hot-toast'
@@ -29,13 +30,17 @@ type ProductFormData = Partial<Product> & {
 
 const todayISODate = () => new Date().toISOString().slice(0, 10)
 
+import { descriptionToGroupCode, buildGroupSuggestions } from '../utils/similarityGroup'
+
 export default function Products() {
   const queryClient = useQueryClient()
+  const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedSupplier, setSelectedSupplier] = useState('')
   const [selectedBrand, setSelectedBrand] = useState('')
+  const [showLowStock, setShowLowStock] = useState(() => searchParams.get('low_stock') === 'true')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -71,6 +76,102 @@ export default function Products() {
   const lotSubmitRef = useRef<HTMLButtonElement>(null)
   const [rateType, setRateType] = useState<'blue' | 'oficial'>('blue')
 
+  // Preview del grupo de similitud en el formulario
+  const [similarGroupPreview, setSimilarGroupPreview] = useState<Product[]>([])
+  const [similarGroupLoading, setSimilarGroupLoading] = useState(false)
+  const similarGroupDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleSimilarityGroupChange = (code: string) => {
+    setFormData(prev => ({ ...prev, similarity_group_code: code }))
+    if (similarGroupDebounceRef.current) clearTimeout(similarGroupDebounceRef.current)
+    if (!code.trim()) { setSimilarGroupPreview([]); return }
+    similarGroupDebounceRef.current = setTimeout(async () => {
+      setSimilarGroupLoading(true)
+      try {
+        const result = await productsService.getAll({
+          similarity_group_code: code.trim(),
+          per_page: 5,
+          is_active: undefined,
+        })
+        setSimilarGroupPreview(result.items.filter(p => p.id !== editingId))
+      } catch {
+        setSimilarGroupPreview([])
+      } finally {
+        setSimilarGroupLoading(false)
+      }
+    }, 400)
+  }
+
+  // Estado de alternativas por similitud
+  const [alternativesProductId, setAlternativesProductId] = useState<string | null>(null)
+  const [alternativesData, setAlternativesData] = useState<Product[]>([])
+  const [alternativesLoading, setAlternativesLoading] = useState(false)
+
+  const [originalSimilarityGroupCode, setOriginalSimilarityGroupCode] = useState<string | null>(null)
+  const [originalGroupMembers, setOriginalGroupMembers] = useState<Product[]>([])
+  const [showGroupChangeDialog, setShowGroupChangeDialog] = useState(false)
+  const [pendingSubmitData, setPendingSubmitData] = useState<ProductUpdate | null>(null)
+
+  const [descSuggestions, setDescSuggestions] = useState<string[]>([])
+  const descDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleViewAlternatives = async (productId: string) => {
+    if (alternativesProductId === productId) {
+      setAlternativesProductId(null)
+      return
+    }
+    setAlternativesProductId(productId)
+    setAlternativesLoading(true)
+    try {
+      const data = await productsService.getAlternatives(productId)
+      setAlternativesData(data)
+    } catch {
+      setAlternativesData([])
+    } finally {
+      setAlternativesLoading(false)
+    }
+  }
+
+  const handleViewEquivalencias = async (productId: string, groupCode: string) => {
+    if (alternativesProductId === productId) {
+      setAlternativesProductId(null)
+      return
+    }
+    setAlternativesProductId(productId)
+    setAlternativesLoading(true)
+    try {
+      const result = await productsService.getAll({ similarity_group_code: groupCode, is_active: undefined, per_page: 10 })
+      setAlternativesData(result.items.filter(p => p.id !== productId))
+    } catch {
+      setAlternativesData([])
+    } finally {
+      setAlternativesLoading(false)
+    }
+  }
+
+  const handleConfirmGroupChange = async (scope: 'single' | 'all') => {
+    setShowGroupChangeDialog(false)
+    if (!pendingSubmitData || !editingId) return
+
+    updateMutation.mutate({ id: editingId, data: pendingSubmitData })
+
+    if (scope === 'all' && originalGroupMembers.length > 0) {
+      try {
+        await productsService.bulkUpdate(
+          originalGroupMembers.map(p => ({
+            id: p.id,
+            similarity_group_code: formData.similarity_group_code?.trim() || null,
+          }))
+        )
+        queryClient.invalidateQueries({ queryKey: ['products'] })
+      } catch {
+        toast.error('Error al actualizar los productos del grupo')
+      }
+    }
+
+    setPendingSubmitData(null)
+  }
+
   // Estado del modal de lotes
   const [showLotModal, setShowLotModal] = useState(false)
   const [lotModalProduct, setLotModalProduct] = useState<Product | null>(null)
@@ -93,14 +194,15 @@ export default function Products() {
 
   // React Query para productos con filtros
   const { data: productsData, isLoading, isFetching, error } = useQuery({
-    queryKey: ['products', page, debouncedSearch, selectedCategory, selectedSupplier, selectedBrand],
-    queryFn: () => productsService.getAll({ 
-      page, 
-      per_page: 20, 
+    queryKey: ['products', page, debouncedSearch, selectedCategory, selectedSupplier, selectedBrand, showLowStock],
+    queryFn: () => productsService.getAll({
+      page,
+      per_page: 20,
       search: debouncedSearch,
       category_id: selectedCategory || undefined,
       supplier_id: selectedSupplier || undefined,
       brand_id: selectedBrand || undefined,
+      low_stock: showLowStock || undefined,
     }),
     placeholderData: keepPreviousData,
     retry: false,
@@ -659,6 +761,8 @@ export default function Products() {
     description: '',
     customer_terms: '',
     supplier_code: '',
+    meli_sku: '',
+    similarity_group_code: '',
     category_id: '',
     supplier_id: '',
     brand_id: '',
@@ -709,6 +813,8 @@ export default function Products() {
       description: '',
       customer_terms: '',
       supplier_code: '',
+      meli_sku: '',
+      similarity_group_code: '',
       category_id: '',
       supplier_id: '',
       brand_id: '',
@@ -735,6 +841,11 @@ export default function Products() {
     setListPriceUsd('')
     setSelectedPhotoFile(null)
     setPhotoPreview(null)
+    setOriginalSimilarityGroupCode(null)
+    setOriginalGroupMembers([])
+    setShowGroupChangeDialog(false)
+    setPendingSubmitData(null)
+    setDescSuggestions([])
   }
 
   // Parsear input de bonificaciones (ej: "10+10+5")
@@ -776,6 +887,28 @@ export default function Products() {
       setTimeout(() => lotQuantityRef.current?.focus(), 80)
     }
   }, [showNewLotForm])
+
+  useEffect(() => {
+    if (descDebounceRef.current) clearTimeout(descDebounceRef.current)
+    const desc = formData.description?.trim() ?? ''
+
+    if (formData.similarity_group_code?.trim() || desc.length < 4) {
+      setDescSuggestions([])
+      return
+    }
+
+    descDebounceRef.current = setTimeout(async () => {
+      const generated = descriptionToGroupCode(desc)
+      try {
+        const result = await productsService.getAll({ search: desc, per_page: 8, is_active: undefined })
+        setDescSuggestions(buildGroupSuggestions(result.items, editingId, generated))
+      } catch {
+        setDescSuggestions(generated ? [generated] : [])
+      }
+    }, 400)
+
+    return () => { if (descDebounceRef.current) clearTimeout(descDebounceRef.current) }
+  }, [formData.description, formData.similarity_group_code, editingId])
 
   // Navegar al siguiente campo con Enter
   const handleEnterKey = (e: React.KeyboardEvent, nextRef: React.RefObject<any>) => {
@@ -860,6 +993,17 @@ export default function Products() {
       setListPriceUsd(product.list_price_usd?.toString() ?? '')
       setSelectedPhotoFile(null)
       setPhotoPreview(null)
+      setOriginalSimilarityGroupCode(product.similarity_group_code ?? null)
+      if (product.similarity_group_code) {
+        productsService.getAll({
+          similarity_group_code: product.similarity_group_code,
+          is_active: undefined,
+          per_page: 20,
+        }).then(r => setOriginalGroupMembers(r.items.filter(p => p.id !== product.id)))
+          .catch(() => setOriginalGroupMembers([]))
+      } else {
+        setOriginalGroupMembers([])
+      }
     } else {
       resetForm()
     }
@@ -898,12 +1042,23 @@ export default function Products() {
       return
     }
 
+    // Costo = lista × (1-d1) × (1-d2) × (1-d3)
+    const computedCostPrice = Math.round(
+      resolvedListPrice
+      * (1 - (formData.discount_1 || 0) / 100)
+      * (1 - (formData.discount_2 || 0) / 100)
+      * (1 - (formData.discount_3 || 0) / 100)
+      * 100
+    ) / 100
+
     // Preparar datos para enviar al backend
     if (isEditing && editingId) {
       // En edición NO se envía current_stock (se gestiona por lotes)
       const dataToSend: ProductUpdate = {
         code: formData.code!.trim(),
         supplier_code: formData.supplier_code?.trim() || undefined,
+        meli_sku: formData.meli_sku?.trim() || null,
+        similarity_group_code: formData.similarity_group_code?.trim() || null,
         description: formData.description!.trim(),
         customer_terms: formData.customer_terms?.trim() || undefined,
         category_id: formData.category_id || undefined,
@@ -919,18 +1074,33 @@ export default function Products() {
         extra_cost: formData.extra_cost || 0,
         profit_margin: formData.profit_margin || 0,
         iva_rate: formData.iva_rate || 21,
+        cost_price: computedCostPrice,
         minimum_stock: formData.minimum_stock || 0,
         unit: formData.unit || 'unidad',
         units_per_pack: formData.units_per_pack || null,
         quantity_per_package: formData.quantity_per_package || null,
         sell_per_unit: formData.sell_per_unit !== false,
       }
+      // Interceptar si el similarity_group_code cambió y el grupo tiene otros miembros
+      const similarityChanged =
+        originalSimilarityGroupCode !== null &&
+        (formData.similarity_group_code?.trim() || '') !== originalSimilarityGroupCode &&
+        originalGroupMembers.length > 0
+
+      if (similarityChanged) {
+        setPendingSubmitData(dataToSend)
+        setShowGroupChangeDialog(true)
+        return
+      }
+
       updateMutation.mutate({ id: editingId, data: dataToSend })
     } else {
       // En creación se envía current_stock para crear lote inicial
       const dataToSend: ProductCreate = {
         code: formData.code!.trim(),
         supplier_code: formData.supplier_code?.trim() || undefined,
+        meli_sku: formData.meli_sku?.trim() || null,
+        similarity_group_code: formData.similarity_group_code?.trim() || null,
         description: formData.description!.trim(),
         customer_terms: formData.customer_terms?.trim() || undefined,
         category_id: formData.category_id || undefined,
@@ -946,6 +1116,7 @@ export default function Products() {
         extra_cost: formData.extra_cost || 0,
         profit_margin: formData.profit_margin || 0,
         iva_rate: formData.iva_rate || 21,
+        cost_price: computedCostPrice,
         current_stock: formData.current_stock || 0,
         expiration_date: formData.expiration_date || null,
         minimum_stock: formData.minimum_stock || 0,
@@ -1187,6 +1358,15 @@ export default function Products() {
             ...brands.map(brand => ({ value: brand.id, label: brand.name }))
           ]}
         />
+
+        <button
+          type="button"
+          onClick={() => { setShowLowStock(v => !v); setPage(1) }}
+          className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${showLowStock ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300' : 'border-gray-200 bg-white text-gray-600 hover:border-red-200 hover:text-red-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}
+        >
+          <AlertTriangle size={14} />
+          Stock bajo
+        </button>
       </div>
 
       {/* Tabla desktop */}
@@ -1214,7 +1394,7 @@ export default function Products() {
               {products.map((item) => {
                 const categoryName = getCategoryName(item.category_id)
                 const supplierName = getSupplierName(item.supplier_id)
-                const lowStock = item.current_stock < 10
+                const lowStock = item.current_stock <= item.minimum_stock
                 const isExpanded = expandedProductIds.has(item.id)
 
                 return (
@@ -1252,6 +1432,23 @@ export default function Products() {
                             <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 ring-1 ring-red-200 dark:bg-red-900/20 dark:text-red-300 dark:ring-red-800">
                               Bajo
                             </span>
+                          )}
+                          {item.similarity_group_code && (
+                            <button
+                              type="button"
+                              onClick={() => lowStock
+                                ? handleViewAlternatives(item.id)
+                                : handleViewEquivalencias(item.id, item.similarity_group_code!)
+                              }
+                              className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ring-1 hover:opacity-80 transition-opacity ${
+                                lowStock
+                                  ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-800'
+                                  : 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:ring-blue-800'
+                              }`}
+                              title={lowStock ? 'Ver alternativas con stock disponible' : 'Ver productos equivalentes del mismo grupo'}
+                            >
+                              {alternativesProductId === item.id ? 'Ocultar' : (lowStock ? 'Alternativas' : 'Equivalencias')}
+                            </button>
                           )}
                           {(() => {
                             const badge = getMeliBadgeProps(meliListingsMap.get(item.id))
@@ -1343,6 +1540,35 @@ export default function Products() {
                         </div>
                       </div>
                     )}
+
+                    {alternativesProductId === item.id && (
+                      <div className="border-t border-amber-100 bg-amber-50/60 px-4 py-3 dark:border-amber-900/30 dark:bg-amber-900/10">
+                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                          Alternativas disponibles — grupo "{item.similarity_group_code}"
+                        </p>
+                        {alternativesLoading ? (
+                          <p className="text-xs text-gray-500">Cargando…</p>
+                        ) : alternativesData.length === 0 ? (
+                          <p className="text-xs text-gray-500">No hay alternativas con stock disponible.</p>
+                        ) : (
+                          <div className="flex flex-col gap-1.5">
+                            {alternativesData.map((alt) => (
+                              <div key={alt.id} className="flex items-center justify-between rounded-lg border border-amber-200 bg-white px-3 py-2 dark:border-amber-800 dark:bg-gray-900">
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-semibold text-gray-800 dark:text-gray-100">{alt.description}</p>
+                                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                                    {alt.brand_name || alt.brand || 'Sin marca'} · {alt.quality_tier || 'Sin nivel'} · Cód: {alt.code}
+                                  </p>
+                                </div>
+                                <span className="ml-4 shrink-0 rounded-md bg-green-50 px-2 py-0.5 text-xs font-bold text-green-700 ring-1 ring-green-200 dark:bg-green-900/20 dark:text-green-300 dark:ring-green-800">
+                                  {alt.current_stock} {alt.unit}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </article>
                 )
               })}
@@ -1361,7 +1587,7 @@ export default function Products() {
           products.map((item) => {
             const categoryName = getCategoryName(item.category_id)
             const supplierName = getSupplierName(item.supplier_id)
-            const lowStock = item.current_stock < 10
+            const lowStock = item.current_stock <= item.minimum_stock
 
             return (
               <article
@@ -1515,230 +1741,167 @@ export default function Products() {
         headerClassName="px-4 py-3"
         contentClassName="px-4 py-3"
       >
-        <form onSubmit={handleSubmit} className="grid gap-2 lg:grid-cols-[1.05fr_1.25fr]">
-          <div className="space-y-2">
-          {/* Sección 1: Identificación - 2 columnas */}
-          <div className="bg-gradient-to-r from-primary-50 to-primary-50 dark:from-primary-900/10 dark:to-primary-900/10 p-2 rounded-lg">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Código *
-                </label>
-                <input
-                  ref={codeRef}
-                  type="text"
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  onKeyDown={(e) => handleEnterKey(e, supplierCodeRef)}
-                  placeholder="PLO-001"
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Cód. Proveedor
-                </label>
-                <input
-                  ref={supplierCodeRef}
-                  type="text"
-                  value={formData.supplier_code || ''}
-                  onChange={(e) => setFormData({ ...formData, supplier_code: e.target.value })}
-                  onKeyDown={(e) => handleEnterKey(e, descriptionRef)}
-                  placeholder="Opcional"
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-            </div>
-            {/* Photo upload */}
-            <div className="mt-2">
-              <label className="mb-0.5 block text-xs font-medium text-gray-700 dark:text-gray-300">
-                Foto del producto
-              </label>
-              <div className="flex items-center gap-2">
-                {(photoPreview || (formData as any).photo_url) && (
-                  <img
-                    src={photoPreview || (formData as any).photo_url}
-                    alt="foto"
-                    className="h-10 w-10 rounded-lg object-cover border border-gray-200 shrink-0"
-                  />
-                )}
-                <label className="cursor-pointer rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:border-primary-400 hover:text-primary-600 dark:border-gray-600 dark:text-gray-400">
-                  {photoPreview || (formData as any).photo_url ? 'Cambiar foto' : 'Subir foto'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (!file) return
-                      if (file.size > 2 * 1024 * 1024) {
-                        toast.error('La imagen no puede superar 2 MB.')
-                        return
-                      }
-                      setSelectedPhotoFile(file)
-                      setPhotoPreview(URL.createObjectURL(file))
-                    }}
-                  />
-                </label>
-                {photoPreview && (
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedPhotoFile(null); setPhotoPreview(null) }}
-                    className="text-xs text-red-500 hover:text-red-700"
-                  >
-                    Quitar
-                  </button>
-                )}
-                <span className="text-[10px] text-gray-400">JPG, PNG o WebP · 2 MB máx.</span>
-              </div>
-            </div>
+        <form onSubmit={handleSubmit} className="grid gap-3 lg:grid-cols-[1fr_1.5fr]">
+          {/* Descripción — full width, campo hero */}
+          <div className="lg:col-span-2">
+            <label htmlFor="prod-desc" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+              Descripción <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="prod-desc"
+              ref={descriptionRef}
+              type="text"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onKeyDown={(e) => handleEnterKey(e, listPriceRef)}
+              placeholder="Nombre completo del producto"
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow"
+              required
+            />
+          </div>
 
-            {/* Unit type + Pack qty */}
-            <div className="grid grid-cols-2 gap-3 mt-2">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Unidad
-                </label>
-                <select
-                  value={formData.unit}
-                  name="unit-select"
-                  onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="unidad">Unidad</option>
-                  <option value="m">Metro (m)</option>
-                  <option value="m2">Metro² (m²)</option>
-                  <option value="kg">Kilogramo (kg)</option>
-                  <option value="litro">Litro</option>
-                  <option value="pack">Pack</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {isEditing ? 'Stock total' : 'Stock inicial'}
-                </label>
-                {isEditing ? (
-                  <div className="w-full px-2 py-1.5 text-sm border rounded-lg bg-gray-100 dark:bg-gray-700 dark:border-gray-600 text-gray-500 dark:text-gray-400 flex items-center">
-                    <span>{formData.current_stock} unidades</span>
-                    <span className="ml-1 text-[10px] text-gray-400">(gestionado por lotes)</span>
-                  </div>
-                ) : (
-                  <input
-                    ref={stockRef}
-                    type="number"
-                    value={formData.current_stock}
-                    onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })}
-                    onFocus={handleNumericFocus}
-                    onKeyDown={(e) => handleNumericKeyDown(e, 'current_stock', submitBtnRef)}
-                    placeholder="0"
-                    className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-                  />
-                )}
-              </div>
+          <div className="space-y-3">
+          {/* Sección 1: Identificación */}
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700/60 bg-gray-50/80 dark:bg-gray-800/40 px-3 py-2">
+              <Package size={13} className="text-primary-500 shrink-0" />
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">Identificación</span>
             </div>
-            {formData.unit === 'pack' && (
-              <div className="mt-2">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Unidades por Pack
+            <div className="p-3 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="prod-code" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Código interno <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="prod-code"
+                    ref={codeRef}
+                    type="text"
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    onKeyDown={(e) => handleEnterKey(e, supplierCodeRef)}
+                    placeholder="PLO-001"
+                    className="w-full px-2.5 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="prod-supplier-code" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Cód. Proveedor
+                  </label>
+                  <input
+                    id="prod-supplier-code"
+                    ref={supplierCodeRef}
+                    type="text"
+                    value={formData.supplier_code || ''}
+                    onChange={(e) => setFormData({ ...formData, supplier_code: e.target.value })}
+                    onKeyDown={(e) => handleEnterKey(e, descriptionRef)}
+                    placeholder="Opcional"
+                    className="w-full px-2.5 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow"
+                  />
+                </div>
+              </div>
+
+              {/* SKU MercadoLibre */}
+              <div>
+                <label htmlFor="prod-meli-sku" className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  <span className="inline-flex items-center gap-1 rounded bg-[#FFE600] px-1 py-0.5 text-[10px] font-black text-[#1A1A1A] leading-none">ML</span>
+                  SKU MercadoLibre
                 </label>
                 <input
-                  type="number"
-                  min={1}
-                  value={formData.units_per_pack ?? ''}
-                  onChange={(e) => setFormData({ ...formData, units_per_pack: parseInt(e.target.value) || null })}
-                  placeholder="Ej: 12"
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                  id="prod-meli-sku"
+                  type="text"
+                  value={formData.meli_sku || ''}
+                  onChange={(e) => setFormData({ ...formData, meli_sku: e.target.value })}
+                  placeholder="MLB123456789"
+                  className="w-full px-2.5 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow"
                 />
               </div>
-            )}
-            {['m', 'm2', 'kg', 'litro'].includes(formData.unit ?? '') && (
-              <div className="mt-2">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {formData.unit === 'kg' ? 'kg por bolsa / compra'
-                    : formData.unit === 'litro' ? 'Litros por envase'
-                    : formData.unit === 'm2' ? 'm² por unidad'
-                    : 'Metros por rollo'}
+
+              {/* Familia / Equivalencias con preview */}
+              <div>
+                <label htmlFor="prod-sim-group" className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  <Layers size={11} className="text-primary-500 shrink-0" />
+                  Familia / Equivalencias
+                  <span className="ml-auto text-[10px] font-normal text-gray-400">Mismo artículo en otra marca o calidad</span>
                 </label>
                 <input
-                  type="number"
-                  min={0.01}
-                  step="0.01"
-                  value={formData.quantity_per_package ?? ''}
-                  onChange={(e) => setFormData({ ...formData, quantity_per_package: parseFloat(e.target.value) || null })}
-                  placeholder="Ej: 20"
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                  id="prod-sim-group"
+                  type="text"
+                  value={formData.similarity_group_code || ''}
+                  onChange={(e) => handleSimilarityGroupChange(e.target.value)}
+                  placeholder="Ej: CANILLA-3/4"
+                  className="w-full px-2.5 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow"
                 />
-                {(formData.quantity_per_package ?? 0) > 0 && (
-                  <div className="mt-1.5 flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, sell_per_unit: true })}
-                      className={`flex-1 rounded px-2 py-1 text-xs font-medium transition-colors ${formData.sell_per_unit !== false ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-400 dark:bg-primary-900/30 dark:text-primary-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
-                    >
-                      Vender por {formData.unit}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, sell_per_unit: false })}
-                      className={`flex-1 rounded px-2 py-1 text-xs font-medium transition-colors ${formData.sell_per_unit === false ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-400 dark:bg-primary-900/30 dark:text-primary-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
-                    >
-                      Vender por bolsa ({formData.quantity_per_package} {formData.unit})
-                    </button>
+                {/* Sugerencias basadas en la descripción */}
+                {!formData.similarity_group_code?.trim() && descSuggestions.length > 0 && (
+                  <div className="mt-2 rounded-lg border border-blue-100 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10 px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-500 dark:text-blue-400 mb-1.5">
+                      Sugerencias para este producto
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {descSuggestions.map(code => (
+                        <button
+                          key={code}
+                          type="button"
+                          onClick={() => handleSimilarityGroupChange(code)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-mono font-medium rounded-md bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors cursor-pointer"
+                          title="Click para usar este código de familia"
+                        >
+                          {code}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Preview del grupo */}
+                {formData.similarity_group_code?.trim() && (
+                  <div className="mt-2 rounded-lg border border-primary-100 dark:border-primary-900/40 bg-primary-50/50 dark:bg-primary-900/10 px-3 py-2">
+                    {similarGroupLoading ? (
+                      <p className="text-[11px] text-gray-400 flex items-center gap-1.5">
+                        <Loader2 size={11} className="animate-spin" />
+                        Buscando equivalencias…
+                      </p>
+                    ) : similarGroupPreview.length === 0 ? (
+                      <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                        <span className="font-semibold text-primary-600 dark:text-primary-400">Código libre.</span>
+                        {' '}Asignalo a otros productos equivalentes para agruparlos.
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-primary-600 dark:text-primary-400 mb-1.5">
+                          Equivalencias en este grupo ({similarGroupPreview.length}):
+                        </p>
+                        <div className="flex flex-col gap-1">
+                          {similarGroupPreview.map(p => (
+                            <div key={p.id} className="flex items-center justify-between gap-2 text-[11px]">
+                              <span className="font-mono text-gray-500 dark:text-gray-400 shrink-0">{p.code}</span>
+                              <span className="truncate text-gray-700 dark:text-gray-300 font-medium">{p.description}</span>
+                              <span className="shrink-0 font-medium text-primary-600 dark:text-primary-400">{p.brand_name || p.brand || '—'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-            {!isEditing && (formData.current_stock || 0) > 0 && (
-              <div className="mt-2">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Vencimiento del lote inicial
-                </label>
-                <input
-                  type="date"
-                  value={formData.expiration_date || ''}
-                  onChange={(e) => setFormData({ ...formData, expiration_date: e.target.value })}
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-            )}
-            <div className="mt-2">
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Descripción *
-              </label>
-              <input
-                ref={descriptionRef}
-                type="text"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                onKeyDown={(e) => handleEnterKey(e, listPriceRef)}
-                placeholder="Nombre completo del producto"
-                className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-                required
-              />
             </div>
-            <div className="mt-2">
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Términos del cliente (IA)
-              </label>
-              <textarea
-                value={formData.customer_terms || ''}
-                onChange={(e) => setFormData({ ...formData, customer_terms: e.target.value })}
-                placeholder="Ej: rosca tuerca pp, entrerosca plastica, niple pp"
-                  rows={1}
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-            </div>
-
+          </div>
           {/* Sección 3: Marca, Categorización */}
-          <div className="bg-gradient-to-r from-primary-50 to-pink-50 dark:from-primary-900/10 dark:to-pink-900/10 p-2 rounded-lg">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700/60 bg-gray-50/80 dark:bg-gray-800/40 px-3 py-2">
+              <Search size={13} className="text-primary-500 shrink-0" />
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">Categorización</span>
+            </div>
+            <div className="p-3 space-y-3">
+              <div>
+                <label htmlFor="prod-brand" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                   Marca
                 </label>
                 <select
+                  id="prod-brand"
                   ref={brandRef}
                   value={formData.brand_id || ''}
                   onChange={(e) => {
@@ -1752,7 +1915,7 @@ export default function Products() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') { e.preventDefault(); categoryRef.current?.focus() }
                   }}
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-2.5 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow cursor-pointer"
                 >
                   <option value="">Nueva o sin marca...</option>
                   {brands.map((brand) => (
@@ -1765,51 +1928,51 @@ export default function Products() {
                     value={formData.brand || ''}
                     onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
                     placeholder="Escribir nueva marca: FV, Ferrum, Andina"
-                    className="mt-1.5 w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
+                    className="mt-2 w-full px-2.5 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow"
                   />
                 )}
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Categoría
-                </label>
-                <select
-                  ref={categoryRef}
-                  value={formData.category_id || ''}
-                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); supplierRef.current?.focus() }
-                  }}
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">Seleccionar...</option>
-                  {(categories || []).map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Proveedor
-                </label>
-                <select
-                  ref={supplierRef}
-                  value={formData.supplier_id || ''}
-                  onChange={(e) => handleSupplierChange(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); submitBtnRef.current?.focus() }
-                  }}
-                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">Seleccionar...</option>
-                  {(suppliers || []).map((sup) => (
-                    <option key={sup.id} value={sup.id}>
-                      {sup.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="prod-category" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Categoría
+                  </label>
+                  <select
+                    id="prod-category"
+                    ref={categoryRef}
+                    value={formData.category_id || ''}
+                    onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); supplierRef.current?.focus() }
+                    }}
+                    className="w-full px-2.5 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow cursor-pointer"
+                  >
+                    <option value="">Seleccionar...</option>
+                    {(categories || []).map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="prod-supplier" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Proveedor
+                  </label>
+                  <select
+                    id="prod-supplier"
+                    ref={supplierRef}
+                    value={formData.supplier_id || ''}
+                    onChange={(e) => handleSupplierChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); submitBtnRef.current?.focus() }
+                    }}
+                    className="w-full px-2.5 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow cursor-pointer"
+                  >
+                    <option value="">Seleccionar...</option>
+                    {(suppliers || []).map((sup) => (
+                      <option key={sup.id} value={sup.id}>{sup.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           </div>
@@ -1817,14 +1980,13 @@ export default function Products() {
 
           <div className="space-y-2">
           {/* Sección 2: Precios */}
-          <div className="bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 p-2.5 rounded-lg">
-            <div className="flex items-center gap-2 mb-3">
-              <Calculator className="text-green-600" size={16} />
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                Configuración de Precios
-              </h3>
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700/60 bg-gray-50/80 dark:bg-gray-800/40 px-3 py-2">
+              <Calculator size={13} className="text-primary-500 shrink-0" />
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">Precios</span>
             </div>
 
+            <div className="p-3">
             {/* Moneda selector */}
             <div className="flex items-center gap-3 mb-3">
               <span className="text-xs font-medium text-gray-500 dark:text-gray-400 shrink-0">Moneda:</span>
@@ -1899,7 +2061,7 @@ export default function Products() {
             )}
 
             {/* Inputs de precios */}
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5 lg:gap-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-6 lg:gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   {priceCurrency === 'USD' ? 'Precio USD *' : 'P. Lista *'}
@@ -1944,6 +2106,25 @@ export default function Products() {
                   placeholder="10+5"
                   className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-green-500"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Costo
+                </label>
+                {(() => {
+                  const lp = priceCurrency === 'USD'
+                    ? (parseFloat(listPriceUsd) || 0) * (formData.list_price || 1) / (parseFloat(listPriceUsd) || 1)
+                    : (formData.list_price || 0)
+                  const d1 = formData.discount_1 || 0
+                  const d2 = formData.discount_2 || 0
+                  const d3 = formData.discount_3 || 0
+                  const netBase = lp * (1 - d1 / 100) * (1 - d2 / 100) * (1 - d3 / 100)
+                  return (
+                    <div className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-200 font-mono tabular-nums">
+                      ${netBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  )
+                })()}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -2030,9 +2211,11 @@ export default function Products() {
               const netWithProfit = netWithExtra * (1 + profit / 100)
               const ivaAmount = netWithProfit * (iva / 100)
               const finalPrice = netWithProfit + ivaAmount
-              const qtyPerPkg = (formData.quantity_per_package ?? 0) > 0 && formData.sell_per_unit !== false
-                ? formData.quantity_per_package!
-                : null
+              const qtyPerPkg = ['m', 'm2', 'kg', 'litro'].includes(formData.unit ?? '') &&
+                (formData.quantity_per_package ?? 0) > 0 &&
+                formData.sell_per_unit !== false
+                  ? formData.quantity_per_package!
+                  : null
               const unitFinalPrice = qtyPerPkg ? Math.round((finalPrice / qtyPerPkg) * 100) / 100 : finalPrice
 
               return (
@@ -2091,7 +2274,269 @@ export default function Products() {
             })()}
           </div>
 
+          {/* Sección: Operativo */}
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700/60 bg-gray-50/80 dark:bg-gray-800/40 px-3 py-2">
+              <Package size={13} className="text-primary-500 shrink-0" />
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">Operativo</span>
+            </div>
+            <div className="p-3 space-y-3">
+              {/* Unidad + Stock actual + Stock mínimo */}
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label htmlFor="prod-unit" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Unidad
+                  </label>
+                  <select
+                    id="prod-unit"
+                    value={formData.unit}
+                    name="unit-select"
+                    onChange={(e) => {
+                      const newUnit = e.target.value
+                      setFormData({
+                        ...formData,
+                        unit: newUnit,
+                        quantity_per_package: ['m', 'm2', 'kg', 'litro'].includes(newUnit) ? formData.quantity_per_package : null,
+                        units_per_pack: newUnit === 'pack' ? formData.units_per_pack : null,
+                      })
+                    }}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow cursor-pointer"
+                  >
+                    <option value="unidad">Unidad</option>
+                    <option value="m">Metro (m)</option>
+                    <option value="m2">Metro² (m²)</option>
+                    <option value="kg">Kilogramo (kg)</option>
+                    <option value="litro">Litro</option>
+                    <option value="pack">Pack</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="prod-stock" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    {isEditing ? 'Stock actual' : 'Stock inicial'}
+                  </label>
+                  {isEditing ? (
+                    <div className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                      <span className="font-semibold">{formData.current_stock}</span>
+                      <span className="text-[10px] text-gray-400 truncate">lotes</span>
+                    </div>
+                  ) : (
+                    <input
+                      id="prod-stock"
+                      ref={stockRef}
+                      type="number"
+                      value={formData.current_stock}
+                      onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })}
+                      onFocus={handleNumericFocus}
+                      onKeyDown={(e) => handleNumericKeyDown(e, 'current_stock', submitBtnRef)}
+                      placeholder="0"
+                      className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow"
+                    />
+                  )}
+                </div>
+                <div>
+                  <label htmlFor="prod-min-stock" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Stock mínimo
+                  </label>
+                  <input
+                    id="prod-min-stock"
+                    type="number"
+                    min={0}
+                    value={formData.minimum_stock ?? 0}
+                    onChange={(e) => setFormData({ ...formData, minimum_stock: parseInt(e.target.value) || 0 })}
+                    onFocus={handleNumericFocus}
+                    placeholder="0"
+                    className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow"
+                  />
+                </div>
+              </div>
+
+              {formData.unit === 'pack' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Unidades por Pack
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={formData.units_per_pack ?? ''}
+                    onChange={(e) => setFormData({ ...formData, units_per_pack: parseInt(e.target.value) || null })}
+                    placeholder="Ej: 12"
+                    className="w-full px-2.5 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow"
+                  />
+                </div>
+              )}
+              {['m', 'm2', 'kg', 'litro'].includes(formData.unit ?? '') && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    {formData.unit === 'kg' ? 'kg por bolsa / compra'
+                      : formData.unit === 'litro' ? 'Litros por envase'
+                      : formData.unit === 'm2' ? 'm² por unidad'
+                      : 'Metros por rollo'}
+                  </label>
+                  <input
+                    type="number"
+                    min={0.01}
+                    step="0.01"
+                    value={formData.quantity_per_package ?? ''}
+                    onChange={(e) => setFormData({ ...formData, quantity_per_package: parseFloat(e.target.value) || null })}
+                    placeholder="Ej: 20"
+                    className="w-full px-2.5 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow"
+                  />
+                  {(formData.quantity_per_package ?? 0) > 0 && (
+                    <div className="mt-1.5 flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, sell_per_unit: true })}
+                        className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${formData.sell_per_unit !== false ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-400 dark:bg-primary-900/30 dark:text-primary-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
+                      >
+                        Vender por {formData.unit}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, sell_per_unit: false })}
+                        className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${formData.sell_per_unit === false ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-400 dark:bg-primary-900/30 dark:text-primary-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
+                      >
+                        {formData.quantity_per_package} {formData.unit}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {!isEditing && (formData.current_stock || 0) > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Vencimiento del lote inicial
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.expiration_date || ''}
+                    onChange={(e) => setFormData({ ...formData, expiration_date: e.target.value })}
+                    className="w-full px-2.5 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow"
+                  />
+                </div>
+              )}
+
+              {/* Términos IA */}
+              <div>
+                <label htmlFor="prod-terms" className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  Términos del cliente
+                  <span className="ml-0.5 rounded bg-primary-100 dark:bg-primary-900/40 px-1 py-0.5 text-[9px] font-semibold text-primary-600 dark:text-primary-400 leading-none">IA</span>
+                </label>
+                <textarea
+                  id="prod-terms"
+                  value={formData.customer_terms || ''}
+                  onChange={(e) => setFormData({ ...formData, customer_terms: e.target.value })}
+                  placeholder="Ej: rosca tuerca pp, entrerosca plastica, niple pp"
+                  rows={1}
+                  className="w-full px-2.5 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow resize-none"
+                />
+              </div>
+
+              {/* Foto del producto */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  Foto del producto
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(photoPreview || (formData as any).photo_url) && (
+                    <img
+                      src={photoPreview || (formData as any).photo_url}
+                      alt="foto"
+                      className="h-10 w-10 rounded-lg object-cover border border-gray-200 shrink-0"
+                    />
+                  )}
+                  <label className="cursor-pointer rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:border-primary-400 hover:text-primary-600 dark:border-gray-600 dark:text-gray-400 transition-colors">
+                    {photoPreview || (formData as any).photo_url ? 'Cambiar foto' : 'Subir foto'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        if (file.size > 2 * 1024 * 1024) {
+                          toast.error('La imagen no puede superar 2 MB.')
+                          return
+                        }
+                        setSelectedPhotoFile(file)
+                        setPhotoPreview(URL.createObjectURL(file))
+                      }}
+                    />
+                  </label>
+                  {photoPreview && (
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedPhotoFile(null); setPhotoPreview(null) }}
+                      className="text-xs text-red-500 hover:text-red-700"
+                    >
+                      Quitar
+                    </button>
+                  )}
+                  <span className="text-[10px] text-gray-400">JPG, PNG o WebP · 2 MB máx.</span>
+                </div>
+              </div>
+            </div>
           </div>
+
+          </div>
+
+          {/* Panel de confirmación de cambio de grupo */}
+          {showGroupChangeDialog && (
+            <div className="lg:col-span-2 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={18} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">
+                    Este producto pertenece al grupo &quot;{originalSimilarityGroupCode}&quot;
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">
+                    {originalGroupMembers.length === 1
+                      ? 'Hay 1 producto más en este grupo:'
+                      : `Hay ${originalGroupMembers.length} productos más en este grupo:`}
+                  </p>
+                  <div className="flex flex-col gap-1 mb-3">
+                    {originalGroupMembers.slice(0, 3).map(p => (
+                      <div key={p.id} className="text-xs text-amber-700 dark:text-amber-300 flex gap-2 truncate">
+                        <span className="font-mono shrink-0">{p.code}</span>
+                        <span className="truncate">{p.description}</span>
+                        {(p.brand_name || p.brand) && (
+                          <span className="text-amber-500 shrink-0">{p.brand_name || p.brand}</span>
+                        )}
+                      </div>
+                    ))}
+                    {originalGroupMembers.length > 3 && (
+                      <div className="text-xs text-amber-500">...y {originalGroupMembers.length - 3} más</div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleConfirmGroupChange('single')}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-900/40 transition-colors cursor-pointer"
+                    >
+                      Solo este producto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleConfirmGroupChange('all')}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors cursor-pointer"
+                    >
+                      {formData.similarity_group_code?.trim()
+                        ? `Cambiar todo el grupo (${originalGroupMembers.length + 1})`
+                        : `Disolver el grupo (${originalGroupMembers.length + 1})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowGroupChangeDialog(false)}
+                      className="px-3 py-1.5 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 transition-colors cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Botones con indicadores */}
           <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-gray-700 lg:col-span-2">
@@ -2110,6 +2555,7 @@ export default function Products() {
               >
                 ✓ {isEditing ? 'Actualizar' : 'Guardar'}
               </Button>
+            </div>
             </div>
           </div>
         </form>

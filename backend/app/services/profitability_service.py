@@ -113,14 +113,16 @@ class ProfitabilityService:
                 func.coalesce(func.sum(VoucherItem.total), 0),
                 func.coalesce(
                     func.sum(
-                        func.coalesce(VoucherItem.cost_price, 0)
+                        func.coalesce(VoucherItem.cost_price, Product.cost_price, 0)
                         * VoucherItem.quantity
                     ),
                     0,
                 ),
                 func.count(func.distinct(VoucherItem.voucher_id)),
                 func.coalesce(func.sum(VoucherItem.quantity), 0),
-            ).where(
+            )
+            .outerjoin(Product, VoucherItem.product_id == Product.id)
+            .where(
                 VoucherItem.voucher_id.in_(voucher_ids),
                 VoucherItem.deleted_at.is_(None),
             )
@@ -155,12 +157,14 @@ class ProfitabilityService:
                             func.coalesce(func.sum(VoucherItem.total), 0),
                             func.coalesce(
                                 func.sum(
-                                    func.coalesce(VoucherItem.cost_price, 0)
+                                    func.coalesce(VoucherItem.cost_price, Product.cost_price, 0)
                                     * VoucherItem.quantity
                                 ),
                                 0,
                             ),
-                        ).where(
+                        )
+                        .outerjoin(Product, VoucherItem.product_id == Product.id)
+                        .where(
                             VoucherItem.voucher_id.in_(prev_voucher_ids),
                             VoucherItem.deleted_at.is_(None),
                         )
@@ -276,7 +280,7 @@ class ProfitabilityService:
             func.sum(VoucherItem.total).label("revenue"),
             func.coalesce(
                 func.sum(
-                    func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                    func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
                 ),
                 0,
             ).label("cost"),
@@ -370,7 +374,7 @@ class ProfitabilityService:
             func.sum(VoucherItem.total).label("total_billed"),
             func.coalesce(
                 func.sum(
-                    func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                    func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
                 ),
                 0,
             ).label("total_cost"),
@@ -381,6 +385,7 @@ class ProfitabilityService:
             select(*cols)
             .join(Voucher, VoucherItem.voucher_id == Voucher.id)
             .outerjoin(Client, Voucher.client_id == Client.id)
+            .outerjoin(Product, VoucherItem.product_id == Product.id)
             .where(
                 VoucherItem.voucher_id.in_(voucher_ids),
                 VoucherItem.deleted_at.is_(None),
@@ -450,7 +455,7 @@ class ProfitabilityService:
             func.sum(VoucherItem.total).label("revenue"),
             func.coalesce(
                 func.sum(
-                    func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                    func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
                 ),
                 0,
             ).label("cost"),
@@ -673,7 +678,7 @@ class ProfitabilityService:
             func.coalesce(func.sum(VoucherItem.total), 0).label("revenue"),
             func.coalesce(
                 func.sum(
-                    func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                    func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
                 ),
                 0,
             ).label("cost"),
@@ -681,7 +686,7 @@ class ProfitabilityService:
                 func.coalesce(func.sum(VoucherItem.total), 0)
                 - func.coalesce(
                     func.sum(
-                        func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                        func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
                     ),
                     0,
                 )
@@ -691,6 +696,7 @@ class ProfitabilityService:
         query = (
             select(*cols)
             .join(Voucher, VoucherItem.voucher_id == Voucher.id)
+            .outerjoin(Product, VoucherItem.product_id == Product.id)
             .where(
                 Voucher.business_id == business_id,
                 Voucher.status == VoucherStatus.CONFIRMED,
@@ -709,15 +715,9 @@ class ProfitabilityService:
         if filters.seller_id:
             query = query.where(Voucher.created_by == filters.seller_id)
         if filters.brand_id:
-            query = (
-                query.join(Product, VoucherItem.product_id == Product.id)
-                .where(Product.brand_id == filters.brand_id)
-            )
+            query = query.where(Product.brand_id == filters.brand_id)
         if filters.category_id:
-            query = (
-                query.join(Product, VoucherItem.product_id == Product.id)
-                .where(Product.category_id == filters.category_id)
-            )
+            query = query.where(Product.category_id == filters.category_id)
         # branch_id, price_list_id, supplier_id — stubs (modelos no implementados)
 
         # ── Agrupar y ordenar ──
@@ -756,7 +756,7 @@ class ProfitabilityService:
                 ).label("revenue"),
                 func.coalesce(
                     func.sum(
-                        func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                        func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
                     ),
                     0,
                 ).label("cost"),
@@ -840,7 +840,7 @@ class ProfitabilityService:
                 ).label("revenue"),
                 func.coalesce(
                     func.sum(
-                        func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                        func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
                     ),
                     0,
                 ).label("cost"),
@@ -852,6 +852,7 @@ class ProfitabilityService:
             )
             .join(Voucher, VoucherItem.voucher_id == Voucher.id)
             .outerjoin(User, Voucher.created_by == User.id)
+            .outerjoin(Product, VoucherItem.product_id == Product.id)
             .where(
                 Voucher.business_id == business_id,
                 Voucher.status == VoucherStatus.CONFIRMED,
@@ -925,7 +926,7 @@ class ProfitabilityService:
                 ).label("revenue"),
                 func.coalesce(
                     func.sum(
-                        func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                        func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
                     ),
                     0,
                 ).label("cost"),
@@ -934,6 +935,7 @@ class ProfitabilityService:
             .join(VoucherItem, VoucherItem.voucher_id == Voucher.id)
             .outerjoin(Client, Voucher.client_id == Client.id)
             .outerjoin(User, Voucher.created_by == User.id)
+            .outerjoin(Product, VoucherItem.product_id == Product.id)
             .where(
                 Voucher.business_id == business_id,
                 Voucher.status == VoucherStatus.CONFIRMED,
@@ -1056,12 +1058,12 @@ class ProfitabilityService:
             func.coalesce(Client.name, "Sin nombre").label("client_name"),
             func.coalesce(VoucherItem.total, 0).label("revenue"),
             (
-                func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
             ).label("cost"),
             (
                 (
                     func.coalesce(VoucherItem.total, 0)
-                    - func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                    - func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
                 )
                 / func.coalesce(VoucherItem.total, 1) * 100
             ).label("margin_pct"),
@@ -1070,7 +1072,7 @@ class ProfitabilityService:
             VoucherItem.cost_price.isnot(None),
             (
                 func.coalesce(VoucherItem.total, 0)
-                - func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                - func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
             ) <= 0,
         ]
         neg_result = await self.db.execute(
@@ -1102,7 +1104,7 @@ class ProfitabilityService:
             func.coalesce(Client.name, "Sin nombre").label("client_name"),
             func.coalesce(VoucherItem.total, 0).label("revenue"),
             (
-                func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
             ).label("cost"),
             VoucherItem.discount_percent.label("margin_pct"),
         ]
@@ -1121,12 +1123,12 @@ class ProfitabilityService:
             func.coalesce(Client.name, "Sin nombre").label("client_name"),
             func.coalesce(VoucherItem.total, 0).label("revenue"),
             (
-                func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
             ).label("cost"),
             (
                 (
                     func.coalesce(VoucherItem.total, 0)
-                    - func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                    - func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
                 )
                 / func.coalesce(VoucherItem.total, 1) * 100
             ).label("margin_pct"),
@@ -1135,12 +1137,12 @@ class ProfitabilityService:
             VoucherItem.cost_price.isnot(None),
             (
                 func.coalesce(VoucherItem.total, 0)
-                - func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                - func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
             ) > 0,
             (
                 (
                     func.coalesce(VoucherItem.total, 0)
-                    - func.coalesce(VoucherItem.cost_price, 0) * VoucherItem.quantity
+                    - func.coalesce(func.nullif(VoucherItem.cost_price, 0), func.nullif(Product.cost_price, 0), 0) * VoucherItem.quantity
                 )
                 / func.coalesce(VoucherItem.total, 1) * 100
             ) <= 5,
