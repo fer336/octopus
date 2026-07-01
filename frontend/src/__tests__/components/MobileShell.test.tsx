@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import type { User } from '../../stores/authStore'
 import type { DashboardSummary } from '../../api/dashboardService'
+import type { PaginatedResponse, Product } from '../../api/productsService'
 
 const mockUser: { current: User | null } = {
   current: {
@@ -23,11 +24,81 @@ vi.mock('../../stores/authStore', () => ({
     selector({ user: mockUser.current }),
 }))
 
-const { getSummaryMock } = vi.hoisted(() => ({ getSummaryMock: vi.fn() }))
+const { getSummaryMock, getAllProductsMock, getAllCategoriesMock } = vi.hoisted(() => ({
+  getSummaryMock: vi.fn(),
+  getAllProductsMock: vi.fn(),
+  getAllCategoriesMock: vi.fn(),
+}))
 
 vi.mock('../../api/dashboardService', () => ({
   default: { getSummary: getSummaryMock },
 }))
+
+vi.mock('../../api/productsService', () => ({
+  default: { getAll: getAllProductsMock },
+}))
+
+vi.mock('../../api/categoriesService', () => ({
+  default: { getAll: getAllCategoriesMock },
+}))
+
+// ScannerOverlay wraps QrScanner (real camera/html5-qrcode logic already
+// covered by QrScanner.test.tsx and ScannerOverlay.test.tsx) — stub it here
+// the same way, so shell-level tests only exercise MobileShell's own wiring.
+vi.mock('../../components/sales/QrScanner', () => ({
+  default: ({
+    onAddProduct,
+    onClose,
+  }: {
+    onAddProduct: (p: { id: string; code: string; description: string }, qty: number) => void
+    onClose: () => void
+  }) => (
+    <div>
+      <p>Escáner (stub)</p>
+      <button onClick={onClose}>Cerrar escáner</button>
+      <button
+        onClick={() => onAddProduct({ id: 'p9', code: '7791234567890', description: 'Producto escaneado' }, 1)}
+      >
+        Simular escaneo exitoso
+      </button>
+    </div>
+  ),
+}))
+
+function productsFixture(items: Product[] = []): PaginatedResponse<Product> {
+  return { items, total: items.length, page: 1, per_page: 50, pages: 1 }
+}
+
+function makeProduct(overrides: Partial<Product> = {}): Product {
+  return {
+    id: '1',
+    business_id: 'b1',
+    code: 'P1',
+    description: 'Producto A',
+    cost_price: 0,
+    list_price: 500,
+    price_currency: 'ARS',
+    discount_1: 0,
+    discount_2: 0,
+    discount_3: 0,
+    extra_cost: 0,
+    profit_margin: 0,
+    net_price: 500,
+    sale_price: 500,
+    iva_rate: 21,
+    current_stock: 20,
+    minimum_stock: 5,
+    unit: 'u',
+    lots_count: 0,
+    is_active: true,
+    created_at: '',
+    updated_at: '',
+    ...overrides,
+  }
+}
+
+getAllProductsMock.mockResolvedValue(productsFixture())
+getAllCategoriesMock.mockResolvedValue([])
 
 const summaryFixture: DashboardSummary = {
   total_products: 0,
@@ -121,10 +192,10 @@ describe('MobileShell — tab bar', () => {
     expect(await screen.findByText(/ingresado en caja/i)).toBeInTheDocument()
   })
 
-  it('routes Productos to its screen placeholder (MobileStub in PR1)', async () => {
+  it('renders the real MobileProducts on Productos (wired in PR3)', async () => {
     renderShell()
     await userEvent.click(screen.getByRole('button', { name: 'Productos' }))
-    expect(screen.getByRole('heading', { name: 'Productos' })).toBeInTheDocument()
+    expect(await screen.findByPlaceholderText(/buscar código o descripción/i)).toBeInTheDocument()
   })
 
   it('routes Vender to its screen placeholder (MobileStub in PR1)', async () => {
@@ -146,7 +217,7 @@ describe('MobileShell — MobileDashboard quick-access wiring (PR2)', () => {
     renderShell()
     await screen.findByText(/accesos rápidos/i)
     await userEvent.click(screen.getByRole('button', { name: /consultar precio/i }))
-    expect(screen.getByRole('heading', { name: 'Productos' })).toBeInTheDocument()
+    expect(await screen.findByPlaceholderText(/buscar código o descripción/i)).toBeInTheDocument()
   })
 
   it('routes "Caja diaria" quick access to MobileStub with the correct title', async () => {
@@ -177,5 +248,66 @@ describe('MobileShell — header actions', () => {
     expect(screen.queryByText('OctopusTrack')).not.toBeInTheDocument()
     await userEvent.click(screen.getByLabelText('Abrir menú'))
     expect(screen.getByText('OctopusTrack')).toBeInTheDocument()
+  })
+})
+
+describe('MobileShell — cart lifted state via MobileProducts (PR3)', () => {
+  it('merges repeated add-to-cart taps for the same product code into one line (badge counts lines, not qty)', async () => {
+    getAllProductsMock.mockResolvedValue(productsFixture([makeProduct()]))
+    renderShell()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Productos' }))
+    const addButton = await screen.findByRole('button', { name: /agregar producto a al carrito/i })
+
+    await userEvent.click(addButton)
+    await userEvent.click(addButton)
+
+    expect(screen.getByTestId('cart-badge')).toHaveTextContent('1')
+  })
+
+  it('adds a second distinct product as a new line (badge shows 2)', async () => {
+    getAllProductsMock.mockResolvedValue(
+      productsFixture([
+        makeProduct({ id: '1', code: 'P1', description: 'Producto A' }),
+        makeProduct({ id: '2', code: 'P2', description: 'Producto B' }),
+      ])
+    )
+    renderShell()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Productos' }))
+    await userEvent.click(await screen.findByRole('button', { name: /agregar producto a al carrito/i }))
+    await userEvent.click(screen.getByRole('button', { name: /agregar producto b al carrito/i }))
+
+    expect(screen.getByTestId('cart-badge')).toHaveTextContent('2')
+  })
+})
+
+describe('MobileShell — scanner overlay (PR3)', () => {
+  it('cancel (close) is a no-op: Productos search stays unchanged and the overlay unmounts', async () => {
+    renderShell()
+    await userEvent.click(screen.getByRole('button', { name: 'Productos' }))
+
+    const search = await screen.findByPlaceholderText(/buscar código o descripción/i)
+    await userEvent.type(search, 'tubo')
+
+    await userEvent.click(screen.getByLabelText(/abrir escáner/i))
+    expect(screen.getByText('Escáner (stub)')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cerrar escáner' }))
+
+    expect(screen.queryByText('Escáner (stub)')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/buscar código o descripción/i)).toHaveValue('tubo')
+  })
+
+  it('a successful scan closes the overlay and populates the Productos search query, without adding to the cart', async () => {
+    renderShell()
+    await userEvent.click(screen.getByRole('button', { name: 'Productos' }))
+    await userEvent.click(screen.getByLabelText(/abrir escáner/i))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Simular escaneo exitoso' }))
+
+    expect(screen.queryByText('Escáner (stub)')).not.toBeInTheDocument()
+    expect(await screen.findByPlaceholderText(/buscar código o descripción/i)).toHaveValue('7791234567890')
+    expect(screen.queryByTestId('cart-badge')).not.toBeInTheDocument()
   })
 })
