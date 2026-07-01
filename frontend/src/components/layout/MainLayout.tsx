@@ -12,7 +12,7 @@ import { useAuthStore } from '../../stores/authStore'
 import businessService from '../../api/businessService'
 import Sidebar from './Sidebar'
 import Header from './Header'
-import MobileNav from './MobileNav'
+import MobileShell from './MobileShell'
 import AIAssistantPanel from '../ai/AIAssistantPanel'
 import Button from '../ui/Button'
 import { getActiveNavigationItem, navigationItems } from './navigationItems'
@@ -108,7 +108,7 @@ export default function MainLayout() {
   }, [currentAccountEnabled, priceUpdateEnabled, wholesaleListsEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, whatsappEnabled, profitabilityEnabled, business, location.pathname, navigate, user])
 
   const toggleSidebar = () => {
-    if (window.innerWidth < 768) return // mobile: MobileNav handles navigation
+    if (window.innerWidth < 768) return // mobile: MobileShell handles navigation
     if (window.innerWidth < 1024) {
       setMobileSidebarOpen((prev) => !prev)
       return
@@ -201,9 +201,9 @@ export default function MainLayout() {
 
       {aiEnabled && <AIAssistantPanel />}
 
-      {/* Mobile bottom navigation — only rendered/visible on < 768px */}
+      {/* Mobile shell — only rendered/visible on < 768px */}
       <div className="md:hidden">
-        <MobileNav
+        <MobileShell
           currentAccountMode={business?.current_account_mode}
           priceUpdateEnabled={priceUpdateEnabled}
           reportsEnabled={reportsEnabled}
