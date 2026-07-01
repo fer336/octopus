@@ -3,15 +3,16 @@
  * content switched by an internal tab, tab bar (5 slots) and overlay hosts
  * (drawer / AI sheet). Replaces `MobileNav` as the mobile mount point.
  *
- * In PR1 the Inicio/Productos/Vender tabs render `MobileStub` placeholders —
- * PR2/PR3/PR4 wire in MobileDashboard/MobileProducts/MobileSales respectively.
- * Caja/Cuenta are out of V1 scope entirely and always render `MobileStub`.
+ * PR2 wires the Inicio tab to the real `MobileDashboard`. Productos/Vender
+ * still render `MobileStub` placeholders until PR3/PR4 land. Caja/Cuenta are
+ * out of V1 scope entirely and always render `MobileStub`.
  */
 import { useState } from 'react'
 import { Menu, Sparkles, LayoutDashboard, Package, ShoppingCart, Wallet, Users } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import MobileDrawer, { type MobileNavTarget } from './MobileDrawer'
 import MobileStub from '../../pages/mobile/MobileStub'
+import MobileDashboard from '../../pages/mobile/MobileDashboard'
 
 export interface CartLine {
   code: string
@@ -63,7 +64,7 @@ export default function MobileShell({
     setTab('stub')
   }
 
-  const handleDrawerNavigate = (target: MobileNavTarget) => {
+  const handleNavigate = (target: MobileNavTarget) => {
     if (target.screen === 'stub') {
       openStub(target.stubTitle)
     } else {
@@ -149,7 +150,7 @@ export default function MobileShell({
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden">
-        {tab === 'inicio' && <MobileStub stubTitle={TAB_TITLES.inicio} />}
+        {tab === 'inicio' && <MobileDashboard onNavigate={handleNavigate} />}
         {tab === 'productos' && <MobileStub stubTitle={TAB_TITLES.productos} />}
         {tab === 'ventas' && <MobileStub stubTitle={TAB_TITLES.ventas} />}
         {tab === 'stub' && <MobileStub stubTitle={stubTitle} />}
@@ -225,7 +226,7 @@ export default function MobileShell({
       <MobileDrawer
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
-        onNavigate={handleDrawerNavigate}
+        onNavigate={handleNavigate}
         currentAccountMode={currentAccountMode}
         priceUpdateEnabled={priceUpdateEnabled}
         reportsEnabled={reportsEnabled}
