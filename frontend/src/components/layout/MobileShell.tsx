@@ -1,18 +1,26 @@
 /**
  * Native mobile shell: header (menu, title, AI sparkles, avatar), scrollable
  * content switched by an internal tab, tab bar (5 slots) and overlay hosts
- * (drawer / AI sheet). Replaces `MobileNav` as the mobile mount point.
+ * (drawer / AI sheet / scanner). Replaces `MobileNav` as the mobile mount
+ * point.
  *
- * PR2 wires the Inicio tab to the real `MobileDashboard`. Productos/Vender
- * still render `MobileStub` placeholders until PR3/PR4 land. Caja/Cuenta are
- * out of V1 scope entirely and always render `MobileStub`.
+ * PR2 wired the Inicio tab to the real `MobileDashboard`. PR3 wires the
+ * Productos tab to `MobileProducts` and hosts `ScannerOverlay` here (only
+ * reachable from Productos' scan button) — the shell owns `cart` and the
+ * scanned-code handoff so both can be wired centrally, same pattern as
+ * `handleNavigate`. Vender still renders a `MobileStub` placeholder until
+ * PR4 lands. Caja/Cuenta are out of V1 scope entirely and always render
+ * `MobileStub`.
  */
 import { useState } from 'react'
 import { Menu, Sparkles, LayoutDashboard, Package, ShoppingCart, Wallet, Users } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import MobileDrawer, { type MobileNavTarget } from './MobileDrawer'
+import ScannerOverlay from './ScannerOverlay'
 import MobileStub from '../../pages/mobile/MobileStub'
 import MobileDashboard from '../../pages/mobile/MobileDashboard'
+import MobileProducts from '../../pages/mobile/MobileProducts'
+import type { Product } from '../../types'
 
 export interface CartLine {
   code: string
@@ -56,7 +64,9 @@ export default function MobileShell({
   const [stubTitle, setStubTitle] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [aiOpen, setAiOpen] = useState(false)
-  const [cart] = useState<CartLine[]>(initialCart)
+  const [scanOpen, setScanOpen] = useState(false)
+  const [scannedCode, setScannedCode] = useState<{ code: string } | null>(null)
+  const [cart, setCart] = useState<CartLine[]>(initialCart)
   const user = useAuthStore((state) => state.user)
 
   const openStub = (title: string) => {
@@ -70,6 +80,23 @@ export default function MobileShell({
     } else {
       setTab(target.screen)
     }
+  }
+
+  /** Adds a new line at qty 1, or increments qty by 1 for an existing line with the same code. */
+  const handleAddToCart = (line: CartLine) => {
+    setCart((prev) => {
+      const index = prev.findIndex((existing) => existing.code === line.code)
+      if (index === -1) return [...prev, line]
+      const next = [...prev]
+      next[index] = { ...next[index], qty: next[index].qty + line.qty }
+      return next
+    })
+  }
+
+  /** Populates Productos' search query with the scanned code and closes the overlay — does NOT auto-add to cart. */
+  const handleScanSuccess = (product: Product) => {
+    setScannedCode({ code: product.code })
+    setScanOpen(false)
   }
 
   const headerTitle = tab === 'stub' ? stubTitle : TAB_TITLES[tab]
@@ -151,7 +178,14 @@ export default function MobileShell({
       {/* Content */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden">
         {tab === 'inicio' && <MobileDashboard onNavigate={handleNavigate} />}
-        {tab === 'productos' && <MobileStub stubTitle={TAB_TITLES.productos} />}
+        {tab === 'productos' && (
+          <MobileProducts
+            cart={cart}
+            onAddToCart={handleAddToCart}
+            onOpenScanner={() => setScanOpen(true)}
+            scannedCode={scannedCode}
+          />
+        )}
         {tab === 'ventas' && <MobileStub stubTitle={TAB_TITLES.ventas} />}
         {tab === 'stub' && <MobileStub stubTitle={stubTitle} />}
       </main>
@@ -235,6 +269,8 @@ export default function MobileShell({
         whatsappEnabled={whatsappEnabled}
         profitabilityEnabled={profitabilityEnabled}
       />
+
+      <ScannerOverlay open={scanOpen} onClose={() => setScanOpen(false)} onAddProduct={handleScanSuccess} />
 
       {aiOpen && (
         <div
