@@ -268,3 +268,89 @@ describe('MobileSales — submit requires a real client (matches desktop\'s !sel
     expect(createMock).not.toHaveBeenCalled()
   })
 })
+
+async function pickClient(client: Client = makeClient({ id: 'c1', name: 'Juan Pérez' })) {
+  searchMock.mockResolvedValue([client])
+  await userEvent.click(screen.getByRole('button', { name: /cliente/i }))
+  await userEvent.type(screen.getByPlaceholderText(/buscar por nombre o documento/i), 'juan')
+  await userEvent.click(await screen.findByRole('button', { name: new RegExp(client.name, 'i') }, { timeout: 2000 }))
+}
+
+describe('MobileSales — Cta Cte payload (matches desktop\'s current-account flow, Sales.tsx ~2188-2226)', () => {
+  it('submits with voucher_type "receipt", is_current_account true, and billing/operating client ids set to the selected client', async () => {
+    renderSales([makeLine({ qty: 2, price: 1000, product_id: 'p1' })])
+    await pickClient(makeClient({ id: 'c1', name: 'Juan Pérez' }))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cta Cte' }))
+    expect(screen.getByRole('button', { name: /cargar a cuenta/i })).toBeEnabled()
+
+    await userEvent.click(screen.getByRole('button', { name: /cargar a cuenta/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          voucher_type: 'receipt',
+          is_current_account: true,
+          billing_client_id: 'c1',
+          operating_client_id: 'c1',
+          client_id: 'c1',
+        } satisfies Partial<VoucherCreate>)
+      )
+    })
+  })
+
+  it('does NOT set is_current_account/billing_client_id/operating_client_id for other doc types (e.g. Cotización)', async () => {
+    renderSales([makeLine()])
+    await pickClient()
+
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled())
+    const payload = createMock.mock.calls[0][0] as VoucherCreate
+    expect(payload.voucher_type).toBe('quotation')
+    expect(payload.is_current_account).toBeFalsy()
+    expect(payload.billing_client_id).toBeUndefined()
+    expect(payload.operating_client_id).toBeUndefined()
+  })
+})
+
+describe('MobileSales — Acopio submit guard (blocked pending a dedicated future screen, not wired to vouchersService.create())', () => {
+  it('disables the CTA when Acopio is the active doc type, even with a real client and non-empty cart', async () => {
+    renderSales([makeLine()])
+    await pickClient()
+    expect(screen.getByRole('button', { name: /generar/i })).toBeEnabled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
+
+    expect(screen.getByRole('button', { name: /registrar acopio/i })).toBeDisabled()
+  })
+
+  it('shows an inline hint explaining Acopio is not yet available on mobile', async () => {
+    renderSales([makeLine()])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
+
+    expect(screen.getByText(/acopio.*(próximamente|disponible)/i)).toBeInTheDocument()
+  })
+
+  it('never calls vouchersService.create() when Acopio is active, even with a real client selected', async () => {
+    renderSales([makeLine()])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
+
+    await userEvent.click(screen.getByRole('button', { name: /registrar acopio/i }))
+    expect(createMock).not.toHaveBeenCalled()
+  })
+
+  it('re-enables the CTA when switching away from Acopio back to a normal doc type with a valid client', async () => {
+    renderSales([makeLine()])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
+    expect(screen.getByRole('button', { name: /registrar acopio/i })).toBeDisabled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cotización' }))
+
+    expect(screen.getByRole('button', { name: /generar/i })).toBeEnabled()
+    expect(screen.queryByText(/acopio.*(próximamente|disponible)/i)).not.toBeInTheDocument()
+  })
+})

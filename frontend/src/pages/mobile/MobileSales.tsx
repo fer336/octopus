@@ -25,6 +25,24 @@
  * a walk-in-customer concept). This screen mirrors that guard: the CTA
  * submit button is disabled (with an inline hint) until a real client has
  * been explicitly picked via `ClientPickerSheet`.
+ *
+ * "Cta Cte" submits through the exact same `vouchersService.create()` path
+ * as every other doc type (same cart/totals), just with the correct
+ * current-account fields — mirrors desktop `Sales.tsx`'s reference logic
+ * (~lines 2188-2226): `voucher_type: 'receipt'`, `is_current_account: true`,
+ * `billing_client_id`/`operating_client_id` set to the selected client (V1
+ * mobile has no operating-client-selection UI, so both use the same id,
+ * unlike desktop's `selectedOperatingClientId || selectedClient.id`).
+ *
+ * "Acopio" is NOT wired to `vouchersService.create()` at all — desktop uses
+ * an entirely separate mutation (`createAcopioMutation` →
+ * `stockpileService.createByAmount()`) with different form fields (amount,
+ * description, currency…), not cart line items. Building that form is out
+ * of scope for this screen (no handoff design for it, structurally
+ * different from the cart-based Nueva venta flow) — the chip stays visible/
+ * selectable so users know it exists, but the CTA is disabled with an
+ * inline hint while it's active. A dedicated Acopio screen is a fast-follow
+ * item for a future change, not a silent landmine.
  */
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { Minus, Plus, Trash2, User, ArrowRight } from 'lucide-react'
@@ -55,21 +73,21 @@ const CTA_LABELS: Record<DocType, string> = {
 
 /**
  * Backend `VoucherCreate.voucher_type` only has 6 values (quotation/receipt/
- * invoice_a-c/x) — it has no direct equivalent for "Cta Cte" or "Acopio"
- * (those are desktop-only flows: current-account flagging and a dedicated
- * stockpile-creation endpoint, see `Sales.tsx`'s `resolveBackendVoucherType`
- * + `createAcopioMutation`). Neither spec nor design defines mobile V1
- * business rules for those two chips, so this is a documented simplification:
- * Cta Cte/Acopio submit through the same generic `vouchersService.create()`
- * call as the other types, with a best-effort fallback type. This should be
- * revisited before Cta Cte/Acopio see real production traffic.
+ * invoice_a-c/x). "Cta Cte" correctly maps to `'receipt'` (matches desktop
+ * `Sales.tsx`'s reference logic: `if (voucherType === 'current_account')
+ * backendType = 'receipt'` — `is_current_account: true` is what actually
+ * distinguishes a current-account receipt from a plain one, not a separate
+ * enum value). "Acopio" has no backend equivalent at all (desktop never
+ * calls `vouchersService.create()` for it) — its entry here is unreachable
+ * dead code, kept only to satisfy `Record<DocType, ...>`'s exhaustiveness;
+ * `canSubmit` blocks the CTA before this is ever read for Acopio.
  */
 const VOUCHER_TYPE_BY_DOC_TYPE: Record<DocType, VoucherCreate['voucher_type']> = {
   'Cotización': 'quotation',
   'Remito': 'receipt',
   'Factura': 'invoice_b',
-  'Cta Cte': 'invoice_b',
-  'Acopio': 'quotation',
+  'Cta Cte': 'receipt',
+  'Acopio': 'quotation', // unreachable — Acopio submission is blocked by canSubmit
 }
 
 const formatCurrency = (value: number) =>
@@ -117,17 +135,29 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
 
   const totals = calculateTotals(cart)
   const cartEmpty = cart.length === 0
-  /** Mirrors desktop Sales.tsx's `!selectedClient` guard — "Consumidor final" is a display placeholder, never a submittable client. */
-  const canSubmit = selectedClient !== null
+  const noClientSelected = selectedClient === null
+  const isCurrentAccount = docType === 'Cta Cte'
+  const isAcopio = docType === 'Acopio'
+  /** Mirrors desktop Sales.tsx's `!selectedClient` guard, plus blocks Acopio (no cart-based submit flow exists for it — see file-level doc comment). "Consumidor final" is a display placeholder, never a submittable client. */
+  const canSubmit = !noClientSelected && !isAcopio
+  const submitBlockedReason = isAcopio
+    ? 'Acopio disponible próximamente en mobile'
+    : noClientSelected
+      ? 'Elegí un cliente para continuar'
+      : null
 
   const handleSubmit = () => {
-    if (cartEmpty || !canSubmit) return
+    if (cartEmpty || !canSubmit || !selectedClient) return
     const payload: VoucherCreate = {
       client_id: selectedClient.id,
       voucher_type: VOUCHER_TYPE_BY_DOC_TYPE[docType],
       date: new Date().toISOString().slice(0, 10),
       show_prices: true,
       general_discount: 0,
+      is_current_account: isCurrentAccount,
+      ...(isCurrentAccount
+        ? { billing_client_id: selectedClient.id, operating_client_id: selectedClient.id }
+        : {}),
       items: cart.map((line) => ({
         product_id: line.product_id,
         quantity: line.qty,
@@ -275,8 +305,8 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
             <div className="flex-1">
               <p className="text-[11px] uppercase tracking-[.1em] text-[#9089a0]">Total</p>
               <p className="font-display text-2xl font-extrabold text-[#121325]">{formatCurrency(totals.total)}</p>
-              {!canSubmit && (
-                <p className="mt-1 text-[11px] font-semibold text-[#c0392b]">Elegí un cliente para continuar</p>
+              {submitBlockedReason && (
+                <p className="mt-1 text-[11px] font-semibold text-[#c0392b]">{submitBlockedReason}</p>
               )}
             </div>
             <button
