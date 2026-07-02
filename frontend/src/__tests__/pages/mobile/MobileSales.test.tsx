@@ -215,7 +215,7 @@ describe('MobileSales — client picker', () => {
     })
   })
 
-  it('clearing the selection reverts to Consumidor final and omits client_id from the voucher payload', async () => {
+  it('clearing the selection reverts to Consumidor final and disables the CTA again (no submit possible without a real client)', async () => {
     searchMock.mockResolvedValue([makeClient({ id: 'c1', name: 'Juan Pérez' })])
 
     renderSales([makeLine()])
@@ -223,18 +223,48 @@ describe('MobileSales — client picker', () => {
     await userEvent.type(screen.getByPlaceholderText(/buscar por nombre o documento/i), 'juan')
     await userEvent.click(await screen.findByRole('button', { name: /juan pérez/i }, { timeout: 2000 }))
     expect(screen.getByText('Juan Pérez')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /generar/i })).toBeEnabled()
 
     await userEvent.click(screen.getByRole('button', { name: /cliente/i }))
     await userEvent.click(await screen.findByRole('button', { name: 'Consumidor final' }))
 
     expect(screen.getByText('Consumidor final')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /generar/i })).toBeDisabled()
 
     await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+    expect(createMock).not.toHaveBeenCalled()
+  })
+})
 
-    await waitFor(() => {
-      expect(createMock).toHaveBeenCalled()
-    })
-    const payload = createMock.mock.calls[0][0] as VoucherCreate
-    expect(payload.client_id).toBeUndefined()
+describe('MobileSales — submit requires a real client (matches desktop\'s !selectedClient guard)', () => {
+  it('disables the CTA submit button while the client is still the default "Consumidor final" placeholder', () => {
+    renderSales([makeLine()])
+    expect(screen.getByText('Consumidor final')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /generar/i })).toBeDisabled()
+  })
+
+  it('shows an inline validation hint explaining why submit is blocked when no client is selected', () => {
+    renderSales([makeLine()])
+    expect(screen.getByText(/eleg[ií].*cliente/i)).toBeInTheDocument()
+  })
+
+  it('enables the CTA submit button once a real client is picked via ClientPickerSheet', async () => {
+    searchMock.mockResolvedValue([makeClient({ id: 'c1', name: 'Juan Pérez' })])
+
+    renderSales([makeLine()])
+    expect(screen.getByRole('button', { name: /generar/i })).toBeDisabled()
+
+    await userEvent.click(screen.getByRole('button', { name: /cliente/i }))
+    await userEvent.type(screen.getByPlaceholderText(/buscar por nombre o documento/i), 'juan')
+    await userEvent.click(await screen.findByRole('button', { name: /juan pérez/i }, { timeout: 2000 }))
+
+    expect(screen.getByRole('button', { name: /generar/i })).toBeEnabled()
+    expect(screen.queryByText(/eleg[ií].*cliente/i)).not.toBeInTheDocument()
+  })
+
+  it('never calls vouchersService.create() while the CTA is disabled, even if clicked', async () => {
+    renderSales([makeLine()])
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+    expect(createMock).not.toHaveBeenCalled()
   })
 })

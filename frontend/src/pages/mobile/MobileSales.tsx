@@ -14,6 +14,17 @@
  * has no "add new product" UI (that only exists on Productos, already
  * covered by PR3's tests); the "Agregar +" affordance below just navigates
  * back to Productos.
+ *
+ * Submit guard: "Consumidor final" is a placeholder DISPLAY state only, not
+ * a submittable value. `VoucherCreate.client_id` is a required real client
+ * id — desktop `Sales.tsx`'s `handleConfirmGenerate` has a hard
+ * `if (!selectedClient) { toast.error('Debe seleccionar un cliente'); return }`
+ * guard before ever building the voucher payload; there is no generic/
+ * anonymous backend client to fall back to ("Consumidor Final" in the
+ * backend is an AFIP `tax_condition` assigned to a real client record, not
+ * a walk-in-customer concept). This screen mirrors that guard: the CTA
+ * submit button is disabled (with an inline hint) until a real client has
+ * been explicitly picked via `ClientPickerSheet`.
  */
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { Minus, Plus, Trash2, User, ArrowRight } from 'lucide-react'
@@ -106,11 +117,13 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
 
   const totals = calculateTotals(cart)
   const cartEmpty = cart.length === 0
+  /** Mirrors desktop Sales.tsx's `!selectedClient` guard — "Consumidor final" is a display placeholder, never a submittable client. */
+  const canSubmit = selectedClient !== null
 
   const handleSubmit = () => {
-    if (cartEmpty) return
-    const payload = {
-      client_id: selectedClient?.id,
+    if (cartEmpty || !canSubmit) return
+    const payload: VoucherCreate = {
+      client_id: selectedClient.id,
       voucher_type: VOUCHER_TYPE_BY_DOC_TYPE[docType],
       date: new Date().toISOString().slice(0, 10),
       show_prices: true,
@@ -121,14 +134,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
         unit_price: line.price,
         discount_percent: 0,
       })),
-      // `client_id` is intentionally omitted (not a fake/placeholder id) when
-      // no client is selected — see the file-level VOUCHER_TYPE note; this
-      // technically violates VoucherCreate's `client_id: string` (required)
-      // contract at compile time, cast below. No canonical "Consumidor
-      // final" client id exists anywhere in this codebase's seed data, so
-      // inventing one would silently misattribute the sale — flagged as a
-      // real product/backend gap in the apply-progress risk log instead.
-    } as unknown as VoucherCreate
+    }
     createVoucherMutation.mutate(payload)
   }
 
@@ -269,11 +275,15 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
             <div className="flex-1">
               <p className="text-[11px] uppercase tracking-[.1em] text-[#9089a0]">Total</p>
               <p className="font-display text-2xl font-extrabold text-[#121325]">{formatCurrency(totals.total)}</p>
+              {!canSubmit && (
+                <p className="mt-1 text-[11px] font-semibold text-[#c0392b]">Elegí un cliente para continuar</p>
+              )}
             </div>
             <button
               type="button"
               onClick={handleSubmit}
-              className="flex items-center gap-[7px] rounded-[13px] px-5 py-[13px] text-[14.5px] font-bold text-white"
+              disabled={!canSubmit}
+              className="flex items-center gap-[7px] rounded-[13px] px-5 py-[13px] text-[14.5px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: 'linear-gradient(140deg,#7c5ca8,#5c3a8c)', boxShadow: '0 8px 18px rgba(92,58,140,.35)' }}
             >
               {CTA_LABELS[docType]}
