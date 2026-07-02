@@ -1,0 +1,240 @@
+import { useState } from 'react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+import type { CartLine } from '../../../components/layout/MobileShell'
+import type { Client } from '../../../api/clientsService'
+import type { VoucherCreate } from '../../../api/vouchersService'
+
+const { searchMock, createMock } = vi.hoisted(() => ({
+  searchMock: vi.fn(),
+  createMock: vi.fn(),
+}))
+
+vi.mock('../../../api/clientsService', () => ({
+  default: { search: searchMock },
+}))
+
+vi.mock('../../../api/vouchersService', () => ({
+  default: { create: createMock },
+}))
+
+import MobileSales, { mergeCartLine, calculateTotals } from '../../../pages/mobile/MobileSales'
+
+function makeLine(overrides: Partial<CartLine> = {}): CartLine {
+  return { code: 'P1', desc: 'Producto A', qty: 1, price: 1000, product_id: 'p1', ...overrides }
+}
+
+function makeClient(overrides: Partial<Client> = {}): Client {
+  return {
+    id: 'c1',
+    business_id: 'b1',
+    name: 'Juan Pérez',
+    document_type: 'DNI',
+    document_number: '30111222',
+    tax_condition: 'consumidor_final',
+    client_type_id: 'ct1',
+    current_balance: 0,
+    created_at: '',
+    updated_at: '',
+    ...overrides,
+  }
+}
+
+function renderSales(initialCart: CartLine[] = []) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const setCartSpy = vi.fn()
+
+  function Harness() {
+    const [cart, setCart] = useState<CartLine[]>(initialCart)
+    return (
+      <MobileSales
+        cart={cart}
+        setCart={(update) => {
+          setCartSpy(update)
+          setCart(update)
+        }}
+      />
+    )
+  }
+
+  const utils = render(
+    <QueryClientProvider client={queryClient}>
+      <Harness />
+    </QueryClientProvider>
+  )
+  return { ...utils, setCartSpy }
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  searchMock.mockResolvedValue([])
+  createMock.mockResolvedValue({ id: 'v1' })
+})
+
+describe('MobileSales — mergeCartLine (pure reducer, reused from MobileShell.handleAddToCart)', () => {
+  it('adds a new line at qty 1 when the product code is not yet in the cart', () => {
+    const result = mergeCartLine([], makeLine({ code: 'P1', qty: 1 }))
+    expect(result).toEqual([makeLine({ code: 'P1', qty: 1 })])
+  })
+
+  it('increments the existing line by the incoming qty instead of duplicating it', () => {
+    const existing = [makeLine({ code: 'P1', qty: 1 })]
+    const result = mergeCartLine(existing, makeLine({ code: 'P1', qty: 1 }))
+    expect(result).toHaveLength(1)
+    expect(result[0].qty).toBe(2)
+  })
+})
+
+describe('MobileSales — totals calculation', () => {
+  it('computes subtotal, iva (21%) and total from cart lines', () => {
+    const totals = calculateTotals([
+      makeLine({ qty: 2, price: 1000 }),
+      makeLine({ code: 'P2', qty: 1, price: 500 }),
+    ])
+    expect(totals).toEqual({ subtotal: 2500, iva: 525, total: 3025 })
+  })
+
+  it('renders AR-formatted totals in the sticky totals bar', () => {
+    renderSales([makeLine({ qty: 2, price: 1000 }), makeLine({ code: 'P2', qty: 1, price: 500 })])
+    expect(screen.getByText('$2.500,00')).toBeInTheDocument()
+    expect(screen.getByText('$525,00')).toBeInTheDocument()
+    expect(screen.getByText('$3.025,00')).toBeInTheDocument()
+  })
+})
+
+describe('MobileSales — cart item lifecycle (UI)', () => {
+  it('decrements qty by 1 when qty > 1', async () => {
+    renderSales([makeLine({ qty: 2 })])
+    await userEvent.click(screen.getByLabelText(/restar cantidad de producto a/i))
+    expect(await screen.findByText('1')).toBeInTheDocument()
+  })
+
+  it('does not go below qty 1 on decrement (floor, no removal)', async () => {
+    renderSales([makeLine({ qty: 1 })])
+    await userEvent.click(screen.getByLabelText(/restar cantidad de producto a/i))
+    expect(screen.getByText('Producto A')).toBeInTheDocument()
+    expect(screen.getByText('1')).toBeInTheDocument()
+  })
+
+  it('increments qty by 1 via the + stepper', async () => {
+    renderSales([makeLine({ qty: 1 })])
+    await userEvent.click(screen.getByLabelText(/sumar cantidad de producto a/i))
+    expect(await screen.findByText('2')).toBeInTheDocument()
+  })
+
+  it('removes the line entirely via the trash icon, regardless of qty', async () => {
+    renderSales([makeLine({ qty: 3 })])
+    await userEvent.click(screen.getByLabelText(/eliminar producto a del carrito/i))
+    await waitFor(() => {
+      expect(screen.queryByText('Producto A')).not.toBeInTheDocument()
+    })
+  })
+})
+
+describe('MobileSales — empty cart state', () => {
+  it('shows the empty state and hides the sticky totals bar when cart is empty', () => {
+    renderSales([])
+    expect(screen.getByText(/todavía no agregaste productos/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /buscar productos/i })).toBeInTheDocument()
+    expect(screen.queryByTestId('sales-totals-bar')).not.toBeInTheDocument()
+  })
+})
+
+describe('MobileSales — doc-type switching', () => {
+  it('selects a doc-type chip and changes the CTA label, differing between Cotización and Factura', async () => {
+    renderSales([makeLine()])
+    expect(screen.getByRole('button', { name: /generar/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Factura' }))
+    expect(screen.getByRole('button', { name: /facturar/i })).toBeInTheDocument()
+  })
+
+  it('preserves cart lines and totals when switching doc type', async () => {
+    renderSales([
+      makeLine({ qty: 2, price: 1000 }),
+      makeLine({ code: 'P2', desc: 'Producto B', qty: 1, price: 500 }),
+    ])
+    expect(screen.getByText('$3.025,00')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Factura' }))
+
+    expect(screen.getByText('Producto A')).toBeInTheDocument()
+    expect(screen.getByText('Producto B')).toBeInTheDocument()
+    expect(screen.getByText('$3.025,00')).toBeInTheDocument()
+  })
+})
+
+describe('MobileSales — client picker', () => {
+  it('shows "Consumidor final" by default and opens the picker sheet on tap', async () => {
+    renderSales([makeLine()])
+    expect(screen.getByText('Consumidor final')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /cliente/i }))
+    expect(await screen.findByRole('dialog', { name: /buscar cliente/i })).toBeInTheDocument()
+  })
+
+  it('calls clientsService.search with the typed query (debounced)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    searchMock.mockResolvedValue([makeClient()])
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    renderSales([makeLine()])
+    await user.click(screen.getByRole('button', { name: /cliente/i }))
+    await user.type(screen.getByPlaceholderText(/buscar por nombre o documento/i), 'juan')
+
+    vi.advanceTimersByTime(350)
+
+    await waitFor(() => {
+      expect(searchMock).toHaveBeenCalledWith('juan')
+    })
+
+    vi.useRealTimers()
+  })
+
+  it('selecting a client closes the sheet, updates the card, and attaches client_id to the voucher payload on CTA submit', async () => {
+    searchMock.mockResolvedValue([makeClient({ id: 'c1', name: 'Juan Pérez' })])
+
+    renderSales([makeLine()])
+    await userEvent.click(screen.getByRole('button', { name: /cliente/i }))
+    await userEvent.type(screen.getByPlaceholderText(/buscar por nombre o documento/i), 'juan')
+
+    await userEvent.click(await screen.findByRole('button', { name: /juan pérez/i }, { timeout: 2000 }))
+
+    expect(screen.queryByRole('dialog', { name: /buscar cliente/i })).not.toBeInTheDocument()
+    expect(screen.getByText('Juan Pérez')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({ client_id: 'c1' } satisfies Partial<VoucherCreate>)
+      )
+    })
+  })
+
+  it('clearing the selection reverts to Consumidor final and omits client_id from the voucher payload', async () => {
+    searchMock.mockResolvedValue([makeClient({ id: 'c1', name: 'Juan Pérez' })])
+
+    renderSales([makeLine()])
+    await userEvent.click(screen.getByRole('button', { name: /cliente/i }))
+    await userEvent.type(screen.getByPlaceholderText(/buscar por nombre o documento/i), 'juan')
+    await userEvent.click(await screen.findByRole('button', { name: /juan pérez/i }, { timeout: 2000 }))
+    expect(screen.getByText('Juan Pérez')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /cliente/i }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Consumidor final' }))
+
+    expect(screen.getByText('Consumidor final')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalled()
+    })
+    const payload = createMock.mock.calls[0][0] as VoucherCreate
+    expect(payload.client_id).toBeUndefined()
+  })
+})
