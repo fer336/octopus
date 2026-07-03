@@ -410,3 +410,28 @@ describe('MobileSales — Acopio mini-form (own mobile-designed form, wired to t
     expect(screen.queryByLabelText(/nombre.*acopio/i)).not.toBeInTheDocument()
   })
 })
+
+describe('MobileSales — cart price MUST be net, not gross, for correct IVA math and voucher payload (fiscal correctness, ported from desktop\'s effectiveNetPrice/"sale_price ya contiene IVA" contract, Sales.tsx ~1687-1690/~2234/~2993)', () => {
+  it('calculateTotals treats cart price as net: net subtotal × 1.21 = correct gross total, not double-taxed', () => {
+    // Reflects a product with net_price=1000 (its gross sale_price would be
+    // 1210 = 1000*1.21, per the real backend formula). The cart MUST carry
+    // the NET price (1000) — calculateTotals then adds IVA once (210) to
+    // reach the correct gross total (1210), matching what the backend
+    // itself computes from a net unit_price. If the cart wrongly carried
+    // the gross price (1210) here, this would incorrectly double-tax:
+    // 1210 + (1210*0.21=254.10) = 1464.10 — NOT what this asserts.
+    const totals = calculateTotals([{ code: 'P1', desc: 'Producto A', qty: 1, price: 1000, product_id: 'p1' }])
+    expect(totals).toEqual({ subtotal: 1000, iva: 210, total: 1210 })
+  })
+
+  it('sends the cart line price as-is (net) as unit_price in the vouchersService.create() payload — MobileProducts is responsible for feeding net, not gross, into the cart', async () => {
+    renderSales([makeLine({ price: 1000, qty: 1, product_id: 'p1' })])
+    await pickClient()
+
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled())
+    const payload = createMock.mock.calls[0][0] as VoucherCreate
+    expect(payload.items[0].unit_price).toBe(1000)
+  })
+})

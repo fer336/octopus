@@ -274,7 +274,11 @@ describe('MobileShell — header actions', () => {
 
 describe('MobileShell — MobileSales cart wiring (PR4)', () => {
   it('reflects a product added from Productos in the Vender tab cart totals', async () => {
-    getAllProductsMock.mockResolvedValue(productsFixture([makeProduct({ sale_price: 1000 })]))
+    // Cart line price comes from net_price (NOT the gross sale_price shown
+    // on the Productos card) — see PR4 Follow-up Correction #4: sale_price
+    // already includes IVA, so the cart must carry net_price to avoid
+    // double-taxing in MobileSales' totals bar / voucher payload.
+    getAllProductsMock.mockResolvedValue(productsFixture([makeProduct({ net_price: 1000, sale_price: 1210 })]))
     renderShell()
 
     await userEvent.click(screen.getByRole('button', { name: 'Productos' }))

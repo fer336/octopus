@@ -36,8 +36,13 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
     discount_3: 0,
     extra_cost: 0,
     profit_margin: 0,
+    // Non-equal on purpose (matches the real backend formula sale_price =
+    // net_price * 1.21, IVA_RATE = 21%): a fixture where both are equal
+    // would silently mask a net/gross mixup bug in cart-line construction —
+    // see "add to cart" tests below, which assert the cart line's `price`
+    // is the NET value, not the gross `sale_price`.
     net_price: 100,
-    sale_price: 100,
+    sale_price: 121,
     iva_rate: 21,
     current_stock: 20,
     minimum_stock: 5,
@@ -150,10 +155,12 @@ describe('MobileProducts — stock-low badge', () => {
 })
 
 describe('MobileProducts — add to cart', () => {
-  it('emits a qty:1 delta line via onAddToCart when tapping + on a product not yet in cart', async () => {
+  it('emits a qty:1 delta line via onAddToCart with the NET price (not gross sale_price) when tapping + on a product not yet in cart', async () => {
     getCategoriesAllMock.mockResolvedValue([])
     getAllMock.mockResolvedValue(
-      paginated([makeProduct({ id: '1', code: 'P1', description: 'Producto A', sale_price: 500 })])
+      paginated([
+        makeProduct({ id: '1', code: 'P1', description: 'Producto A', net_price: 400, sale_price: 484 }),
+      ])
     )
 
     const { onAddToCart } = renderProducts()
@@ -166,18 +173,20 @@ describe('MobileProducts — add to cart', () => {
       code: 'P1',
       desc: 'Producto A',
       qty: 1,
-      price: 500,
+      price: 400,
       product_id: '1',
     })
   })
 
-  it('still emits a qty:1 delta line when the product is already in the cart prop (the cart owner merges/increments centrally)', async () => {
+  it('still emits the NET price when the product is already in the cart prop (the cart owner merges/increments centrally)', async () => {
     getCategoriesAllMock.mockResolvedValue([])
     getAllMock.mockResolvedValue(
-      paginated([makeProduct({ id: '1', code: 'P1', description: 'Producto A', sale_price: 500 })])
+      paginated([
+        makeProduct({ id: '1', code: 'P1', description: 'Producto A', net_price: 400, sale_price: 484 }),
+      ])
     )
 
-    const existingLine: CartLine = { code: 'P1', desc: 'Producto A', qty: 1, price: 500, product_id: '1' }
+    const existingLine: CartLine = { code: 'P1', desc: 'Producto A', qty: 1, price: 400, product_id: '1' }
     const { onAddToCart } = renderProducts({ cart: [existingLine] })
     const user = userEvent.setup()
 
@@ -188,9 +197,22 @@ describe('MobileProducts — add to cart', () => {
       code: 'P1',
       desc: 'Producto A',
       qty: 1,
-      price: 500,
+      price: 400,
       product_id: '1',
     })
+  })
+
+  it('still shows the GROSS sale_price (IVA-inclusive) on the product browsing card — only the cart line uses net price', async () => {
+    getCategoriesAllMock.mockResolvedValue([])
+    getAllMock.mockResolvedValue(
+      paginated([
+        makeProduct({ id: '1', code: 'P1', description: 'Producto A', net_price: 400, sale_price: 484 }),
+      ])
+    )
+
+    renderProducts()
+    await screen.findByText('Producto A')
+    expect(screen.getByText('$484')).toBeInTheDocument()
   })
 })
 
