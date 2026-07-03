@@ -24,18 +24,42 @@ vi.mock('../../stores/authStore', () => ({
     selector({ user: mockUser.current }),
 }))
 
-const { getSummaryMock, getAllProductsMock, getAllCategoriesMock, searchClientsMock, createVoucherMock, chatMock } =
-  vi.hoisted(() => ({
-    getSummaryMock: vi.fn(),
-    getAllProductsMock: vi.fn(),
-    getAllCategoriesMock: vi.fn(),
-    searchClientsMock: vi.fn(),
-    createVoucherMock: vi.fn(),
-    chatMock: vi.fn(),
-  }))
+const {
+  getSummaryMock,
+  getAllProductsMock,
+  getAllCategoriesMock,
+  searchClientsMock,
+  createVoucherMock,
+  chatMock,
+  getCurrentCashMock,
+  getCashSummaryMock,
+  openCashMock,
+  closeCashMock,
+  addMovementMock,
+} = vi.hoisted(() => ({
+  getSummaryMock: vi.fn(),
+  getAllProductsMock: vi.fn(),
+  getAllCategoriesMock: vi.fn(),
+  searchClientsMock: vi.fn(),
+  createVoucherMock: vi.fn(),
+  chatMock: vi.fn(),
+  getCurrentCashMock: vi.fn(),
+  getCashSummaryMock: vi.fn(),
+  openCashMock: vi.fn(),
+  closeCashMock: vi.fn(),
+  addMovementMock: vi.fn(),
+}))
 
 vi.mock('../../api/dashboardService', () => ({
   default: { getSummary: getSummaryMock },
+}))
+
+vi.mock('../../api/cashService', () => ({
+  getCurrentCash: getCurrentCashMock,
+  getCashSummary: getCashSummaryMock,
+  openCash: openCashMock,
+  closeCash: closeCashMock,
+  addMovement: addMovementMock,
 }))
 
 vi.mock('../../api/productsService', () => ({
@@ -118,6 +142,8 @@ getAllCategoriesMock.mockResolvedValue([])
 searchClientsMock.mockResolvedValue([])
 createVoucherMock.mockResolvedValue({ id: 'v1' })
 chatMock.mockResolvedValue({ response_type: 'text', text: 'Respuesta del asistente.' })
+getCurrentCashMock.mockResolvedValue(null)
+getCashSummaryMock.mockResolvedValue({ by_method: [], total_net: 0, expected_cash: 0 })
 
 const summaryFixture: DashboardSummary = {
   total_products: 0,
@@ -180,13 +206,10 @@ describe('MobileShell — tab bar', () => {
     expect(screen.queryByTestId('cart-badge')).not.toBeInTheDocument()
   })
 
-  it('routes Caja to MobileStub (deferred, not blank/broken)', async () => {
+  it('renders the real MobileCaja on Caja (wired in PR5)', async () => {
     renderShell()
     await userEvent.click(screen.getByRole('button', { name: 'Caja' }))
-    expect(
-      screen.getByText(/ya funciona en la versión completa de OctopusTrack/i)
-    ).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /caja/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /abrir caja/i })).toBeInTheDocument()
   })
 
   it('routes Cuenta to MobileStub (deferred, not blank/broken)', async () => {
@@ -240,11 +263,11 @@ describe('MobileShell — MobileDashboard quick-access wiring (PR2)', () => {
     expect(await screen.findByPlaceholderText(/buscar código o descripción/i)).toBeInTheDocument()
   })
 
-  it('routes "Caja diaria" quick access to MobileStub with the correct title', async () => {
+  it('routes "Caja diaria" quick access to the real Caja tab (wired in PR5)', async () => {
     renderShell()
     await screen.findByText(/accesos rápidos/i)
     await userEvent.click(screen.getByRole('button', { name: /caja diaria/i }))
-    expect(screen.getByRole('heading', { name: 'Caja diaria' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /abrir caja/i })).toBeInTheDocument()
   })
 
   it('routes "Cuenta corriente" quick access to MobileStub with the correct title', async () => {
