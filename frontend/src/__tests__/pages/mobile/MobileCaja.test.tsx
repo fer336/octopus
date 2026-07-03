@@ -269,16 +269,29 @@ describe('MobileCaja — open register', () => {
     expect(await screen.findByRole('dialog', { name: /cerrar caja/i })).toBeInTheDocument()
   })
 
-  it('closes the register automatically (no counted cash entered) without requiring a difference reason', async () => {
+  it('disables the confirm button until a counted cash amount is entered (mirrors desktop\'s countedCash !== \'\' guard — CloseCashRequest.counted_cash is a required number on the frontend)', async () => {
     renderCaja()
     await screen.findByText(/caja abierta/i)
     await userEvent.click(screen.getByRole('button', { name: /cerrar caja/i }))
     await screen.findByRole('dialog', { name: /cerrar caja/i })
 
+    expect(screen.getByRole('button', { name: /confirmar cierre/i })).toBeDisabled()
+    expect(closeCashMock).not.toHaveBeenCalled()
+  })
+
+  it('closes the register with no difference_reason when the counted cash matches the expected cash', async () => {
+    renderCaja()
+    await screen.findByText(/caja abierta/i)
+    await userEvent.click(screen.getByRole('button', { name: /cerrar caja/i }))
+    await screen.findByRole('dialog', { name: /cerrar caja/i })
+
+    await userEvent.type(screen.getByLabelText(/efectivo contado/i), '5700')
+    expect(screen.getByRole('button', { name: /confirmar cierre/i })).toBeEnabled()
+
     await userEvent.click(screen.getByRole('button', { name: /confirmar cierre/i }))
 
     await waitFor(() => {
-      expect(closeCashMock).toHaveBeenCalledWith({ counted_cash: undefined, difference_reason: undefined })
+      expect(closeCashMock).toHaveBeenCalledWith({ counted_cash: 5700, difference_reason: undefined })
     })
   })
 

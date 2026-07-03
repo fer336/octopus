@@ -20,13 +20,17 @@
  *   screen adds a payment_method <select> beyond the mockup (same class of
  *   gotcha already hit and fixed for Acopio in PR4/MobileSales) to avoid a
  *   real runtime failure that mock-based tests would otherwise hide.
- * - "Cerrar caja" sheet: `counted_cash` is optional server-side (blank ->
- *   backend auto-uses the expected cash, so there is never a difference on
- *   that path). Only when the user explicitly types a counted amount that
- *   differs from `expected_cash` does the backend require
- *   `difference_reason` (`CashCloseRequest`) — this screen mirrors that
- *   exact rule locally via `hasClosingDifference` before enabling the
- *   confirm button, instead of discovering the 422 at submit time.
+ * - "Cerrar caja" sheet: the backend's `CashCloseRequest.counted_cash` is
+ *   optional (blank -> auto-uses the expected cash), but the frontend's own
+ *   `CloseCashRequest` type (`types/cash.ts`) declares it as a required
+ *   `number`, and desktop's `Cash.tsx` `CloseCashModal` never omits it
+ *   either (`canSubmit` requires `countedCash !== ''`). This screen matches
+ *   that same established frontend contract rather than inventing a blank/
+ *   auto-close path the rest of the app doesn't have. When the counted
+ *   amount differs from `expected_cash`, the backend requires
+ *   `difference_reason` — mirrored locally via `hasClosingDifference`
+ *   before enabling the confirm button, instead of discovering the 422 at
+ *   submit time.
  */
 import { useState } from 'react'
 import { ArrowDown, ArrowUp, TrendingDown, TrendingUp, X } from 'lucide-react'
@@ -250,13 +254,18 @@ function CloseCashSheet({ expectedCash, onClose }: CloseCashSheetProps) {
 
   const countedValue = countedCash.trim() === '' ? null : Number(countedCash)
   const needsReason = hasClosingDifference(countedValue, expectedCash)
-  const canSubmit = !needsReason || reason.trim().length > 0
+  // Mirrors desktop's CloseCashModal canSubmit exactly: countedCash !== '' is
+  // always required (CloseCashRequest.counted_cash is a required `number` in
+  // types/cash.ts on the frontend, even though the backend schema itself
+  // accepts it as optional/auto — desktop's own UI never omits it, so this
+  // screen doesn't invent a blank/auto-close path either).
+  const canSubmit = countedValue !== null && (!needsReason || reason.trim().length > 0)
 
   const handleSubmit = () => {
-    if (!canSubmit) return
+    if (!canSubmit || countedValue === null) return
     closeCash.mutate(
       {
-        counted_cash: countedValue === null ? undefined : countedValue,
+        counted_cash: countedValue,
         difference_reason: needsReason ? reason.trim() : undefined,
       },
       { onSuccess: onClose }
@@ -292,7 +301,7 @@ function CloseCashSheet({ expectedCash, onClose }: CloseCashSheetProps) {
             type="number"
             value={countedCash}
             onChange={(e) => setCountedCash(e.target.value)}
-            placeholder="Efectivo contado (opcional)"
+            placeholder="Efectivo contado"
             aria-label="Efectivo contado"
             className="flex-1 border-none bg-transparent text-sm text-[#121325] outline-none"
           />
