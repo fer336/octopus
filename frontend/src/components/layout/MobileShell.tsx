@@ -4,22 +4,28 @@
  * (drawer / AI sheet / scanner). Replaces `MobileNav` as the mobile mount
  * point.
  *
- * PR2 wired the Inicio tab to the real `MobileDashboard`. PR3 wires the
+ * PR2 wired the Inicio tab to the real `MobileDashboard`. PR3 wired the
  * Productos tab to `MobileProducts` and hosts `ScannerOverlay` here (only
  * reachable from Productos' scan button) — the shell owns `cart` and the
  * scanned-code handoff so both can be wired centrally, same pattern as
- * `handleNavigate`. Vender still renders a `MobileStub` placeholder until
- * PR4 lands. Caja/Cuenta are out of V1 scope entirely and always render
- * `MobileStub`.
+ * `handleNavigate`. PR4 wires the Vender tab to `MobileSales` (same lifted
+ * `cart`) and the sparkles-triggered AI sheet host to the real
+ * `AIAssistantSheet` (replacing the PR1 stub). PR5 wires the Caja tab to the
+ * real `MobileCaja` (self-fetching, no lifted state needed). Cuenta
+ * corriente is still out of V1 scope and keeps rendering `MobileStub` —
+ * pending a follow-up PR.
  */
 import { useState } from 'react'
 import { Menu, Sparkles, LayoutDashboard, Package, ShoppingCart, Wallet, Users } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import MobileDrawer, { type MobileNavTarget } from './MobileDrawer'
 import ScannerOverlay from './ScannerOverlay'
+import AIAssistantSheet from './AIAssistantSheet'
 import MobileStub from '../../pages/mobile/MobileStub'
 import MobileDashboard from '../../pages/mobile/MobileDashboard'
 import MobileProducts from '../../pages/mobile/MobileProducts'
+import MobileSales, { mergeCartLine } from '../../pages/mobile/MobileSales'
+import MobileCaja from '../../pages/mobile/MobileCaja'
 import type { Product } from '../../types'
 
 export interface CartLine {
@@ -30,7 +36,7 @@ export interface CartLine {
   product_id: string
 }
 
-type MobileTab = 'inicio' | 'productos' | 'ventas' | 'stub'
+type MobileTab = 'inicio' | 'productos' | 'ventas' | 'caja' | 'stub'
 
 interface MobileShellProps {
   currentAccountMode?: 'disabled' | 'automatic' | 'manual'
@@ -48,6 +54,7 @@ const TAB_TITLES: Record<Exclude<MobileTab, 'stub'>, string> = {
   inicio: 'Inicio',
   productos: 'Productos',
   ventas: 'Vender',
+  caja: 'Caja diaria',
 }
 
 export default function MobileShell({
@@ -82,15 +89,9 @@ export default function MobileShell({
     }
   }
 
-  /** Adds a new line at qty 1, or increments qty by 1 for an existing line with the same code. */
+  /** Adds a new line at qty 1, or increments qty by 1 for an existing line with the same code. Reuses `mergeCartLine`, the same reducer `MobileSales` re-tests directly as a pure function (PR4). */
   const handleAddToCart = (line: CartLine) => {
-    setCart((prev) => {
-      const index = prev.findIndex((existing) => existing.code === line.code)
-      if (index === -1) return [...prev, line]
-      const next = [...prev]
-      next[index] = { ...next[index], qty: next[index].qty + line.qty }
-      return next
-    })
+    setCart((prev) => mergeCartLine(prev, line))
   }
 
   /** Populates Productos' search query with the scanned code and closes the overlay — does NOT auto-add to cart. */
@@ -127,8 +128,8 @@ export default function MobileShell({
       key: 'caja',
       label: 'Caja',
       icon: Wallet,
-      onClick: () => openStub('Caja diaria'),
-      active: false,
+      onClick: () => setTab('caja'),
+      active: tab === 'caja',
     },
     {
       key: 'cuenta',
@@ -186,7 +187,10 @@ export default function MobileShell({
             scannedCode={scannedCode}
           />
         )}
-        {tab === 'ventas' && <MobileStub stubTitle={TAB_TITLES.ventas} />}
+        {tab === 'ventas' && (
+          <MobileSales cart={cart} setCart={setCart} onNavigateToProductos={() => setTab('productos')} />
+        )}
+        {tab === 'caja' && <MobileCaja />}
         {tab === 'stub' && <MobileStub stubTitle={stubTitle} />}
       </main>
 
@@ -272,19 +276,7 @@ export default function MobileShell({
 
       <ScannerOverlay open={scanOpen} onClose={() => setScanOpen(false)} onAddProduct={handleScanSuccess} />
 
-      {aiOpen && (
-        <div
-          data-testid="ai-sheet-host"
-          role="dialog"
-          aria-label="Asistente IA"
-          className="fixed inset-x-0 bottom-0 z-[400] rounded-t-[26px] bg-white p-4"
-        >
-          <p className="text-sm text-[#7b6b95]">Asistente IA — próximamente.</p>
-          <button type="button" onClick={() => setAiOpen(false)} className="mt-3 text-sm font-semibold text-[#5c3a8c]">
-            Cerrar
-          </button>
-        </div>
-      )}
+      <AIAssistantSheet open={aiOpen} onClose={() => setAiOpen(false)} />
     </div>
   )
 }

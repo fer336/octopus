@@ -24,14 +24,42 @@ vi.mock('../../stores/authStore', () => ({
     selector({ user: mockUser.current }),
 }))
 
-const { getSummaryMock, getAllProductsMock, getAllCategoriesMock } = vi.hoisted(() => ({
+const {
+  getSummaryMock,
+  getAllProductsMock,
+  getAllCategoriesMock,
+  searchClientsMock,
+  createVoucherMock,
+  chatMock,
+  getCurrentCashMock,
+  getCashSummaryMock,
+  openCashMock,
+  closeCashMock,
+  addMovementMock,
+} = vi.hoisted(() => ({
   getSummaryMock: vi.fn(),
   getAllProductsMock: vi.fn(),
   getAllCategoriesMock: vi.fn(),
+  searchClientsMock: vi.fn(),
+  createVoucherMock: vi.fn(),
+  chatMock: vi.fn(),
+  getCurrentCashMock: vi.fn(),
+  getCashSummaryMock: vi.fn(),
+  openCashMock: vi.fn(),
+  closeCashMock: vi.fn(),
+  addMovementMock: vi.fn(),
 }))
 
 vi.mock('../../api/dashboardService', () => ({
   default: { getSummary: getSummaryMock },
+}))
+
+vi.mock('../../api/cashService', () => ({
+  getCurrentCash: getCurrentCashMock,
+  getCashSummary: getCashSummaryMock,
+  openCash: openCashMock,
+  closeCash: closeCashMock,
+  addMovement: addMovementMock,
 }))
 
 vi.mock('../../api/productsService', () => ({
@@ -40,6 +68,18 @@ vi.mock('../../api/productsService', () => ({
 
 vi.mock('../../api/categoriesService', () => ({
   default: { getAll: getAllCategoriesMock },
+}))
+
+vi.mock('../../api/clientsService', () => ({
+  default: { search: searchClientsMock },
+}))
+
+vi.mock('../../api/vouchersService', () => ({
+  default: { create: createVoucherMock },
+}))
+
+vi.mock('../../api/aiService', () => ({
+  default: { chat: chatMock },
 }))
 
 // ScannerOverlay wraps QrScanner (real camera/html5-qrcode logic already
@@ -99,6 +139,11 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
 
 getAllProductsMock.mockResolvedValue(productsFixture())
 getAllCategoriesMock.mockResolvedValue([])
+searchClientsMock.mockResolvedValue([])
+createVoucherMock.mockResolvedValue({ id: 'v1' })
+chatMock.mockResolvedValue({ response_type: 'text', text: 'Respuesta del asistente.' })
+getCurrentCashMock.mockResolvedValue(null)
+getCashSummaryMock.mockResolvedValue({ by_method: [], total_net: 0, expected_cash: 0 })
 
 const summaryFixture: DashboardSummary = {
   total_products: 0,
@@ -161,13 +206,10 @@ describe('MobileShell — tab bar', () => {
     expect(screen.queryByTestId('cart-badge')).not.toBeInTheDocument()
   })
 
-  it('routes Caja to MobileStub (deferred, not blank/broken)', async () => {
+  it('renders the real MobileCaja on Caja (wired in PR5)', async () => {
     renderShell()
     await userEvent.click(screen.getByRole('button', { name: 'Caja' }))
-    expect(
-      screen.getByText(/ya funciona en la versión completa de OctopusTrack/i)
-    ).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /caja/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /abrir caja/i })).toBeInTheDocument()
   })
 
   it('routes Cuenta to MobileStub (deferred, not blank/broken)', async () => {
@@ -198,10 +240,11 @@ describe('MobileShell — tab bar', () => {
     expect(await screen.findByPlaceholderText(/buscar código o descripción/i)).toBeInTheDocument()
   })
 
-  it('routes Vender to its screen placeholder (MobileStub in PR1)', async () => {
+  it('renders the real MobileSales on Vender (wired in PR4)', async () => {
     renderShell()
     await userEvent.click(screen.getByRole('button', { name: 'Vender' }))
-    expect(screen.getByRole('heading', { name: 'Vender' })).toBeInTheDocument()
+    expect(screen.getByText('Consumidor final')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cotización' })).toBeInTheDocument()
   })
 })
 
@@ -210,7 +253,7 @@ describe('MobileShell — MobileDashboard quick-access wiring (PR2)', () => {
     renderShell()
     await screen.findByText(/accesos rápidos/i)
     await userEvent.click(screen.getByRole('button', { name: /nueva venta/i }))
-    expect(screen.getByRole('heading', { name: 'Vender' })).toBeInTheDocument()
+    expect(screen.getByText('Consumidor final')).toBeInTheDocument()
   })
 
   it('routes "Consultar precio" quick access to the Productos tab', async () => {
@@ -220,11 +263,11 @@ describe('MobileShell — MobileDashboard quick-access wiring (PR2)', () => {
     expect(await screen.findByPlaceholderText(/buscar código o descripción/i)).toBeInTheDocument()
   })
 
-  it('routes "Caja diaria" quick access to MobileStub with the correct title', async () => {
+  it('routes "Caja diaria" quick access to the real Caja tab (wired in PR5)', async () => {
     renderShell()
     await screen.findByText(/accesos rápidos/i)
     await userEvent.click(screen.getByRole('button', { name: /caja diaria/i }))
-    expect(screen.getByRole('heading', { name: 'Caja diaria' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /abrir caja/i })).toBeInTheDocument()
   })
 
   it('routes "Cuenta corriente" quick access to MobileStub with the correct title', async () => {
@@ -236,11 +279,12 @@ describe('MobileShell — MobileDashboard quick-access wiring (PR2)', () => {
 })
 
 describe('MobileShell — header actions', () => {
-  it('opens the AI sheet host when tapping the sparkles button (content stubbed until PR4)', async () => {
+  it('opens the real AIAssistantSheet when tapping the sparkles button (wired in PR4)', async () => {
     renderShell()
     expect(screen.queryByTestId('ai-sheet-host')).not.toBeInTheDocument()
     await userEvent.click(screen.getByLabelText('Abrir asistente IA'))
     expect(screen.getByTestId('ai-sheet-host')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/escribí tu consulta/i)).toBeInTheDocument()
   })
 
   it('opens the drawer when tapping the menu button', async () => {
@@ -248,6 +292,37 @@ describe('MobileShell — header actions', () => {
     expect(screen.queryByText('OctopusTrack')).not.toBeInTheDocument()
     await userEvent.click(screen.getByLabelText('Abrir menú'))
     expect(screen.getByText('OctopusTrack')).toBeInTheDocument()
+  })
+})
+
+describe('MobileShell — MobileSales cart wiring (PR4)', () => {
+  it('reflects a product added from Productos in the Vender tab cart totals', async () => {
+    // Cart line price comes from net_price (NOT the gross sale_price shown
+    // on the Productos card) — see PR4 Follow-up Correction #4: sale_price
+    // already includes IVA, so the cart must carry net_price to avoid
+    // double-taxing in MobileSales' totals bar / voucher payload.
+    getAllProductsMock.mockResolvedValue(productsFixture([makeProduct({ net_price: 1000, sale_price: 1210 })]))
+    renderShell()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Productos' }))
+    await userEvent.click(await screen.findByRole('button', { name: /agregar producto a al carrito/i }))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Vender' }))
+
+    expect(screen.getByText('Producto A')).toBeInTheDocument()
+    expect(screen.getAllByText('$1.000,00').length).toBeGreaterThan(0)
+    expect(screen.getByText('$1.210,00')).toBeInTheDocument() // total incl. 21% IVA on a single $1000 line
+  })
+
+  it('sends a message through the real AIAssistantSheet and shows the assistant reply', async () => {
+    chatMock.mockResolvedValue({ response_type: 'text', text: 'Tenés 3 productos con poco stock.' })
+    renderShell()
+
+    await userEvent.click(screen.getByLabelText('Abrir asistente IA'))
+    await userEvent.type(screen.getByPlaceholderText(/escribí tu consulta/i), 'Stock bajo')
+    await userEvent.click(screen.getByRole('button', { name: /enviar/i }))
+
+    expect(await screen.findByText('Tenés 3 productos con poco stock.')).toBeInTheDocument()
   })
 })
 

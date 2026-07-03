@@ -158,8 +158,18 @@ export default function MobileProducts({ cart: _cart, onAddToCart, onOpenScanner
                     onAddToCart({
                       code: product.code,
                       desc: product.description,
+                      // NET price, not the gross `sale_price` shown above on
+                      // this card. `sale_price` already includes IVA
+                      // (sale_price = net_price * 1.21, see desktop
+                      // Sales.tsx's own comment ~line 2993) — the cart's
+                      // `price` must be net so MobileSales' `calculateTotals`
+                      // (subtotal → +21% IVA → total) and the `unit_price`
+                      // sent to `vouchersService.create()` aren't
+                      // double-taxed. Matches desktop's `effectiveNetPrice`
+                      // (Sales.tsx:1687-1690, "Enviamos el precio SIN IVA
+                      // para que el backend calcule el IVA correctamente").
                       qty: 1,
-                      price: product.sale_price,
+                      price: product.net_price,
                       product_id: product.id,
                     })
                   }

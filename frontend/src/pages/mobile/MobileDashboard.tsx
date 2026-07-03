@@ -87,7 +87,7 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
       label: 'Caja diaria',
       subtitle: 'Registrar movimiento',
       icon: CreditCard,
-      onClick: () => onNavigate({ screen: 'stub', stubTitle: 'Caja diaria' }),
+      onClick: () => onNavigate({ screen: 'caja' }),
     },
     {
       key: 'cuenta',
