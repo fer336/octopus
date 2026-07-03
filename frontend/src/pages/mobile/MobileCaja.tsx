@@ -33,7 +33,7 @@
  *   submit time.
  */
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, TrendingDown, TrendingUp, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, TrendingDown, TrendingUp, X } from 'lucide-react'
 import {
   useAddMovement,
   useCashSummary,
@@ -43,6 +43,19 @@ import {
 } from '../../hooks/useCash'
 import { PAYMENT_METHOD_LABELS, MOVEMENT_TYPE_LABELS } from '../../types/cash'
 import type { CashMovement, CashMovementType, CashPaymentMethod, PaymentMethodSummary } from '../../types/cash'
+import { formatErrorMessage } from '../../utils/errorHelpers'
+
+// ─── Error banner (BUG 1: mutations were failing silently — 409/422 from the
+// backend never reached the user) ───────────────────────────────────────────
+
+function MutationErrorBanner({ message }: { message: string | null }) {
+  if (!message) return null
+  return (
+    <p role="alert" className="mt-2 text-[12.5px] font-semibold text-[#c0392b]">
+      {message}
+    </p>
+  )
+}
 
 // ─── Pure helpers (exported for direct unit testing) ──────────────────────
 
@@ -93,10 +106,15 @@ const formatSignedCurrency = (value: number, direction: 'income' | 'expense') =>
 
 function OpenCashState() {
   const [amount, setAmount] = useState('')
+  const [error, setError] = useState<string | null>(null)
   const openCash = useOpenCash()
 
   const handleSubmit = () => {
-    openCash.mutate({ opening_amount: Number(amount) || 0 })
+    setError(null)
+    openCash.mutate(
+      { opening_amount: Number(amount) || 0 },
+      { onError: (err) => setError(formatErrorMessage(err)) }
+    )
   }
 
   return (
@@ -127,6 +145,7 @@ function OpenCashState() {
       >
         {openCash.isPending ? 'Abriendo...' : 'Abrir caja'}
       </button>
+      <MutationErrorBanner message={error} />
     </div>
   )
 }
@@ -141,6 +160,7 @@ function MovementSheet({ cashRegisterId, onClose }: MovementSheetProps) {
   const [paymentMethod, setPaymentMethod] = useState<CashPaymentMethod>('CASH')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
+  const [error, setError] = useState<string | null>(null)
   const addMovement = useAddMovement(cashRegisterId)
 
   const amountValue = Number(amount) || 0
@@ -148,9 +168,10 @@ function MovementSheet({ cashRegisterId, onClose }: MovementSheetProps) {
 
   const handleSubmit = () => {
     if (!canSubmit) return
+    setError(null)
     addMovement.mutate(
       { type, payment_method: paymentMethod, amount: amountValue, description: description.trim() },
-      { onSuccess: onClose }
+      { onSuccess: onClose, onError: (err) => setError(formatErrorMessage(err)) }
     )
   }
 
@@ -237,6 +258,7 @@ function MovementSheet({ cashRegisterId, onClose }: MovementSheetProps) {
         >
           {addMovement.isPending ? 'Guardando...' : 'Confirmar'}
         </button>
+        <MutationErrorBanner message={error} />
       </div>
     </div>
   )
@@ -250,6 +272,7 @@ interface CloseCashSheetProps {
 function CloseCashSheet({ expectedCash, onClose }: CloseCashSheetProps) {
   const [countedCash, setCountedCash] = useState('')
   const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
   const closeCash = useCloseCash()
 
   const countedValue = countedCash.trim() === '' ? null : Number(countedCash)
@@ -263,12 +286,13 @@ function CloseCashSheet({ expectedCash, onClose }: CloseCashSheetProps) {
 
   const handleSubmit = () => {
     if (!canSubmit || countedValue === null) return
+    setError(null)
     closeCash.mutate(
       {
         counted_cash: countedValue,
         difference_reason: needsReason ? reason.trim() : undefined,
       },
-      { onSuccess: onClose }
+      { onSuccess: onClose, onError: (err) => setError(formatErrorMessage(err)) }
     )
   }
 
@@ -328,6 +352,7 @@ function CloseCashSheet({ expectedCash, onClose }: CloseCashSheetProps) {
         >
           {closeCash.isPending ? 'Cerrando...' : 'Confirmar cierre'}
         </button>
+        <MutationErrorBanner message={error} />
       </div>
     </div>
   )

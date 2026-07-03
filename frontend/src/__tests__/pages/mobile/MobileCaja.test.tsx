@@ -164,6 +164,19 @@ describe('MobileCaja — no open register (empty state)', () => {
       expect(openCashMock).toHaveBeenCalledWith({ opening_amount: 5000 })
     })
   })
+
+  it('BUG 1: shows the backend error message when opening the register fails (e.g. 422 for a negative amount) instead of failing silently', async () => {
+    openCashMock.mockRejectedValueOnce({
+      response: { status: 422, data: { detail: 'opening_amount: El monto no puede ser negativo' } },
+    })
+    renderCaja()
+    await screen.findByRole('heading', { name: /abrir caja/i })
+
+    await userEvent.type(screen.getByLabelText(/monto inicial/i), '-100')
+    await userEvent.click(screen.getByRole('button', { name: /abrir caja/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/el monto no puede ser negativo/i)
+  })
 })
 
 describe('MobileCaja — open register', () => {
@@ -312,5 +325,36 @@ describe('MobileCaja — open register', () => {
     await waitFor(() => {
       expect(closeCashMock).toHaveBeenCalledWith({ counted_cash: 5600, difference_reason: 'Faltante de caja chica' })
     })
+  })
+
+  it('BUG 1: shows the backend error message when adding a movement fails (e.g. 409 on an expired register) instead of failing silently', async () => {
+    addMovementMock.mockRejectedValueOnce({
+      response: { status: 409, data: { detail: 'La caja está vencida, no se pueden registrar movimientos' } },
+    })
+    renderCaja()
+    await screen.findByText(/caja abierta/i)
+    await userEvent.click(screen.getByRole('button', { name: /^movimiento$/i }))
+    await screen.findByRole('dialog', { name: /registrar movimiento/i })
+
+    await userEvent.type(screen.getByLabelText(/monto/i), '250')
+    await userEvent.type(screen.getByLabelText(/concepto/i), 'Compra de cinta')
+    await userEvent.click(screen.getByRole('button', { name: /confirmar/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/la caja está vencida/i)
+  })
+
+  it('BUG 1: shows the backend error message when closing the register fails (e.g. 422 for a negative counted_cash) instead of failing silently', async () => {
+    closeCashMock.mockRejectedValueOnce({
+      response: { status: 422, data: { detail: 'counted_cash: El monto no puede ser negativo' } },
+    })
+    renderCaja()
+    await screen.findByText(/caja abierta/i)
+    await userEvent.click(screen.getByRole('button', { name: /cerrar caja/i }))
+    await screen.findByRole('dialog', { name: /cerrar caja/i })
+
+    await userEvent.type(screen.getByLabelText(/efectivo contado/i), '5700')
+    await userEvent.click(screen.getByRole('button', { name: /confirmar cierre/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/el monto no puede ser negativo/i)
   })
 })
