@@ -8,9 +8,10 @@ import type { CartLine } from '../../../components/layout/MobileShell'
 import type { Client } from '../../../api/clientsService'
 import type { VoucherCreate } from '../../../api/vouchersService'
 
-const { searchMock, createMock } = vi.hoisted(() => ({
+const { searchMock, createMock, createByAmountMock } = vi.hoisted(() => ({
   searchMock: vi.fn(),
   createMock: vi.fn(),
+  createByAmountMock: vi.fn(),
 }))
 
 vi.mock('../../../api/clientsService', () => ({
@@ -19,6 +20,10 @@ vi.mock('../../../api/clientsService', () => ({
 
 vi.mock('../../../api/vouchersService', () => ({
   default: { create: createMock },
+}))
+
+vi.mock('../../../api/stockpileService', () => ({
+  default: { createByAmount: createByAmountMock },
 }))
 
 import MobileSales, { mergeCartLine, calculateTotals } from '../../../pages/mobile/MobileSales'
@@ -72,6 +77,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   searchMock.mockResolvedValue([])
   createMock.mockResolvedValue({ id: 'v1' })
+  createByAmountMock.mockResolvedValue({ id: 's1', name: 'Obra Rivadavia', stockpile_number: 1 })
 })
 
 describe('MobileSales — mergeCartLine (pure reducer, reused from MobileShell.handleAddToCart)', () => {
@@ -314,43 +320,93 @@ describe('MobileSales — Cta Cte payload (matches desktop\'s current-account fl
   })
 })
 
-describe('MobileSales — Acopio submit guard (blocked pending a dedicated future screen, not wired to vouchersService.create())', () => {
-  it('disables the CTA when Acopio is the active doc type, even with a real client and non-empty cart', async () => {
+describe('MobileSales — Factura resolves invoice_a/invoice_b by tax_condition (ported from desktop resolveBackendVoucherType, Sales.tsx ~293-301)', () => {
+  it('submits voucher_type "invoice_a" for a client with tax_condition RI', async () => {
     renderSales([makeLine()])
-    await pickClient()
-    expect(screen.getByRole('button', { name: /generar/i })).toBeEnabled()
+    await pickClient(makeClient({ id: 'c1', name: 'Juan Pérez', tax_condition: 'RI' }))
 
+    await userEvent.click(screen.getByRole('button', { name: 'Factura' }))
+    await userEvent.click(screen.getByRole('button', { name: /facturar/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({ voucher_type: 'invoice_a', client_id: 'c1' } satisfies Partial<VoucherCreate>)
+      )
+    })
+  })
+
+  it('submits voucher_type "invoice_b" for a client with a non-RI tax_condition (e.g. Monotributista)', async () => {
+    renderSales([makeLine()])
+    await pickClient(makeClient({ id: 'c1', name: 'Juan Pérez', tax_condition: 'Monotributista' }))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Factura' }))
+    await userEvent.click(screen.getByRole('button', { name: /facturar/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({ voucher_type: 'invoice_b', client_id: 'c1' } satisfies Partial<VoucherCreate>)
+      )
+    })
+  })
+})
+
+describe('MobileSales — Acopio mini-form (own mobile-designed form, wired to the real stockpileService.createByAmount endpoint)', () => {
+  it('renders name/amount/discount inputs when the Acopio chip is active, replacing the cart-lines UI', async () => {
+    renderSales([makeLine()])
     await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
 
+    expect(screen.getByLabelText(/nombre.*acopio/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/monto.*acopio/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/descuento.*acopio/i)).toBeInTheDocument()
+    expect(screen.queryByText('Producto A')).not.toBeInTheDocument()
+  })
+
+  it('disables the CTA until client, name and amount are all present', async () => {
+    renderSales([makeLine()])
+    await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
     expect(screen.getByRole('button', { name: /registrar acopio/i })).toBeDisabled()
+
+    await pickClient()
+    expect(screen.getByRole('button', { name: /registrar acopio/i })).toBeDisabled()
+
+    await userEvent.type(screen.getByLabelText(/nombre.*acopio/i), 'Obra Rivadavia')
+    expect(screen.getByRole('button', { name: /registrar acopio/i })).toBeDisabled()
+
+    await userEvent.type(screen.getByLabelText(/monto.*acopio/i), '50000')
+    expect(screen.getByRole('button', { name: /registrar acopio/i })).toBeEnabled()
   })
 
-  it('shows an inline hint explaining Acopio is not yet available on mobile', async () => {
+  it('submits via stockpileService.createByAmount (NOT vouchersService.create) with the exact expected payload', async () => {
     renderSales([makeLine()])
-    await pickClient()
+    await pickClient(makeClient({ id: 'c1', name: 'Juan Pérez' }))
     await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
-
-    expect(screen.getByText(/acopio.*(próximamente|disponible)/i)).toBeInTheDocument()
-  })
-
-  it('never calls vouchersService.create() when Acopio is active, even with a real client selected', async () => {
-    renderSales([makeLine()])
-    await pickClient()
-    await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
+    await userEvent.type(screen.getByLabelText(/nombre.*acopio/i), 'Obra Rivadavia')
+    await userEvent.type(screen.getByLabelText(/monto.*acopio/i), '50000')
+    await userEvent.type(screen.getByLabelText(/descuento.*acopio/i), '10')
 
     await userEvent.click(screen.getByRole('button', { name: /registrar acopio/i }))
+
+    await waitFor(() => {
+      expect(createByAmountMock).toHaveBeenCalledWith({
+        client_id: 'c1',
+        billing_client_id: 'c1',
+        name: 'Obra Rivadavia',
+        currency: 'ARS',
+        amount: 50000,
+        discount_percent: 10,
+      })
+    })
     expect(createMock).not.toHaveBeenCalled()
   })
 
-  it('re-enables the CTA when switching away from Acopio back to a normal doc type with a valid client', async () => {
+  it('restores the normal cart UI when switching away from Acopio to another doc type', async () => {
     renderSales([makeLine()])
-    await pickClient()
     await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
-    expect(screen.getByRole('button', { name: /registrar acopio/i })).toBeDisabled()
+    expect(screen.queryByText('Producto A')).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Cotización' }))
 
-    expect(screen.getByRole('button', { name: /generar/i })).toBeEnabled()
-    expect(screen.queryByText(/acopio.*(próximamente|disponible)/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Producto A')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/nombre.*acopio/i)).not.toBeInTheDocument()
   })
 })

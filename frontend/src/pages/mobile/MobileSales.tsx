@@ -34,20 +34,28 @@
  * mobile has no operating-client-selection UI, so both use the same id,
  * unlike desktop's `selectedOperatingClientId || selectedClient.id`).
  *
- * "Acopio" is NOT wired to `vouchersService.create()` at all — desktop uses
- * an entirely separate mutation (`createAcopioMutation` →
- * `stockpileService.createByAmount()`) with different form fields (amount,
- * description, currency…), not cart line items. Building that form is out
- * of scope for this screen (no handoff design for it, structurally
- * different from the cart-based Nueva venta flow) — the chip stays visible/
- * selectable so users know it exists, but the CTA is disabled with an
- * inline hint while it's active. A dedicated Acopio screen is a fast-follow
- * item for a future change, not a silent landmine.
+ * "Factura" resolves `voucher_type` to `invoice_a`/`invoice_b` by the
+ * selected client's `tax_condition` — ported byte-for-byte from desktop
+ * `Sales.tsx`'s `resolveBackendVoucherType` (lines 293-301: `taxCondition
+ * === 'RI' ? 'invoice_a' : 'invoice_b'`), per the project-wide rule that
+ * mobile only changes DESIGN, never business logic — every voucher type
+ * must produce the same backend payload/behavior as desktop.
+ *
+ * "Acopio" has its own small mobile-designed mini-form (name/amount/
+ * discount — replacing the cart-lines section while active) that submits
+ * via the REAL backend endpoint desktop uses for this flow,
+ * `stockpileService.createByAmount()` — NOT `vouchersService.create()`,
+ * matching desktop's `createAcopioMutation`. `billing_client_id` reuses the
+ * single selected client (mobile has no separate billing-client UI, same
+ * simplification already used for Cta Cte). Desktop's `generate_invoice`
+ * checkbox/Phase-2-pending flow is intentionally NOT implemented — that
+ * field is optional in `createByAmount`'s type and is simply omitted here.
  */
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { Minus, Plus, Trash2, User, ArrowRight } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import vouchersService, { type VoucherCreate } from '../../api/vouchersService'
+import stockpileService from '../../api/stockpileService'
 import type { Client } from '../../api/clientsService'
 import ClientPickerSheet from '../../components/layout/ClientPickerSheet'
 import type { CartLine } from '../../components/layout/MobileShell'
@@ -72,22 +80,21 @@ const CTA_LABELS: Record<DocType, string> = {
 }
 
 /**
- * Backend `VoucherCreate.voucher_type` only has 6 values (quotation/receipt/
- * invoice_a-c/x). "Cta Cte" correctly maps to `'receipt'` (matches desktop
- * `Sales.tsx`'s reference logic: `if (voucherType === 'current_account')
- * backendType = 'receipt'` — `is_current_account: true` is what actually
- * distinguishes a current-account receipt from a plain one, not a separate
- * enum value). "Acopio" has no backend equivalent at all (desktop never
- * calls `vouchersService.create()` for it) — its entry here is unreachable
- * dead code, kept only to satisfy `Record<DocType, ...>`'s exhaustiveness;
- * `canSubmit` blocks the CTA before this is ever read for Acopio.
+ * Backend voucher_type resolution — ported byte-for-byte from desktop
+ * `Sales.tsx`'s `resolveBackendVoucherType` (lines 293-301). "Cta Cte" and
+ * "Remito" both resolve to `'receipt'` (matches desktop: `if (type ===
+ * 'receipt' || type === 'current_account') return 'receipt'` —
+ * `is_current_account: true` is what actually distinguishes a
+ * current-account receipt from a plain one, not a separate enum value).
+ * "Factura" resolves by `taxCondition` exactly like desktop's fallthrough
+ * case. "Acopio" is never passed to this function — it submits via
+ * `stockpileService.createByAmount()` instead, see `handleSubmit`.
  */
-const VOUCHER_TYPE_BY_DOC_TYPE: Record<DocType, VoucherCreate['voucher_type']> = {
-  'Cotización': 'quotation',
-  'Remito': 'receipt',
-  'Factura': 'invoice_b',
-  'Cta Cte': 'receipt',
-  'Acopio': 'quotation', // unreachable — Acopio submission is blocked by canSubmit
+function resolveVoucherType(docType: DocType, taxCondition: string | undefined): VoucherCreate['voucher_type'] {
+  if (docType === 'Cotización') return 'quotation'
+  if (docType === 'Remito' || docType === 'Cta Cte') return 'receipt'
+  // 'Factura' (the only remaining reachable case — 'Acopio' never calls this function):
+  return taxCondition === 'RI' ? 'invoice_a' : 'invoice_b'
 }
 
 const formatCurrency = (value: number) =>
@@ -114,9 +121,20 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
   const [docType, setDocType] = useState<DocType>('Cotización')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [clientPickerOpen, setClientPickerOpen] = useState(false)
+  // Acopio mini-form local state — string-backed (matches desktop's own
+  // `acopioAmount` string state) so controlled numeric inputs don't fight
+  // userEvent.type's keystroke-by-keystroke input over a leading "0".
+  const [acopioName, setAcopioName] = useState('')
+  const [acopioAmount, setAcopioAmount] = useState('')
+  const [acopioDiscount, setAcopioDiscount] = useState('')
 
   const createVoucherMutation = useMutation({
     mutationFn: (payload: VoucherCreate) => vouchersService.create(payload),
+  })
+
+  const createAcopioMutation = useMutation({
+    mutationFn: (payload: Parameters<typeof stockpileService.createByAmount>[0]) =>
+      stockpileService.createByAmount(payload),
   })
 
   const decrement = (code: string) => {
@@ -138,19 +156,36 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
   const noClientSelected = selectedClient === null
   const isCurrentAccount = docType === 'Cta Cte'
   const isAcopio = docType === 'Acopio'
-  /** Mirrors desktop Sales.tsx's `!selectedClient` guard, plus blocks Acopio (no cart-based submit flow exists for it — see file-level doc comment). "Consumidor final" is a display placeholder, never a submittable client. */
-  const canSubmit = !noClientSelected && !isAcopio
-  const submitBlockedReason = isAcopio
-    ? 'Acopio disponible próximamente en mobile'
-    : noClientSelected
-      ? 'Elegí un cliente para continuar'
+  const acopioAmountValue = Number(acopioAmount) || 0
+  const acopioFormValid = acopioName.trim().length > 0 && acopioAmountValue > 0
+  /** Mirrors desktop Sales.tsx's `!selectedClient` guard for every doc type; Acopio additionally requires its own mini-form (name + amount) to be filled, mirroring desktop's `handleGenerateClick` Acopio validation. "Consumidor final" is a display placeholder, never a submittable client. */
+  const canSubmit = !noClientSelected && (!isAcopio || acopioFormValid)
+  const submitBlockedReason = noClientSelected
+    ? 'Elegí un cliente para continuar'
+    : isAcopio && !acopioFormValid
+      ? 'Completá nombre y monto del acopio'
       : null
+  const showTotalsBar = isAcopio || !cartEmpty
 
   const handleSubmit = () => {
-    if (cartEmpty || !canSubmit || !selectedClient) return
+    if (!canSubmit || !selectedClient) return
+
+    if (isAcopio) {
+      createAcopioMutation.mutate({
+        client_id: selectedClient.id,
+        billing_client_id: selectedClient.id,
+        name: acopioName.trim(),
+        currency: 'ARS',
+        amount: acopioAmountValue,
+        discount_percent: Number(acopioDiscount) || 0,
+      })
+      return
+    }
+
+    if (cartEmpty) return
     const payload: VoucherCreate = {
       client_id: selectedClient.id,
-      voucher_type: VOUCHER_TYPE_BY_DOC_TYPE[docType],
+      voucher_type: resolveVoucherType(docType, selectedClient.tax_condition),
       date: new Date().toISOString().slice(0, 10),
       show_prices: true,
       general_discount: 0,
@@ -207,104 +242,150 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
         ))}
       </div>
 
-      {/* Cart header */}
-      <div className="mb-[9px] mt-[18px] flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-[.1em] text-[#7b6b95]">
-          Productos ({cart.length})
-        </p>
-        <button
-          type="button"
-          onClick={onNavigateToProductos}
-          className="flex items-center gap-1 text-[12.5px] font-bold text-[#7c5ca8]"
-        >
-          Agregar
-          <Plus size={15} strokeWidth={2.4} />
-        </button>
-      </div>
-
-      {cartEmpty && (
-        <div className="rounded-[15px] border border-dashed border-[#d9caeb] bg-white p-[34px_18px] text-center text-[#9089a0]">
-          <p className="text-[13.5px]">Todavía no agregaste productos.</p>
-          <button
-            type="button"
-            onClick={onNavigateToProductos}
-            className="mt-3 rounded-[11px] bg-[#7c5ca8] px-[18px] py-2.5 text-[13px] font-bold text-white"
-          >
-            Buscar productos
-          </button>
+      {isAcopio ? (
+        /* Acopio mini-form — own mobile design, replaces cart lines while active.
+           Cart state is untouched/preserved underneath (not cleared), so switching
+           back to another doc type restores it exactly as it was. */
+        <div className="mt-[18px] flex flex-col gap-[11px]">
+          <p className="text-xs font-semibold uppercase tracking-[.1em] text-[#7b6b95]">Datos del acopio</p>
+          <div className="flex h-[46px] items-center rounded-[13px] border border-[#ece6f6] bg-white px-3">
+            <input
+              value={acopioName}
+              onChange={(e) => setAcopioName(e.target.value)}
+              placeholder="Nombre / obra"
+              aria-label="Nombre del acopio"
+              className="flex-1 border-none bg-transparent text-sm text-[#121325] outline-none"
+            />
+          </div>
+          <div className="flex h-[46px] items-center rounded-[13px] border border-[#ece6f6] bg-white px-3">
+            <input
+              type="number"
+              value={acopioAmount}
+              onChange={(e) => setAcopioAmount(e.target.value)}
+              placeholder="Monto"
+              aria-label="Monto del acopio"
+              className="flex-1 border-none bg-transparent text-sm text-[#121325] outline-none"
+            />
+          </div>
+          <div className="flex h-[46px] items-center rounded-[13px] border border-[#ece6f6] bg-white px-3">
+            <input
+              type="number"
+              value={acopioDiscount}
+              onChange={(e) => setAcopioDiscount(e.target.value)}
+              placeholder="Descuento % (opcional)"
+              aria-label="Descuento del acopio"
+              className="flex-1 border-none bg-transparent text-sm text-[#121325] outline-none"
+            />
+          </div>
         </div>
-      )}
+      ) : (
+        <>
+          {/* Cart header */}
+          <div className="mb-[9px] mt-[18px] flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-[.1em] text-[#7b6b95]">
+              Productos ({cart.length})
+            </p>
+            <button
+              type="button"
+              onClick={onNavigateToProductos}
+              className="flex items-center gap-1 text-[12.5px] font-bold text-[#7c5ca8]"
+            >
+              Agregar
+              <Plus size={15} strokeWidth={2.4} />
+            </button>
+          </div>
 
-      <div className="flex flex-col gap-[9px]">
-        {cart.map((line) => (
-          <div key={line.code} className="rounded-[15px] border border-[#ece6f6] bg-white p-[12px_13px]">
-            <div className="flex items-start gap-[10px]">
-              <span
-                className="rounded px-1.5 py-0.5 font-mono text-[10.5px] font-semibold"
-                style={{ color: '#7c5ca8', background: '#ece6f6' }}
-              >
-                {line.code}
-              </span>
-              <p className="flex-1 text-[13px] font-semibold leading-tight text-[#121325]">{line.desc}</p>
+          {cartEmpty && (
+            <div className="rounded-[15px] border border-dashed border-[#d9caeb] bg-white p-[34px_18px] text-center text-[#9089a0]">
+              <p className="text-[13.5px]">Todavía no agregaste productos.</p>
               <button
                 type="button"
-                onClick={() => remove(line.code)}
-                aria-label={`Eliminar ${line.desc} del carrito`}
-                className="text-[#cdb9e0]"
+                onClick={onNavigateToProductos}
+                className="mt-3 rounded-[11px] bg-[#7c5ca8] px-[18px] py-2.5 text-[13px] font-bold text-white"
               >
-                <Trash2 size={17} />
+                Buscar productos
               </button>
             </div>
-            <div className="mt-[11px] flex items-center justify-between">
-              <div className="flex items-center overflow-hidden rounded-[10px] border border-[#ece6f6]">
-                <button
-                  type="button"
-                  onClick={() => decrement(line.code)}
-                  aria-label={`Restar cantidad de ${line.desc}`}
-                  className="flex h-8 w-8 items-center justify-center bg-[#f7f4fb] text-[#7c5ca8]"
-                >
-                  <Minus size={15} strokeWidth={2.6} />
-                </button>
-                <div className="w-[38px] text-center text-sm font-bold text-[#121325]">{line.qty}</div>
-                <button
-                  type="button"
-                  onClick={() => increment(line.code)}
-                  aria-label={`Sumar cantidad de ${line.desc}`}
-                  className="flex h-8 w-8 items-center justify-center bg-[#f7f4fb] text-[#7c5ca8]"
-                >
-                  <Plus size={15} strokeWidth={2.6} />
-                </button>
+          )}
+
+          <div className="flex flex-col gap-[9px]">
+            {cart.map((line) => (
+              <div key={line.code} className="rounded-[15px] border border-[#ece6f6] bg-white p-[12px_13px]">
+                <div className="flex items-start gap-[10px]">
+                  <span
+                    className="rounded px-1.5 py-0.5 font-mono text-[10.5px] font-semibold"
+                    style={{ color: '#7c5ca8', background: '#ece6f6' }}
+                  >
+                    {line.code}
+                  </span>
+                  <p className="flex-1 text-[13px] font-semibold leading-tight text-[#121325]">{line.desc}</p>
+                  <button
+                    type="button"
+                    onClick={() => remove(line.code)}
+                    aria-label={`Eliminar ${line.desc} del carrito`}
+                    className="text-[#cdb9e0]"
+                  >
+                    <Trash2 size={17} />
+                  </button>
+                </div>
+                <div className="mt-[11px] flex items-center justify-between">
+                  <div className="flex items-center overflow-hidden rounded-[10px] border border-[#ece6f6]">
+                    <button
+                      type="button"
+                      onClick={() => decrement(line.code)}
+                      aria-label={`Restar cantidad de ${line.desc}`}
+                      className="flex h-8 w-8 items-center justify-center bg-[#f7f4fb] text-[#7c5ca8]"
+                    >
+                      <Minus size={15} strokeWidth={2.6} />
+                    </button>
+                    <div className="w-[38px] text-center text-sm font-bold text-[#121325]">{line.qty}</div>
+                    <button
+                      type="button"
+                      onClick={() => increment(line.code)}
+                      aria-label={`Sumar cantidad de ${line.desc}`}
+                      className="flex h-8 w-8 items-center justify-center bg-[#f7f4fb] text-[#7c5ca8]"
+                    >
+                      <Plus size={15} strokeWidth={2.6} />
+                    </button>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[11px] text-[#9089a0]">{formatCurrency(line.price)} c/u</p>
+                    <p className="font-display text-base font-extrabold text-[#121325]">
+                      {formatCurrency(line.qty * line.price)}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-[11px] text-[#9089a0]">{formatCurrency(line.price)} c/u</p>
-                <p className="font-display text-base font-extrabold text-[#121325]">
-                  {formatCurrency(line.qty * line.price)}
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
 
       {/* Sticky totals bar */}
-      {!cartEmpty && (
+      {showTotalsBar && (
         <div
           data-testid="sales-totals-bar"
           className="fixed inset-x-0 z-30 bg-white p-[13px_16px_14px]"
           style={{ bottom: '84px', borderTop: '1px solid #ece6f6', boxShadow: '0 -8px 24px rgba(58,36,89,.10)' }}
         >
-          <div className="mb-[3px] flex justify-between text-[12.5px] text-[#7b6b95]">
-            <span>Subtotal (sin IVA)</span>
-            <span className="font-semibold text-[#121325]">{formatCurrency(totals.subtotal)}</span>
-          </div>
-          <div className="mb-2 flex justify-between text-[12.5px] text-[#7b6b95]">
-            <span>IVA (21%)</span>
-            <span className="font-semibold text-[#121325]">{formatCurrency(totals.iva)}</span>
-          </div>
+          {!isAcopio && (
+            <>
+              <div className="mb-[3px] flex justify-between text-[12.5px] text-[#7b6b95]">
+                <span>Subtotal (sin IVA)</span>
+                <span className="font-semibold text-[#121325]">{formatCurrency(totals.subtotal)}</span>
+              </div>
+              <div className="mb-2 flex justify-between text-[12.5px] text-[#7b6b95]">
+                <span>IVA (21%)</span>
+                <span className="font-semibold text-[#121325]">{formatCurrency(totals.iva)}</span>
+              </div>
+            </>
+          )}
           <div className="flex items-center gap-3">
             <div className="flex-1">
               <p className="text-[11px] uppercase tracking-[.1em] text-[#9089a0]">Total</p>
-              <p className="font-display text-2xl font-extrabold text-[#121325]">{formatCurrency(totals.total)}</p>
+              <p className="font-display text-2xl font-extrabold text-[#121325]">
+                {formatCurrency(isAcopio ? acopioAmountValue : totals.total)}
+              </p>
               {submitBlockedReason && (
                 <p className="mt-1 text-[11px] font-semibold text-[#c0392b]">{submitBlockedReason}</p>
               )}
