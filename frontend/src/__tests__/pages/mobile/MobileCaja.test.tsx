@@ -384,7 +384,7 @@ describe('MobileCaja — expired register (BUG 2: is_expired must be checked)', 
     const movementButton = screen.getByRole('button', { name: /^movimiento$/i })
     expect(movementButton).toBeDisabled()
 
-    await userEvent.click(movementButton, { skipPointerEventsCheck: true })
+    await userEvent.click(movementButton, { pointerEventsCheck: 0 })
     expect(screen.queryByRole('dialog', { name: /registrar movimiento/i })).not.toBeInTheDocument()
   })
 
