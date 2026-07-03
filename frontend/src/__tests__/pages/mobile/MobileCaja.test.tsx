@@ -358,3 +358,41 @@ describe('MobileCaja — open register', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/el monto no puede ser negativo/i)
   })
 })
+
+describe('MobileCaja — expired register (BUG 2: is_expired must be checked)', () => {
+  beforeEach(() => {
+    getCurrentCashMock.mockResolvedValue(
+      makeRegister({
+        id: 'cr1',
+        is_expired: true,
+        movements: [],
+      })
+    )
+    getCashSummaryMock.mockResolvedValue(makeSummary({ expected_cash: 5000 }))
+  })
+
+  it('shows an expired-register warning instead of the normal "caja abierta" state', async () => {
+    renderCaja()
+    await screen.findByText(/caja abierta/i)
+    expect(screen.getByText(/vencida/i)).toBeInTheDocument()
+  })
+
+  it('blocks attempting a movement on an expired register (no dialog opens, no silent 409 attempt)', async () => {
+    renderCaja()
+    await screen.findByText(/caja abierta/i)
+
+    const movementButton = screen.getByRole('button', { name: /^movimiento$/i })
+    expect(movementButton).toBeDisabled()
+
+    await userEvent.click(movementButton, { skipPointerEventsCheck: true })
+    expect(screen.queryByRole('dialog', { name: /registrar movimiento/i })).not.toBeInTheDocument()
+  })
+
+  it('still allows closing an expired register', async () => {
+    renderCaja()
+    await screen.findByText(/caja abierta/i)
+
+    await userEvent.click(screen.getByRole('button', { name: /cerrar caja/i }))
+    expect(await screen.findByRole('dialog', { name: /cerrar caja/i })).toBeInTheDocument()
+  })
+})

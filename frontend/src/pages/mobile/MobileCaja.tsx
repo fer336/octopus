@@ -381,6 +381,12 @@ export default function MobileCaja() {
   const expectedCash = summary?.expected_cash ?? 0
   const { income, expense } = computeIncomeExpenseTotals(summary?.by_method ?? [])
   const movements = sortMovementsByRecency(currentCash.movements)
+  // BUG 2: the backend rejects movements/closes with 409 once a register is
+  // >24hs old (`is_expired`) — this was never checked, so the UI kept the
+  // normal "Movimiento" button enabled and the user only found out at
+  // submit time. "Cerrar caja" must keep working: an expired register still
+  // needs to be closed.
+  const isExpired = currentCash.is_expired ?? false
 
   return (
     <div className="px-4 pb-[110px] pt-4">
@@ -404,11 +410,23 @@ export default function MobileCaja() {
           <p className="font-display mt-1.5 text-[34px] font-extrabold leading-[1.05] tracking-tight">
             {formatCurrency(expectedCash)}
           </p>
+          {isExpired && (
+            <div
+              className="mt-2.5 flex items-start gap-1.5 rounded-[11px] p-2.5 text-[12px] leading-snug"
+              style={{ background: 'rgba(255,255,255,.16)' }}
+            >
+              <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+              <span>
+                Caja vencida — lleva más de 24hs abierta. Cerrala antes de registrar nuevos movimientos.
+              </span>
+            </div>
+          )}
           <div className="mt-3.5 flex gap-[9px] border-t pt-3.5" style={{ borderColor: 'rgba(255,255,255,.16)' }}>
             <button
               type="button"
               onClick={() => setMovementSheetOpen(true)}
-              className="flex-1 rounded-[11px] py-2.5 text-[13px] font-bold text-white"
+              disabled={isExpired}
+              className="flex-1 rounded-[11px] py-2.5 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: 'rgba(255,255,255,.16)' }}
             >
               Movimiento
