@@ -10,8 +10,10 @@
  * scanned-code handoff so both can be wired centrally, same pattern as
  * `handleNavigate`. PR4 wires the Vender tab to `MobileSales` (same lifted
  * `cart`) and the sparkles-triggered AI sheet host to the real
- * `AIAssistantSheet` (replacing the PR1 stub). Caja/Cuenta are out of V1
- * scope entirely and always render `MobileStub`.
+ * `AIAssistantSheet` (replacing the PR1 stub). PR5 wires the Caja tab to the
+ * real `MobileCaja` (self-fetching, no lifted state needed). Cuenta
+ * corriente is still out of V1 scope and keeps rendering `MobileStub` —
+ * pending a follow-up PR.
  */
 import { useState } from 'react'
 import { Menu, Sparkles, LayoutDashboard, Package, ShoppingCart, Wallet, Users } from 'lucide-react'
@@ -23,6 +25,7 @@ import MobileStub from '../../pages/mobile/MobileStub'
 import MobileDashboard from '../../pages/mobile/MobileDashboard'
 import MobileProducts from '../../pages/mobile/MobileProducts'
 import MobileSales, { mergeCartLine } from '../../pages/mobile/MobileSales'
+import MobileCaja from '../../pages/mobile/MobileCaja'
 import type { Product } from '../../types'
 
 export interface CartLine {
@@ -33,7 +36,7 @@ export interface CartLine {
   product_id: string
 }
 
-type MobileTab = 'inicio' | 'productos' | 'ventas' | 'stub'
+type MobileTab = 'inicio' | 'productos' | 'ventas' | 'caja' | 'stub'
 
 interface MobileShellProps {
   currentAccountMode?: 'disabled' | 'automatic' | 'manual'
@@ -51,6 +54,7 @@ const TAB_TITLES: Record<Exclude<MobileTab, 'stub'>, string> = {
   inicio: 'Inicio',
   productos: 'Productos',
   ventas: 'Vender',
+  caja: 'Caja diaria',
 }
 
 export default function MobileShell({
@@ -124,8 +128,8 @@ export default function MobileShell({
       key: 'caja',
       label: 'Caja',
       icon: Wallet,
-      onClick: () => openStub('Caja diaria'),
-      active: false,
+      onClick: () => setTab('caja'),
+      active: tab === 'caja',
     },
     {
       key: 'cuenta',
@@ -186,6 +190,7 @@ export default function MobileShell({
         {tab === 'ventas' && (
           <MobileSales cart={cart} setCart={setCart} onNavigateToProductos={() => setTab('productos')} />
         )}
+        {tab === 'caja' && <MobileCaja />}
         {tab === 'stub' && <MobileStub stubTitle={stubTitle} />}
       </main>
 

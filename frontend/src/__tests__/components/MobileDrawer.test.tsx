@@ -107,6 +107,12 @@ describe('MobileDrawer — navigation targets', () => {
     expect(onNavigate).toHaveBeenCalledWith({ screen: 'ventas' })
   })
 
+  it('navigates to the real V1 screen for items with path "/caja" (wired in PR5)', async () => {
+    const { onNavigate } = renderDrawer()
+    await userEvent.click(screen.getByText('Caja'))
+    expect(onNavigate).toHaveBeenCalledWith({ screen: 'caja' })
+  })
+
   it('navigates to MobileStub with stubTitle for any other visible item', async () => {
     const { onNavigate } = renderDrawer()
     await userEvent.click(screen.getByText('Comprobantes'))

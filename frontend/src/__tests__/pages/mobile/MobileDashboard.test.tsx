@@ -145,14 +145,14 @@ describe('MobileDashboard — quick-access navigation', () => {
     expect(onNavigate).toHaveBeenCalledWith({ screen: 'productos' })
   })
 
-  it('routes "Caja diaria" to MobileStub with stubTitle "Caja diaria"', async () => {
+  it('routes "Caja diaria" to the real Caja tab (wired in PR5)', async () => {
     getSummaryMock.mockResolvedValue(baseSummary())
     const { onNavigate } = renderDashboard()
     const user = userEvent.setup()
 
     await screen.findByText(/accesos rápidos/i)
     await user.click(screen.getByRole('button', { name: /caja diaria/i }))
-    expect(onNavigate).toHaveBeenCalledWith({ screen: 'stub', stubTitle: 'Caja diaria' })
+    expect(onNavigate).toHaveBeenCalledWith({ screen: 'caja' })
   })
 
   it('routes "Cuenta corriente" to MobileStub with stubTitle "Cuenta corriente"', async () => {
