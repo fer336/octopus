@@ -33,6 +33,7 @@ function targetForItem(item: NavigationItem): MobileNavTarget {
   if (item.path === '/products') return { screen: 'productos' }
   if (item.path === '/sales') return { screen: 'ventas' }
   if (item.path === '/caja') return { screen: 'caja' }
+  if (item.path === '/current-account') return { screen: 'cuenta' }
   return { screen: 'stub', stubTitle: item.label }
 }
 
