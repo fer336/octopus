@@ -155,13 +155,13 @@ describe('MobileDashboard — quick-access navigation', () => {
     expect(onNavigate).toHaveBeenCalledWith({ screen: 'caja' })
   })
 
-  it('routes "Cuenta corriente" to MobileStub with stubTitle "Cuenta corriente"', async () => {
+  it('routes "Cuenta corriente" to the real Cuenta tab (wired in PR6)', async () => {
     getSummaryMock.mockResolvedValue(baseSummary())
     const { onNavigate } = renderDashboard()
     const user = userEvent.setup()
 
     await screen.findByText(/accesos rápidos/i)
     await user.click(screen.getByRole('button', { name: /cuenta corriente/i }))
-    expect(onNavigate).toHaveBeenCalledWith({ screen: 'stub', stubTitle: 'Cuenta corriente' })
+    expect(onNavigate).toHaveBeenCalledWith({ screen: 'cuenta' })
   })
 })

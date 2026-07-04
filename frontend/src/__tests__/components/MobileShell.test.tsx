@@ -29,6 +29,7 @@ const {
   getAllProductsMock,
   getAllCategoriesMock,
   searchClientsMock,
+  getAllClientsMock,
   createVoucherMock,
   chatMock,
   getCurrentCashMock,
@@ -41,6 +42,7 @@ const {
   getAllProductsMock: vi.fn(),
   getAllCategoriesMock: vi.fn(),
   searchClientsMock: vi.fn(),
+  getAllClientsMock: vi.fn(),
   createVoucherMock: vi.fn(),
   chatMock: vi.fn(),
   getCurrentCashMock: vi.fn(),
@@ -71,7 +73,7 @@ vi.mock('../../api/categoriesService', () => ({
 }))
 
 vi.mock('../../api/clientsService', () => ({
-  default: { search: searchClientsMock },
+  default: { search: searchClientsMock, getAll: getAllClientsMock },
 }))
 
 vi.mock('../../api/vouchersService', () => ({
@@ -140,6 +142,7 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
 getAllProductsMock.mockResolvedValue(productsFixture())
 getAllCategoriesMock.mockResolvedValue([])
 searchClientsMock.mockResolvedValue([])
+getAllClientsMock.mockResolvedValue({ items: [], total: 0, page: 1, per_page: 100, pages: 0 })
 createVoucherMock.mockResolvedValue({ id: 'v1' })
 chatMock.mockResolvedValue({ response_type: 'text', text: 'Respuesta del asistente.' })
 getCurrentCashMock.mockResolvedValue(null)
@@ -212,13 +215,10 @@ describe('MobileShell — tab bar', () => {
     expect(await screen.findByRole('heading', { name: /abrir caja/i })).toBeInTheDocument()
   })
 
-  it('routes Cuenta to MobileStub (deferred, not blank/broken)', async () => {
+  it('renders the real MobileCuenta on Cuenta (wired in PR6)', async () => {
     renderShell()
     await userEvent.click(screen.getByRole('button', { name: 'Cuenta' }))
-    expect(
-      screen.getByText(/ya funciona en la versión completa de OctopusTrack/i)
-    ).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /cuenta/i })).toBeInTheDocument()
+    expect(await screen.findByText(/total por cobrar/i)).toBeInTheDocument()
   })
 
   it('renders the real MobileDashboard on Inicio (wired in PR2)', async () => {
@@ -270,11 +270,11 @@ describe('MobileShell — MobileDashboard quick-access wiring (PR2)', () => {
     expect(await screen.findByRole('heading', { name: /abrir caja/i })).toBeInTheDocument()
   })
 
-  it('routes "Cuenta corriente" quick access to MobileStub with the correct title', async () => {
+  it('routes "Cuenta corriente" quick access to the real Cuenta tab (wired in PR6)', async () => {
     renderShell()
     await screen.findByText(/accesos rápidos/i)
     await userEvent.click(screen.getByRole('button', { name: /cuenta corriente/i }))
-    expect(screen.getByRole('heading', { name: 'Cuenta corriente' })).toBeInTheDocument()
+    expect(await screen.findByText(/total por cobrar/i)).toBeInTheDocument()
   })
 })
 

@@ -94,7 +94,7 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
       label: 'Cuenta corriente',
       subtitle: 'Saldos por cliente',
       icon: Users,
-      onClick: () => onNavigate({ screen: 'stub', stubTitle: 'Cuenta corriente' }),
+      onClick: () => onNavigate({ screen: 'cuenta' }),
     },
   ] as const
 
