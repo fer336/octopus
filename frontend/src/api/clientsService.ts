@@ -61,6 +61,7 @@ export const clientsService = {
     per_page?: number
     search?: string
     client_type_id?: string
+    has_balance?: boolean
   }): Promise<PaginatedResponse<Client>> => {
     const response = await httpClient.get('/clients', { params })
     return response.data
