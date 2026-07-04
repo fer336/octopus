@@ -21,17 +21,16 @@
  * `CurrentAccount.tsx` — the search box below filters that in-memory list
  * locally, no debounce/server round-trip needed.
  *
- * Backend gap: `ClientResponse` only exposes `client_type_id` (a UUID), not
- * a human-readable client-type name — resolving that would require a second
- * `clientTypesService` lookup + join, out of scope for this read-only PR.
- * The mockup's "tipo" line instead uses `tax_condition` (e.g. "Responsable
- * Inscripto"), which IS already present on `Client` today.
+ * `ClientResponse` only exposes `client_type_id` (a UUID), not a human-readable
+ * name — same as desktop's `CurrentAccount.tsx`, resolved with a second
+ * `clientTypesService.getAll()` query joined locally via a `typeById` Map
+ * (no backend change needed, mirrors the existing desktop pattern).
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Search } from 'lucide-react'
 import clientsService, { type Client } from '../../api/clientsService'
-import { getTaxConditionLabel } from '../../types'
+import clientTypesService from '../../api/clientTypesService'
 import { formatErrorMessage } from '../../utils/errorHelpers'
 
 // ─── Pure helpers (exported for direct unit testing) ──────────────────────
@@ -102,6 +101,21 @@ export default function MobileCuenta() {
     retry: false,
   })
 
+  const { data: clientTypes } = useQuery({
+    queryKey: ['mobile-cuenta-client-types'],
+    queryFn: () => clientTypesService.getAll(),
+    retry: false,
+  })
+
+  const typeById = useMemo(
+    () => new Map((clientTypes ?? []).map((t) => [t.id, t])),
+    [clientTypes]
+  )
+
+  const clients = data?.items ?? []
+  const { totalReceivable, debtorCount } = useMemo(() => computeReceivableSummary(clients), [clients])
+  const filteredClients = useMemo(() => filterClientsByQuery(clients, query), [clients, query])
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -122,10 +136,6 @@ export default function MobileCuenta() {
       </div>
     )
   }
-
-  const clients = data?.items ?? []
-  const { totalReceivable, debtorCount } = computeReceivableSummary(clients)
-  const filteredClients = filterClientsByQuery(clients, query)
 
   return (
     <div className="px-4 pb-[110px] pt-4">
@@ -185,7 +195,10 @@ export default function MobileCuenta() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold text-[#121325]">{client.name}</p>
-                  <p className="text-[11.5px] text-[#9089a0]">{getTaxConditionLabel(client.tax_condition)}</p>
+                  <p className="text-[11.5px] text-[#9089a0]">
+                    {(client.client_type_id ? typeById.get(client.client_type_id)?.name : undefined) ??
+                      'Sin tipo'}
+                  </p>
                 </div>
                 <div className="flex-none text-right">
                   <p className="font-display text-[15px] font-extrabold" style={{ color }}>

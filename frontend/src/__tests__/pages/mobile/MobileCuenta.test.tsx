@@ -4,11 +4,19 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import type { Client } from '../../../api/clientsService'
+import type { ClientType } from '../../../api/clientTypesService'
 
-const { getAllClientsMock } = vi.hoisted(() => ({ getAllClientsMock: vi.fn() }))
+const { getAllClientsMock, getAllClientTypesMock } = vi.hoisted(() => ({
+  getAllClientsMock: vi.fn(),
+  getAllClientTypesMock: vi.fn(),
+}))
 
 vi.mock('../../../api/clientsService', () => ({
   default: { getAll: getAllClientsMock },
+}))
+
+vi.mock('../../../api/clientTypesService', () => ({
+  default: { getAll: getAllClientTypesMock },
 }))
 
 import MobileCuenta, {
@@ -50,6 +58,7 @@ function renderCuenta() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  getAllClientTypesMock.mockResolvedValue([])
 })
 
 describe('MobileCuenta — pure helpers', () => {
@@ -190,6 +199,29 @@ describe('MobileCuenta — client list', () => {
     renderCuenta()
     expect(await screen.findByText('$15.000,00')).toBeInTheDocument()
     expect(screen.getByText('A favor')).toBeInTheDocument()
+  })
+
+  it('shows the real client type name (resolved via clientTypesService), not the tax condition', async () => {
+    getAllClientsMock.mockResolvedValue(
+      fixture([makeClient({ id: '1', name: 'Ferretería López', client_type_id: 'ct1' })])
+    )
+    getAllClientTypesMock.mockResolvedValue([
+      { id: 'ct1', name: 'Mayorista' } as ClientType,
+    ])
+    renderCuenta()
+    await screen.findByText('Ferretería López')
+    expect(screen.getByText('Mayorista')).toBeInTheDocument()
+    expect(screen.queryByText('Responsable Inscripto')).not.toBeInTheDocument()
+  })
+
+  it('falls back to "Sin tipo" when the client type cannot be resolved', async () => {
+    getAllClientsMock.mockResolvedValue(
+      fixture([makeClient({ id: '1', name: 'Cliente Suelto', client_type_id: 'unknown-ct' })])
+    )
+    getAllClientTypesMock.mockResolvedValue([{ id: 'ct1', name: 'Mayorista' } as ClientType])
+    renderCuenta()
+    await screen.findByText('Cliente Suelto')
+    expect(screen.getByText('Sin tipo')).toBeInTheDocument()
   })
 
   it('shows status "Al día" for a zero balance', async () => {
