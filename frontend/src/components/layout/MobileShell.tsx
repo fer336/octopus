@@ -11,9 +11,10 @@
  * `handleNavigate`. PR4 wires the Vender tab to `MobileSales` (same lifted
  * `cart`) and the sparkles-triggered AI sheet host to the real
  * `AIAssistantSheet` (replacing the PR1 stub). PR5 wires the Caja tab to the
- * real `MobileCaja` (self-fetching, no lifted state needed). Cuenta
- * corriente is still out of V1 scope and keeps rendering `MobileStub` —
- * pending a follow-up PR.
+ * real `MobileCaja` (self-fetching, no lifted state needed). PR6 wires the
+ * Cuenta tab to the real `MobileCuenta` (also self-fetching, read-only). With
+ * this, every screen from the design handoff is wired except Comprobantes,
+ * which remains on `MobileStub` pending a follow-up PR.
  */
 import { useState } from 'react'
 import { Menu, Sparkles, LayoutDashboard, Package, ShoppingCart, Wallet, Users } from 'lucide-react'
@@ -26,6 +27,7 @@ import MobileDashboard from '../../pages/mobile/MobileDashboard'
 import MobileProducts from '../../pages/mobile/MobileProducts'
 import MobileSales, { mergeCartLine } from '../../pages/mobile/MobileSales'
 import MobileCaja from '../../pages/mobile/MobileCaja'
+import MobileCuenta from '../../pages/mobile/MobileCuenta'
 import type { Product } from '../../types'
 
 export interface CartLine {
@@ -36,7 +38,7 @@ export interface CartLine {
   product_id: string
 }
 
-type MobileTab = 'inicio' | 'productos' | 'ventas' | 'caja' | 'stub'
+type MobileTab = 'inicio' | 'productos' | 'ventas' | 'caja' | 'cuenta' | 'stub'
 
 interface MobileShellProps {
   currentAccountMode?: 'disabled' | 'automatic' | 'manual'
@@ -55,6 +57,7 @@ const TAB_TITLES: Record<Exclude<MobileTab, 'stub'>, string> = {
   productos: 'Productos',
   ventas: 'Vender',
   caja: 'Caja diaria',
+  cuenta: 'Cuenta corriente',
 }
 
 export default function MobileShell({
@@ -135,8 +138,8 @@ export default function MobileShell({
       key: 'cuenta',
       label: 'Cuenta',
       icon: Users,
-      onClick: () => openStub('Cuenta corriente'),
-      active: false,
+      onClick: () => setTab('cuenta'),
+      active: tab === 'cuenta',
     },
   ]
 
@@ -191,6 +194,7 @@ export default function MobileShell({
           <MobileSales cart={cart} setCart={setCart} onNavigateToProductos={() => setTab('productos')} />
         )}
         {tab === 'caja' && <MobileCaja />}
+        {tab === 'cuenta' && <MobileCuenta />}
         {tab === 'stub' && <MobileStub stubTitle={stubTitle} />}
       </main>
 
