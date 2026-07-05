@@ -12,9 +12,12 @@
  * `cart`) and the sparkles-triggered AI sheet host to the real
  * `AIAssistantSheet` (replacing the PR1 stub). PR5 wires the Caja tab to the
  * real `MobileCaja` (self-fetching, no lifted state needed). PR6 wires the
- * Cuenta tab to the real `MobileCuenta` (also self-fetching, read-only). With
- * this, every screen from the design handoff is wired except Comprobantes,
- * which remains on `MobileStub` pending a follow-up PR.
+ * Cuenta tab to the real `MobileCuenta` (also self-fetching, read-only). PR7
+ * wires the drawer-only Comprobantes screen to the real `MobileComprobantes`
+ * (also self-fetching, read-only) — it is not one of the 5 bottom tab-bar
+ * slots, only reachable from `MobileDrawer`, same as Caja/Cuenta were before
+ * PR5/PR6 promoted them to tabs. With this, every screen from the design
+ * handoff is wired — no screen still falls through to `MobileStub`.
  */
 import { useState } from 'react'
 import { Menu, Sparkles, LayoutDashboard, Package, ShoppingCart, Wallet, Users } from 'lucide-react'
@@ -28,6 +31,7 @@ import MobileProducts from '../../pages/mobile/MobileProducts'
 import MobileSales, { mergeCartLine } from '../../pages/mobile/MobileSales'
 import MobileCaja from '../../pages/mobile/MobileCaja'
 import MobileCuenta from '../../pages/mobile/MobileCuenta'
+import MobileComprobantes from '../../pages/mobile/MobileComprobantes'
 import type { Product } from '../../types'
 
 export interface CartLine {
@@ -38,7 +42,7 @@ export interface CartLine {
   product_id: string
 }
 
-type MobileTab = 'inicio' | 'productos' | 'ventas' | 'caja' | 'cuenta' | 'stub'
+type MobileTab = 'inicio' | 'productos' | 'ventas' | 'caja' | 'cuenta' | 'comprobantes' | 'stub'
 
 interface MobileShellProps {
   currentAccountMode?: 'disabled' | 'automatic' | 'manual'
@@ -58,6 +62,7 @@ const TAB_TITLES: Record<Exclude<MobileTab, 'stub'>, string> = {
   ventas: 'Vender',
   caja: 'Caja diaria',
   cuenta: 'Cuenta corriente',
+  comprobantes: 'Comprobantes',
 }
 
 export default function MobileShell({
@@ -195,6 +200,7 @@ export default function MobileShell({
         )}
         {tab === 'caja' && <MobileCaja />}
         {tab === 'cuenta' && <MobileCuenta />}
+        {tab === 'comprobantes' && <MobileComprobantes />}
         {tab === 'stub' && <MobileStub stubTitle={stubTitle} />}
       </main>
 
