@@ -7,17 +7,27 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CartLine } from '../../../components/layout/MobileShell'
 import type { Client } from '../../../api/clientsService'
 import type { VoucherCreate } from '../../../api/vouchersService'
+import type { PaymentMethod } from '../../../api/paymentMethodsService'
 
-const { searchMock, createMock, createByAmountMock, getPdfMock, getVoucherByIdMock, toastSuccessMock, toastErrorMock } =
-  vi.hoisted(() => ({
-    searchMock: vi.fn(),
-    createMock: vi.fn(),
-    createByAmountMock: vi.fn(),
-    getPdfMock: vi.fn(),
-    getVoucherByIdMock: vi.fn(),
-    toastSuccessMock: vi.fn(),
-    toastErrorMock: vi.fn(),
-  }))
+const {
+  searchMock,
+  createMock,
+  createByAmountMock,
+  getPdfMock,
+  getVoucherByIdMock,
+  toastSuccessMock,
+  toastErrorMock,
+  paymentMethodsGetAllMock,
+} = vi.hoisted(() => ({
+  searchMock: vi.fn(),
+  createMock: vi.fn(),
+  createByAmountMock: vi.fn(),
+  getPdfMock: vi.fn(),
+  getVoucherByIdMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
+  toastErrorMock: vi.fn(),
+  paymentMethodsGetAllMock: vi.fn(),
+}))
 
 vi.mock('../../../api/clientsService', () => ({
   default: { search: searchMock },
@@ -31,14 +41,32 @@ vi.mock('../../../api/stockpileService', () => ({
   default: { createByAmount: createByAmountMock, getVoucherById: getVoucherByIdMock },
 }))
 
+vi.mock('../../../api/paymentMethodsService', () => ({
+  default: { getAll: paymentMethodsGetAllMock },
+}))
+
 vi.mock('react-hot-toast', () => ({
   default: { success: toastSuccessMock, error: toastErrorMock },
 }))
 
-import MobileSales, { mergeCartLine, calculateTotals } from '../../../pages/mobile/MobileSales'
+import MobileSales, { mergeCartLine, calculateTotals, resolveVoucherType } from '../../../pages/mobile/MobileSales'
 
 function makeLine(overrides: Partial<CartLine> = {}): CartLine {
   return { code: 'P1', desc: 'Producto A', qty: 1, price: 1000, product_id: 'p1', discount: 0, ...overrides }
+}
+
+function makePaymentMethod(overrides: Partial<PaymentMethod> = {}): PaymentMethod {
+  return {
+    id: 'pm1',
+    created_at: '',
+    updated_at: '',
+    business_id: 'b1',
+    name: 'Efectivo',
+    code: 'cash',
+    is_active: true,
+    requires_reference: false,
+    ...overrides,
+  }
 }
 
 function makeClient(overrides: Partial<Client> = {}): Client {
@@ -91,6 +119,7 @@ beforeEach(() => {
   createByAmountMock.mockResolvedValue({ id: 's1', name: 'Obra Rivadavia', stockpile_number: 1 })
   getPdfMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }))
   getVoucherByIdMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }))
+  paymentMethodsGetAllMock.mockResolvedValue([])
   // jsdom doesn't implement URL.createObjectURL — stub it so the PDF auto-open
   // flow (window.location.href = URL.createObjectURL(blob)) is exercisable.
   ;(URL as unknown as { createObjectURL: (blob: Blob) => string }).createObjectURL = vi.fn(() => 'blob:mock-url')
@@ -149,6 +178,27 @@ describe('MobileSales — totals calculation', () => {
     // line1: subtotal 900, iva 189, total 1089 — line2: subtotal 1000, iva 210, total 1210
     expect(totals).toEqual({ subtotal: 1900, iva: 399, total: 2299 })
   })
+
+  it('applies a general (order-level) discount on top of lines with no per-line discount (ported from desktop calculateBackendCompatibleTotalFromCart)', () => {
+    const totals = calculateTotals([makeLine({ qty: 2, price: 1000, discount: 0 })], 10)
+    // subtotalLine = round(1000*2*1*0.9) = 1800, ivaLine = round(1800*0.21) = 378, totalLine = 2178
+    // — same numbers as the per-line-discount test, confirming both discount
+    // sources reach the total via the same multiplicative mechanism.
+    expect(totals).toEqual({ subtotal: 1800, iva: 378, total: 2178 })
+  })
+
+  it('multiplies the per-line discount factor AND the general discount factor together (not additive, neither overwrites the other)', () => {
+    // itemDiscountFactor = 0.9 (10% off), generalDiscountFactor = 0.9 (10% off)
+    // combined factor = 0.81, NOT 0.8 (which additive 10%+10% would give)
+    const totals = calculateTotals([makeLine({ qty: 1, price: 1000, discount: 10 })], 10)
+    // subtotalLine = round(1000*1*0.9*0.9) = 810, ivaLine = round(810*0.21) = 170.10, totalLine = 980.10
+    expect(totals).toEqual({ subtotal: 810, iva: 170.1, total: 980.1 })
+  })
+
+  it('defaults the general discount to 0 when called with a single argument (existing call sites keep working unchanged)', () => {
+    const totals = calculateTotals([makeLine({ qty: 2, price: 1000 })])
+    expect(totals).toEqual({ subtotal: 2000, iva: 420, total: 2420 })
+  })
 })
 
 describe('MobileSales — cart item lifecycle (UI)', () => {
@@ -197,6 +247,19 @@ describe('MobileSales — cart item lifecycle (UI)', () => {
     // discounted amount, not the pre-discount qty×price — otherwise the card
     // itself would misleadingly still show the undiscounted line subtotal
     // while only the totals bar below reflected the discount.
+    await waitFor(() => {
+      const totalsBar = screen.getByTestId('sales-totals-bar')
+      expect(screen.getAllByText('$900,00').filter((el) => !totalsBar.contains(el))).toHaveLength(1)
+    })
+  })
+
+  it('also applies the general discount to each line\'s own displayed subtotal (not just the totals bar)', async () => {
+    renderSales([makeLine({ qty: 1, price: 1000 })])
+    await userEvent.type(screen.getByLabelText(/descuento general/i), '10')
+
+    // Same reasoning as the per-line-discount case above: if the line card
+    // kept showing the pre-general-discount amount, it would misleadingly
+    // disagree with the totals bar once a general discount is entered.
     await waitFor(() => {
       const totalsBar = screen.getByTestId('sales-totals-bar')
       expect(screen.getAllByText('$900,00').filter((el) => !totalsBar.contains(el))).toHaveLength(1)
@@ -384,33 +447,19 @@ describe('MobileSales — Cta Cte payload (matches desktop\'s current-account fl
   })
 })
 
-describe('MobileSales — Factura resolves invoice_a/invoice_b by tax_condition (ported from desktop resolveBackendVoucherType, Sales.tsx ~293-301)', () => {
-  it('submits voucher_type "invoice_a" for a client with tax_condition RI', async () => {
-    renderSales([makeLine()])
-    await pickClient(makeClient({ id: 'c1', name: 'Juan Pérez', tax_condition: 'RI' }))
-
-    await userEvent.click(screen.getByRole('button', { name: 'Factura' }))
-    await userEvent.click(screen.getByRole('button', { name: /facturar/i }))
-
-    await waitFor(() => {
-      expect(createMock).toHaveBeenCalledWith(
-        expect.objectContaining({ voucher_type: 'invoice_a', client_id: 'c1' } satisfies Partial<VoucherCreate>)
-      )
-    })
+describe('MobileSales — resolveVoucherType resolves invoice_a/invoice_b by tax_condition (ported from desktop resolveBackendVoucherType, Sales.tsx ~293-301)', () => {
+  // Factura submission is now hard-blocked at the UI level (see the
+  // "Factura is hard-blocked from submission" describe block below), so this
+  // logic can no longer be exercised end-to-end via the CTA. It is still
+  // real, reachable code (kept deliberately per instructions, for whenever
+  // the ARCA/CAE gap is closed and the block is lifted) — exercised here
+  // directly as a pure function instead.
+  it('resolves "invoice_a" for tax_condition RI', () => {
+    expect(resolveVoucherType('Factura', 'RI')).toBe('invoice_a')
   })
 
-  it('submits voucher_type "invoice_b" for a client with a non-RI tax_condition (e.g. Monotributista)', async () => {
-    renderSales([makeLine()])
-    await pickClient(makeClient({ id: 'c1', name: 'Juan Pérez', tax_condition: 'Monotributista' }))
-
-    await userEvent.click(screen.getByRole('button', { name: 'Factura' }))
-    await userEvent.click(screen.getByRole('button', { name: /facturar/i }))
-
-    await waitFor(() => {
-      expect(createMock).toHaveBeenCalledWith(
-        expect.objectContaining({ voucher_type: 'invoice_b', client_id: 'c1' } satisfies Partial<VoucherCreate>)
-      )
-    })
+  it('resolves "invoice_b" for a non-RI tax_condition (e.g. Monotributista)', () => {
+    expect(resolveVoucherType('Factura', 'Monotributista')).toBe('invoice_b')
   })
 })
 
@@ -649,5 +698,179 @@ describe('MobileSales — auto-open generated PDF after success (mirrors desktop
 
     await waitFor(() => expect(toastSuccessMock).toHaveBeenCalled())
     expect(screen.getByText(/todavía no agregaste productos/i)).toBeInTheDocument()
+  })
+})
+
+describe('MobileSales — general (order-level) discount', () => {
+  it('sends the entered general discount as general_discount in the vouchersService.create() payload', async () => {
+    renderSales([makeLine({ qty: 2, price: 1000 })])
+    await pickClient()
+
+    await userEvent.type(screen.getByLabelText(/descuento general/i), '10')
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled())
+    const payload = createMock.mock.calls[0][0] as VoucherCreate
+    expect(payload.general_discount).toBe(10)
+  })
+
+  it('sends general_discount 0 by default when the field is left empty', async () => {
+    renderSales([makeLine()])
+    await pickClient()
+
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled())
+    const payload = createMock.mock.calls[0][0] as VoucherCreate
+    expect(payload.general_discount).toBe(0)
+  })
+
+  it('updates the rendered totals bar when a general discount is entered', async () => {
+    renderSales([makeLine({ qty: 2, price: 1000 })])
+    await userEvent.type(screen.getByLabelText(/descuento general/i), '10')
+
+    const totalsBar = within(await screen.findByTestId('sales-totals-bar'))
+    expect(totalsBar.getByText('$1.800,00')).toBeInTheDocument()
+    expect(totalsBar.getByText('$378,00')).toBeInTheDocument()
+    expect(totalsBar.getByText('$2.178,00')).toBeInTheDocument()
+  })
+
+  it('hides the general discount input for Acopio', async () => {
+    renderSales([makeLine()])
+    await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
+    expect(screen.queryByLabelText(/descuento general/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('MobileSales — optional payment methods (ported from desktop buildPaymentsPayload/validatePayments, minus invoice-only branches)', () => {
+  it('does not render any payment-method UI while docType is Acopio', async () => {
+    paymentMethodsGetAllMock.mockResolvedValue([makePaymentMethod({ id: 'pm1', name: 'Efectivo' })])
+    renderSales([makeLine()])
+    await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
+
+    await waitFor(() => expect(paymentMethodsGetAllMock).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: 'Efectivo' })).not.toBeInTheDocument()
+  })
+
+  it('allows submit with zero payment methods selected, omitting `payments` entirely from the payload (not an empty array)', async () => {
+    paymentMethodsGetAllMock.mockResolvedValue([makePaymentMethod({ id: 'pm1', name: 'Efectivo' })])
+    renderSales([makeLine({ qty: 1, price: 1000 })])
+    await pickClient()
+    await screen.findByRole('button', { name: 'Efectivo' })
+
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled())
+    const payload = createMock.mock.calls[0][0] as VoucherCreate
+    expect(payload.payments).toBeUndefined()
+  })
+
+  it('allows submit with one selected method whose amount matches the total, and includes it in `payments`', async () => {
+    paymentMethodsGetAllMock.mockResolvedValue([makePaymentMethod({ id: 'pm1', name: 'Efectivo' })])
+    renderSales([makeLine({ qty: 1, price: 1000 })]) // total = 1210
+    await pickClient()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Efectivo' }))
+    await userEvent.type(screen.getByLabelText(/monto de efectivo/i), '1210')
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled())
+    const payload = createMock.mock.calls[0][0] as VoucherCreate
+    expect(payload.payments).toEqual([{ payment_method_id: 'pm1', amount: 1210, reference: undefined }])
+  })
+
+  it('blocks submit with a message when a method requiring a reference is selected but the reference is empty', async () => {
+    paymentMethodsGetAllMock.mockResolvedValue([
+      makePaymentMethod({ id: 'pm2', name: 'Cheque', requires_reference: true }),
+    ])
+    renderSales([makeLine({ qty: 1, price: 1000 })])
+    await pickClient()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Cheque' }))
+    await userEvent.type(screen.getByLabelText(/monto de cheque/i), '1210')
+
+    expect(screen.getByRole('button', { name: /generar/i })).toBeDisabled()
+    expect(screen.getByText(/referencia/i)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+    expect(createMock).not.toHaveBeenCalled()
+  })
+
+  it('allows submit once the required reference is filled in', async () => {
+    paymentMethodsGetAllMock.mockResolvedValue([
+      makePaymentMethod({ id: 'pm2', name: 'Cheque', requires_reference: true }),
+    ])
+    renderSales([makeLine({ qty: 1, price: 1000 })])
+    await pickClient()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Cheque' }))
+    await userEvent.type(screen.getByLabelText(/monto de cheque/i), '1210')
+    await userEvent.type(screen.getByLabelText(/referencia de cheque/i), 'Nro 001')
+
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled())
+    const payload = createMock.mock.calls[0][0] as VoucherCreate
+    expect(payload.payments).toEqual([{ payment_method_id: 'pm2', amount: 1210, reference: 'Nro 001' }])
+  })
+
+  it('blocks submit with a message showing both amounts when selected payments do not sum to the total', async () => {
+    paymentMethodsGetAllMock.mockResolvedValue([makePaymentMethod({ id: 'pm1', name: 'Efectivo' })])
+    renderSales([makeLine({ qty: 1, price: 1000 })]) // total = 1210
+    await pickClient()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Efectivo' }))
+    await userEvent.type(screen.getByLabelText(/monto de efectivo/i), '500')
+
+    expect(screen.getByText(/\$500.*no coincide con el total.*\$1210/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /generar/i })).toBeDisabled()
+
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+    expect(createMock).not.toHaveBeenCalled()
+  })
+
+  it('splits correctly across multiple selected payment methods that sum exactly to the total', async () => {
+    paymentMethodsGetAllMock.mockResolvedValue([
+      makePaymentMethod({ id: 'pm1', name: 'Efectivo' }),
+      makePaymentMethod({ id: 'pm3', name: 'Transferencia' }),
+    ])
+    renderSales([makeLine({ qty: 1, price: 1000 })]) // total = 1210
+    await pickClient()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Efectivo' }))
+    await userEvent.type(screen.getByLabelText(/monto de efectivo/i), '700')
+    await userEvent.click(screen.getByRole('button', { name: 'Transferencia' }))
+    await userEvent.type(screen.getByLabelText(/monto de transferencia/i), '510')
+
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled())
+    const payload = createMock.mock.calls[0][0] as VoucherCreate
+    expect(payload.payments).toEqual([
+      { payment_method_id: 'pm1', amount: 700, reference: undefined },
+      { payment_method_id: 'pm3', amount: 510, reference: undefined },
+    ])
+  })
+})
+
+describe('MobileSales — Factura is hard-blocked from submission (fiscal ARCA/CAE gap, mobile does not emit electronically yet)', () => {
+  it('disables the CTA with the exact blocking message even with a valid client and cart', async () => {
+    renderSales([makeLine()])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: 'Factura' }))
+
+    expect(screen.getByRole('button', { name: /facturar/i })).toBeDisabled()
+    expect(
+      screen.getByText('Facturar no está disponible desde mobile todavía — generala desde el escritorio')
+    ).toBeInTheDocument()
+  })
+
+  it('never calls vouchersService.create() when Factura is selected, even if the disabled CTA is clicked', async () => {
+    renderSales([makeLine()])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: 'Factura' }))
+
+    await userEvent.click(screen.getByRole('button', { name: /facturar/i }))
+    expect(createMock).not.toHaveBeenCalled()
   })
 })

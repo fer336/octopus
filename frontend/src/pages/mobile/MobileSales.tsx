@@ -39,7 +39,13 @@
  * `Sales.tsx`'s `resolveBackendVoucherType` (lines 293-301: `taxCondition
  * === 'RI' ? 'invoice_a' : 'invoice_b'`), per the project-wide rule that
  * mobile only changes DESIGN, never business logic — every voucher type
- * must produce the same backend payload/behavior as desktop.
+ * must produce the same backend payload/behavior as desktop. This branch is
+ * now UNREACHABLE via a real submit — see the `KNOWN GAP` comment above
+ * `createVoucherMutation`: Factura is hard-blocked at the UI level (`canSubmit`/
+ * `submitBlockedReason`/an early return in `handleSubmit`) until the ARCA/CAE
+ * electronic-emission gap is closed. The resolution logic itself is kept
+ * intact (not deleted) for when that block is lifted, and is exercised
+ * directly as a pure function in tests instead of through the CTA.
  *
  * "Acopio" has its own small mobile-designed mini-form (name/amount/
  * discount — replacing the cart-lines section while active) that submits
@@ -53,10 +59,11 @@
  */
 import { useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { Minus, Plus, Trash2, User, ArrowRight } from 'lucide-react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import vouchersService, { type VoucherCreate } from '../../api/vouchersService'
+import vouchersService, { type VoucherCreate, type VoucherPayment } from '../../api/vouchersService'
 import stockpileService from '../../api/stockpileService'
+import paymentMethodsService, { type PaymentMethod } from '../../api/paymentMethodsService'
 import type { Client } from '../../api/clientsService'
 import ClientPickerSheet from '../../components/layout/ClientPickerSheet'
 import type { CartLine } from '../../components/layout/MobileShell'
@@ -92,7 +99,7 @@ const CTA_LABELS: Record<DocType, string> = {
  * case. "Acopio" is never passed to this function — it submits via
  * `stockpileService.createByAmount()` instead, see `handleSubmit`.
  */
-function resolveVoucherType(docType: DocType, taxCondition: string | undefined): VoucherCreate['voucher_type'] {
+export function resolveVoucherType(docType: DocType, taxCondition: string | undefined): VoucherCreate['voucher_type'] {
   if (docType === 'Cotización') return 'quotation'
   if (docType === 'Remito' || docType === 'Cta Cte') return 'receipt'
   // 'Factura' (the only remaining reachable case — 'Acopio' never calls this function):
@@ -118,18 +125,24 @@ export function mergeCartLine(cart: CartLine[], line: CartLine): CartLine[] {
  * (lines 270-291): each line's subtotal/iva/total are rounded to cents
  * INDEPENDENTLY before being summed, to exactly match how the backend avoids
  * compounding rounding drift (summing already-rounded per-line values, not
- * recomputing `subtotal + iva` from the rounded aggregates). Desktop also
- * multiplies by a `generalDiscountFactor` for an order-level discount; mobile
- * has no general-discount UI and always sends `general_discount: 0` in the
- * voucher payload, so that factor is always 1 and is simply omitted here.
+ * recomputing `subtotal + iva` from the rounded aggregates). `generalDiscountPercent`
+ * mirrors desktop's order-level `generalDiscountFactor` — it multiplies
+ * together with each line's own `itemDiscountFactor` (not additive: a 10%
+ * per-line discount plus a 10% general discount yields a combined 0.9*0.9=0.81
+ * factor, i.e. 19% off, not 20%). Defaults to 0 so every existing single-arg
+ * call site keeps working unchanged.
  */
 const roundMoney = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100
 
-export function calculateTotals(cart: CartLine[]): { subtotal: number; iva: number; total: number } {
+export function calculateTotals(
+  cart: CartLine[],
+  generalDiscountPercent = 0
+): { subtotal: number; iva: number; total: number } {
+  const generalDiscountFactor = 1 - generalDiscountPercent / 100
   return cart.reduce(
     (acc, line) => {
       const itemDiscountFactor = 1 - line.discount / 100
-      const subtotalLine = roundMoney(line.price * line.qty * itemDiscountFactor)
+      const subtotalLine = roundMoney(line.price * line.qty * itemDiscountFactor * generalDiscountFactor)
       const ivaLine = roundMoney(subtotalLine * IVA_RATE)
       const totalLine = roundMoney(subtotalLine + ivaLine)
       return {
@@ -142,6 +155,78 @@ export function calculateTotals(cart: CartLine[]): { subtotal: number; iva: numb
   )
 }
 
+/**
+ * Ported (with one deliberate mobile-V1 simplification) from desktop
+ * `Sales.tsx`'s `buildPaymentsPayload`/`validatePayments` (lines 2898-2988).
+ * Payments are entirely OPTIONAL here: desktop's invoice-only branches
+ * (`voucherType === 'invoice'`/`'invoice_x'` requiring at least one payment)
+ * are omitted — they're unreachable on mobile since Factura is hard-blocked
+ * from submission (see the `KNOWN GAP` comment above `createVoucherMutation`).
+ * Also simplified: desktop's "Cheque" due-date heuristic (`isCheckPaymentMethod`,
+ * a fragile name/code match, plus an `extra_date` field formatted into the
+ * reference string) is NOT ported — every `requires_reference` method just
+ * gets a plain free-text reference input here. This is a lower-fidelity V1
+ * UX, not a data-correctness issue: the backend receives whatever reference
+ * string is sent either way.
+ */
+interface PaymentSelectionState {
+  selected: boolean
+  amount: string
+  reference: string
+}
+type PaymentSelections = Record<string, PaymentSelectionState>
+
+function buildPaymentsPayload(
+  paymentMethods: PaymentMethod[],
+  selections: PaymentSelections
+): VoucherPayment[] | undefined {
+  const payload = paymentMethods
+    .map((method) => {
+      const selection = selections[method.id]
+      if (!selection?.selected) return null
+      const amountValue = Number(selection.amount)
+      if (!Number.isFinite(amountValue) || amountValue <= 0) return null
+      const referenceValue = selection.reference.trim()
+      return {
+        payment_method_id: method.id,
+        amount: amountValue,
+        reference: referenceValue ? referenceValue : undefined,
+      }
+    })
+    .filter((payment) => payment !== null) as VoucherPayment[]
+  return payload.length > 0 ? payload : undefined
+}
+
+function validatePayments(
+  paymentMethods: PaymentMethod[],
+  selections: PaymentSelections,
+  expectedTotal: number
+): { valid: boolean; message?: string } {
+  const selectedMethods = paymentMethods.filter((method) => selections[method.id]?.selected)
+  if (selectedMethods.length === 0) return { valid: true }
+
+  for (const method of selectedMethods) {
+    const selection = selections[method.id]
+    const amountValue = Number(selection.amount)
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
+      return { valid: false, message: `Ingresá un monto válido para ${method.name}` }
+    }
+    if (method.requires_reference && !selection.reference.trim()) {
+      return { valid: false, message: `Ingresá una referencia para ${method.name}` }
+    }
+  }
+
+  const assignedTotal = selectedMethods.reduce((acc, method) => acc + (Number(selections[method.id].amount) || 0), 0)
+  if (Math.abs(Number(assignedTotal.toFixed(2)) - expectedTotal) > 0.01) {
+    return {
+      valid: false,
+      message: `La suma de pagos ($${assignedTotal.toFixed(2)}) no coincide con el total ($${expectedTotal.toFixed(2)})`,
+    }
+  }
+
+  return { valid: true }
+}
+
 export default function MobileSales({ cart, setCart, onNavigateToProductos }: MobileSalesProps) {
   const [docType, setDocType] = useState<DocType>('Cotización')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
@@ -152,6 +237,43 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
   const [acopioName, setAcopioName] = useState('')
   const [acopioAmount, setAcopioAmount] = useState('')
   const [acopioDiscount, setAcopioDiscount] = useState('')
+
+  // General (order-level) discount — string-backed for the same
+  // controlled-input reason as the Acopio fields above. Hidden for Acopio
+  // (that mini-form has its own separate `acopioDiscount`).
+  const [generalDiscount, setGeneralDiscount] = useState('')
+
+  // Optional payment-method selection (Cotización/Remito/Cta Cte only — see
+  // `buildPaymentsPayload`/`validatePayments` above). Self-fetching, same raw
+  // `useQuery` pattern as `MobileCuenta`/`MobileCaja` (no dedicated hook file).
+  const { data: paymentMethodsData } = useQuery({
+    queryKey: ['mobile-sales-payment-methods'],
+    queryFn: () => paymentMethodsService.getAll({ active_only: true }),
+    retry: false,
+  })
+  const paymentMethods = paymentMethodsData ?? []
+  const [paymentSelections, setPaymentSelections] = useState<PaymentSelections>({})
+
+  const togglePaymentMethod = (methodId: string) => {
+    setPaymentSelections((prev) => {
+      const existing = prev[methodId] ?? { selected: false, amount: '', reference: '' }
+      return { ...prev, [methodId]: { ...existing, selected: !existing.selected } }
+    })
+  }
+
+  const updatePaymentAmount = (methodId: string, amount: string) => {
+    setPaymentSelections((prev) => ({
+      ...prev,
+      [methodId]: { ...(prev[methodId] ?? { selected: true, amount: '', reference: '' }), amount },
+    }))
+  }
+
+  const updatePaymentReference = (methodId: string, reference: string) => {
+    setPaymentSelections((prev) => ({
+      ...prev,
+      [methodId]: { ...(prev[methodId] ?? { selected: true, amount: '', reference: '' }), reference },
+    }))
+  }
 
   /**
    * Handle to the blank tab opened synchronously inside `handleSubmit` (the
@@ -179,9 +301,14 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
    * not invoice_x) to get a CAE from AFIP/ARCA, and DELETES the voucher if that
    * emission fails/mismatches — a voucher without CAE is not fiscally valid.
    * This mobile screen does not replicate that step: a "Factura" submitted from
-   * here is created in the DB but never emitted, unlike desktop. Do not treat
-   * the toast.success below as fiscal confirmation for Factura until that gap
-   * is closed.
+   * here would be created in the DB but never emitted, unlike desktop.
+   *
+   * Because of that gap, "Factura" is now explicitly HARD-BLOCKED at the UI
+   * level (not just an unmentioned gap) — see `canSubmit`/`submitBlockedReason`
+   * below and the defensive early return at the top of `handleSubmit` — until
+   * the ARCA/CAE decision for mobile is made. `resolveVoucherType`'s Factura
+   * branch and `createVoucherMutation` itself are intentionally left intact
+   * (not deleted) for when that block is lifted.
    */
   const createVoucherMutation = useMutation({
     mutationFn: (payload: VoucherCreate) => vouchersService.create(payload),
@@ -254,23 +381,33 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
     setCart((prev) => prev.map((line) => (line.code === code ? { ...line, discount } : line)))
   }
 
-  const totals = calculateTotals(cart)
+  const generalDiscountValue = Number(generalDiscount) || 0
+  const totals = calculateTotals(cart, generalDiscountValue)
   const cartEmpty = cart.length === 0
   const noClientSelected = selectedClient === null
   const isCurrentAccount = docType === 'Cta Cte'
   const isAcopio = docType === 'Acopio'
+  const isFactura = docType === 'Factura'
   const acopioAmountValue = Number(acopioAmount) || 0
   const acopioFormValid = acopioName.trim().length > 0 && acopioAmountValue > 0
-  /** Mirrors desktop Sales.tsx's `!selectedClient` guard for every doc type; Acopio additionally requires its own mini-form (name + amount) to be filled, mirroring desktop's `handleGenerateClick` Acopio validation. "Consumidor final" is a display placeholder, never a submittable client. */
-  const canSubmit = !noClientSelected && (!isAcopio || acopioFormValid) && !isSubmitting
+  const paymentsValidation = isAcopio ? { valid: true } : validatePayments(paymentMethods, paymentSelections, totals.total)
+  /** Mirrors desktop Sales.tsx's `!selectedClient` guard for every doc type; Acopio additionally requires its own mini-form (name + amount) to be filled, mirroring desktop's `handleGenerateClick` Acopio validation. "Consumidor final" is a display placeholder, never a submittable client. Factura is hard-blocked pending the ARCA/CAE gap (see the `KNOWN GAP` comment above `createVoucherMutation`) — never submittable regardless of client/cart. */
+  const canSubmit = !noClientSelected && !isFactura && (!isAcopio || acopioFormValid) && paymentsValidation.valid && !isSubmitting
   const submitBlockedReason = noClientSelected
     ? 'Elegí un cliente para continuar'
-    : isAcopio && !acopioFormValid
-      ? 'Completá nombre y monto del acopio'
-      : null
+    : isFactura
+      ? 'Facturar no está disponible desde mobile todavía — generala desde el escritorio'
+      : isAcopio && !acopioFormValid
+        ? 'Completá nombre y monto del acopio'
+        : !paymentsValidation.valid
+          ? (paymentsValidation.message ?? null)
+          : null
   const showTotalsBar = isAcopio || !cartEmpty
 
   const handleSubmit = () => {
+    // Belt-and-suspenders alongside the `canSubmit` gate — Factura must never
+    // reach `vouchersService.create()`, see the `KNOWN GAP` comment above.
+    if (isFactura) return
     if (!canSubmit || !selectedClient) return
 
     if (isAcopio) {
@@ -296,7 +433,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
       voucher_type: resolveVoucherType(docType, selectedClient.tax_condition),
       date: new Date().toISOString().slice(0, 10),
       show_prices: true,
-      general_discount: 0,
+      general_discount: generalDiscountValue,
       is_current_account: isCurrentAccount,
       ...(isCurrentAccount
         ? { billing_client_id: selectedClient.id, operating_client_id: selectedClient.id }
@@ -307,6 +444,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
         unit_price: line.price,
         discount_percent: line.discount,
       })),
+      payments: buildPaymentsPayload(paymentMethods, paymentSelections),
     }
     createVoucherMutation.mutate(payload)
   }
@@ -459,7 +597,9 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
                   <div className="text-right">
                     <p className="text-[11px] text-[#9089a0]">{formatCurrency(line.price)} c/u</p>
                     <p className="font-display text-base font-extrabold text-[#121325]">
-                      {formatCurrency(roundMoney(line.qty * line.price * (1 - line.discount / 100)))}
+                      {formatCurrency(
+                        roundMoney(line.qty * line.price * (1 - line.discount / 100) * (1 - generalDiscountValue / 100))
+                      )}
                     </p>
                   </div>
                 </div>
@@ -481,6 +621,72 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* General (order-level) discount — mobile-native addition, mirrors
+              desktop Sales.tsx's order-level discount; multiplies together
+              with each line's own discount in calculateTotals/general_discount. */}
+          <div className="mt-[11px] flex items-center justify-end gap-[6px]">
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={generalDiscount}
+              onChange={(e) => setGeneralDiscount(e.target.value)}
+              placeholder="Desc. general %"
+              aria-label="Descuento general"
+              className="w-[64px] rounded-[9px] border border-[#ece6f6] bg-[#f7f4fb] px-2 py-1 text-right text-[10px] font-semibold text-[#121325] outline-none"
+            />
+            <span className="text-[11px] text-[#9089a0]">% desc. general</span>
+          </div>
+
+          {/* Optional payment-method selection — ported (simplified, see
+              buildPaymentsPayload/validatePayments doc comment above) from
+              desktop's payment section. Not shown for Acopio (no payments
+              concept there). */}
+          <div className="mt-[18px] flex flex-col gap-[9px]">
+            <p className="text-xs font-semibold uppercase tracking-[.1em] text-[#7b6b95]">
+              Métodos de pago (opcional)
+            </p>
+            {paymentMethods.map((method) => {
+              const selection = paymentSelections[method.id] ?? { selected: false, amount: '', reference: '' }
+              return (
+                <div key={method.id} className="rounded-[13px] border border-[#ece6f6] bg-white p-[11px_13px]">
+                  <button
+                    type="button"
+                    onClick={() => togglePaymentMethod(method.id)}
+                    aria-pressed={selection.selected}
+                    className="flex w-full items-center justify-between text-left text-sm font-semibold text-[#121325]"
+                  >
+                    {method.name}
+                    <span aria-hidden="true" style={{ color: selection.selected ? '#7c5ca8' : '#cdb9e0' }}>
+                      {selection.selected ? '✓' : '○'}
+                    </span>
+                  </button>
+                  {selection.selected && (
+                    <div className="mt-[9px] flex flex-col gap-[7px]">
+                      <input
+                        type="number"
+                        value={selection.amount}
+                        onChange={(e) => updatePaymentAmount(method.id, e.target.value)}
+                        placeholder="Monto"
+                        aria-label={`Monto de ${method.name}`}
+                        className="h-[40px] rounded-[10px] border border-[#ece6f6] bg-[#f7f4fb] px-3 text-sm text-[#121325] outline-none"
+                      />
+                      {method.requires_reference && (
+                        <input
+                          value={selection.reference}
+                          onChange={(e) => updatePaymentReference(method.id, e.target.value)}
+                          placeholder="Referencia"
+                          aria-label={`Referencia de ${method.name}`}
+                          className="h-[40px] rounded-[10px] border border-[#ece6f6] bg-[#f7f4fb] px-3 text-sm text-[#121325] outline-none"
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </>
       )}
