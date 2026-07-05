@@ -202,7 +202,7 @@ export default function MobileShell({
         )}
         {tab === 'caja' && <MobileCaja />}
         {tab === 'cuenta' && <MobileCuenta />}
-        {tab === 'comprobantes' && <MobileComprobantes />}
+        {tab === 'comprobantes' && <MobileComprobantes whatsappEnabled={whatsappEnabled} />}
         {tab === 'stub' && <MobileStub stubTitle={stubTitle} />}
       </main>
 

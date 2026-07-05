@@ -1,5 +1,5 @@
 /**
- * Native mobile "Comprobantes" screen (PR7) — read-only. Self-fetching via
+ * Native mobile "Comprobantes" screen (PR7). Self-fetching via
  * `vouchersService.getAll` directly (same raw useQuery shortcut as
  * `MobileCuenta`/`MobileCaja`, no dedicated hook file).
  *
@@ -14,14 +14,34 @@
  * have a real paid/pending concept (`is_paid`). Quotations and receipts
  * don't, so they always show "Vigente" regardless of `is_paid`.
  *
- * Read-only by design (design_handoff_mobile/README.md section "Comprobantes"):
- * the mockup shows plain display cards with no detail view, PDF button, or
- * payment action. Do not add any mutation or navigation on tap.
+ * PR8 adds real per-card actions (view PDF, send via WhatsApp, delete),
+ * mirroring desktop `Vouchers.tsx`'s business logic exactly — this screen
+ * changes DESIGN only, not behavior:
+ *  - "Ver PDF" reuses `PdfViewerSheet` as-is (already built for MobileSales'
+ *    post-submit flow), fetching the blob on tap and revoking the object URL
+ *    on close.
+ *  - WhatsApp reuses `WhatsAppSendPdfButton` as-is (self-contained, own
+ *    modal), gated behind the `whatsappEnabled` prop AND, like desktop
+ *    (Vouchers.tsx ~1782, `isInvoiceVoucher`), only offered for Factura —
+ *    quotations/receipts never show it on desktop either.
+ *  - "Eliminar" ports desktop's `deleteMutation` (Vouchers.tsx ~459-483)
+ *    byte-for-byte: a mandatory reason, and a REAL branch on
+ *    `authorization_required` (four-eyes principle) — a queued-for-approval
+ *    delete is a genuine success state with its own toast copy, not the
+ *    generic "eliminado correctamente" one. Also mirrors desktop's exact
+ *    eligibility rule (Vouchers.tsx ~1816-1830): NEVER offered for Factura
+ *    (a real emitted invoice can't be deleted this way — that's what a Nota
+ *    de Crédito is for) nor for a voucher already soft-deleted or linked to
+ *    a current-account closure.
  */
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Eye, Trash2 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import vouchersService, { type Voucher } from '../../api/vouchersService'
 import { formatErrorMessage } from '../../utils/errorHelpers'
+import PdfViewerSheet from '../../components/layout/PdfViewerSheet'
+import WhatsAppSendPdfButton from '../../components/messaging/WhatsAppSendPdfButton'
 
 // ─── Pure helpers (exported for direct unit testing) ──────────────────────
 
@@ -104,8 +124,14 @@ const formatCurrency = (value: number) =>
 
 // ─── Main screen ────────────────────────────────────────────────────────────
 
-export default function MobileComprobantes() {
+export interface MobileComprobantesProps {
+  /** Feature flag mirroring `MobileDrawer`'s prop of the same name — hides the WhatsApp send action when the business hasn't enabled that integration. */
+  whatsappEnabled?: boolean
+}
+
+export default function MobileComprobantes({ whatsappEnabled = true }: MobileComprobantesProps = {}) {
   const [filter, setFilter] = useState<ComprobanteFilter>('todos')
+  const queryClient = useQueryClient()
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['mobile-comprobantes'],
@@ -115,6 +141,69 @@ export default function MobileComprobantes() {
 
   const vouchers = data?.items ?? []
   const filteredVouchers = useMemo(() => filterVouchersByType(vouchers, filter), [vouchers, filter])
+
+  // In-app PDF viewer — same pattern as MobileSales' `showPdf`/`closePdfViewer`:
+  // revoke any previously-shown blob URL before creating (or discarding) a
+  // new one, so object URLs never leak across views.
+  const [viewingPdfUrl, setViewingPdfUrl] = useState<string | null>(null)
+  const [viewingPdfTitle, setViewingPdfTitle] = useState<string | undefined>(undefined)
+  const [loadingPdfId, setLoadingPdfId] = useState<string | null>(null)
+
+  const handleViewPdf = async (voucher: Voucher) => {
+    setLoadingPdfId(voucher.id)
+    try {
+      const blob = await vouchersService.getPdf(voucher.id)
+      setViewingPdfUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return URL.createObjectURL(blob)
+      })
+      setViewingPdfTitle(`${voucher.sale_point}-${voucher.number}`)
+    } catch (pdfError) {
+      toast.error(formatErrorMessage(pdfError))
+    } finally {
+      setLoadingPdfId(null)
+    }
+  }
+
+  const closePdfViewer = () => {
+    setViewingPdfUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+  }
+
+  // Delete flow — ported byte-for-byte from desktop Vouchers.tsx's
+  // `deleteMutation` (~lines 459-483): a mandatory reason, and a real branch
+  // on `authorization_required` (four-eyes principle) since a queued-for-
+  // approval delete is a genuine success state with its own toast copy.
+  const [deleteTarget, setDeleteTarget] = useState<Voucher | null>(null)
+  const [deleteReason, setDeleteReason] = useState('')
+
+  const closeDeleteModal = () => {
+    setDeleteTarget(null)
+    setDeleteReason('')
+  }
+
+  const deleteMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => vouchersService.delete(id, reason),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['mobile-comprobantes'] })
+      if (response.authorization_required) {
+        toast.success(response.message || 'Solicitud de autorización enviada', { icon: '🔒' })
+      } else {
+        toast.success('Comprobante eliminado correctamente', { icon: '✅' })
+      }
+      closeDeleteModal()
+    },
+    onError: (deleteError) => {
+      toast.error(formatErrorMessage(deleteError))
+    },
+  })
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget || !deleteReason.trim()) return
+    deleteMutation.mutate({ id: deleteTarget.id, reason: deleteReason.trim() })
+  }
 
   if (isLoading) {
     return (
@@ -170,6 +259,15 @@ export default function MobileComprobantes() {
             const typeColors = COMPROBANTE_TYPE_COLORS[typeKey]
             const status = resolveComprobanteStatus(voucher)
             const clientName = voucher.client?.name ?? 'Consumidor final'
+            const isFactura = typeKey === 'factura'
+            // Mirrors desktop's exact delete eligibility (Vouchers.tsx ~1816-1830):
+            // never for Factura (use a Nota de Crédito instead), never already
+            // soft-deleted, never linked to a current-account closure.
+            const canDelete =
+              !isFactura &&
+              !voucher.deleted_at &&
+              !voucher.is_current_account_closure &&
+              !voucher.is_receipt_linked_to_current_account_closure
             return (
               <div
                 key={voucher.id}
@@ -205,11 +303,100 @@ export default function MobileComprobantes() {
                     {formatCurrency(voucher.total)}
                   </p>
                 </div>
+
+                {/* Acciones */}
+                <div className="mt-1 flex items-center gap-[7px] border-t border-[#ece6f6] pt-2">
+                  <button
+                    type="button"
+                    onClick={() => handleViewPdf(voucher)}
+                    disabled={loadingPdfId === voucher.id}
+                    aria-label={`Ver PDF ${voucher.sale_point}-${voucher.number}`}
+                    className="flex h-7 w-7 items-center justify-center rounded-[9px] disabled:opacity-50"
+                    style={{ background: '#ece6f6' }}
+                  >
+                    <Eye size={14} color="#7c5ca8" />
+                  </button>
+                  {whatsappEnabled && isFactura && (
+                    <WhatsAppSendPdfButton
+                      getPdfBlob={() => vouchersService.getPdf(voucher.id)}
+                      filename={`comprobante-${voucher.sale_point}-${voucher.number}.pdf`}
+                      caption={`Comprobante ${voucher.sale_point}-${voucher.number}`}
+                      defaultClientId={voucher.billing_client_id || voucher.client_id}
+                    />
+                  )}
+                  {canDelete && (
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(voucher)}
+                      aria-label={`Eliminar comprobante ${voucher.sale_point}-${voucher.number}`}
+                      className="flex h-7 w-7 items-center justify-center rounded-[9px]"
+                      style={{ background: '#fdecea' }}
+                    >
+                      <Trash2 size={14} color="#c0392b" />
+                    </button>
+                  )}
+                </div>
               </div>
             )
           })
         )}
       </div>
+
+      <PdfViewerSheet
+        open={viewingPdfUrl !== null}
+        onClose={closePdfViewer}
+        pdfUrl={viewingPdfUrl}
+        title={viewingPdfTitle}
+      />
+
+      {/* Modal de confirmación de eliminación — mandatory reason + real
+          authorization_required branch, mirroring desktop's delete modal
+          (Vouchers.tsx ~2001-2067). */}
+      {deleteTarget && (
+        <div
+          role="dialog"
+          aria-label="Eliminar comprobante"
+          className="fixed inset-0 z-[410] flex items-end justify-center bg-black/40 sm:items-center"
+        >
+          <div className="w-full max-w-[380px] rounded-t-[20px] bg-white p-5 sm:rounded-[20px]">
+            <p className="text-base font-extrabold text-[#121325]">¿Estás seguro?</p>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-[#7b6b95]">
+              Vas a eliminar el comprobante <strong>{`${deleteTarget.sale_point}-${deleteTarget.number}`}</strong>. El
+              registro quedará marcado como eliminado pero visible en el historial.
+            </p>
+
+            <label htmlFor="mobile-comprobante-delete-reason" className="mt-4 block text-[11px] font-semibold text-[#5b5570]">
+              Motivo de eliminación *
+            </label>
+            <input
+              id="mobile-comprobante-delete-reason"
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              placeholder="Ej: Error en los datos, duplicado, etc."
+              required
+              className="mt-1 h-[42px] w-full rounded-[11px] border border-[#ece6f6] bg-[#f7f4fb] px-3 text-sm text-[#121325] outline-none"
+            />
+
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                className="flex-1 rounded-[11px] border border-[#ece6f6] py-[11px] text-[12.5px] font-bold text-[#5b5570]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deleteMutation.isPending || !deleteReason.trim()}
+                className="flex-1 rounded-[11px] bg-[#c0392b] py-[11px] text-[12.5px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
