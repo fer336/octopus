@@ -88,7 +88,7 @@ export default function MobileProducts({ cart: _cart, onAddToCart, onOpenScanner
         <button
           type="button"
           onClick={() => setCategoryId(undefined)}
-          className="flex-none rounded-full px-[13px] py-[7px] text-[12.5px] font-semibold"
+          className="flex-none rounded-full px-[13px] py-[7px] text-[10.5px] font-semibold"
           style={{
             background: categoryId === undefined ? '#7c5ca8' : '#fff',
             color: categoryId === undefined ? '#fff' : '#5b5570',
@@ -102,7 +102,7 @@ export default function MobileProducts({ cart: _cart, onAddToCart, onOpenScanner
             key={category.id}
             type="button"
             onClick={() => setCategoryId(category.id)}
-            className="flex-none rounded-full px-[13px] py-[7px] text-[12.5px] font-semibold"
+            className="flex-none rounded-full px-[13px] py-[7px] text-[10.5px] font-semibold"
             style={{
               background: categoryId === category.id ? '#7c5ca8' : '#fff',
               color: categoryId === category.id ? '#fff' : '#5b5570',
@@ -143,7 +143,7 @@ export default function MobileProducts({ cart: _cart, onAddToCart, onOpenScanner
                     </span>
                   )}
                 </div>
-                <p className="text-[13.5px] font-semibold leading-tight text-[#121325]">{product.description}</p>
+                <p className="text-[11.5px] font-semibold leading-tight text-[#121325]">{product.description}</p>
                 <p className="mt-[3px] text-[11.5px] text-[#9089a0]">
                   {brand} · Stock {product.current_stock} · Lista ${product.list_price.toLocaleString('es-AR')}
                 </p>

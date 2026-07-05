@@ -51,7 +51,7 @@ import { formatErrorMessage } from '../../utils/errorHelpers'
 function MutationErrorBanner({ message }: { message: string | null }) {
   if (!message) return null
   return (
-    <p role="alert" className="mt-2 text-[12.5px] font-semibold text-[#c0392b]">
+    <p role="alert" className="mt-2 text-[10.5px] font-semibold text-[#c0392b]">
       {message}
     </p>
   )
@@ -140,7 +140,7 @@ function OpenCashState() {
         type="button"
         onClick={handleSubmit}
         disabled={openCash.isPending}
-        className="mt-4 rounded-xl px-5 py-3 text-[13.5px] font-bold text-white disabled:opacity-60"
+        className="mt-4 rounded-xl px-5 py-3 text-[11.5px] font-bold text-white disabled:opacity-60"
         style={{ background: '#7c5ca8', boxShadow: '0 8px 18px rgba(92,58,140,.35)' }}
       >
         {openCash.isPending ? 'Abriendo...' : 'Abrir caja'}
@@ -201,7 +201,7 @@ function MovementSheet({ cashRegisterId, onClose }: MovementSheetProps) {
               key={option}
               type="button"
               onClick={() => setType(option)}
-              className="flex-1 rounded-[11px] px-[14px] py-2.5 text-[13px] font-bold"
+              className="flex-1 rounded-[11px] px-[14px] py-2.5 text-[11px] font-bold"
               style={{
                 background: type === option ? (option === 'INCOME' ? '#3d8c47' : '#c0392b') : '#fff',
                 color: type === option ? '#fff' : '#5b5570',
@@ -253,7 +253,7 @@ function MovementSheet({ cashRegisterId, onClose }: MovementSheetProps) {
           type="button"
           onClick={handleSubmit}
           disabled={!canSubmit || addMovement.isPending}
-          className="mt-1 rounded-[13px] py-3 text-[14px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-1 rounded-[13px] py-3 text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
           style={{ background: 'linear-gradient(140deg,#7c5ca8,#5c3a8c)', boxShadow: '0 8px 18px rgba(92,58,140,.35)' }}
         >
           {addMovement.isPending ? 'Guardando...' : 'Confirmar'}
@@ -316,7 +316,7 @@ function CloseCashSheet({ expectedCash, onClose }: CloseCashSheetProps) {
       </div>
 
       <div className="flex flex-col gap-3 overflow-y-auto px-[18px] py-4">
-        <p className="text-[12.5px] text-[#7b6b95]">
+        <p className="text-[10.5px] text-[#7b6b95]">
           Efectivo esperado: <span className="font-semibold text-[#121325]">{formatCurrency(expectedCash)}</span>
         </p>
 
@@ -347,7 +347,7 @@ function CloseCashSheet({ expectedCash, onClose }: CloseCashSheetProps) {
           type="button"
           onClick={handleSubmit}
           disabled={!canSubmit || closeCash.isPending}
-          className="mt-1 rounded-[13px] py-3 text-[14px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-1 rounded-[13px] py-3 text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
           style={{ background: '#c0392b', boxShadow: '0 8px 18px rgba(192,57,43,.35)' }}
         >
           {closeCash.isPending ? 'Cerrando...' : 'Confirmar cierre'}
@@ -407,12 +407,12 @@ export default function MobileCaja() {
             <span className="h-2.5 w-2.5 animate-pulse rounded-full" style={{ background: '#7ecf86' }} />
             Caja abierta
           </div>
-          <p className="font-display mt-1.5 text-[34px] font-extrabold leading-[1.05] tracking-tight">
+          <p className="font-display mt-1.5 text-[31px] font-extrabold leading-[1.05] tracking-tight">
             {formatCurrency(expectedCash)}
           </p>
           {isExpired && (
             <div
-              className="mt-2.5 flex items-start gap-1.5 rounded-[11px] p-2.5 text-[12px] leading-snug"
+              className="mt-2.5 flex items-start gap-1.5 rounded-[11px] p-2.5 text-[10px] leading-snug"
               style={{ background: 'rgba(255,255,255,.16)' }}
             >
               <AlertTriangle size={15} className="mt-0.5 shrink-0" />
@@ -426,7 +426,7 @@ export default function MobileCaja() {
               type="button"
               onClick={() => setMovementSheetOpen(true)}
               disabled={isExpired}
-              className="flex-1 rounded-[11px] py-2.5 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-1 rounded-[11px] py-2.5 text-[11px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: 'rgba(255,255,255,.16)' }}
             >
               Movimiento
@@ -434,7 +434,7 @@ export default function MobileCaja() {
             <button
               type="button"
               onClick={() => setCloseSheetOpen(true)}
-              className="flex-1 rounded-[11px] py-2.5 text-[13px] font-bold"
+              className="flex-1 rounded-[11px] py-2.5 text-[11px] font-bold"
               style={{ background: '#fff', color: '#1a3d1f' }}
             >
               Cerrar caja
@@ -450,14 +450,14 @@ export default function MobileCaja() {
             <TrendingUp size={14} color="#3d8c47" strokeWidth={2} />
             Ingresos
           </div>
-          <p className="font-display mt-1.5 text-[20px] font-extrabold text-[#121325]">{formatCurrency(income)}</p>
+          <p className="font-display mt-1.5 text-[17px] font-extrabold text-[#121325]">{formatCurrency(income)}</p>
         </div>
         <div className="rounded-2xl border border-[#ece6f6] bg-white p-3.5">
           <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-[#c0392b]">
             <TrendingDown size={14} color="#c0392b" strokeWidth={2} />
             Egresos
           </div>
-          <p className="font-display mt-1.5 text-[20px] font-extrabold text-[#121325]">{formatCurrency(expense)}</p>
+          <p className="font-display mt-1.5 text-[17px] font-extrabold text-[#121325]">{formatCurrency(expense)}</p>
         </div>
       </div>
 
@@ -467,7 +467,7 @@ export default function MobileCaja() {
       </p>
       {movements.length === 0 ? (
         <div className="rounded-[15px] border border-dashed border-[#d9caeb] bg-white p-[24px_18px] text-center text-[#9089a0]">
-          <p className="text-[13.5px]">Todavía no hay movimientos registrados hoy.</p>
+          <p className="text-[11.5px]">Todavía no hay movimientos registrados hoy.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-[9px]">
@@ -487,7 +487,7 @@ export default function MobileCaja() {
                   <Icon size={17} color={color} strokeWidth={2.4} />
                 </div>
                 <div className="flex-1">
-                  <p className="text-[13px] font-semibold text-[#121325]">
+                  <p className="text-[11px] font-semibold text-[#121325]">
                     {movement.description || MOVEMENT_TYPE_LABELS[movement.type]}
                   </p>
                   <p className="text-[11px] text-[#9089a0]">

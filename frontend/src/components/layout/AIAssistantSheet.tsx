@@ -84,13 +84,13 @@ export default function AIAssistantSheet({ open, onClose }: AIAssistantSheetProp
             {m.error ? (
               <div
                 role="alert"
-                className="max-w-[82%] rounded-2xl border border-red-200 bg-red-50 p-[11px_13px] text-[13.5px] leading-relaxed text-red-700"
+                className="max-w-[82%] rounded-2xl border border-red-200 bg-red-50 p-[11px_13px] text-[11.5px] leading-relaxed text-red-700"
               >
                 {m.text}
               </div>
             ) : (
               <div
-                className="max-w-[82%] rounded-2xl p-[11px_13px] text-[13.5px] leading-relaxed"
+                className="max-w-[82%] rounded-2xl p-[11px_13px] text-[11.5px] leading-relaxed"
                 style={
                   m.role === 'user'
                     ? { background: '#7c5ca8', color: '#fff' }
@@ -125,7 +125,7 @@ export default function AIAssistantSheet({ open, onClose }: AIAssistantSheetProp
             if (e.key === 'Enter') send(input)
           }}
           placeholder="Escribí tu consulta…"
-          className="h-[46px] flex-1 rounded-[14px] border border-[#e7e0f2] bg-white px-[14px] text-[13.5px] text-[#121325] outline-none"
+          className="h-[46px] flex-1 rounded-[14px] border border-[#e7e0f2] bg-white px-[14px] text-[11.5px] text-[#121325] outline-none"
         />
         <button
           type="button"

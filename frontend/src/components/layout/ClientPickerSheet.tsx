@@ -109,13 +109,13 @@ export default function ClientPickerSheet({ open, onClose, onSelect }: ClientPic
         )}
 
         {isError && (
-          <p role="alert" className="mt-2 px-1 text-[12.5px] font-semibold text-[#c0392b]">
+          <p role="alert" className="mt-2 px-1 text-[10.5px] font-semibold text-[#c0392b]">
             {formatErrorMessage(error)}
           </p>
         )}
 
         {!isLoading && !isError && hasQuery && (results ?? []).length === 0 && (
-          <p className="mt-2 px-1 text-[12.5px] text-[#9089a0]">No encontramos clientes para esa búsqueda.</p>
+          <p className="mt-2 px-1 text-[10.5px] text-[#9089a0]">No encontramos clientes para esa búsqueda.</p>
         )}
 
         <div className="mt-2 flex flex-col gap-[7px]">

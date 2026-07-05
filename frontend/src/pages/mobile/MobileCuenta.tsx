@@ -130,7 +130,7 @@ export default function MobileCuenta() {
         <p className="max-w-[260px] text-sm leading-relaxed text-[#7b6b95]">
           No pudimos cargar los saldos de cuenta corriente.
         </p>
-        <p role="alert" className="mt-2 text-[12.5px] font-semibold text-[#c0392b]">
+        <p role="alert" className="mt-2 text-[10.5px] font-semibold text-[#c0392b]">
           {formatErrorMessage(error)}
         </p>
       </div>
@@ -150,7 +150,7 @@ export default function MobileCuenta() {
         >
           Total por cobrar
         </p>
-        <p className="font-display mt-1.5 text-[32px] font-extrabold leading-[1.05] tracking-tight">
+        <p className="font-display mt-1.5 text-[29px] font-extrabold leading-[1.05] tracking-tight">
           {formatCurrency(totalReceivable)}
         </p>
         <p className="mt-0.5 text-xs" style={{ color: 'rgba(255,255,255,.7)' }}>
@@ -174,7 +174,7 @@ export default function MobileCuenta() {
       <div className="mt-3 flex flex-col gap-[9px]">
         {filteredClients.length === 0 ? (
           <div className="rounded-[15px] border border-dashed border-[#d9caeb] bg-white p-[24px_18px] text-center text-[#9089a0]">
-            <p className="text-[13.5px]">No hay clientes con saldo para mostrar.</p>
+            <p className="text-[11.5px]">No hay clientes con saldo para mostrar.</p>
           </div>
         ) : (
           filteredClients.map((client) => {
@@ -189,7 +189,7 @@ export default function MobileCuenta() {
                   className="flex h-10 w-10 flex-none items-center justify-center rounded-xl"
                   style={{ background: '#ece6f6', color: '#7c5ca8' }}
                 >
-                  <span className="font-display text-[15px] font-extrabold">
+                  <span className="font-display text-[13px] font-extrabold">
                     {getClientInitials(client.name)}
                   </span>
                 </div>
@@ -201,7 +201,7 @@ export default function MobileCuenta() {
                   </p>
                 </div>
                 <div className="flex-none text-right">
-                  <p className="font-display text-[15px] font-extrabold" style={{ color }}>
+                  <p className="font-display text-[13px] font-extrabold" style={{ color }}>
                     {formatCurrency(Math.abs(client.current_balance))}
                   </p>
                   <p className="text-[10.5px] font-semibold" style={{ color }}>

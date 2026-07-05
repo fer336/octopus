@@ -30,7 +30,7 @@ export default function MobileStub({ stubTitle }: MobileStubProps) {
       <button
         type="button"
         onClick={() => navigate('/')}
-        className="mt-5 rounded-xl px-5 py-3 text-[13.5px] font-bold text-white"
+        className="mt-5 rounded-xl px-5 py-3 text-[11.5px] font-bold text-white"
         style={{ background: '#7c5ca8', boxShadow: '0 8px 18px rgba(92,58,140,.35)' }}
       >
         Volver al inicio

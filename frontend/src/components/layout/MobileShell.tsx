@@ -166,7 +166,7 @@ export default function MobileShell({
         >
           <Menu size={20} color="#fff" />
         </button>
-        <p className="font-display flex-1 truncate text-[21px] font-extrabold leading-tight text-white">
+        <p className="font-display flex-1 truncate text-[18px] font-extrabold leading-tight text-white">
           {headerTitle}
         </p>
         <button
@@ -179,7 +179,7 @@ export default function MobileShell({
           <Sparkles size={20} color="#fff" strokeWidth={1.8} />
         </button>
         <div
-          className="flex h-10 w-10 flex-none items-center justify-center rounded-full text-[15px] font-bold text-white"
+          className="flex h-10 w-10 flex-none items-center justify-center rounded-full text-[13px] font-bold text-white"
           style={{ background: 'linear-gradient(135deg,#3b82f6,#22c55e)', border: '2px solid rgba(255,255,255,.25)' }}
         >
           {avatarInitial}

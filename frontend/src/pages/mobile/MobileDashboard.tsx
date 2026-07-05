@@ -129,7 +129,7 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
             <CreditCard size={15} color="#7ecf86" strokeWidth={2} />
             Ingresado en caja
           </div>
-          <p className="font-display mt-1.5 text-[38px] font-extrabold leading-[1.05] tracking-tight">
+          <p className="font-display mt-1.5 text-[35px] font-extrabold leading-[1.05] tracking-tight">
             {formatCurrency(summary?.cash_income || 0)}
           </p>
           <div className="flex items-center gap-[5px] text-xs" style={{ color: 'rgba(224,245,226,.8)' }}>
@@ -144,13 +144,13 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
               <p className="text-[10px] uppercase tracking-[.1em]" style={{ color: 'rgba(224,245,226,.7)' }}>
                 Facturado
               </p>
-              <p className="mt-0.5 text-[15px] font-bold">{formatCurrency(summary?.total_sales || 0)}</p>
+              <p className="mt-0.5 text-[13px] font-bold">{formatCurrency(summary?.total_sales || 0)}</p>
             </div>
             <div className="flex-1">
               <p className="text-[10px] uppercase tracking-[.1em]" style={{ color: 'rgba(224,245,226,.7)' }}>
                 Pendiente
               </p>
-              <p className="mt-0.5 text-[15px] font-bold">
+              <p className="mt-0.5 text-[13px] font-bold">
                 {formatCurrency(summary?.pending_customer_balance || 0)}
               </p>
             </div>
@@ -158,7 +158,7 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
               <p className="text-[10px] uppercase tracking-[.1em]" style={{ color: 'rgba(224,245,226,.7)' }}>
                 Facturas
               </p>
-              <p className="mt-0.5 text-[15px] font-bold">{summary?.total_invoices || 0}</p>
+              <p className="mt-0.5 text-[13px] font-bold">{summary?.total_invoices || 0}</p>
             </div>
           </div>
         </div>
@@ -171,7 +171,7 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
             <ShoppingCart size={14} color="#7c5ca8" strokeWidth={2} />
             Ventas hoy
           </div>
-          <p className="font-display mt-1.5 text-[22px] font-extrabold text-[#121325]">
+          <p className="font-display mt-1.5 text-[19px] font-extrabold text-[#121325]">
             {formatCurrency(summary?.today_sales || 0)}
           </p>
         </div>
@@ -180,7 +180,7 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
             <FileText size={14} color="#7c5ca8" strokeWidth={2} />
             Comprob.
           </div>
-          <p className="font-display mt-1.5 text-[22px] font-extrabold text-[#121325]">
+          <p className="font-display mt-1.5 text-[19px] font-extrabold text-[#121325]">
             {summary?.today_vouchers_count ?? 0}
           </p>
         </div>
@@ -194,7 +194,7 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
           style={{ background: donutTotal > 0 ? `conic-gradient(${gradientStops})` : '#ece6f6' }}
         >
           <div className="flex h-[54px] w-[54px] items-center justify-center rounded-full bg-white">
-            <span className="font-display text-[13px] font-extrabold text-[#121325]">
+            <span className="font-display text-[11px] font-extrabold text-[#121325]">
               {formatCurrencyShort(summary?.cash_income || 0)}
             </span>
           </div>

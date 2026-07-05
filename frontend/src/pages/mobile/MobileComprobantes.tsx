@@ -130,7 +130,7 @@ export default function MobileComprobantes() {
         <p className="max-w-[260px] text-sm leading-relaxed text-[#7b6b95]">
           No pudimos cargar los comprobantes.
         </p>
-        <p role="alert" className="mt-2 text-[12.5px] font-semibold text-[#c0392b]">
+        <p role="alert" className="mt-2 text-[10.5px] font-semibold text-[#c0392b]">
           {formatErrorMessage(error)}
         </p>
       </div>
@@ -146,7 +146,7 @@ export default function MobileComprobantes() {
             key={chip.key}
             type="button"
             onClick={() => setFilter(chip.key)}
-            className="flex-none rounded-full px-[13px] py-[7px] text-[12.5px] font-semibold"
+            className="flex-none rounded-full px-[13px] py-[7px] text-[10.5px] font-semibold"
             style={{
               background: filter === chip.key ? '#7c5ca8' : '#fff',
               color: filter === chip.key ? '#fff' : '#5b5570',
@@ -162,7 +162,7 @@ export default function MobileComprobantes() {
       <div className="mt-3 flex flex-col gap-[9px]">
         {filteredVouchers.length === 0 ? (
           <div className="rounded-[15px] border border-dashed border-[#d9caeb] bg-white p-[24px_18px] text-center text-[#9089a0]">
-            <p className="text-[13.5px]">No hay comprobantes para mostrar.</p>
+            <p className="text-[11.5px]">No hay comprobantes para mostrar.</p>
           </div>
         ) : (
           filteredVouchers.map((voucher) => {
@@ -185,7 +185,7 @@ export default function MobileComprobantes() {
                     >
                       {COMPROBANTE_TYPE_LABELS[typeKey]}
                     </span>
-                    <span className="truncate font-mono text-[12.5px] font-semibold text-[#121325]">
+                    <span className="truncate font-mono text-[10.5px] font-semibold text-[#121325]">
                       {`${voucher.sale_point}-${voucher.number}`}
                     </span>
                   </div>
@@ -201,7 +201,7 @@ export default function MobileComprobantes() {
                     <p className="truncate text-sm font-semibold text-[#121325]">{clientName}</p>
                     <p className="text-[11.5px] text-[#9089a0]">{formatComprobanteDate(voucher.date)}</p>
                   </div>
-                  <p className="font-display flex-none text-[15px] font-extrabold text-[#121325]">
+                  <p className="font-display flex-none text-[13px] font-extrabold text-[#121325]">
                     {formatCurrency(voucher.total)}
                   </p>
                 </div>

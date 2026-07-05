@@ -338,7 +338,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
             key={type}
             type="button"
             onClick={() => setDocType(type)}
-            className="flex-none rounded-[11px] px-[14px] py-2 text-[12.5px] font-semibold"
+            className="flex-none rounded-[11px] px-[14px] py-2 text-[10.5px] font-semibold"
             style={{
               background: docType === type ? '#7c5ca8' : '#fff',
               color: docType === type ? '#fff' : '#5b5570',
@@ -396,7 +396,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
             <button
               type="button"
               onClick={onNavigateToProductos}
-              className="flex items-center gap-1 text-[12.5px] font-bold text-[#7c5ca8]"
+              className="flex items-center gap-1 text-[10.5px] font-bold text-[#7c5ca8]"
             >
               Agregar
               <Plus size={15} strokeWidth={2.4} />
@@ -405,11 +405,11 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
 
           {cartEmpty && (
             <div className="rounded-[15px] border border-dashed border-[#d9caeb] bg-white p-[34px_18px] text-center text-[#9089a0]">
-              <p className="text-[13.5px]">Todavía no agregaste productos.</p>
+              <p className="text-[11.5px]">Todavía no agregaste productos.</p>
               <button
                 type="button"
                 onClick={onNavigateToProductos}
-                className="mt-3 rounded-[11px] bg-[#7c5ca8] px-[18px] py-2.5 text-[13px] font-bold text-white"
+                className="mt-3 rounded-[11px] bg-[#7c5ca8] px-[18px] py-2.5 text-[11px] font-bold text-white"
               >
                 Buscar productos
               </button>
@@ -426,7 +426,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
                   >
                     {line.code}
                   </span>
-                  <p className="flex-1 text-[13px] font-semibold leading-tight text-[#121325]">{line.desc}</p>
+                  <p className="flex-1 text-[11px] font-semibold leading-tight text-[#121325]">{line.desc}</p>
                   <button
                     type="button"
                     onClick={() => remove(line.code)}
@@ -475,7 +475,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
                     onChange={(e) => updateDiscount(line.code, Number(e.target.value) || 0)}
                     placeholder="Desc. %"
                     aria-label={`Descuento de ${line.desc}`}
-                    className="w-[64px] rounded-[9px] border border-[#ece6f6] bg-[#f7f4fb] px-2 py-1 text-right text-[12px] font-semibold text-[#121325] outline-none"
+                    className="w-[64px] rounded-[9px] border border-[#ece6f6] bg-[#f7f4fb] px-2 py-1 text-right text-[10px] font-semibold text-[#121325] outline-none"
                   />
                   <span className="text-[11px] text-[#9089a0]">% desc.</span>
                 </div>
@@ -494,11 +494,11 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
         >
           {!isAcopio && (
             <>
-              <div className="mb-[3px] flex justify-between text-[12.5px] text-[#7b6b95]">
+              <div className="mb-[3px] flex justify-between text-[10.5px] text-[#7b6b95]">
                 <span>Subtotal (sin IVA)</span>
                 <span className="font-semibold text-[#121325]">{formatCurrency(totals.subtotal)}</span>
               </div>
-              <div className="mb-2 flex justify-between text-[12.5px] text-[#7b6b95]">
+              <div className="mb-2 flex justify-between text-[10.5px] text-[#7b6b95]">
                 <span>IVA (21%)</span>
                 <span className="font-semibold text-[#121325]">{formatCurrency(totals.iva)}</span>
               </div>
@@ -518,7 +518,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
               type="button"
               onClick={handleSubmit}
               disabled={!canSubmit}
-              className="flex items-center gap-[7px] rounded-[13px] px-5 py-[13px] text-[14.5px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center gap-[7px] rounded-[13px] px-5 py-[13px] text-[12.5px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: 'linear-gradient(140deg,#7c5ca8,#5c3a8c)', boxShadow: '0 8px 18px rgba(92,58,140,.35)' }}
             >
               {isSubmitting ? 'Procesando...' : CTA_LABELS[docType]}
