@@ -54,11 +54,13 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { Minus, Plus, Trash2, User, ArrowRight } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
 import vouchersService, { type VoucherCreate } from '../../api/vouchersService'
 import stockpileService from '../../api/stockpileService'
 import type { Client } from '../../api/clientsService'
 import ClientPickerSheet from '../../components/layout/ClientPickerSheet'
 import type { CartLine } from '../../components/layout/MobileShell'
+import { formatErrorMessage } from '../../utils/errorHelpers'
 
 interface MobileSalesProps {
   cart: CartLine[]
@@ -128,14 +130,46 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
   const [acopioAmount, setAcopioAmount] = useState('')
   const [acopioDiscount, setAcopioDiscount] = useState('')
 
+  /**
+   * KNOWN GAP vs desktop (not fixed here, flagged for a dedicated follow-up):
+   * desktop's `createVoucherMutation.onSuccess` (Sales.tsx ~888-935) additionally
+   * calls `arcaService.emitInvoice()` for real invoice types (invoice_a/b/c,
+   * not invoice_x) to get a CAE from AFIP/ARCA, and DELETES the voucher if that
+   * emission fails/mismatches — a voucher without CAE is not fiscally valid.
+   * This mobile screen does not replicate that step: a "Factura" submitted from
+   * here is created in the DB but never emitted, unlike desktop. Do not treat
+   * the toast.success below as fiscal confirmation for Factura until that gap
+   * is closed.
+   */
   const createVoucherMutation = useMutation({
     mutationFn: (payload: VoucherCreate) => vouchersService.create(payload),
+    onSuccess: (data) => {
+      const fullNumber = data.sale_point ? `${data.sale_point}-${data.number}` : data.number
+      toast.success(`Comprobante ${fullNumber} generado correctamente`)
+      setCart([])
+      setSelectedClient(null)
+    },
+    onError: (error) => {
+      toast.error('Error al generar el comprobante: ' + formatErrorMessage(error))
+    },
   })
 
   const createAcopioMutation = useMutation({
     mutationFn: (payload: Parameters<typeof stockpileService.createByAmount>[0]) =>
       stockpileService.createByAmount(payload),
+    onSuccess: (data) => {
+      toast.success(`Acopio "${data.name}" creado correctamente`)
+      setAcopioName('')
+      setAcopioAmount('')
+      setAcopioDiscount('')
+      setSelectedClient(null)
+    },
+    onError: (error) => {
+      toast.error('Error al crear acopio: ' + formatErrorMessage(error))
+    },
   })
+
+  const isSubmitting = createVoucherMutation.isPending || createAcopioMutation.isPending
 
   const decrement = (code: string) => {
     setCart((prev) =>
@@ -159,7 +193,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
   const acopioAmountValue = Number(acopioAmount) || 0
   const acopioFormValid = acopioName.trim().length > 0 && acopioAmountValue > 0
   /** Mirrors desktop Sales.tsx's `!selectedClient` guard for every doc type; Acopio additionally requires its own mini-form (name + amount) to be filled, mirroring desktop's `handleGenerateClick` Acopio validation. "Consumidor final" is a display placeholder, never a submittable client. */
-  const canSubmit = !noClientSelected && (!isAcopio || acopioFormValid)
+  const canSubmit = !noClientSelected && (!isAcopio || acopioFormValid) && !isSubmitting
   const submitBlockedReason = noClientSelected
     ? 'Elegí un cliente para continuar'
     : isAcopio && !acopioFormValid
@@ -397,7 +431,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
               className="flex items-center gap-[7px] rounded-[13px] px-5 py-[13px] text-[14.5px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: 'linear-gradient(140deg,#7c5ca8,#5c3a8c)', boxShadow: '0 8px 18px rgba(92,58,140,.35)' }}
             >
-              {CTA_LABELS[docType]}
+              {isSubmitting ? 'Procesando...' : CTA_LABELS[docType]}
               <ArrowRight size={17} strokeWidth={2.4} />
             </button>
           </div>

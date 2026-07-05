@@ -8,10 +8,12 @@ import type { CartLine } from '../../../components/layout/MobileShell'
 import type { Client } from '../../../api/clientsService'
 import type { VoucherCreate } from '../../../api/vouchersService'
 
-const { searchMock, createMock, createByAmountMock } = vi.hoisted(() => ({
+const { searchMock, createMock, createByAmountMock, toastSuccessMock, toastErrorMock } = vi.hoisted(() => ({
   searchMock: vi.fn(),
   createMock: vi.fn(),
   createByAmountMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
+  toastErrorMock: vi.fn(),
 }))
 
 vi.mock('../../../api/clientsService', () => ({
@@ -24,6 +26,10 @@ vi.mock('../../../api/vouchersService', () => ({
 
 vi.mock('../../../api/stockpileService', () => ({
   default: { createByAmount: createByAmountMock },
+}))
+
+vi.mock('react-hot-toast', () => ({
+  default: { success: toastSuccessMock, error: toastErrorMock },
 }))
 
 import MobileSales, { mergeCartLine, calculateTotals } from '../../../pages/mobile/MobileSales'
@@ -433,5 +439,70 @@ describe('MobileSales — cart price MUST be net, not gross, for correct IVA mat
     await waitFor(() => expect(createMock).toHaveBeenCalled())
     const payload = createMock.mock.calls[0][0] as VoucherCreate
     expect(payload.items[0].unit_price).toBe(1000)
+  })
+})
+
+describe('MobileSales — submit feedback (previously silent: tapping the CTA gave no success/error signal at all)', () => {
+  it('shows a success toast and clears the cart once vouchersService.create() resolves', async () => {
+    createMock.mockResolvedValue({ id: 'v1', sale_point: '0001', number: '00000042', voucher_type: 'quotation' })
+
+    renderSales([makeLine()])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalled())
+    expect(screen.getByText(/todavía no agregaste productos/i)).toBeInTheDocument()
+  })
+
+  it('shows a visible error toast and keeps the cart intact when vouchersService.create() rejects', async () => {
+    createMock.mockRejectedValue(new Error('Network Error'))
+
+    renderSales([makeLine()])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith(expect.stringMatching(/network error/i)))
+    expect(screen.getByText('Producto A')).toBeInTheDocument()
+  })
+
+  it('shows a success toast and resets the mini-form once stockpileService.createByAmount() resolves', async () => {
+    createByAmountMock.mockResolvedValue({ id: 's1', name: 'Obra Rivadavia', stockpile_number: 1 })
+
+    renderSales([])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
+    await userEvent.type(screen.getByLabelText(/nombre del acopio/i), 'Obra Rivadavia')
+    await userEvent.type(screen.getByLabelText(/monto del acopio/i), '5000')
+    await userEvent.click(screen.getByRole('button', { name: /registrar acopio/i }))
+
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalled())
+    expect(screen.getByLabelText(/nombre del acopio/i)).toHaveValue('')
+  })
+
+  it('shows a visible error toast when stockpileService.createByAmount() rejects', async () => {
+    createByAmountMock.mockRejectedValue(new Error('Network Error'))
+
+    renderSales([])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
+    await userEvent.type(screen.getByLabelText(/nombre del acopio/i), 'Obra Rivadavia')
+    await userEvent.type(screen.getByLabelText(/monto del acopio/i), '5000')
+    await userEvent.click(screen.getByRole('button', { name: /registrar acopio/i }))
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith(expect.stringMatching(/network error/i)))
+  })
+
+  it('disables the CTA and shows a pending label while the mutation is in flight, to prevent double-submit', async () => {
+    let resolveCreate: (voucher: unknown) => void = () => {}
+    createMock.mockReturnValue(new Promise((resolve) => { resolveCreate = resolve }))
+
+    renderSales([makeLine()])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    expect(screen.getByRole('button', { name: /procesando/i })).toBeDisabled()
+
+    resolveCreate({ id: 'v1', sale_point: '0001', number: '00000042', voucher_type: 'quotation' })
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalled())
   })
 })

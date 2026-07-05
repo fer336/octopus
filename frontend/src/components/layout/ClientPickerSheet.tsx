@@ -84,17 +84,23 @@ export default function ClientPickerSheet({ open, onClose, onSelect }: ClientPic
       </div>
 
       <div className="flex-1 overflow-y-auto px-[18px] pb-6">
-        <button
-          type="button"
-          onClick={() => handleSelect(null)}
-          className="flex w-full items-center gap-[11px] rounded-[13px] p-3 text-left"
-          style={{ background: '#f7f4fb' }}
-        >
-          <div className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: '#ece6f6' }}>
-            <User size={17} color="#7c5ca8" />
-          </div>
-          <span className="text-sm font-bold text-[#121325]">Consumidor final</span>
-        </button>
+        {/* Only shown as a quick default when there's no active search — once
+            the user is searching, real results (which may include an actual
+            Client record literally named "Consumidor Final" in this tenant's
+            data) are shown instead, to avoid a confusing visual duplicate. */}
+        {!hasQuery && (
+          <button
+            type="button"
+            onClick={() => handleSelect(null)}
+            className="flex w-full items-center gap-[11px] rounded-[13px] p-3 text-left"
+            style={{ background: '#f7f4fb' }}
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: '#ece6f6' }}>
+              <User size={17} color="#7c5ca8" />
+            </div>
+            <span className="text-sm font-bold text-[#121325]">Consumidor final</span>
+          </button>
+        )}
 
         {isLoading && hasQuery && (
           <div role="status" aria-label="Buscando clientes" className="flex justify-center py-4">

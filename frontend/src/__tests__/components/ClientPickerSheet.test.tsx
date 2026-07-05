@@ -85,4 +85,25 @@ describe('ClientPickerSheet — search feedback (loading/error/empty)', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.queryByText(/no encontramos clientes/i)).not.toBeInTheDocument()
   })
+
+  it('shows only the placeholder "Consumidor final" option when the search box is empty (no query yet)', () => {
+    renderSheet()
+
+    expect(screen.getAllByText(/^consumidor final$/i)).toHaveLength(1)
+  })
+
+  it('hides the static placeholder option while a search is active, even if a real client is also literally named "Consumidor Final" (avoids the confusing duplicate)', async () => {
+    searchMock.mockResolvedValue([makeClient({ id: 'c2', name: 'Consumidor Final', document_number: '1' })])
+
+    renderSheet()
+    await userEvent.type(screen.getByPlaceholderText(/buscar por nombre o documento/i), 'cons')
+
+    // Wait for the real search result card to actually render (matched by its
+    // document_number, unique to the real client) before counting name matches
+    // — otherwise this could false-pass on the static placeholder alone before
+    // the mocked search promise resolves.
+    await screen.findByText('1')
+
+    expect(screen.getAllByText(/^consumidor final$/i)).toHaveLength(1)
+  })
 })
