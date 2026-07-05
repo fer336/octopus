@@ -110,7 +110,9 @@ function renderSales(initialCart: CartLine[] = []) {
   return { ...utils, setCartSpy }
 }
 
-let windowOpenMock: ReturnType<typeof vi.fn>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- vi.spyOn's overload-resolved return type for
+// window.open isn't cleanly expressible; this is a test-only regression-guard spy, not production code.
+let windowOpenSpy: any
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -120,18 +122,21 @@ beforeEach(() => {
   getPdfMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }))
   getVoucherByIdMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }))
   paymentMethodsGetAllMock.mockResolvedValue([])
-  // jsdom doesn't implement URL.createObjectURL — stub it so the PDF auto-open
-  // flow (window.location.href = URL.createObjectURL(blob)) is exercisable.
+  // jsdom doesn't implement URL.createObjectURL — stub it so the in-app PDF
+  // viewer (PdfViewerSheet's pdfUrl, built via URL.createObjectURL(blob)) is
+  // exercisable.
   ;(URL as unknown as { createObjectURL: (blob: Blob) => string }).createObjectURL = vi.fn(() => 'blob:mock-url')
-  // window.open must be mocked to return a fake window handle — mirrors the
-  // popup-blocker-safe pattern under test (handleSubmit opens a blank tab
-  // synchronously, then the mutation's onSuccess routes the PDF into it).
-  windowOpenMock = vi.fn(() => ({ location: {} }) as unknown as Window)
-  vi.stubGlobal('open', windowOpenMock)
+  // jsdom doesn't implement URL.revokeObjectURL either — stub it so
+  // PdfViewerSheet's close/replace flow (which revokes the previous blob
+  // URL) doesn't throw.
+  ;(URL as unknown as { revokeObjectURL: (url: string) => void }).revokeObjectURL = vi.fn()
+  // window.open is no longer used by this screen (replaced by the in-app
+  // PdfViewerSheet) — kept spied only so tests can assert it's NEVER called.
+  windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
+  windowOpenSpy.mockRestore()
 })
 
 describe('MobileSales — mergeCartLine (pure reducer, reused from MobileShell.handleAddToCart)', () => {
@@ -633,22 +638,21 @@ describe('MobileSales — submit feedback (previously silent: tapping the CTA ga
   })
 })
 
-describe('MobileSales — auto-open generated PDF after success (mirrors desktop\'s post-success getPdf/getVoucherById flow, popup-blocker-safe)', () => {
-  it('opens a blank tab synchronously on submit, then routes the voucher PDF into it once vouchersService.getPdf resolves', async () => {
+describe('MobileSales — in-app PDF viewer after success (replaces the old new-tab window.open flow, mirrors desktop\'s inline <iframe> Modal, Sales.tsx ~6712-6799)', () => {
+  it('shows the in-app PDF viewer with the created voucher PDF once vouchersService.getPdf resolves, and never opens a new tab', async () => {
     createMock.mockResolvedValue({ id: 'v1', sale_point: '0001', number: '00000042', voucher_type: 'quotation' })
 
     renderSales([makeLine()])
     await pickClient()
     await userEvent.click(screen.getByRole('button', { name: /generar/i }))
 
-    expect(windowOpenMock).toHaveBeenCalledWith('', '_blank')
     await waitFor(() => expect(getPdfMock).toHaveBeenCalledWith('v1'))
-
-    const openedWindow = windowOpenMock.mock.results[0]!.value as { location: { href?: string } }
-    await waitFor(() => expect(openedWindow.location.href).toBe('blob:mock-url'))
+    const iframe = (await screen.findByTitle('Visor de PDF')) as HTMLIFrameElement
+    expect(iframe.src).toContain('blob:mock-url')
+    expect(windowOpenSpy).not.toHaveBeenCalled()
   })
 
-  it('fetches the child remito PDF via stockpileService.getVoucherById when Acopio creation returns a principal_voucher_id', async () => {
+  it('shows the in-app PDF viewer with the child remito PDF via stockpileService.getVoucherById when Acopio creation returns a principal_voucher_id', async () => {
     createByAmountMock.mockResolvedValue({
       id: 's1',
       name: 'Obra Rivadavia',
@@ -664,11 +668,12 @@ describe('MobileSales — auto-open generated PDF after success (mirrors desktop
     await userEvent.click(screen.getByRole('button', { name: /registrar acopio/i }))
 
     await waitFor(() => expect(getVoucherByIdMock).toHaveBeenCalledWith('rv1'))
-    const openedWindow = windowOpenMock.mock.results[0]!.value as { location: { href?: string } }
-    await waitFor(() => expect(openedWindow.location.href).toBe('blob:mock-url'))
+    const iframe = (await screen.findByTitle('Visor de PDF')) as HTMLIFrameElement
+    expect(iframe.src).toContain('blob:mock-url')
+    expect(windowOpenSpy).not.toHaveBeenCalled()
   })
 
-  it('does NOT call stockpileService.getVoucherById when Acopio creation has no principal_voucher_id', async () => {
+  it('does NOT show the PDF viewer when Acopio creation has no principal_voucher_id', async () => {
     createByAmountMock.mockResolvedValue({
       id: 's1',
       name: 'Obra Rivadavia',
@@ -685,11 +690,11 @@ describe('MobileSales — auto-open generated PDF after success (mirrors desktop
 
     await waitFor(() => expect(toastSuccessMock).toHaveBeenCalled())
     expect(getVoucherByIdMock).not.toHaveBeenCalled()
+    expect(screen.queryByTitle('Visor de PDF')).not.toBeInTheDocument()
   })
 
-  it('completes the success flow (toast + cart clear) without throwing when window.open returns null (blocked popup)', async () => {
-    windowOpenMock = vi.fn(() => null)
-    vi.stubGlobal('open', windowOpenMock)
+  it('completes the success flow (toast + cart clear) without throwing or showing a viewer when the PDF fetch fails', async () => {
+    getPdfMock.mockRejectedValue(new Error('PDF fetch failed'))
     createMock.mockResolvedValue({ id: 'v1', sale_point: '0001', number: '00000042', voucher_type: 'quotation' })
 
     renderSales([makeLine()])
@@ -698,6 +703,124 @@ describe('MobileSales — auto-open generated PDF after success (mirrors desktop
 
     await waitFor(() => expect(toastSuccessMock).toHaveBeenCalled())
     expect(screen.getByText(/todavía no agregaste productos/i)).toBeInTheDocument()
+    expect(screen.queryByTitle('Visor de PDF')).not.toBeInTheDocument()
+  })
+
+  it('closes the viewer when the close button is clicked', async () => {
+    createMock.mockResolvedValue({ id: 'v1', sale_point: '0001', number: '00000042', voucher_type: 'quotation' })
+
+    renderSales([makeLine()])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await screen.findByTitle('Visor de PDF')
+    await userEvent.click(screen.getByLabelText('Cerrar visor de PDF'))
+
+    expect(screen.queryByTitle('Visor de PDF')).not.toBeInTheDocument()
+  })
+})
+
+describe('MobileSales — payment method amount auto-fill (ported from desktop handleTogglePayment/handlePaymentAmountChange, Sales.tsx ~2793-2873)', () => {
+  it('auto-fills the amount to the full total when selecting the only payment method', async () => {
+    paymentMethodsGetAllMock.mockResolvedValue([makePaymentMethod({ id: 'pm1', name: 'Efectivo' })])
+    renderSales([makeLine({ qty: 1, price: 1000 })]) // total = 1210
+    await pickClient()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Efectivo' }))
+
+    expect(screen.getByLabelText(/monto de efectivo/i)).toHaveValue(1210)
+  })
+
+  it("auto-fills the second selected method's amount to the remaining difference when another method is already selected+filled", async () => {
+    paymentMethodsGetAllMock.mockResolvedValue([
+      makePaymentMethod({ id: 'pm1', name: 'Efectivo' }),
+      makePaymentMethod({ id: 'pm3', name: 'Transferencia' }),
+    ])
+    renderSales([makeLine({ qty: 1, price: 1000 })]) // total = 1210
+    await pickClient()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Efectivo' }))
+    await userEvent.clear(screen.getByLabelText(/monto de efectivo/i))
+    await userEvent.type(screen.getByLabelText(/monto de efectivo/i), '500')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Transferencia' }))
+
+    expect(screen.getByLabelText(/monto de transferencia/i)).toHaveValue(710)
+  })
+
+  it('clears the amount and reference back to empty when deselecting an already-selected method', async () => {
+    paymentMethodsGetAllMock.mockResolvedValue([
+      makePaymentMethod({ id: 'pm2', name: 'Cheque', requires_reference: true }),
+    ])
+    renderSales([makeLine({ qty: 1, price: 1000 })]) // total = 1210
+    await pickClient()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Cheque' }))
+    await userEvent.clear(screen.getByLabelText(/monto de cheque/i))
+    await userEvent.type(screen.getByLabelText(/monto de cheque/i), '999')
+    await userEvent.type(screen.getByLabelText(/referencia de cheque/i), 'Nro 001')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cheque' })) // deselect
+
+    // Re-select: if the previous amount/reference weren't actually cleared,
+    // the stale '999'/'Nro 001' would survive (amount is only auto-filled
+    // when it was previously falsy) — re-selecting proves the clear happened.
+    await userEvent.click(screen.getByRole('button', { name: 'Cheque' }))
+    expect(screen.getByLabelText(/monto de cheque/i)).toHaveValue(1210)
+    expect(screen.getByLabelText(/referencia de cheque/i)).toHaveValue('')
+  })
+
+  it("auto-balances the other method's amount when manually editing one, while exactly one other method is selected", async () => {
+    paymentMethodsGetAllMock.mockResolvedValue([
+      makePaymentMethod({ id: 'pm1', name: 'Efectivo' }),
+      makePaymentMethod({ id: 'pm3', name: 'Transferencia' }),
+    ])
+    renderSales([makeLine({ qty: 1, price: 1000 })]) // total = 1210
+    await pickClient()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Efectivo' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Transferencia' }))
+
+    await userEvent.clear(screen.getByLabelText(/monto de efectivo/i))
+    await userEvent.type(screen.getByLabelText(/monto de efectivo/i), '900')
+
+    expect(screen.getByLabelText(/monto de efectivo/i)).toHaveValue(900)
+    expect(screen.getByLabelText(/monto de transferencia/i)).toHaveValue(310)
+  })
+
+  it('does not try to auto-balance anything when editing an amount with no other method selected (no crash, no phantom method)', async () => {
+    paymentMethodsGetAllMock.mockResolvedValue([makePaymentMethod({ id: 'pm1', name: 'Efectivo' })])
+    renderSales([makeLine({ qty: 1, price: 1000 })])
+    await pickClient()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Efectivo' }))
+    await userEvent.clear(screen.getByLabelText(/monto de efectivo/i))
+    await userEvent.type(screen.getByLabelText(/monto de efectivo/i), '333')
+
+    expect(screen.getByLabelText(/monto de efectivo/i)).toHaveValue(333)
+    expect(screen.getAllByRole('button', { name: 'Efectivo' })).toHaveLength(1)
+  })
+
+  it('does not auto-adjust any other method\'s amount when editing while TWO other methods are selected (ambiguous case, desktop skips it too)', async () => {
+    paymentMethodsGetAllMock.mockResolvedValue([
+      makePaymentMethod({ id: 'pm1', name: 'Efectivo' }),
+      makePaymentMethod({ id: 'pm3', name: 'Transferencia' }),
+      makePaymentMethod({ id: 'pm4', name: 'Tarjeta' }),
+    ])
+    renderSales([makeLine({ qty: 1, price: 1000 })]) // total = 1210
+    await pickClient()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Efectivo' }))
+    await userEvent.clear(screen.getByLabelText(/monto de efectivo/i))
+    await userEvent.type(screen.getByLabelText(/monto de efectivo/i), '400')
+    await userEvent.click(screen.getByRole('button', { name: 'Transferencia' })) // auto-fills to 810
+    await userEvent.click(screen.getByRole('button', { name: 'Tarjeta' })) // difference is 0, stays empty
+
+    await userEvent.clear(screen.getByLabelText(/monto de efectivo/i))
+    await userEvent.type(screen.getByLabelText(/monto de efectivo/i), '250')
+
+    expect(screen.getByLabelText(/monto de transferencia/i)).toHaveValue(810)
+    expect(screen.getByLabelText(/monto de tarjeta/i)).toHaveValue(null)
   })
 })
 
@@ -771,6 +894,10 @@ describe('MobileSales — optional payment methods (ported from desktop buildPay
     await pickClient()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Efectivo' }))
+    // Selecting the only method already auto-fills its amount to the full
+    // total (see the dedicated auto-fill describe block below) — clear it
+    // first so this test exercises manual entry independently of that.
+    await userEvent.clear(screen.getByLabelText(/monto de efectivo/i))
     await userEvent.type(screen.getByLabelText(/monto de efectivo/i), '1210')
     await userEvent.click(screen.getByRole('button', { name: /generar/i }))
 
@@ -787,6 +914,7 @@ describe('MobileSales — optional payment methods (ported from desktop buildPay
     await pickClient()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Cheque' }))
+    await userEvent.clear(screen.getByLabelText(/monto de cheque/i))
     await userEvent.type(screen.getByLabelText(/monto de cheque/i), '1210')
 
     expect(screen.getByRole('button', { name: /generar/i })).toBeDisabled()
@@ -804,6 +932,7 @@ describe('MobileSales — optional payment methods (ported from desktop buildPay
     await pickClient()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Cheque' }))
+    await userEvent.clear(screen.getByLabelText(/monto de cheque/i))
     await userEvent.type(screen.getByLabelText(/monto de cheque/i), '1210')
     await userEvent.type(screen.getByLabelText(/referencia de cheque/i), 'Nro 001')
 
@@ -820,6 +949,7 @@ describe('MobileSales — optional payment methods (ported from desktop buildPay
     await pickClient()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Efectivo' }))
+    await userEvent.clear(screen.getByLabelText(/monto de efectivo/i))
     await userEvent.type(screen.getByLabelText(/monto de efectivo/i), '500')
 
     expect(screen.getByText(/\$500.*no coincide con el total.*\$1210/i)).toBeInTheDocument()
@@ -838,9 +968,12 @@ describe('MobileSales — optional payment methods (ported from desktop buildPay
     await pickClient()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Efectivo' }))
+    await userEvent.clear(screen.getByLabelText(/monto de efectivo/i))
     await userEvent.type(screen.getByLabelText(/monto de efectivo/i), '700')
+    // Selecting Transferencia now auto-fills it to the remaining difference
+    // (1210 - 700 = 510) — see the auto-fill describe block below — so no
+    // manual typing is needed here.
     await userEvent.click(screen.getByRole('button', { name: 'Transferencia' }))
-    await userEvent.type(screen.getByLabelText(/monto de transferencia/i), '510')
 
     await userEvent.click(screen.getByRole('button', { name: /generar/i }))
 

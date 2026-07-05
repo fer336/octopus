@@ -60,7 +60,7 @@
  * checkbox/Phase-2-pending flow is intentionally NOT implemented — that
  * field is optional in `createByAmount`'s type and is simply omitted here.
  */
-import { useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useState, type Dispatch, type SetStateAction } from 'react'
 import { Minus, Plus, Trash2, User, ArrowRight } from 'lucide-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
@@ -69,6 +69,7 @@ import stockpileService from '../../api/stockpileService'
 import paymentMethodsService, { type PaymentMethod } from '../../api/paymentMethodsService'
 import type { Client } from '../../api/clientsService'
 import ClientPickerSheet from '../../components/layout/ClientPickerSheet'
+import PdfViewerSheet from '../../components/layout/PdfViewerSheet'
 import type { CartLine } from '../../components/layout/MobileShell'
 import { formatErrorMessage } from '../../utils/errorHelpers'
 
@@ -257,18 +258,70 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
   const paymentMethods = paymentMethodsData ?? []
   const [paymentSelections, setPaymentSelections] = useState<PaymentSelections>({})
 
+  /**
+   * Ported byte-for-byte from desktop `Sales.tsx`'s `handleTogglePayment`
+   * (~lines 2793-2837). When SELECTING a method: `currentlyAssigned` sums the
+   * amounts of every OTHER already-selected method; `difference` is what's
+   * left of the voucher's current total (mobile: `totals.total`, computed
+   * locally instead of desktop's network `totalsPreviewQuery` — same value,
+   * no extra request needed). If the method's own amount is still empty and
+   * there's a positive difference, it's auto-filled to that difference —
+   * this is what makes "the only selected method" auto-fill to the full
+   * total, and "the second selected method" auto-fill to the remaining
+   * balance. When DESELECTING, amount/reference are cleared back to ''.
+   */
   const togglePaymentMethod = (methodId: string) => {
     setPaymentSelections((prev) => {
-      const existing = prev[methodId] ?? { selected: false, amount: '', reference: '' }
-      return { ...prev, [methodId]: { ...existing, selected: !existing.selected } }
+      const current = prev[methodId] ?? { selected: false, amount: '', reference: '' }
+      const selected = !current.selected
+
+      if (!selected) {
+        return { ...prev, [methodId]: { ...current, selected, amount: '', reference: '' } }
+      }
+
+      const currentlyAssigned = Object.entries(prev).reduce((acc, [id, data]) => {
+        if (id === methodId || !data.selected) return acc
+        const amountValue = Number(data.amount)
+        return acc + (Number.isFinite(amountValue) ? amountValue : 0)
+      }, 0)
+      const difference = Math.max(0, totals.total - currentlyAssigned)
+      const newAmount = !current.amount && difference > 0 ? difference.toFixed(2) : current.amount
+
+      return {
+        ...prev,
+        [methodId]: { ...current, selected, amount: newAmount, reference: current.reference || '' },
+      }
     })
   }
 
+  /**
+   * Ported byte-for-byte from desktop `Sales.tsx`'s `handlePaymentAmountChange`
+   * (~lines 2839-2873): a two-way auto-balance for a split payment. If
+   * exactly ONE other method is currently selected and the newly-typed value
+   * is a finite number `<= total`, that other method's amount is adjusted to
+   * `total - newValue` so both sum to the total. With zero or 2+ other
+   * methods selected, nothing is auto-adjusted (ambiguous which one should
+   * absorb the difference) — the typed value is just set as-is.
+   */
   const updatePaymentAmount = (methodId: string, amount: string) => {
-    setPaymentSelections((prev) => ({
-      ...prev,
-      [methodId]: { ...(prev[methodId] ?? { selected: true, amount: '', reference: '' }), amount },
-    }))
+    setPaymentSelections((prev) => {
+      const otherSelectedMethods = Object.entries(prev).filter(([id, data]) => id !== methodId && data.selected)
+
+      const next: PaymentSelections = {
+        ...prev,
+        [methodId]: { ...(prev[methodId] ?? { selected: true, amount: '', reference: '' }), amount },
+      }
+
+      if (otherSelectedMethods.length === 1) {
+        const [otherMethodId] = otherSelectedMethods[0]
+        const newValueNumber = Number(amount)
+        if (Number.isFinite(newValueNumber) && newValueNumber <= totals.total) {
+          next[otherMethodId] = { ...next[otherMethodId], amount: (totals.total - newValueNumber).toFixed(2) }
+        }
+      }
+
+      return next
+    })
   }
 
   const updatePaymentReference = (methodId: string, reference: string) => {
@@ -279,22 +332,27 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
   }
 
   /**
-   * Handle to the blank tab opened synchronously inside `handleSubmit` (the
-   * real click handler), BEFORE `.mutate(...)` is called. Most mobile
-   * browsers only allow `window.open()` when it runs in the same synchronous
-   * call stack as the user gesture that triggered it — opening it here and
-   * only navigating it later (once the PDF blob resolves, inside a `.then`/
-   * `useMutation` `onSuccess`) is the standard popup-blocker-safe pattern.
-   * `null` means the browser blocked it outright (or `handleSubmit` didn't
-   * open one for this submission) — every consumer of this ref must treat
-   * that as a silent no-op, never an error.
+   * In-app PDF viewer state — replaces the previous new-tab
+   * (`window.open`/pre-opened-window) mechanism. `showPdf` revokes any
+   * previously-shown blob URL before creating the new one (both here and in
+   * `closePdfViewer`) so we never leak object URLs across submissions.
    */
-  const pdfWindowRef = useRef<Window | null>(null)
+  const [viewingPdfUrl, setViewingPdfUrl] = useState<string | null>(null)
+  const [viewingPdfTitle, setViewingPdfTitle] = useState<string | undefined>(undefined)
 
-  const openPdfInPreopenedWindow = (blob: Blob) => {
-    const win = pdfWindowRef.current
-    if (!win) return
-    win.location.href = URL.createObjectURL(blob)
+  const showPdf = (blob: Blob, title?: string) => {
+    setViewingPdfUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return URL.createObjectURL(blob)
+    })
+    setViewingPdfTitle(title)
+  }
+
+  const closePdfViewer = () => {
+    setViewingPdfUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
   }
 
   /**
@@ -322,12 +380,13 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
       setSelectedClient(null)
 
       // Mirrors desktop Sales.tsx's post-success PDF flow (~lines 888-935):
-      // fetch the just-created voucher's PDF and show it. A failure here is
-      // just the PDF step failing, NOT the voucher creation itself — the
-      // voucher already exists, so the success toast/cart-clear above stand.
+      // fetch the just-created voucher's PDF and show it in the in-app
+      // viewer. A failure here is just the PDF step failing, NOT the voucher
+      // creation itself — the voucher already exists, so the success
+      // toast/cart-clear above stand.
       try {
         const blob = await vouchersService.getPdf(data.id)
-        openPdfInPreopenedWindow(blob)
+        showPdf(blob, `Comprobante ${fullNumber}`)
       } catch (error) {
         console.error('Error al descargar el PDF del comprobante:', error)
       }
@@ -353,7 +412,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
       if (data.principal_voucher_id) {
         try {
           const blob = await stockpileService.getVoucherById(data.principal_voucher_id)
-          openPdfInPreopenedWindow(blob)
+          showPdf(blob, `Acopio "${data.name}"`)
         } catch (error) {
           console.error('Error al descargar el PDF del remito de acopio:', error)
         }
@@ -414,10 +473,6 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
     if (!canSubmit || !selectedClient) return
 
     if (isAcopio) {
-      // Popup-blocker-safe: open the blank tab HERE, synchronously inside the
-      // click handler, before the async mutation kicks off — see
-      // `pdfWindowRef`'s doc comment above.
-      pdfWindowRef.current = window.open('', '_blank')
       createAcopioMutation.mutate({
         client_id: selectedClient.id,
         billing_client_id: selectedClient.id,
@@ -430,7 +485,6 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
     }
 
     if (cartEmpty) return
-    pdfWindowRef.current = window.open('', '_blank')
     const payload: VoucherCreate = {
       client_id: selectedClient.id,
       voucher_type: resolveVoucherType(docType, selectedClient.tax_condition),
@@ -741,6 +795,13 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
         open={clientPickerOpen}
         onClose={() => setClientPickerOpen(false)}
         onSelect={(client) => setSelectedClient(client)}
+      />
+
+      <PdfViewerSheet
+        open={viewingPdfUrl !== null}
+        onClose={closePdfViewer}
+        pdfUrl={viewingPdfUrl}
+        title={viewingPdfTitle}
       />
     </div>
   )
