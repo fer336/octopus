@@ -82,6 +82,14 @@ describe('MobileCuenta — pure helpers', () => {
     expect(computeReceivableSummary([])).toEqual({ totalReceivable: 0, debtorCount: 0 })
   })
 
+  it('computeReceivableSummary sums correctly even when current_balance arrives as a string, matching real backend JSON (Decimal fields serialize as strings in Pydantic v2, not numbers) — same class of bug as MobileCaja\'s "$0000000000000" regression', () => {
+    const clients = [
+      makeClient({ id: '1', current_balance: '1000.00' as unknown as number }),
+      makeClient({ id: '2', current_balance: '2000.00' as unknown as number }),
+    ]
+    expect(computeReceivableSummary(clients)).toEqual({ totalReceivable: 3000, debtorCount: 2 })
+  })
+
   it('filterClientsByQuery is case-insensitive and matches by name substring', () => {
     const clients = [
       makeClient({ id: '1', name: 'Ferretería López' }),

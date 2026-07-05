@@ -211,10 +211,11 @@ export default function MobileMetodosPago() {
         <button
           type="button"
           onClick={openCreateSheet}
-          className="flex h-[46px] flex-none items-center gap-1.5 rounded-[13px] bg-[#7c5ca8] px-3 text-[12.5px] font-bold text-white"
+          aria-label="Nuevo método"
+          className="flex h-[46px] w-[46px] flex-none items-center justify-center rounded-[13px]"
+          style={{ background: 'linear-gradient(140deg,#5c3a8c,#7c5ca8)', boxShadow: '0 6px 14px rgba(92,58,140,.35)' }}
         >
-          <Plus size={18} />
-          Nuevo método
+          <Plus size={22} color="#fff" />
         </button>
       </div>
 

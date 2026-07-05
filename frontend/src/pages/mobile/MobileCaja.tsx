@@ -73,12 +73,24 @@ export function formatMovementTime(iso: string): string {
   return toUTC(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
-/** Aggregates the real per-method summary into the two headline totals the design's Ingresos/Egresos cards need. */
+/**
+ * Aggregates the real per-method summary into the two headline totals the
+ * design's Ingresos/Egresos cards need.
+ *
+ * Backend money fields are typed `Decimal` (see `PaymentMethodSummary`) —
+ * Pydantic v2 serializes `Decimal` to a JSON **string** (e.g. `"150.00"`),
+ * not a number, despite the TS type saying `number`. Summing raw fields with
+ * `+` on strings does JS string CONCATENATION, not addition (e.g.
+ * `0 + "0" + "0" + "0"` → `"0000"`), which is exactly the "$0000000000000"
+ * bug a real user reported. Every field must be `Number(...)`-coerced before
+ * `+` — desktop's codebase already does this defensively everywhere for the
+ * same reason (see `Sales.tsx`'s pervasive `Number(x) || 0` wrapping).
+ */
 export function computeIncomeExpenseTotals(byMethod: PaymentMethodSummary[]): { income: number; expense: number } {
   return byMethod.reduce(
     (acc, m) => ({
-      income: acc.income + m.total_sales + m.total_payments_received + m.total_income,
-      expense: acc.expense + m.total_expense,
+      income: acc.income + Number(m.total_sales) + Number(m.total_payments_received) + Number(m.total_income),
+      expense: acc.expense + Number(m.total_expense),
     }),
     { income: 0, expense: 0 }
   )
@@ -96,8 +108,9 @@ export function sortMovementsByRecency(movements: CashMovement[]): CashMovement[
 
 // ─── Formatting ─────────────────────────────────────────────────────────────
 
+/** Defensively coerces to Number first — a raw Decimal-sourced field (see `computeIncomeExpenseTotals`'s doc comment) displayed directly, without going through arithmetic first, would otherwise silently render as an unformatted string (e.g. "$2.00" instead of "$2,00", no thousands separator). */
 const formatCurrency = (value: number) =>
-  `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  `$${Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 const formatSignedCurrency = (value: number, direction: 'income' | 'expense') =>
   `${direction === 'expense' ? '-' : '+'}${formatCurrency(value)}`

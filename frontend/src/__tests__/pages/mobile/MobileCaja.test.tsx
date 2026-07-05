@@ -127,6 +127,28 @@ describe('MobileCaja — pure helpers', () => {
     expect(computeIncomeExpenseTotals([])).toEqual({ income: 0, expense: 0 })
   })
 
+  it('computeIncomeExpenseTotals sums correctly even when fields arrive as strings, matching real backend JSON (Decimal fields serialize as strings in Pydantic v2, not numbers) — regression test for the "$0000000000000" string-concatenation bug', () => {
+    const byMethod = [
+      {
+        payment_method: 'CASH',
+        total_sales: '1000.00',
+        total_payments_received: '500.00',
+        total_income: '200.00',
+        total_expense: '300.00',
+        net: '1400.00',
+      },
+      {
+        payment_method: 'CARD',
+        total_sales: '2000.00',
+        total_payments_received: '0',
+        total_income: '0',
+        total_expense: '100.00',
+        net: '1900.00',
+      },
+    ] as unknown as PaymentMethodSummary[]
+    expect(computeIncomeExpenseTotals(byMethod)).toEqual({ income: 3700, expense: 400 })
+  })
+
   it('hasClosingDifference is false when counted is null (auto-close)', () => {
     expect(hasClosingDifference(null, 5000)).toBe(false)
   })

@@ -56,14 +56,25 @@ export function resolveBalanceStatus(balance: number): BalanceStatus {
   return 'al_dia'
 }
 
-/** "Total por cobrar" and debtor count consider ONLY clients with a positive balance. */
+/**
+ * "Total por cobrar" and debtor count consider ONLY clients with a positive
+ * balance.
+ *
+ * `Client.current_balance` is backend `Decimal` — Pydantic v2 serializes
+ * `Decimal` to a JSON **string** (e.g. `"1500.00"`), not a number, despite
+ * the TS type saying `number`. `>`/`<` comparisons coerce strings to numbers
+ * fine, but `+` on a string CONCATENATES instead of adding (e.g.
+ * `0 + "1500.00"` → `"01500.00"`) — the same class of bug confirmed in
+ * `MobileCaja.tsx`'s `computeIncomeExpenseTotals`. Coerce with `Number(...)`
+ * before summing.
+ */
 export function computeReceivableSummary(
   clients: Client[]
 ): { totalReceivable: number; debtorCount: number } {
   return clients.reduce(
     (acc, c) =>
       c.current_balance > 0
-        ? { totalReceivable: acc.totalReceivable + c.current_balance, debtorCount: acc.debtorCount + 1 }
+        ? { totalReceivable: acc.totalReceivable + Number(c.current_balance), debtorCount: acc.debtorCount + 1 }
         : acc,
     { totalReceivable: 0, debtorCount: 0 }
   )
@@ -87,8 +98,9 @@ export function getClientInitials(name: string): string {
 
 // ─── Formatting ─────────────────────────────────────────────────────────────
 
+/** Defensively coerces to Number first — see `computeReceivableSummary`'s doc comment on backend Decimal fields arriving as JSON strings. */
 const formatCurrency = (value: number) =>
-  `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  `$${Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 // ─── Main screen ────────────────────────────────────────────────────────────
 

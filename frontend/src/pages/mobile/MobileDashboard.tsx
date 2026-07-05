@@ -17,8 +17,9 @@ interface MobileDashboardProps {
   onNavigate: (target: MobileNavTarget) => void
 }
 
+/** Defensively coerces to Number first — backend `Decimal` fields (e.g. dashboard totals) serialize as JSON strings (Pydantic v2), not numbers, despite the TS type saying `number`; a value displayed with no arithmetic first would otherwise render unformatted. */
 const formatCurrency = (value: number) =>
-  `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  `$${Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 /** Shortened currency for tight spaces (e.g. donut center): $624k for 624563.65. */
 const formatCurrencyShort = (value: number) =>

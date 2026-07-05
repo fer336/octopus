@@ -119,8 +119,9 @@ export function formatComprobanteDate(value: string): string {
 
 // ─── Formatting ─────────────────────────────────────────────────────────────
 
+/** Defensively coerces to Number first — `Voucher.total` is backend `Decimal`, which serializes as a JSON string (Pydantic v2), not a number, despite the TS type saying `number`. Displayed directly with no arithmetic in between, so without this it would silently render unformatted (e.g. "$2.00" instead of "$2,00"). */
 const formatCurrency = (value: number) =>
-  `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  `$${Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 // ─── Main screen ────────────────────────────────────────────────────────────
 

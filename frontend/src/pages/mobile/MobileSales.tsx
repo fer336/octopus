@@ -110,8 +110,9 @@ export function resolveVoucherType(docType: DocType, taxCondition: string | unde
   return taxCondition === 'RI' ? 'invoice_a' : 'invoice_b'
 }
 
+/** Defensively coerces to Number first — backend `Decimal` fields (e.g. a product's `net_price`) serialize as JSON strings (Pydantic v2), not numbers; `*` auto-coerces so `calculateTotals`'s math is safe either way, but a value reaching here without going through arithmetic first would otherwise render unformatted. */
 const formatCurrency = (value: number) =>
-  `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  `$${Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 const IVA_RATE = 0.21
 
