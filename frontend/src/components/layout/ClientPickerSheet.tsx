@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react'
 import { Search, User, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import clientsService, { type Client } from '../../api/clientsService'
+import { formatErrorMessage } from '../../utils/errorHelpers'
 
 interface ClientPickerSheetProps {
   open: boolean
@@ -35,10 +36,12 @@ export default function ClientPickerSheet({ open, onClose, onSelect }: ClientPic
     }
   }, [open])
 
-  const { data: results } = useQuery({
+  const hasQuery = debouncedQuery.trim().length > 0
+
+  const { data: results, isLoading, isError, error } = useQuery({
     queryKey: ['mobile-client-search', debouncedQuery],
     queryFn: () => clientsService.search(debouncedQuery),
-    enabled: open && debouncedQuery.trim().length > 0,
+    enabled: open && hasQuery,
     retry: false,
   })
 
@@ -92,6 +95,22 @@ export default function ClientPickerSheet({ open, onClose, onSelect }: ClientPic
           </div>
           <span className="text-sm font-bold text-[#121325]">Consumidor final</span>
         </button>
+
+        {isLoading && hasQuery && (
+          <div role="status" aria-label="Buscando clientes" className="flex justify-center py-4">
+            <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-primary-600" />
+          </div>
+        )}
+
+        {isError && (
+          <p role="alert" className="mt-2 px-1 text-[12.5px] font-semibold text-[#c0392b]">
+            {formatErrorMessage(error)}
+          </p>
+        )}
+
+        {!isLoading && !isError && hasQuery && (results ?? []).length === 0 && (
+          <p className="mt-2 px-1 text-[12.5px] text-[#9089a0]">No encontramos clientes para esa búsqueda.</p>
+        )}
 
         <div className="mt-2 flex flex-col gap-[7px]">
           {(results ?? []).map((client) => (
