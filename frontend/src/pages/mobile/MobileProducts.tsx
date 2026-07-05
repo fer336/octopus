@@ -171,6 +171,7 @@ export default function MobileProducts({ cart: _cart, onAddToCart, onOpenScanner
                       qty: 1,
                       price: product.net_price,
                       product_id: product.id,
+                      discount: 0,
                     })
                   }
                   aria-label={`Agregar ${product.description} al carrito`}

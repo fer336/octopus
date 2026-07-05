@@ -198,8 +198,8 @@ describe('MobileShell — tab bar', () => {
 
   it('shows the cart badge with the line count on the Vender FAB when cart has items', () => {
     renderShell([
-      { code: 'P1', desc: 'Producto 1', qty: 1, price: 100, product_id: 'p1' },
-      { code: 'P2', desc: 'Producto 2', qty: 2, price: 200, product_id: 'p2' },
+      { code: 'P1', desc: 'Producto 1', qty: 1, price: 100, product_id: 'p1', discount: 0 },
+      { code: 'P2', desc: 'Producto 2', qty: 2, price: 200, product_id: 'p2', discount: 0 },
     ])
     expect(screen.getByTestId('cart-badge')).toHaveTextContent('2')
   })

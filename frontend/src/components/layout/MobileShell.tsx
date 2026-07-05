@@ -40,6 +40,8 @@ export interface CartLine {
   qty: number
   price: number
   product_id: string
+  /** Per-line discount percentage (0-100), mirrors desktop Sales.tsx's per-item `discount` field. */
+  discount: number
 }
 
 type MobileTab = 'inicio' | 'productos' | 'ventas' | 'caja' | 'cuenta' | 'comprobantes' | 'stub'

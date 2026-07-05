@@ -51,7 +51,7 @@
  * checkbox/Phase-2-pending flow is intentionally NOT implemented — that
  * field is optional in `createByAmount`'s type and is simply omitted here.
  */
-import { useState, type Dispatch, type SetStateAction } from 'react'
+import { useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { Minus, Plus, Trash2, User, ArrowRight } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
@@ -113,10 +113,33 @@ export function mergeCartLine(cart: CartLine[], line: CartLine): CartLine[] {
   return next
 }
 
+/**
+ * Ported byte-for-byte from desktop Sales.tsx's `calculateBackendCompatibleTotalFromCart`
+ * (lines 270-291): each line's subtotal/iva/total are rounded to cents
+ * INDEPENDENTLY before being summed, to exactly match how the backend avoids
+ * compounding rounding drift (summing already-rounded per-line values, not
+ * recomputing `subtotal + iva` from the rounded aggregates). Desktop also
+ * multiplies by a `generalDiscountFactor` for an order-level discount; mobile
+ * has no general-discount UI and always sends `general_discount: 0` in the
+ * voucher payload, so that factor is always 1 and is simply omitted here.
+ */
+const roundMoney = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100
+
 export function calculateTotals(cart: CartLine[]): { subtotal: number; iva: number; total: number } {
-  const subtotal = cart.reduce((sum, line) => sum + line.qty * line.price, 0)
-  const iva = subtotal * IVA_RATE
-  return { subtotal, iva, total: subtotal + iva }
+  return cart.reduce(
+    (acc, line) => {
+      const itemDiscountFactor = 1 - line.discount / 100
+      const subtotalLine = roundMoney(line.price * line.qty * itemDiscountFactor)
+      const ivaLine = roundMoney(subtotalLine * IVA_RATE)
+      const totalLine = roundMoney(subtotalLine + ivaLine)
+      return {
+        subtotal: roundMoney(acc.subtotal + subtotalLine),
+        iva: roundMoney(acc.iva + ivaLine),
+        total: roundMoney(acc.total + totalLine),
+      }
+    },
+    { subtotal: 0, iva: 0, total: 0 }
+  )
 }
 
 export default function MobileSales({ cart, setCart, onNavigateToProductos }: MobileSalesProps) {
@@ -131,6 +154,25 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
   const [acopioDiscount, setAcopioDiscount] = useState('')
 
   /**
+   * Handle to the blank tab opened synchronously inside `handleSubmit` (the
+   * real click handler), BEFORE `.mutate(...)` is called. Most mobile
+   * browsers only allow `window.open()` when it runs in the same synchronous
+   * call stack as the user gesture that triggered it — opening it here and
+   * only navigating it later (once the PDF blob resolves, inside a `.then`/
+   * `useMutation` `onSuccess`) is the standard popup-blocker-safe pattern.
+   * `null` means the browser blocked it outright (or `handleSubmit` didn't
+   * open one for this submission) — every consumer of this ref must treat
+   * that as a silent no-op, never an error.
+   */
+  const pdfWindowRef = useRef<Window | null>(null)
+
+  const openPdfInPreopenedWindow = (blob: Blob) => {
+    const win = pdfWindowRef.current
+    if (!win) return
+    win.location.href = URL.createObjectURL(blob)
+  }
+
+  /**
    * KNOWN GAP vs desktop (not fixed here, flagged for a dedicated follow-up):
    * desktop's `createVoucherMutation.onSuccess` (Sales.tsx ~888-935) additionally
    * calls `arcaService.emitInvoice()` for real invoice types (invoice_a/b/c,
@@ -143,11 +185,22 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
    */
   const createVoucherMutation = useMutation({
     mutationFn: (payload: VoucherCreate) => vouchersService.create(payload),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       const fullNumber = data.sale_point ? `${data.sale_point}-${data.number}` : data.number
       toast.success(`Comprobante ${fullNumber} generado correctamente`)
       setCart([])
       setSelectedClient(null)
+
+      // Mirrors desktop Sales.tsx's post-success PDF flow (~lines 888-935):
+      // fetch the just-created voucher's PDF and show it. A failure here is
+      // just the PDF step failing, NOT the voucher creation itself — the
+      // voucher already exists, so the success toast/cart-clear above stand.
+      try {
+        const blob = await vouchersService.getPdf(data.id)
+        openPdfInPreopenedWindow(blob)
+      } catch (error) {
+        console.error('Error al descargar el PDF del comprobante:', error)
+      }
     },
     onError: (error) => {
       toast.error('Error al generar el comprobante: ' + formatErrorMessage(error))
@@ -157,12 +210,24 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
   const createAcopioMutation = useMutation({
     mutationFn: (payload: Parameters<typeof stockpileService.createByAmount>[0]) =>
       stockpileService.createByAmount(payload),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast.success(`Acopio "${data.name}" creado correctamente`)
       setAcopioName('')
       setAcopioAmount('')
       setAcopioDiscount('')
       setSelectedClient(null)
+
+      // Only the acopio's initial deposit auto-generates a child "remito"
+      // receipt (`principal_voucher_id`) — a pure by-amount acopio with no
+      // upfront deposit has none, so there's simply no PDF to show.
+      if (data.principal_voucher_id) {
+        try {
+          const blob = await stockpileService.getVoucherById(data.principal_voucher_id)
+          openPdfInPreopenedWindow(blob)
+        } catch (error) {
+          console.error('Error al descargar el PDF del remito de acopio:', error)
+        }
+      }
     },
     onError: (error) => {
       toast.error('Error al crear acopio: ' + formatErrorMessage(error))
@@ -185,6 +250,10 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
     setCart((prev) => prev.filter((line) => line.code !== code))
   }
 
+  const updateDiscount = (code: string, discount: number) => {
+    setCart((prev) => prev.map((line) => (line.code === code ? { ...line, discount } : line)))
+  }
+
   const totals = calculateTotals(cart)
   const cartEmpty = cart.length === 0
   const noClientSelected = selectedClient === null
@@ -205,6 +274,10 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
     if (!canSubmit || !selectedClient) return
 
     if (isAcopio) {
+      // Popup-blocker-safe: open the blank tab HERE, synchronously inside the
+      // click handler, before the async mutation kicks off — see
+      // `pdfWindowRef`'s doc comment above.
+      pdfWindowRef.current = window.open('', '_blank')
       createAcopioMutation.mutate({
         client_id: selectedClient.id,
         billing_client_id: selectedClient.id,
@@ -217,6 +290,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
     }
 
     if (cartEmpty) return
+    pdfWindowRef.current = window.open('', '_blank')
     const payload: VoucherCreate = {
       client_id: selectedClient.id,
       voucher_type: resolveVoucherType(docType, selectedClient.tax_condition),
@@ -231,7 +305,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
         product_id: line.product_id,
         quantity: line.qty,
         unit_price: line.price,
-        discount_percent: 0,
+        discount_percent: line.discount,
       })),
     }
     createVoucherMutation.mutate(payload)
@@ -385,9 +459,25 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
                   <div className="text-right">
                     <p className="text-[11px] text-[#9089a0]">{formatCurrency(line.price)} c/u</p>
                     <p className="font-display text-base font-extrabold text-[#121325]">
-                      {formatCurrency(line.qty * line.price)}
+                      {formatCurrency(roundMoney(line.qty * line.price * (1 - line.discount / 100)))}
                     </p>
                   </div>
+                </div>
+                {/* Per-line discount — mobile-native addition (not in the
+                    static design handoff mockup), mirrors desktop Sales.tsx's
+                    per-item discount input; feeds calculateTotals/discount_percent. */}
+                <div className="mt-[9px] flex items-center justify-end gap-[6px]">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={line.discount === 0 ? '' : line.discount}
+                    onChange={(e) => updateDiscount(line.code, Number(e.target.value) || 0)}
+                    placeholder="Desc. %"
+                    aria-label={`Descuento de ${line.desc}`}
+                    className="w-[64px] rounded-[9px] border border-[#ece6f6] bg-[#f7f4fb] px-2 py-1 text-right text-[12px] font-semibold text-[#121325] outline-none"
+                  />
+                  <span className="text-[11px] text-[#9089a0]">% desc.</span>
                 </div>
               </div>
             ))}

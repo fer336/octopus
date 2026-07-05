@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -8,24 +8,27 @@ import type { CartLine } from '../../../components/layout/MobileShell'
 import type { Client } from '../../../api/clientsService'
 import type { VoucherCreate } from '../../../api/vouchersService'
 
-const { searchMock, createMock, createByAmountMock, toastSuccessMock, toastErrorMock } = vi.hoisted(() => ({
-  searchMock: vi.fn(),
-  createMock: vi.fn(),
-  createByAmountMock: vi.fn(),
-  toastSuccessMock: vi.fn(),
-  toastErrorMock: vi.fn(),
-}))
+const { searchMock, createMock, createByAmountMock, getPdfMock, getVoucherByIdMock, toastSuccessMock, toastErrorMock } =
+  vi.hoisted(() => ({
+    searchMock: vi.fn(),
+    createMock: vi.fn(),
+    createByAmountMock: vi.fn(),
+    getPdfMock: vi.fn(),
+    getVoucherByIdMock: vi.fn(),
+    toastSuccessMock: vi.fn(),
+    toastErrorMock: vi.fn(),
+  }))
 
 vi.mock('../../../api/clientsService', () => ({
   default: { search: searchMock },
 }))
 
 vi.mock('../../../api/vouchersService', () => ({
-  default: { create: createMock },
+  default: { create: createMock, getPdf: getPdfMock },
 }))
 
 vi.mock('../../../api/stockpileService', () => ({
-  default: { createByAmount: createByAmountMock },
+  default: { createByAmount: createByAmountMock, getVoucherById: getVoucherByIdMock },
 }))
 
 vi.mock('react-hot-toast', () => ({
@@ -35,7 +38,7 @@ vi.mock('react-hot-toast', () => ({
 import MobileSales, { mergeCartLine, calculateTotals } from '../../../pages/mobile/MobileSales'
 
 function makeLine(overrides: Partial<CartLine> = {}): CartLine {
-  return { code: 'P1', desc: 'Producto A', qty: 1, price: 1000, product_id: 'p1', ...overrides }
+  return { code: 'P1', desc: 'Producto A', qty: 1, price: 1000, product_id: 'p1', discount: 0, ...overrides }
 }
 
 function makeClient(overrides: Partial<Client> = {}): Client {
@@ -79,11 +82,27 @@ function renderSales(initialCart: CartLine[] = []) {
   return { ...utils, setCartSpy }
 }
 
+let windowOpenMock: ReturnType<typeof vi.fn>
+
 beforeEach(() => {
   vi.clearAllMocks()
   searchMock.mockResolvedValue([])
   createMock.mockResolvedValue({ id: 'v1' })
   createByAmountMock.mockResolvedValue({ id: 's1', name: 'Obra Rivadavia', stockpile_number: 1 })
+  getPdfMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }))
+  getVoucherByIdMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }))
+  // jsdom doesn't implement URL.createObjectURL — stub it so the PDF auto-open
+  // flow (window.location.href = URL.createObjectURL(blob)) is exercisable.
+  ;(URL as unknown as { createObjectURL: (blob: Blob) => string }).createObjectURL = vi.fn(() => 'blob:mock-url')
+  // window.open must be mocked to return a fake window handle — mirrors the
+  // popup-blocker-safe pattern under test (handleSubmit opens a blank tab
+  // synchronously, then the mutation's onSuccess routes the PDF into it).
+  windowOpenMock = vi.fn(() => ({ location: {} }) as unknown as Window)
+  vi.stubGlobal('open', windowOpenMock)
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 describe('MobileSales — mergeCartLine (pure reducer, reused from MobileShell.handleAddToCart)', () => {
@@ -115,6 +134,21 @@ describe('MobileSales — totals calculation', () => {
     expect(screen.getByText('$525,00')).toBeInTheDocument()
     expect(screen.getByText('$3.025,00')).toBeInTheDocument()
   })
+
+  it('applies a line\'s individual discount percentage to its subtotal/iva/total (ported from desktop calculateBackendCompatibleTotalFromCart)', () => {
+    const totals = calculateTotals([makeLine({ qty: 2, price: 1000, discount: 10 })])
+    // subtotalLine = round(1000*2*0.9) = 1800, ivaLine = round(1800*0.21) = 378, totalLine = 2178
+    expect(totals).toEqual({ subtotal: 1800, iva: 378, total: 2178 })
+  })
+
+  it('applies discounts independently per line, not as a single shared/global discount', () => {
+    const totals = calculateTotals([
+      makeLine({ code: 'P1', qty: 1, price: 1000, discount: 10 }),
+      makeLine({ code: 'P2', qty: 1, price: 1000, discount: 0 }),
+    ])
+    // line1: subtotal 900, iva 189, total 1089 — line2: subtotal 1000, iva 210, total 1210
+    expect(totals).toEqual({ subtotal: 1900, iva: 399, total: 2299 })
+  })
 })
 
 describe('MobileSales — cart item lifecycle (UI)', () => {
@@ -142,6 +176,30 @@ describe('MobileSales — cart item lifecycle (UI)', () => {
     await userEvent.click(screen.getByLabelText(/eliminar producto a del carrito/i))
     await waitFor(() => {
       expect(screen.queryByText('Producto A')).not.toBeInTheDocument()
+    })
+  })
+
+  it('editing a line\'s discount input updates the rendered totals bar', async () => {
+    renderSales([makeLine({ qty: 1, price: 1000 })])
+    await userEvent.type(screen.getByLabelText(/descuento de producto a/i), '10')
+
+    const totalsBar = within(await screen.findByTestId('sales-totals-bar'))
+    expect(totalsBar.getByText('$900,00')).toBeInTheDocument()
+    expect(totalsBar.getByText('$189,00')).toBeInTheDocument()
+    expect(totalsBar.getByText('$1.089,00')).toBeInTheDocument()
+  })
+
+  it('also updates the line\'s own displayed subtotal to reflect its discount (not just the totals bar)', async () => {
+    renderSales([makeLine({ qty: 1, price: 1000 })])
+    await userEvent.type(screen.getByLabelText(/descuento de producto a/i), '10')
+
+    // Line-card subtotal (qty × price × (1 - discount%)) must match the
+    // discounted amount, not the pre-discount qty×price — otherwise the card
+    // itself would misleadingly still show the undiscounted line subtotal
+    // while only the totals bar below reflected the discount.
+    await waitFor(() => {
+      const totalsBar = screen.getByTestId('sales-totals-bar')
+      expect(screen.getAllByText('$900,00').filter((el) => !totalsBar.contains(el))).toHaveLength(1)
     })
   })
 })
@@ -426,7 +484,9 @@ describe('MobileSales — cart price MUST be net, not gross, for correct IVA mat
     // itself computes from a net unit_price. If the cart wrongly carried
     // the gross price (1210) here, this would incorrectly double-tax:
     // 1210 + (1210*0.21=254.10) = 1464.10 — NOT what this asserts.
-    const totals = calculateTotals([{ code: 'P1', desc: 'Producto A', qty: 1, price: 1000, product_id: 'p1' }])
+    const totals = calculateTotals([
+      { code: 'P1', desc: 'Producto A', qty: 1, price: 1000, product_id: 'p1', discount: 0 },
+    ])
     expect(totals).toEqual({ subtotal: 1000, iva: 210, total: 1210 })
   })
 
@@ -439,6 +499,23 @@ describe('MobileSales — cart price MUST be net, not gross, for correct IVA mat
     await waitFor(() => expect(createMock).toHaveBeenCalled())
     const payload = createMock.mock.calls[0][0] as VoucherCreate
     expect(payload.items[0].unit_price).toBe(1000)
+  })
+})
+
+describe('MobileSales — per-line discount_percent in the vouchersService.create() payload (matches desktop\'s per-item discount, not a single shared value)', () => {
+  it('sends each cart line\'s own discount value as discount_percent, independently', async () => {
+    renderSales([
+      makeLine({ code: 'P1', desc: 'Producto A', qty: 1, price: 1000, discount: 10 }),
+      makeLine({ code: 'P2', desc: 'Producto B', qty: 1, price: 500, discount: 0 }),
+    ])
+    await pickClient()
+
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled())
+    const payload = createMock.mock.calls[0][0] as VoucherCreate
+    expect(payload.items[0].discount_percent).toBe(10)
+    expect(payload.items[1].discount_percent).toBe(0)
   })
 })
 
@@ -504,5 +581,73 @@ describe('MobileSales — submit feedback (previously silent: tapping the CTA ga
 
     resolveCreate({ id: 'v1', sale_point: '0001', number: '00000042', voucher_type: 'quotation' })
     await waitFor(() => expect(toastSuccessMock).toHaveBeenCalled())
+  })
+})
+
+describe('MobileSales — auto-open generated PDF after success (mirrors desktop\'s post-success getPdf/getVoucherById flow, popup-blocker-safe)', () => {
+  it('opens a blank tab synchronously on submit, then routes the voucher PDF into it once vouchersService.getPdf resolves', async () => {
+    createMock.mockResolvedValue({ id: 'v1', sale_point: '0001', number: '00000042', voucher_type: 'quotation' })
+
+    renderSales([makeLine()])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    expect(windowOpenMock).toHaveBeenCalledWith('', '_blank')
+    await waitFor(() => expect(getPdfMock).toHaveBeenCalledWith('v1'))
+
+    const openedWindow = windowOpenMock.mock.results[0]!.value as { location: { href?: string } }
+    await waitFor(() => expect(openedWindow.location.href).toBe('blob:mock-url'))
+  })
+
+  it('fetches the child remito PDF via stockpileService.getVoucherById when Acopio creation returns a principal_voucher_id', async () => {
+    createByAmountMock.mockResolvedValue({
+      id: 's1',
+      name: 'Obra Rivadavia',
+      stockpile_number: 1,
+      principal_voucher_id: 'rv1',
+    })
+
+    renderSales([])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
+    await userEvent.type(screen.getByLabelText(/nombre del acopio/i), 'Obra Rivadavia')
+    await userEvent.type(screen.getByLabelText(/monto del acopio/i), '5000')
+    await userEvent.click(screen.getByRole('button', { name: /registrar acopio/i }))
+
+    await waitFor(() => expect(getVoucherByIdMock).toHaveBeenCalledWith('rv1'))
+    const openedWindow = windowOpenMock.mock.results[0]!.value as { location: { href?: string } }
+    await waitFor(() => expect(openedWindow.location.href).toBe('blob:mock-url'))
+  })
+
+  it('does NOT call stockpileService.getVoucherById when Acopio creation has no principal_voucher_id', async () => {
+    createByAmountMock.mockResolvedValue({
+      id: 's1',
+      name: 'Obra Rivadavia',
+      stockpile_number: 1,
+      principal_voucher_id: null,
+    })
+
+    renderSales([])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: 'Acopio' }))
+    await userEvent.type(screen.getByLabelText(/nombre del acopio/i), 'Obra Rivadavia')
+    await userEvent.type(screen.getByLabelText(/monto del acopio/i), '5000')
+    await userEvent.click(screen.getByRole('button', { name: /registrar acopio/i }))
+
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalled())
+    expect(getVoucherByIdMock).not.toHaveBeenCalled()
+  })
+
+  it('completes the success flow (toast + cart clear) without throwing when window.open returns null (blocked popup)', async () => {
+    windowOpenMock = vi.fn(() => null)
+    vi.stubGlobal('open', windowOpenMock)
+    createMock.mockResolvedValue({ id: 'v1', sale_point: '0001', number: '00000042', voucher_type: 'quotation' })
+
+    renderSales([makeLine()])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: /generar/i }))
+
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalled())
+    expect(screen.getByText(/todavía no agregaste productos/i)).toBeInTheDocument()
   })
 })

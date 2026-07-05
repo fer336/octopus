@@ -175,6 +175,7 @@ describe('MobileProducts — add to cart', () => {
       qty: 1,
       price: 400,
       product_id: '1',
+      discount: 0,
     })
   })
 
@@ -186,7 +187,7 @@ describe('MobileProducts — add to cart', () => {
       ])
     )
 
-    const existingLine: CartLine = { code: 'P1', desc: 'Producto A', qty: 1, price: 400, product_id: '1' }
+    const existingLine: CartLine = { code: 'P1', desc: 'Producto A', qty: 1, price: 400, product_id: '1', discount: 0 }
     const { onAddToCart } = renderProducts({ cart: [existingLine] })
     const user = userEvent.setup()
 
@@ -199,6 +200,7 @@ describe('MobileProducts — add to cart', () => {
       qty: 1,
       price: 400,
       product_id: '1',
+      discount: 0,
     })
   })
 
