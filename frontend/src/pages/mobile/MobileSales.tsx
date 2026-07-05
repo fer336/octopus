@@ -15,9 +15,12 @@
  * covered by PR3's tests); the "Agregar +" affordance below just navigates
  * back to Productos.
  *
- * Submit guard: "Consumidor final" is a placeholder DISPLAY state only, not
- * a submittable value. `VoucherCreate.client_id` is a required real client
- * id — desktop `Sales.tsx`'s `handleConfirmGenerate` has a hard
+ * Submit guard: with no client picked yet, the client card shows "Buscar
+ * cliente" (an empty/prompt state, NOT a fake default customer) — earlier
+ * revisions showed "Consumidor final" here, which a real user flagged as
+ * misleading: it looked like a real, submittable default client when it
+ * isn't one. `VoucherCreate.client_id` is a required real client id —
+ * desktop `Sales.tsx`'s `handleConfirmGenerate` has a hard
  * `if (!selectedClient) { toast.error('Debe seleccionar un cliente'); return }`
  * guard before ever building the voucher payload; there is no generic/
  * anonymous backend client to fall back to ("Consumidor Final" in the
@@ -391,7 +394,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
   const acopioAmountValue = Number(acopioAmount) || 0
   const acopioFormValid = acopioName.trim().length > 0 && acopioAmountValue > 0
   const paymentsValidation = isAcopio ? { valid: true } : validatePayments(paymentMethods, paymentSelections, totals.total)
-  /** Mirrors desktop Sales.tsx's `!selectedClient` guard for every doc type; Acopio additionally requires its own mini-form (name + amount) to be filled, mirroring desktop's `handleGenerateClick` Acopio validation. "Consumidor final" is a display placeholder, never a submittable client. Factura is hard-blocked pending the ARCA/CAE gap (see the `KNOWN GAP` comment above `createVoucherMutation`) — never submittable regardless of client/cart. */
+  /** Mirrors desktop Sales.tsx's `!selectedClient` guard for every doc type; Acopio additionally requires its own mini-form (name + amount) to be filled, mirroring desktop's `handleGenerateClick` Acopio validation. The empty "Buscar cliente" state is a prompt, never a submittable client. Factura is hard-blocked pending the ARCA/CAE gap (see the `KNOWN GAP` comment above `createVoucherMutation`) — never submittable regardless of client/cart. */
   const canSubmit = !noClientSelected && !isFactura && (!isAcopio || acopioFormValid) && paymentsValidation.valid && !isSubmitting
   const submitBlockedReason = noClientSelected
     ? 'Elegí un cliente para continuar'
@@ -455,7 +458,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
       <button
         type="button"
         onClick={() => setClientPickerOpen(true)}
-        aria-label={`Cliente: ${selectedClient?.name ?? 'Consumidor final'}`}
+        aria-label={`Cliente: ${selectedClient?.name ?? 'Buscar cliente'}`}
         className="flex w-full items-center gap-[11px] rounded-[15px] border border-[#ece6f6] bg-white p-[13px_14px] text-left"
       >
         <div
@@ -466,7 +469,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
         </div>
         <div className="flex-1">
           <p className="text-[11px] text-[#9089a0]">Cliente</p>
-          <p className="text-sm font-bold text-[#121325]">{selectedClient?.name ?? 'Consumidor final'}</p>
+          <p className="text-sm font-bold text-[#121325]">{selectedClient?.name ?? 'Buscar cliente'}</p>
         </div>
       </button>
 

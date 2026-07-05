@@ -301,9 +301,9 @@ describe('MobileSales — doc-type switching', () => {
 })
 
 describe('MobileSales — client picker', () => {
-  it('shows "Consumidor final" by default and opens the picker sheet on tap', async () => {
+  it('shows the empty "Buscar cliente" prompt by default (not a fake default client) and opens the picker sheet on tap', async () => {
     renderSales([makeLine()])
-    expect(screen.getByText('Consumidor final')).toBeInTheDocument()
+    expect(screen.getByText('Buscar cliente')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /cliente/i }))
     expect(await screen.findByRole('dialog', { name: /buscar cliente/i })).toBeInTheDocument()
@@ -348,7 +348,7 @@ describe('MobileSales — client picker', () => {
     })
   })
 
-  it('clearing the selection reverts to Consumidor final and disables the CTA again (no submit possible without a real client)', async () => {
+  it('clearing the selection reverts to the empty "Buscar cliente" prompt and disables the CTA again (no submit possible without a real client)', async () => {
     searchMock.mockResolvedValue([makeClient({ id: 'c1', name: 'Juan Pérez' })])
 
     renderSales([makeLine()])
@@ -359,9 +359,9 @@ describe('MobileSales — client picker', () => {
     expect(screen.getByRole('button', { name: /generar/i })).toBeEnabled()
 
     await userEvent.click(screen.getByRole('button', { name: /cliente/i }))
-    await userEvent.click(await screen.findByRole('button', { name: 'Consumidor final' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Sin cliente' }))
 
-    expect(screen.getByText('Consumidor final')).toBeInTheDocument()
+    expect(screen.getByText('Buscar cliente')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /generar/i })).toBeDisabled()
 
     await userEvent.click(screen.getByRole('button', { name: /generar/i }))
@@ -370,9 +370,9 @@ describe('MobileSales — client picker', () => {
 })
 
 describe('MobileSales — submit requires a real client (matches desktop\'s !selectedClient guard)', () => {
-  it('disables the CTA submit button while the client is still the default "Consumidor final" placeholder', () => {
+  it('disables the CTA submit button while no real client has been picked yet (empty "Buscar cliente" prompt)', () => {
     renderSales([makeLine()])
-    expect(screen.getByText('Consumidor final')).toBeInTheDocument()
+    expect(screen.getByText('Buscar cliente')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /generar/i })).toBeDisabled()
   })
 

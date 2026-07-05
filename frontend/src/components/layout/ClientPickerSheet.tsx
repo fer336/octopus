@@ -84,10 +84,13 @@ export default function ClientPickerSheet({ open, onClose, onSelect }: ClientPic
       </div>
 
       <div className="flex-1 overflow-y-auto px-[18px] pb-6">
-        {/* Only shown as a quick default when there's no active search — once
-            the user is searching, real results (which may include an actual
-            Client record literally named "Consumidor Final" in this tenant's
-            data) are shown instead, to avoid a confusing visual duplicate. */}
+        {/* "Sin cliente" clears back to the empty/prompt state — explicitly
+            NOT labeled "Consumidor final", which a real user flagged as
+            misleading (looks like a real default customer, but isn't one).
+            Only shown when there's no active search — once the user is
+            searching, real results (which may include an actual Client
+            record literally named "Consumidor Final" in this tenant's data)
+            are shown instead, to avoid a confusing visual duplicate. */}
         {!hasQuery && (
           <button
             type="button"
@@ -98,7 +101,7 @@ export default function ClientPickerSheet({ open, onClose, onSelect }: ClientPic
             <div className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: '#ece6f6' }}>
               <User size={17} color="#7c5ca8" />
             </div>
-            <span className="text-sm font-bold text-[#121325]">Consumidor final</span>
+            <span className="text-sm font-bold text-[#121325]">Sin cliente</span>
           </button>
         )}
 

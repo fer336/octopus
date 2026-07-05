@@ -243,7 +243,7 @@ describe('MobileShell — tab bar', () => {
   it('renders the real MobileSales on Vender (wired in PR4)', async () => {
     renderShell()
     await userEvent.click(screen.getByRole('button', { name: 'Vender' }))
-    expect(screen.getByText('Consumidor final')).toBeInTheDocument()
+    expect(screen.getByText('Buscar cliente')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cotización' })).toBeInTheDocument()
   })
 })
@@ -253,7 +253,7 @@ describe('MobileShell — MobileDashboard quick-access wiring (PR2)', () => {
     renderShell()
     await screen.findByText(/accesos rápidos/i)
     await userEvent.click(screen.getByRole('button', { name: /nueva venta/i }))
-    expect(screen.getByText('Consumidor final')).toBeInTheDocument()
+    expect(screen.getByText('Buscar cliente')).toBeInTheDocument()
   })
 
   it('routes "Consultar precio" quick access to the Productos tab', async () => {

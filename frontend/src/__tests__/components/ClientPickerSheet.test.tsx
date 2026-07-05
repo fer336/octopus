@@ -86,24 +86,26 @@ describe('ClientPickerSheet — search feedback (loading/error/empty)', () => {
     expect(screen.queryByText(/no encontramos clientes/i)).not.toBeInTheDocument()
   })
 
-  it('shows only the placeholder "Consumidor final" option when the search box is empty (no query yet)', () => {
+  it('shows only the "Sin cliente" clear-selection option when the search box is empty (no query yet) — NOT labeled "Consumidor final", which a real user flagged as a misleading fake default client', () => {
     renderSheet()
 
-    expect(screen.getAllByText(/^consumidor final$/i)).toHaveLength(1)
+    expect(screen.getByText('Sin cliente')).toBeInTheDocument()
+    expect(screen.queryByText(/consumidor final/i)).not.toBeInTheDocument()
   })
 
-  it('hides the static placeholder option while a search is active, even if a real client is also literally named "Consumidor Final" (avoids the confusing duplicate)', async () => {
+  it('hides the "Sin cliente" clear-selection option while a search is active, even if a real client is literally named "Consumidor Final" (no collision, distinct labels, but decluttering still applies)', async () => {
     searchMock.mockResolvedValue([makeClient({ id: 'c2', name: 'Consumidor Final', document_number: '1' })])
 
     renderSheet()
     await userEvent.type(screen.getByPlaceholderText(/buscar por nombre o documento/i), 'cons')
 
     // Wait for the real search result card to actually render (matched by its
-    // document_number, unique to the real client) before counting name matches
-    // — otherwise this could false-pass on the static placeholder alone before
-    // the mocked search promise resolves.
+    // document_number, unique to the real client) before asserting the static
+    // option is gone — otherwise this could false-pass before the mocked
+    // search promise resolves.
     await screen.findByText('1')
 
-    expect(screen.getAllByText(/^consumidor final$/i)).toHaveLength(1)
+    expect(screen.queryByText('Sin cliente')).not.toBeInTheDocument()
+    expect(screen.getByText('Consumidor Final')).toBeInTheDocument()
   })
 })
