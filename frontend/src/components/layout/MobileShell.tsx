@@ -154,7 +154,7 @@ export default function MobileShell({
     <div className="fixed inset-0 z-[120] flex flex-col" style={{ background: '#f0f0f2' }}>
       {/* Header */}
       <header
-        className="flex flex-none items-center gap-3 px-[18px] pb-4 pt-[54px]"
+        className="flex flex-none items-center gap-3 px-[18px] pb-3 pt-[26px]"
         style={{ background: 'linear-gradient(140deg, #2f1d4d, #5c3a8c)' }}
       >
         <button

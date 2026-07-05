@@ -98,7 +98,7 @@ export default function MobileDrawer({
           boxShadow: '14px 0 40px rgba(0,0,0,.4)',
         }}
       >
-        <div className="flex items-center gap-3 border-b border-white/10 px-[18px] pb-4 pt-14">
+        <div className="flex items-center gap-3 border-b border-white/10 px-[18px] pb-3 pt-7">
           <img src="/images/logos/logo-header@2x.png" alt="" className="h-[34px] w-[34px] object-contain" />
           <div className="flex-1">
             <p className="font-display text-lg font-extrabold text-white">OctopusTrack</p>
