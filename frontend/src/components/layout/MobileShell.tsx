@@ -14,10 +14,13 @@
  * real `MobileCaja` (self-fetching, no lifted state needed). PR6 wires the
  * Cuenta tab to the real `MobileCuenta` (also self-fetching, read-only). PR7
  * wires the drawer-only Comprobantes screen to the real `MobileComprobantes`
- * (also self-fetching, read-only) — it is not one of the 5 bottom tab-bar
- * slots, only reachable from `MobileDrawer`, same as Caja/Cuenta were before
- * PR5/PR6 promoted them to tabs. With this, every screen from the design
- * handoff is wired — no screen still falls through to `MobileStub`.
+ * (also self-fetching, read-only). PR8 wires three more drawer-only admin
+ * CRUD screens — Métodos de pago, Categorías, Proveedores
+ * (`MobileMetodosPago`/`MobileCategorias`/`MobileProveedores`) — none of
+ * these are bottom tab-bar slots, all reachable only from `MobileDrawer`,
+ * same pattern as Comprobantes. With this, every screen from the design
+ * handoff plus the drawer's full module list is wired — no screen still
+ * falls through to `MobileStub`.
  */
 import { useState } from 'react'
 import { Menu, Sparkles, LayoutDashboard, Package, ShoppingCart, Wallet, Users } from 'lucide-react'
@@ -32,6 +35,9 @@ import MobileSales, { mergeCartLine } from '../../pages/mobile/MobileSales'
 import MobileCaja from '../../pages/mobile/MobileCaja'
 import MobileCuenta from '../../pages/mobile/MobileCuenta'
 import MobileComprobantes from '../../pages/mobile/MobileComprobantes'
+import MobileMetodosPago from '../../pages/mobile/MobileMetodosPago'
+import MobileCategorias from '../../pages/mobile/MobileCategorias'
+import MobileProveedores from '../../pages/mobile/MobileProveedores'
 import type { Product } from '../../types'
 
 export interface CartLine {
@@ -44,7 +50,17 @@ export interface CartLine {
   discount: number
 }
 
-type MobileTab = 'inicio' | 'productos' | 'ventas' | 'caja' | 'cuenta' | 'comprobantes' | 'stub'
+type MobileTab =
+  | 'inicio'
+  | 'productos'
+  | 'ventas'
+  | 'caja'
+  | 'cuenta'
+  | 'comprobantes'
+  | 'metodos-pago'
+  | 'categorias'
+  | 'proveedores'
+  | 'stub'
 
 interface MobileShellProps {
   currentAccountMode?: 'disabled' | 'automatic' | 'manual'
@@ -65,6 +81,9 @@ const TAB_TITLES: Record<Exclude<MobileTab, 'stub'>, string> = {
   caja: 'Caja diaria',
   cuenta: 'Cuenta corriente',
   comprobantes: 'Comprobantes',
+  'metodos-pago': 'Métodos de pago',
+  categorias: 'Categorías',
+  proveedores: 'Proveedores',
 }
 
 export default function MobileShell({
@@ -203,6 +222,9 @@ export default function MobileShell({
         {tab === 'caja' && <MobileCaja />}
         {tab === 'cuenta' && <MobileCuenta />}
         {tab === 'comprobantes' && <MobileComprobantes whatsappEnabled={whatsappEnabled} />}
+        {tab === 'metodos-pago' && <MobileMetodosPago />}
+        {tab === 'categorias' && <MobileCategorias />}
+        {tab === 'proveedores' && <MobileProveedores />}
         {tab === 'stub' && <MobileStub stubTitle={stubTitle} />}
       </main>
 

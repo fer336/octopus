@@ -12,7 +12,18 @@ import { hasPathAccess } from '../../utils/acl'
 import { navigationItems, navigationSections, type NavigationItem } from './navigationItems'
 
 export type MobileNavTarget =
-  | { screen: 'inicio' | 'productos' | 'ventas' | 'caja' | 'cuenta' | 'comprobantes' }
+  | {
+      screen:
+        | 'inicio'
+        | 'productos'
+        | 'ventas'
+        | 'caja'
+        | 'cuenta'
+        | 'comprobantes'
+        | 'metodos-pago'
+        | 'categorias'
+        | 'proveedores'
+    }
   | { screen: 'stub'; stubTitle: string }
 
 interface MobileDrawerProps {
@@ -35,6 +46,9 @@ function targetForItem(item: NavigationItem): MobileNavTarget {
   if (item.path === '/caja') return { screen: 'caja' }
   if (item.path === '/current-account') return { screen: 'cuenta' }
   if (item.path === '/comprobantes') return { screen: 'comprobantes' }
+  if (item.path === '/payment-methods') return { screen: 'metodos-pago' }
+  if (item.path === '/categories') return { screen: 'categorias' }
+  if (item.path === '/suppliers') return { screen: 'proveedores' }
   return { screen: 'stub', stubTitle: item.label }
 }
 

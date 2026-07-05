@@ -125,10 +125,23 @@ describe('MobileDrawer — navigation targets', () => {
     expect(onNavigate).toHaveBeenCalledWith({ screen: 'comprobantes' })
   })
 
+  it('navigates to the real screens for items with path "/payment-methods", "/categories" and "/suppliers" (wired in PR8)', async () => {
+    const { onNavigate } = renderDrawer()
+
+    await userEvent.click(screen.getByText('Métodos de Pago'))
+    expect(onNavigate).toHaveBeenCalledWith({ screen: 'metodos-pago' })
+
+    await userEvent.click(screen.getByText('Categorias'))
+    expect(onNavigate).toHaveBeenCalledWith({ screen: 'categorias' })
+
+    await userEvent.click(screen.getByText('Proveedores'))
+    expect(onNavigate).toHaveBeenCalledWith({ screen: 'proveedores' })
+  })
+
   it('navigates to MobileStub with stubTitle for any other visible item', async () => {
     const { onNavigate } = renderDrawer()
-    await userEvent.click(screen.getByText('Métodos de Pago'))
-    expect(onNavigate).toHaveBeenCalledWith({ screen: 'stub', stubTitle: 'Métodos de Pago' })
+    await userEvent.click(screen.getByText('Marcas'))
+    expect(onNavigate).toHaveBeenCalledWith({ screen: 'stub', stubTitle: 'Marcas' })
   })
 
   it('closes the drawer after navigating', async () => {
