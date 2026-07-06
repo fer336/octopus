@@ -22,7 +22,7 @@ vi.mock('react-hot-toast', () => ({
 }))
 
 vi.mock('../../../components/messaging/WhatsAppSendPdfButton', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- lightweight test double, real props are exercised via getPdfBlob() call
+  // Lightweight test double — real props are exercised via getPdfBlob() call
   default: (props: any) => (
     <button aria-label="Enviar por WhatsApp" onClick={() => props.getPdfBlob()} />
   ),

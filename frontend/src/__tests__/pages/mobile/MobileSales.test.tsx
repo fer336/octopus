@@ -110,8 +110,8 @@ function renderSales(initialCart: CartLine[] = []) {
   return { ...utils, setCartSpy }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- vi.spyOn's overload-resolved return type for
-// window.open isn't cleanly expressible; this is a test-only regression-guard spy, not production code.
+// vi.spyOn's overload-resolved return type for window.open isn't cleanly
+// expressible; this is a test-only regression-guard spy, not production code.
 let windowOpenSpy: any
 
 beforeEach(() => {
