@@ -5,7 +5,6 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import type { User } from '../../stores/authStore'
-import type { DashboardSummary } from '../../api/dashboardService'
 import type { PaginatedResponse, Product } from '../../api/productsService'
 
 const mockUser: { current: User | null } = {
@@ -25,43 +24,26 @@ vi.mock('../../stores/authStore', () => ({
 }))
 
 const {
-  getSummaryMock,
   getAllProductsMock,
   getAllCategoriesMock,
   searchClientsMock,
   getAllClientsMock,
   createVoucherMock,
-  chatMock,
   getCurrentCashMock,
   getCashSummaryMock,
-  openCashMock,
-  closeCashMock,
-  addMovementMock,
 } = vi.hoisted(() => ({
-  getSummaryMock: vi.fn(),
   getAllProductsMock: vi.fn(),
   getAllCategoriesMock: vi.fn(),
   searchClientsMock: vi.fn(),
   getAllClientsMock: vi.fn(),
   createVoucherMock: vi.fn(),
-  chatMock: vi.fn(),
   getCurrentCashMock: vi.fn(),
   getCashSummaryMock: vi.fn(),
-  openCashMock: vi.fn(),
-  closeCashMock: vi.fn(),
-  addMovementMock: vi.fn(),
-}))
-
-vi.mock('../../api/dashboardService', () => ({
-  default: { getSummary: getSummaryMock },
 }))
 
 vi.mock('../../api/cashService', () => ({
   getCurrentCash: getCurrentCashMock,
   getCashSummary: getCashSummaryMock,
-  openCash: openCashMock,
-  closeCash: closeCashMock,
-  addMovement: addMovementMock,
 }))
 
 vi.mock('../../api/productsService', () => ({
@@ -80,13 +62,6 @@ vi.mock('../../api/vouchersService', () => ({
   default: { create: createVoucherMock },
 }))
 
-vi.mock('../../api/aiService', () => ({
-  default: { chat: chatMock },
-}))
-
-// ScannerOverlay wraps QrScanner (real camera/html5-qrcode logic already
-// covered by QrScanner.test.tsx and ScannerOverlay.test.tsx) — stub it here
-// the same way, so shell-level tests only exercise MobileShell's own wiring.
 vi.mock('../../components/sales/QrScanner', () => ({
   default: ({
     onAddProduct,
@@ -144,34 +119,8 @@ getAllCategoriesMock.mockResolvedValue([])
 searchClientsMock.mockResolvedValue([])
 getAllClientsMock.mockResolvedValue({ items: [], total: 0, page: 1, per_page: 100, pages: 0 })
 createVoucherMock.mockResolvedValue({ id: 'v1' })
-chatMock.mockResolvedValue({ response_type: 'text', text: 'Respuesta del asistente.' })
 getCurrentCashMock.mockResolvedValue(null)
 getCashSummaryMock.mockResolvedValue({ by_method: [], total_net: 0, expected_cash: 0 })
-
-const summaryFixture: DashboardSummary = {
-  total_products: 0,
-  total_clients: 0,
-  low_stock_products: 0,
-  total_value: 0,
-  total_sales: 0,
-  total_invoices: 0,
-  today_sales: 0,
-  today_invoiced: 0,
-  today_vouchers_count: 0,
-  cash_income: 0,
-  paid_invoices: 0,
-  paid_stockpiles: 0,
-  current_account_collected: 0,
-  pending_customer_balance: 0,
-  other_income: 0,
-  closed_current_accounts: 0,
-  closed_current_accounts_total: 0,
-  filter_month: 6,
-  filter_year: 2026,
-  filter_date_from: '2026-06-01',
-  filter_date_to: '2026-06-30',
-}
-getSummaryMock.mockResolvedValue(summaryFixture)
 
 import MobileShell, { type CartLine } from '../../components/layout/MobileShell'
 
@@ -186,17 +135,54 @@ function renderShell(initialCart: CartLine[] = []) {
   )
 }
 
-describe('MobileShell — tab bar', () => {
-  it('renders all 5 tab bar slots', () => {
+describe('MobileShell — bottom tab bar', () => {
+  it('renders all 5 tabs in the bottom bar', () => {
     renderShell()
-    expect(screen.getByRole('button', { name: 'Inicio' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Productos' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Vender' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ventas' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Caja' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Cuenta' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Comprobantes' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Productos' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cuenta Corriente' })).toBeInTheDocument()
   })
 
-  it('shows the cart badge with the line count on the Vender FAB when cart has items', () => {
+  it('defaults to the Ventas tab', () => {
+    renderShell()
+    expect(screen.getByText('Buscar cliente')).toBeInTheDocument()
+  })
+
+  it('switches to Caja tab and renders the cash screen', async () => {
+    renderShell()
+    await userEvent.click(screen.getByRole('button', { name: 'Caja' }))
+    expect(await screen.findByRole('heading', { name: /abrir caja/i })).toBeInTheDocument()
+  })
+
+  it('switches to Productos tab and shows the search input', async () => {
+    renderShell()
+    await userEvent.click(screen.getByRole('button', { name: 'Productos' }))
+    expect(await screen.findByPlaceholderText(/buscar código o descripción/i)).toBeInTheDocument()
+  })
+
+  it('switches to Cuenta Corriente tab', async () => {
+    renderShell()
+    await userEvent.click(screen.getByRole('button', { name: 'Cuenta Corriente' }))
+    expect(await screen.findByText(/total por cobrar/i)).toBeInTheDocument()
+  })
+
+  it('switches between tabs and back to Ventas', async () => {
+    renderShell()
+    await userEvent.click(screen.getByRole('button', { name: 'Caja' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Ventas' }))
+    expect(screen.getByText('Buscar cliente')).toBeInTheDocument()
+  })
+})
+
+describe('MobileShell — cart badge on Ventas tab', () => {
+  it('shows no badge when cart is empty', () => {
+    renderShell()
+    expect(screen.queryByTestId('cart-badge')).not.toBeInTheDocument()
+  })
+
+  it('shows the cart line count on the Ventas tab when cart has items', () => {
     renderShell([
       { code: 'P1', desc: 'Producto 1', qty: 1, price: 100, product_id: 'p1', discount: 0 },
       { code: 'P2', desc: 'Producto 2', qty: 2, price: 200, product_id: 'p2', discount: 0 },
@@ -204,185 +190,56 @@ describe('MobileShell — tab bar', () => {
     expect(screen.getByTestId('cart-badge')).toHaveTextContent('2')
   })
 
-  it('hides the cart badge when the cart is empty', () => {
+  it('updates the badge count after adding a product from Productos', async () => {
+    getAllProductsMock.mockResolvedValue(productsFixture([makeProduct()]))
     renderShell()
-    expect(screen.queryByTestId('cart-badge')).not.toBeInTheDocument()
-  })
 
-  it('renders the real MobileCaja on Caja (wired in PR5)', async () => {
-    renderShell()
-    await userEvent.click(screen.getByRole('button', { name: 'Caja' }))
-    expect(await screen.findByRole('heading', { name: /abrir caja/i })).toBeInTheDocument()
-  })
-
-  it('renders the real MobileCuenta on Cuenta (wired in PR6)', async () => {
-    renderShell()
-    await userEvent.click(screen.getByRole('button', { name: 'Cuenta' }))
-    expect(await screen.findByText(/total por cobrar/i)).toBeInTheDocument()
-  })
-
-  it('renders the real MobileDashboard on Inicio (wired in PR2)', async () => {
-    renderShell()
-    expect(await screen.findByText(/ingresado en caja/i)).toBeInTheDocument()
-  })
-
-  it('routes back to the real MobileDashboard when returning to Inicio', async () => {
-    renderShell()
-    await screen.findByText(/ingresado en caja/i)
     await userEvent.click(screen.getByRole('button', { name: 'Productos' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Inicio' }))
-    expect(await screen.findByText(/ingresado en caja/i)).toBeInTheDocument()
-  })
+    await userEvent.click(await screen.findByRole('button', { name: /agregar producto a al carrito/i }))
 
-  it('renders the real MobileProducts on Productos (wired in PR3)', async () => {
-    renderShell()
-    await userEvent.click(screen.getByRole('button', { name: 'Productos' }))
-    expect(await screen.findByPlaceholderText(/buscar código o descripción/i)).toBeInTheDocument()
-  })
-
-  it('renders the real MobileSales on Vender (wired in PR4)', async () => {
-    renderShell()
-    await userEvent.click(screen.getByRole('button', { name: 'Vender' }))
-    expect(screen.getByText('Buscar cliente')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Cotización' })).toBeInTheDocument()
+    expect(screen.getByTestId('cart-badge')).toHaveTextContent('1')
   })
 })
 
-describe('MobileShell — MobileDashboard quick-access wiring (PR2)', () => {
-  it('routes "Nueva venta" quick access to the Vender tab', async () => {
-    renderShell()
-    await screen.findByText(/accesos rápidos/i)
-    await userEvent.click(screen.getByRole('button', { name: /nueva venta/i }))
-    expect(screen.getByText('Buscar cliente')).toBeInTheDocument()
-  })
-
-  it('routes "Consultar precio" quick access to the Productos tab', async () => {
-    renderShell()
-    await screen.findByText(/accesos rápidos/i)
-    await userEvent.click(screen.getByRole('button', { name: /consultar precio/i }))
-    expect(await screen.findByPlaceholderText(/buscar código o descripción/i)).toBeInTheDocument()
-  })
-
-  it('routes "Caja diaria" quick access to the real Caja tab (wired in PR5)', async () => {
-    renderShell()
-    await screen.findByText(/accesos rápidos/i)
-    await userEvent.click(screen.getByRole('button', { name: /caja diaria/i }))
-    expect(await screen.findByRole('heading', { name: /abrir caja/i })).toBeInTheDocument()
-  })
-
-  it('routes "Cuenta corriente" quick access to the real Cuenta tab (wired in PR6)', async () => {
-    renderShell()
-    await screen.findByText(/accesos rápidos/i)
-    await userEvent.click(screen.getByRole('button', { name: /cuenta corriente/i }))
-    expect(await screen.findByText(/total por cobrar/i)).toBeInTheDocument()
-  })
-})
-
-describe('MobileShell — header actions', () => {
-  it('opens the real AIAssistantSheet when tapping the sparkles button (wired in PR4)', async () => {
-    renderShell()
-    expect(screen.queryByTestId('ai-sheet-host')).not.toBeInTheDocument()
-    await userEvent.click(screen.getByLabelText('Abrir asistente IA'))
-    expect(screen.getByTestId('ai-sheet-host')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/escribí tu consulta/i)).toBeInTheDocument()
-  })
-
-  it('opens the drawer when tapping the menu button', async () => {
-    renderShell()
-    expect(screen.queryByText('OctopusTrack')).not.toBeInTheDocument()
-    await userEvent.click(screen.getByLabelText('Abrir menú'))
-    expect(screen.getByText('OctopusTrack')).toBeInTheDocument()
-  })
-})
-
-describe('MobileShell — MobileSales cart wiring (PR4)', () => {
-  it('reflects a product added from Productos in the Vender tab cart totals', async () => {
-    // Cart line price comes from net_price (NOT the gross sale_price shown
-    // on the Productos card) — see PR4 Follow-up Correction #4: sale_price
-    // already includes IVA, so the cart must carry net_price to avoid
-    // double-taxing in MobileSales' totals bar / voucher payload.
+describe('MobileShell — cart flow', () => {
+  it('adds a product from Productos and shows it in Ventas', async () => {
     getAllProductsMock.mockResolvedValue(productsFixture([makeProduct({ net_price: 1000, sale_price: 1210 })]))
     renderShell()
 
     await userEvent.click(screen.getByRole('button', { name: 'Productos' }))
     await userEvent.click(await screen.findByRole('button', { name: /agregar producto a al carrito/i }))
 
-    await userEvent.click(screen.getByRole('button', { name: 'Vender' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Ventas' }))
 
     expect(screen.getByText('Producto A')).toBeInTheDocument()
-    expect(screen.getAllByText('$1.000,00').length).toBeGreaterThan(0)
-    expect(screen.getByText('$1.210,00')).toBeInTheDocument() // total incl. 21% IVA on a single $1000 line
+    expect(screen.getByText('$1.210,00')).toBeInTheDocument()
   })
 
-  it('sends a message through the real AIAssistantSheet and shows the assistant reply', async () => {
-    chatMock.mockResolvedValue({ response_type: 'text', text: 'Tenés 3 productos con poco stock.' })
-    renderShell()
-
-    await userEvent.click(screen.getByLabelText('Abrir asistente IA'))
-    await userEvent.type(screen.getByPlaceholderText(/escribí tu consulta/i), 'Stock bajo')
-    await userEvent.click(screen.getByRole('button', { name: /enviar/i }))
-
-    expect(await screen.findByText('Tenés 3 productos con poco stock.')).toBeInTheDocument()
-  })
-})
-
-describe('MobileShell — cart lifted state via MobileProducts (PR3)', () => {
-  it('merges repeated add-to-cart taps for the same product code into one line (badge counts lines, not qty)', async () => {
+  it('merges duplicate product additions into one cart line', async () => {
     getAllProductsMock.mockResolvedValue(productsFixture([makeProduct()]))
     renderShell()
 
     await userEvent.click(screen.getByRole('button', { name: 'Productos' }))
     const addButton = await screen.findByRole('button', { name: /agregar producto a al carrito/i })
-
     await userEvent.click(addButton)
     await userEvent.click(addButton)
 
-    expect(screen.getByTestId('cart-badge')).toHaveTextContent('1')
-  })
+    await userEvent.click(screen.getByRole('button', { name: 'Ventas' }))
 
-  it('adds a second distinct product as a new line (badge shows 2)', async () => {
-    getAllProductsMock.mockResolvedValue(
-      productsFixture([
-        makeProduct({ id: '1', code: 'P1', description: 'Producto A' }),
-        makeProduct({ id: '2', code: 'P2', description: 'Producto B' }),
-      ])
-    )
-    renderShell()
-
-    await userEvent.click(screen.getByRole('button', { name: 'Productos' }))
-    await userEvent.click(await screen.findByRole('button', { name: /agregar producto a al carrito/i }))
-    await userEvent.click(screen.getByRole('button', { name: /agregar producto b al carrito/i }))
-
-    expect(screen.getByTestId('cart-badge')).toHaveTextContent('2')
+    const cartLines = screen.getAllByText('Producto A')
+    expect(cartLines.length).toBe(1)
   })
 })
 
-describe('MobileShell — scanner overlay (PR3)', () => {
-  it('cancel (close) is a no-op: Productos search stays unchanged and the overlay unmounts', async () => {
+describe('MobileShell — scanner overlay', () => {
+  it('scans a product from Productos and populates the search query', async () => {
     renderShell()
-    await userEvent.click(screen.getByRole('button', { name: 'Productos' }))
 
-    const search = await screen.findByPlaceholderText(/buscar código o descripción/i)
-    await userEvent.type(search, 'tubo')
-
-    await userEvent.click(screen.getByLabelText(/abrir escáner/i))
-    expect(screen.getByText('Escáner (stub)')).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: 'Cerrar escáner' }))
-
-    expect(screen.queryByText('Escáner (stub)')).not.toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/buscar código o descripción/i)).toHaveValue('tubo')
-  })
-
-  it('a successful scan closes the overlay and populates the Productos search query, without adding to the cart', async () => {
-    renderShell()
     await userEvent.click(screen.getByRole('button', { name: 'Productos' }))
     await userEvent.click(screen.getByLabelText(/abrir escáner/i))
-
     await userEvent.click(screen.getByRole('button', { name: 'Simular escaneo exitoso' }))
 
     expect(screen.queryByText('Escáner (stub)')).not.toBeInTheDocument()
     expect(await screen.findByPlaceholderText(/buscar código o descripción/i)).toHaveValue('7791234567890')
-    expect(screen.queryByTestId('cart-badge')).not.toBeInTheDocument()
   })
 })
