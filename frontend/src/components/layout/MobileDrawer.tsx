@@ -1,104 +1,32 @@
-/**
- * Side drawer for the mobile shell — full module parity with the desktop
- * Sidebar. Groups the same `navigationItems`/`navigationSections` used on
- * desktop, filtered by feature flags + `hasPathAccess`, exactly mirroring
- * `MobileNav`'s former filter logic.
- */
-import { useLocation } from 'react-router-dom'
-import { X } from 'lucide-react'
-import { clsx } from 'clsx'
-import { useAuthStore } from '../../stores/authStore'
-import { hasPathAccess } from '../../utils/acl'
-import { navigationItems, navigationSections, type NavigationItem } from './navigationItems'
+import { ShoppingCart, Wallet, FileText, Package, ClipboardList, X, type LucideIcon } from 'lucide-react'
 
-export type MobileNavTarget =
-  | {
-      screen:
-        | 'inicio'
-        | 'productos'
-        | 'ventas'
-        | 'caja'
-        | 'cuenta'
-        | 'comprobantes'
-        | 'metodos-pago'
-        | 'categorias'
-        | 'proveedores'
-    }
-  | { screen: 'stub'; stubTitle: string }
+export type MobileTab = 'ventas' | 'caja' | 'comprobantes' | 'productos' | 'cuenta'
+
+const DRAWER_ITEMS: Array<{
+  tab: MobileTab
+  label: string
+  icon: LucideIcon
+}> = [
+  { tab: 'ventas', label: 'Ventas', icon: ShoppingCart },
+  { tab: 'caja', label: 'Caja', icon: Wallet },
+  { tab: 'comprobantes', label: 'Comprobantes', icon: FileText },
+  { tab: 'productos', label: 'Productos', icon: Package },
+  { tab: 'cuenta', label: 'Cuenta Corriente', icon: ClipboardList },
+]
 
 interface MobileDrawerProps {
   open: boolean
+  activeTab: MobileTab
   onClose: () => void
-  onNavigate: (target: MobileNavTarget) => void
-  currentAccountMode?: 'disabled' | 'automatic' | 'manual'
-  priceUpdateEnabled?: boolean
-  reportsEnabled?: boolean
-  inventoryEnabled?: boolean
-  stockpileEnabled?: boolean
-  whatsappEnabled?: boolean
-  profitabilityEnabled?: boolean
+  onNavigate: (tab: MobileTab) => void
 }
 
-function targetForItem(item: NavigationItem): MobileNavTarget {
-  if (item.path === '/') return { screen: 'inicio' }
-  if (item.path === '/products') return { screen: 'productos' }
-  if (item.path === '/sales') return { screen: 'ventas' }
-  if (item.path === '/caja') return { screen: 'caja' }
-  if (item.path === '/current-account') return { screen: 'cuenta' }
-  if (item.path === '/comprobantes') return { screen: 'comprobantes' }
-  if (item.path === '/payment-methods') return { screen: 'metodos-pago' }
-  if (item.path === '/categories') return { screen: 'categorias' }
-  if (item.path === '/suppliers') return { screen: 'proveedores' }
-  return { screen: 'stub', stubTitle: item.label }
-}
-
-export default function MobileDrawer({
-  open,
-  onClose,
-  onNavigate,
-  currentAccountMode = 'disabled',
-  priceUpdateEnabled = true,
-  reportsEnabled = true,
-  inventoryEnabled = true,
-  stockpileEnabled = true,
-  whatsappEnabled = true,
-  profitabilityEnabled = true,
-}: MobileDrawerProps) {
-  const location = useLocation()
-  const user = useAuthStore((state) => state.user)
-
+export default function MobileDrawer({ open, activeTab, onClose, onNavigate }: MobileDrawerProps) {
   if (!open) return null
-
-  const currentAccountEnabled = currentAccountMode !== 'disabled'
-
-  const visibleItems = navigationItems.filter((item) => {
-    if (item.path === '/current-account' && !currentAccountEnabled) return false
-    if (item.path === '/price-update' && !priceUpdateEnabled) return false
-    if (item.path === '/reports' && !reportsEnabled) return false
-    if (item.path === '/inventory' && !inventoryEnabled) return false
-    if (item.path === '/stockpiles' && !stockpileEnabled) return false
-    if (item.path === '/messaging' && !whatsappEnabled) return false
-    if (item.path === '/rentabilidad' && !profitabilityEnabled) return false
-    return hasPathAccess(user, item.path)
-  })
-
-  const groupedItems = navigationSections.map((section) => ({
-    section,
-    items: visibleItems.filter((item) => item.section === section.key),
-  }))
-
-  const isItemActive = (path: string) =>
-    path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)
-
-  const handleItemClick = (item: NavigationItem) => {
-    onNavigate(targetForItem(item))
-    onClose()
-  }
 
   return (
     <div className="fixed inset-0 z-[300] flex" role="dialog" aria-modal="true">
       <div
-        data-testid="mobile-drawer-backdrop"
         className="absolute inset-0"
         style={{ background: 'rgba(7,7,15,.5)' }}
         onClick={onClose}
@@ -106,14 +34,14 @@ export default function MobileDrawer({
       />
 
       <div
-        className="relative flex h-full w-[298px] max-w-[84%] flex-col"
+        className="relative flex h-full w-[270px] max-w-[80%] flex-col"
         style={{
           background: 'linear-gradient(168deg, #2f1d4d, #150e29)',
           boxShadow: '14px 0 40px rgba(0,0,0,.4)',
         }}
       >
         <div className="flex items-center gap-3 border-b border-white/10 px-[18px] pb-3 pt-7">
-          <img src="/images/logos/logo-header@2x.png" alt="" className="h-[34px] w-[34px] object-contain" />
+          <div className="h-7 w-7 rounded-lg bg-white/20" />
           <div className="flex-1">
             <p className="font-display text-lg font-extrabold text-white">OctopusTrack</p>
           </div>
@@ -127,40 +55,33 @@ export default function MobileDrawer({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 py-2">
-          {groupedItems.map(({ section, items }) => {
-            if (items.length === 0) return null
+        <div className="flex-1 overflow-y-auto px-3 py-4">
+          <p className="px-2.5 pb-2 text-[10.5px] font-bold uppercase tracking-widest text-white/40">
+            Módulos
+          </p>
+          {DRAWER_ITEMS.map(({ tab, label, icon: Icon }) => {
+            const active = activeTab === tab
             return (
-              <div key={section.key} className="mb-1">
-                <p className="px-2.5 pb-1.5 pt-3.5 text-[10.5px] font-bold uppercase tracking-widest text-white/40">
-                  {section.label}
-                </p>
-                {items.map((item) => {
-                  const active = isItemActive(item.path)
-                  return (
-                    <button
-                      key={item.path}
-                      type="button"
-                      onClick={() => handleItemClick(item)}
-                      aria-current={active ? 'page' : undefined}
-                      className={clsx(
-                        'flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left',
-                        !active && 'hover:bg-white/5'
-                      )}
-                      style={{
-                        background: active ? 'rgba(255,255,255,.14)' : undefined,
-                        color: active ? '#ffffff' : '#c4b5f4',
-                      }}
-                    >
-                      <item.icon size={18} className="flex-shrink-0" />
-                      <span className="flex-1 text-sm font-semibold">{item.label}</span>
-                      {active && (
-                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: '#9d84bf' }} />
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
+              <button
+                key={tab}
+                type="button"
+                onClick={() => {
+                  onNavigate(tab)
+                  onClose()
+                }}
+                aria-current={active ? 'page' : undefined}
+                className="flex w-full items-center gap-3 rounded-xl px-2.5 py-3 text-left"
+                style={{
+                  background: active ? 'rgba(255,255,255,.14)' : 'transparent',
+                  color: active ? '#ffffff' : '#c4b5f4',
+                }}
+              >
+                <Icon size={18} className="flex-shrink-0" />
+                <span className="flex-1 text-sm font-semibold">{label}</span>
+                {active && (
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: '#9d84bf' }} />
+                )}
+              </button>
             )
           })}
         </div>

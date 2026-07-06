@@ -205,12 +205,7 @@ export default function MainLayout() {
       <div className="md:hidden">
         <MobileShell
           currentAccountMode={business?.current_account_mode}
-          priceUpdateEnabled={priceUpdateEnabled}
-          reportsEnabled={reportsEnabled}
-          inventoryEnabled={inventoryEnabled}
-          stockpileEnabled={stockpileEnabled}
           whatsappEnabled={whatsappEnabled}
-          profitabilityEnabled={profitabilityEnabled}
         />
       </div>
     </div>
