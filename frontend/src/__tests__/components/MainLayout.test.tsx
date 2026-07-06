@@ -124,9 +124,13 @@ function renderMainLayout() {
 }
 
 describe('MainLayout — mobile mount point swap', () => {
-  it('renders MobileShell (menu button) instead of the removed MobileNav for mobile viewport', () => {
+  it('renders MobileShell (bottom tab bar) instead of the removed MobileNav for mobile viewport', () => {
     renderMainLayout()
-    expect(screen.getByLabelText('Abrir menú')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ventas' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Caja' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Comprobantes' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Productos' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cuenta Corriente' })).toBeInTheDocument()
   })
 
   it('does not render MobileNav’s old "más" tab or full-item bottom sheet trigger', () => {
