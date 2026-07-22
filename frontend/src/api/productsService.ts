@@ -133,6 +133,18 @@ export interface ProductBulkUpdateResponse {
   products: Product[]
 }
 
+export interface ProductIdsResponse {
+  ids: string[]
+  total: number
+}
+
+export interface ProductIdsParams {
+  search?: string
+  category_id?: string
+  supplier_id?: string
+  brand_id?: string
+}
+
 export interface PaginatedResponse<T> {
   items: T[]
   total: number
@@ -150,9 +162,11 @@ export interface ProductImportRow {
   category_name?: string
   supplier_id?: string
   supplier_name?: string
+  supplier_is_new?: boolean
   brand_id?: string
   brand_name?: string
   brand_is_new?: boolean
+  category_is_new?: boolean
   list_price: number
   discount_1: number
   discount_2: number
@@ -247,6 +261,14 @@ export const productsService = {
     similarity_group_code?: string
   }): Promise<PaginatedResponse<Product>> => {
     const response = await httpClient.get('/products', { params })
+    return response.data
+  },
+
+  /**
+   * Obtiene todos los IDs filtrados sin paginación.
+   */
+  getAllIds: async (params?: ProductIdsParams): Promise<ProductIdsResponse> => {
+    const response = await httpClient.get('/products/ids', { params })
     return response.data
   },
 

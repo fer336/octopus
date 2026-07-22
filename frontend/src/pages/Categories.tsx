@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import categoriesService, { CategoryCreate, CategoryUpdate, Category } from '../api/categoriesService'
 import toast from 'react-hot-toast'
 import DeleteCategoryModal from '../components/categories/DeleteCategoryModal'
+import BulkDeleteCategoryModal from '../components/categories/BulkDeleteCategoryModal'
 
 export default function Categories() {
   const queryClient = useQueryClient()
@@ -18,7 +19,9 @@ export default function Categories() {
   const [isEditing, setIsEditing] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Query para categorías
   const { data: categories = [], isLoading, error } = useQuery({
@@ -64,6 +67,27 @@ export default function Categories() {
       toast.success('Categoría eliminada correctamente', { duration: 3000, icon: '🗑️' })
     },
     onError: (error: any) => {
+      toast.error(formatErrorMessage(error))
+    },
+  })
+
+  // Mutation para eliminar categorías seleccionadas
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => categoriesService.bulkDelete(ids),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      setSelectedIds(new Set())
+      setShowBulkDeleteModal(false)
+
+      const notFoundSuffix = result.not_found > 0
+        ? ` (${result.not_found} no se encontraron o ya no estaban disponibles)`
+        : ''
+      toast.success(`Se eliminaron ${result.deleted} categoría${result.deleted === 1 ? '' : 's'}${notFoundSuffix}`, {
+        duration: 4000,
+        icon: '🗑️',
+      })
+    },
+    onError: (error: unknown) => {
       toast.error(formatErrorMessage(error))
     },
   })
@@ -121,6 +145,19 @@ export default function Categories() {
     }
   }
 
+  const toggleSelectCategory = (categoryId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      next.has(categoryId) ? next.delete(categoryId) : next.add(categoryId)
+      return next
+    })
+  }
+
+  const handleConfirmBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    await bulkDeleteMutation.mutateAsync(Array.from(selectedIds))
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -158,7 +195,42 @@ export default function Categories() {
     c.name.toLowerCase().includes(search.toLowerCase())
   )
 
+  const visibleCategoryIds = filteredCategories.map((category) => category.id)
+  const allVisibleSelected = visibleCategoryIds.length > 0 && visibleCategoryIds.every((id) => selectedIds.has(id))
+
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      setSelectedIds(new Set())
+      return
+    }
+
+    setSelectedIds(new Set(visibleCategoryIds))
+  }
+
   const columns = [
+    {
+      key: 'selection',
+      header: (
+        <input
+          type="checkbox"
+          checked={allVisibleSelected}
+          onChange={toggleSelectAllVisible}
+          disabled={visibleCategoryIds.length === 0}
+          className="h-4 w-4 cursor-pointer rounded accent-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Seleccionar todas las categorías visibles"
+        />
+      ),
+      className: 'w-10',
+      render: (item: Category) => (
+        <input
+          type="checkbox"
+          checked={selectedIds.has(item.id)}
+          onChange={() => toggleSelectCategory(item.id)}
+          className="h-4 w-4 cursor-pointer rounded accent-primary-600"
+          aria-label={`Seleccionar categoría ${item.name}`}
+        />
+      ),
+    },
     {
       key: 'name',
       header: 'Nombre',
@@ -228,23 +300,38 @@ export default function Categories() {
             Organiza tu inventario por familias de productos
           </p>
         </div>
-        <Button 
-          onClick={() => handleOpenModal()}
-          className="bg-primary-600 hover:bg-primary-700 text-white border-none shadow-md"
-        >
-          <Plus size={18} className="mr-2" />
-          Nueva Categoría
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <Button
+              onClick={() => setShowBulkDeleteModal(true)}
+              disabled={bulkDeleteMutation.isPending}
+              className="border-none bg-red-600 text-white shadow-md hover:bg-red-700"
+            >
+              <Trash2 size={18} className="mr-2" />
+              Eliminar {selectedIds.size} seleccionada{selectedIds.size === 1 ? '' : 's'}
+            </Button>
+          )}
+          <Button 
+            onClick={() => handleOpenModal()}
+            className="bg-primary-600 hover:bg-primary-700 text-white border-none shadow-md"
+          >
+            <Plus size={18} className="mr-2" />
+            Nueva Categoría
+          </Button>
+        </div>
       </div>
 
       {/* Barra de búsqueda */}
       <div className="bg-white dark:bg-gray-800 p-2.5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="relative max-w-md">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setSelectedIds(new Set())
+            }}
             placeholder="Buscar categorías..."
             className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
           />
@@ -263,7 +350,7 @@ export default function Categories() {
             </div>
           }
           renderDesktop={() => (
-            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="max-h-[calc(100vh-14rem)] overflow-y-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
               <Table
                 columns={columns}
                 data={filteredCategories}
@@ -278,6 +365,13 @@ export default function Categories() {
               className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
             >
               <div className="flex items-start justify-between gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(item.id)}
+                  onChange={() => toggleSelectCategory(item.id)}
+                  className="mt-1 h-4 w-4 shrink-0 cursor-pointer rounded accent-primary-600"
+                  aria-label={`Seleccionar categoría ${item.name}`}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
@@ -368,6 +462,13 @@ export default function Categories() {
         }}
         onConfirm={handleConfirmDelete}
         categoryName={categoryToDelete?.name || ''}
+      />
+
+      <BulkDeleteCategoryModal
+        isOpen={showBulkDeleteModal}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onConfirm={handleConfirmBulkDelete}
+        count={selectedIds.size}
       />
     </div>
   )

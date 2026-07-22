@@ -23,6 +23,11 @@ export interface CategoryCreate {
 
 export interface CategoryUpdate extends Partial<CategoryCreate> {}
 
+export interface CategoryBulkDeleteResponse {
+  deleted: number
+  not_found: number
+}
+
 export const categoriesService = {
   /**
    * Obtiene todas las categorías (planas).
@@ -70,6 +75,14 @@ export const categoriesService = {
    */
   delete: async (id: string): Promise<void> => {
     await httpClient.delete(`/categories/${id}`)
+  },
+
+  /**
+   * Elimina varias categorías (soft delete).
+   */
+  bulkDelete: async (ids: string[]): Promise<CategoryBulkDeleteResponse> => {
+    const response = await httpClient.post('/categories/bulk-delete', { ids })
+    return response.data
   },
 }
 

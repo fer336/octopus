@@ -3,12 +3,15 @@
  * Muestra los productos parseados del Excel para revisión y edición antes de importar.
  */
 import { useState, useEffect } from 'react'
-import { AlertCircle, Check, XCircle, Edit2, Save, X } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Check, XCircle, Edit2, Save, X } from 'lucide-react'
 import { Modal, Button } from '../ui'
-import { ProductImportRow } from '../../api/productsService'
+import type { ProductImportRow } from '../../api/productsService'
 import BulkAssignModal from './BulkAssignModal'
 import BulkEditModal from './BulkEditModal'
+import SupplierRequiredModal, { type SupplierAssignment } from './SupplierRequiredModal'
 import toast from 'react-hot-toast'
+
+const SUPPLIER_REQUIRED_MESSAGE = 'Debe especificar un proveedor'
 
 interface Category {
   id: string
@@ -62,6 +65,7 @@ export default function ImportPreviewModal({
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set())
   const [showBulkAssign, setShowBulkAssign] = useState(false)
   const [showBulkEdit, setShowBulkEdit] = useState(false)
+  const [showSupplierRequired, setShowSupplierRequired] = useState(false)
 
   // Helper para convertir valores a number de forma segura
   const toNumber = (value: any): number => {
@@ -198,6 +202,55 @@ export default function ImportPreviewModal({
     }
   }
 
+  const supplierRequiredRows = rows.filter((row) =>
+    row.error_message?.includes(SUPPLIER_REQUIRED_MESSAGE)
+  )
+
+  const duplicateRows = rows.filter((row) => row.status === 'repetido').length
+  const rowsWithErrors = rows.filter((row) => row.has_errors).length
+  const validRows = rows.filter((row) => !row.has_errors && row.status !== 'repetido').length
+
+  const clearSupplierRequiredError = (row: ProductImportRow): ProductImportRow => {
+    if (!row.error_message?.includes(SUPPLIER_REQUIRED_MESSAGE)) return row
+
+    const remainingMessages = row.error_message
+      .split('|')
+      .map((message) => message.trim())
+      .filter((message) => message && message !== SUPPLIER_REQUIRED_MESSAGE)
+
+    return {
+      ...row,
+      error_message: remainingMessages.length > 0 ? remainingMessages.join(' | ') : undefined,
+      has_errors: remainingMessages.length > 0,
+    }
+  }
+
+  const handleAssignMissingSupplier = (supplier: SupplierAssignment) => {
+    setRows((prev) =>
+      prev.map((row) => {
+        if (!row.error_message?.includes(SUPPLIER_REQUIRED_MESSAGE)) return row
+
+        const baseRow = clearSupplierRequiredError(row)
+        if (supplier.id) {
+          return {
+            ...baseRow,
+            supplier_id: supplier.id,
+            supplier_name: supplier.name,
+            supplier_is_new: false,
+          }
+        }
+
+        return {
+          ...baseRow,
+          supplier_id: undefined,
+          supplier_name: supplier.name,
+          supplier_is_new: true,
+        }
+      })
+    )
+    toast.success(`Proveedor aplicado a ${supplierRequiredRows.length} productos`, { icon: '✅' })
+  }
+
   const handleBulkAssign = (categoryId: string | null, supplierId: string | null) => {
     setRows((prev) =>
       prev.map((row) => {
@@ -311,15 +364,15 @@ export default function ImportPreviewModal({
           </div>
           <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
             <p className="text-xs text-green-600 dark:text-green-400">Válidas</p>
-            <p className="text-2xl font-bold text-green-700 dark:text-green-300">{previewData.valid_rows}</p>
+            <p className="text-2xl font-bold text-green-700 dark:text-green-300">{validRows}</p>
           </div>
           <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
             <p className="text-xs text-red-600 dark:text-red-400">Con Errores</p>
-            <p className="text-2xl font-bold text-red-700 dark:text-red-300">{previewData.rows_with_errors}</p>
+            <p className="text-2xl font-bold text-red-700 dark:text-red-300">{rowsWithErrors}</p>
           </div>
           <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg">
-            <p className="text-xs text-amber-600 dark:text-amber-400">Repetidos</p>
-            <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{previewData.duplicate_rows ?? 0}</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400">Omitidos</p>
+            <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{duplicateRows}</p>
           </div>
           <div className="bg-primary-50 dark:bg-primary-900/20 p-3 rounded-lg">
             <p className="text-xs text-primary-600 dark:text-primary-400">Nuevos</p>
@@ -330,6 +383,33 @@ export default function ImportPreviewModal({
             <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">{previewData.existing_products}</p>
           </div>
         </div>
+
+        {(duplicateRows > 0 || supplierRequiredRows.length > 0) && (
+          <div className="space-y-3">
+            {duplicateRows > 0 && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <span>
+                  {duplicateRows} producto{duplicateRows === 1 ? '' : 's'} ya existían y se omitieron.
+                </span>
+              </div>
+            )}
+
+            {supplierRequiredRows.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                  <span>
+                    ⚠️ {supplierRequiredRows.length} producto{supplierRequiredRows.length === 1 ? '' : 's'} sin proveedor
+                  </span>
+                </div>
+                <Button size="sm" onClick={() => setShowSupplierRequired(true)}>
+                  Asignar proveedor faltante
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Barra de acciones masivas */}
         {selectedRows.size > 0 && (
@@ -759,6 +839,14 @@ export default function ImportPreviewModal({
         selectedCount={selectedRows.size}
         categories={categories}
         suppliers={suppliers}
+      />
+
+      <SupplierRequiredModal
+        isOpen={showSupplierRequired}
+        onClose={() => setShowSupplierRequired(false)}
+        onConfirm={handleAssignMissingSupplier}
+        suppliers={suppliers}
+        affectedCount={supplierRequiredRows.length}
       />
     </Modal>
   )

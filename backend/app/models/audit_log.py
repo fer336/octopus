@@ -25,6 +25,13 @@ class AuditLog(BaseModel):
         index=True,
     )
 
+    agent_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("agent_credentials.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     business_id = Column(
         UUID(as_uuid=True),
         ForeignKey("businesses.id", ondelete="SET NULL"),
@@ -44,8 +51,14 @@ class AuditLog(BaseModel):
     details = Column(JSONB, nullable=True)
     # Metadata adicional: valores antes/después, IP, user agent, etc.
 
+    actor_type = Column(String(20), nullable=True, index=True)
+    correlation_id = Column(String(80), nullable=True, index=True)
+    outcome = Column(String(20), nullable=True, index=True)
+    scopes_evaluated = Column(JSONB, nullable=True)
+
     # Relaciones
     user = relationship("User", foreign_keys=[user_id])
+    agent = relationship("AgentCredential", foreign_keys=[agent_id])
     business = relationship("Business", foreign_keys=[business_id])
 
     def __repr__(self) -> str:

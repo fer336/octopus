@@ -102,3 +102,16 @@ class ClientListParams(BaseSchema):
     has_balance: bool | None = Field(None, description="Filtrar clientes con saldo")
     page: int = Field(default=1, ge=1)
     per_page: int = Field(default=20, ge=1, le=100)
+
+
+class ClientBulkDeleteRequest(BaseSchema):
+    """Request para eliminar múltiples clientes."""
+
+    ids: list[UUID] = Field(..., min_length=1, description="IDs de clientes")
+
+
+class ClientBulkDeleteResponse(BaseSchema):
+    """Resultado de eliminación masiva de clientes."""
+
+    deleted: int
+    not_found: int

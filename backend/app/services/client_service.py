@@ -231,6 +231,32 @@ class ClientService:
         await self.db.commit()
         return True
 
+    async def bulk_delete(
+        self,
+        client_ids: list[UUID],
+        business_id: UUID,
+    ) -> tuple[int, int]:
+        """
+        Elimina múltiples clientes (soft delete).
+        Replica el borrado individual: no bloquea por saldo ni movimientos.
+        """
+        unique_ids = list(dict.fromkeys(client_ids))
+        query = select(Client).where(
+            Client.id.in_(unique_ids),
+            Client.business_id == business_id,
+            Client.deleted_at.is_(None),
+        )
+        result = await self.db.execute(query)
+        clients = list(result.scalars().all())
+
+        now = datetime.utcnow()
+        for client in clients:
+            client.deleted_at = now
+
+        await self.db.commit()
+        deleted = len(clients)
+        return deleted, len(unique_ids) - deleted
+
     async def update_balance(
         self,
         client_id: UUID,

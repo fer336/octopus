@@ -105,6 +105,8 @@ def _make_product_row(
     is_new: bool = True,
     has_errors: bool = False,
     status: str = "nuevo",
+    supplier_id=None,
+    supplier_name: str | None = None,
 ) -> ProductImportRow:
     """Crea una ProductImportRow con valores por defecto razonables."""
     return ProductImportRow(
@@ -125,6 +127,8 @@ def _make_product_row(
         quantity_per_package=quantity_per_package,
         sell_per_unit=sell_per_unit,
         sell_per_unit_mapped=sell_per_unit_mapped,
+        supplier_id=supplier_id,
+        supplier_name=supplier_name,
         is_new=is_new,
         has_errors=has_errors,
         status=status,  # type: ignore[arg-type]
@@ -244,6 +248,7 @@ class TestConfirmImportPackagingFields:
             sell_per_unit=False,
             is_new=True,
             status="nuevo",
+            supplier_name="Proveedor Test",
         )
         request = ImportConfirmRequest(rows=[row])
         svc = ExcelService(db=db)
@@ -337,10 +342,10 @@ class TestPreviewImportIntraFileDuplicate:
         business_id = uuid4()
         # Ambas filas tienen supplier_code="PROV-001" (intra-file duplicate)
         content = _make_xlsx(
-            ["codigo", "nombre", "precio_lista", "codigo_proveedor"],
+            ["codigo", "nombre", "precio_lista", "codigo_proveedor", "proveedor"],
             [
-                ["TST-001", "Producto A", "1000", "PROV-001"],
-                ["TST-002", "Producto B", "2000", "PROV-001"],  # duplicado
+                ["TST-001", "Producto A", "1000", "PROV-001", "Proveedor Test"],
+                ["TST-002", "Producto B", "2000", "PROV-001", "Proveedor Test"],  # duplicado
             ],
         )
         svc = ExcelService(db=db)
@@ -376,10 +381,10 @@ class TestPreviewImportIntraFileDuplicate:
 
         business_id = uuid4()
         content = _make_xlsx(
-            ["codigo", "nombre", "precio_lista", "codigo_proveedor"],
+            ["codigo", "nombre", "precio_lista", "codigo_proveedor", "proveedor"],
             [
-                ["TST-001", "Producto A", "1000", "PROV-001"],
-                ["TST-002", "Producto B", "2000", "PROV-001"],
+                ["TST-001", "Producto A", "1000", "PROV-001", "Proveedor Test"],
+                ["TST-002", "Producto B", "2000", "PROV-001", "Proveedor Test"],
             ],
         )
         svc = ExcelService(db=db)
@@ -445,6 +450,114 @@ class TestPreviewImportDBDuplicate:
         assert fila.has_errors is False
 
 
+@pytest.mark.asyncio
+class TestPreviewImportExistingCodeDuplicate:
+    """Un producto existente por code debe marcarse como repetido, no actualizar."""
+
+    async def test_existing_code_is_repetido_and_counted_as_duplicate(self):
+        db = MagicMock(spec=AsyncSession)
+
+        empty_list_result = MagicMock()
+        empty_list_result.scalars.return_value.all.return_value = []
+        empty_all_result = MagicMock()
+        empty_all_result.all.return_value = []
+
+        existing_product = Product(
+            id=uuid4(),
+            business_id=uuid4(),
+            code="EXIST-001",
+            description="Producto existente",
+            list_price=Decimal("100"),
+            sale_price=Decimal("121"),
+            cost_price=Decimal("0"),
+            unit="unidad",
+        )
+        existing_batch_result = MagicMock()
+        existing_batch_result.scalars.return_value.all.return_value = [existing_product]
+
+        db.execute = AsyncMock(side_effect=[
+            empty_list_result,      # categories
+            empty_list_result,      # suppliers
+            empty_all_result,       # supplier_codes batch
+            existing_batch_result,  # existing_by_code
+        ])
+
+        content = _make_xlsx(
+            ["codigo", "nombre", "precio_lista", "proveedor"],
+            [["EXIST-001", "Producto importado", "999", "Proveedor Nuevo"]],
+        )
+        svc = ExcelService(db=db)
+        result = await svc.preview_import(uuid4(), content)
+
+        assert result.duplicate_rows == 1
+        assert result.existing_products == 0
+        assert result.new_products == 0
+        fila = result.rows[0]
+        assert fila.status == "repetido"
+        assert fila.is_new is False
+        assert fila.existing_id == existing_product.id
+
+
+@pytest.mark.asyncio
+class TestPreviewImportSupplierRequired:
+    """La importación debe exigir proveedor para productos nuevos."""
+
+    async def test_missing_supplier_marks_row_with_error(self):
+        db = MagicMock(spec=AsyncSession)
+        empty_list_result = MagicMock()
+        empty_list_result.scalars.return_value.all.return_value = []
+        empty_all_result = MagicMock()
+        empty_all_result.all.return_value = []
+
+        db.execute = AsyncMock(side_effect=[
+            empty_list_result,
+            empty_list_result,
+            empty_all_result,
+            empty_list_result,
+        ])
+
+        content = _make_xlsx(
+            ["codigo", "nombre", "precio_lista"],
+            [["SIN-PROV-001", "Producto sin proveedor", "1000"]],
+        )
+        svc = ExcelService(db=db)
+        result = await svc.preview_import(uuid4(), content)
+
+        assert result.rows_with_errors == 1
+        assert result.valid_rows == 0
+        fila = result.rows[0]
+        assert fila.has_errors is True
+        assert fila.error_message == "Debe especificar un proveedor"
+
+    async def test_new_supplier_name_allows_valid_row(self):
+        db = MagicMock(spec=AsyncSession)
+        empty_list_result = MagicMock()
+        empty_list_result.scalars.return_value.all.return_value = []
+        empty_all_result = MagicMock()
+        empty_all_result.all.return_value = []
+
+        db.execute = AsyncMock(side_effect=[
+            empty_list_result,
+            empty_list_result,
+            empty_all_result,
+            empty_list_result,
+        ])
+
+        content = _make_xlsx(
+            ["codigo", "nombre", "precio_lista", "proveedor"],
+            [["CON-PROV-001", "Producto con proveedor", "1000", "Proveedor Nuevo"]],
+        )
+        svc = ExcelService(db=db)
+        result = await svc.preview_import(uuid4(), content)
+
+        assert result.rows_with_errors == 0
+        assert result.valid_rows == 1
+        fila = result.rows[0]
+        assert fila.has_errors is False
+        assert fila.supplier_name == "Proveedor Nuevo"
+        assert fila.supplier_is_new is True
+
+
 # ---------------------------------------------------------------------------
 # 3.5 — confirm_import omite filas "repetido"
 # ---------------------------------------------------------------------------
@@ -459,7 +572,9 @@ class TestConfirmImportSkipsRepetido:
         db.add = MagicMock()
         db.flush = AsyncMock()
         db.commit = AsyncMock()
-        db.execute = AsyncMock()
+        empty_result = MagicMock()
+        empty_result.scalars.return_value.all.return_value = []
+        db.execute = AsyncMock(return_value=empty_result)
 
         business_id = uuid4()
         rows = [
@@ -467,6 +582,7 @@ class TestConfirmImportSkipsRepetido:
             _make_product_row(row_number=3, code="TST-002", is_new=True, status="repetido"),
             _make_product_row(row_number=4, code="TST-003", is_new=True, status="repetido"),
         ]
+        rows[0] = rows[0].model_copy(update={"supplier_name": "Proveedor Test"})
         request = ImportConfirmRequest(rows=rows)
         svc = ExcelService(db=db)
         result = await svc.confirm_import(business_id=business_id, request=request)
@@ -480,7 +596,9 @@ class TestConfirmImportSkipsRepetido:
         db.add = MagicMock()
         db.flush = AsyncMock()
         db.commit = AsyncMock()
-        db.execute = AsyncMock()
+        empty_result = MagicMock()
+        empty_result.scalars.return_value.all.return_value = []
+        db.execute = AsyncMock(return_value=empty_result)
 
         business_id = uuid4()
         rows = [
@@ -501,17 +619,80 @@ class TestConfirmImportSkipsRepetido:
         db.add = MagicMock()
         db.flush = AsyncMock()
         db.commit = AsyncMock()
-        db.execute = AsyncMock()
+        empty_result = MagicMock()
+        empty_result.scalars.return_value.all.return_value = []
+        db.execute = AsyncMock(return_value=empty_result)
 
         business_id = uuid4()
         rows = [
-            _make_product_row(row_number=2, code="B-001", is_new=True, status="nuevo"),
+            _make_product_row(
+                row_number=2,
+                code="B-001",
+                is_new=True,
+                status="nuevo",
+                supplier_name="Proveedor Test",
+            ),
         ]
         request = ImportConfirmRequest(rows=rows)
         svc = ExcelService(db=db)
         result = await svc.confirm_import(business_id=business_id, request=request)
 
         assert result.skipped_duplicates == 0
+        assert result.created == 1
+
+    async def test_repetido_existing_product_is_not_updated(self):
+        """Una fila repetida con existing_id no debe mutar el producto existente."""
+        db = MagicMock(spec=AsyncSession)
+        db.add = MagicMock()
+        db.flush = AsyncMock()
+        db.commit = AsyncMock()
+
+        existing_product = MagicMock(spec=Product)
+        existing_product.id = uuid4()
+        existing_product.list_price = Decimal("100")
+        existing_product.current_stock = 0
+        existing_product.calculate_prices = MagicMock()
+
+        batch_result = MagicMock()
+        batch_result.scalars.return_value.all.return_value = [existing_product]
+        db.execute = AsyncMock(return_value=batch_result)
+
+        row = _make_product_row(
+            row_number=2,
+            code="EXIST-001",
+            list_price=Decimal("999"),
+            is_new=False,
+            status="repetido",
+        ).model_copy(update={"existing_id": existing_product.id})
+
+        svc = ExcelService(db=db)
+        result = await svc.confirm_import(
+            business_id=uuid4(),
+            request=ImportConfirmRequest(rows=[row]),
+        )
+
+        assert result.updated == 0
+        assert result.skipped_duplicates == 1
+        assert existing_product.list_price == Decimal("100")
+        existing_product.calculate_prices.assert_not_called()
+
+    async def test_new_row_without_supplier_is_skipped_with_error(self):
+        """confirm_import debe defenderse si llega un nuevo producto sin proveedor."""
+        db = MagicMock(spec=AsyncSession)
+        db.add = MagicMock()
+        db.flush = AsyncMock()
+        db.commit = AsyncMock()
+        db.execute = AsyncMock()
+
+        row = _make_product_row(row_number=8, code="SIN-PROV", is_new=True, status="nuevo")
+        svc = ExcelService(db=db)
+        result = await svc.confirm_import(
+            business_id=uuid4(),
+            request=ImportConfirmRequest(rows=[row]),
+        )
+
+        assert result.created == 0
+        assert result.errors == ["Fila 8: Debe especificar un proveedor"]
 
 
 # ---------------------------------------------------------------------------
@@ -543,8 +724,8 @@ class TestPreviewImportQuantityPerPackageValidation:
 
         business_id = uuid4()
         content = _make_xlsx(
-            ["codigo", "nombre", "precio_lista", "cantidad_por_compra"],
-            [["TST-001", "Producto A", "1000", qty_value]],
+            ["codigo", "nombre", "precio_lista", "cantidad_por_compra", "proveedor"],
+            [["TST-001", "Producto A", "1000", qty_value, "Proveedor Test"]],
         )
         svc = ExcelService(db=db)
         return await svc.preview_import(business_id, content)

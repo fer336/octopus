@@ -48,5 +48,18 @@ class CategoryListParams(BaseSchema):
     per_page: int = Field(default=50, ge=1, le=100)
 
 
+class CategoryBulkDeleteRequest(BaseSchema):
+    """Request para eliminar múltiples categorías."""
+
+    ids: list[UUID] = Field(..., min_length=1, description="IDs de categorías")
+
+
+class CategoryBulkDeleteResponse(BaseSchema):
+    """Resultado de eliminación masiva de categorías."""
+
+    deleted: int
+    not_found: int
+
+
 # Necesario para la referencia recursiva
 CategoryWithChildren.model_rebuild()

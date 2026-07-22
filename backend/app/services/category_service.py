@@ -23,6 +23,8 @@ class CategoryService:
 
     async def create(self, business_id: UUID, data: CategoryCreate) -> Category:
         """Crea una nueva categoría."""
+        await self._ensure_unique_name(business_id, data.name)
+
         # Validar que la categoría padre existe si se especifica
         if data.parent_id:
             parent = await self.get_by_id(data.parent_id, business_id)
@@ -38,6 +40,26 @@ class CategoryService:
         await self.db.commit()
         await self.db.refresh(category)
         return category
+
+    async def _ensure_unique_name(
+        self,
+        business_id: UUID,
+        name: str,
+        exclude_id: UUID | None = None,
+    ) -> None:
+        """Valida unicidad case-insensitive de nombre por negocio."""
+        normalized_name = name.strip().lower()
+        query = select(Category.id).where(
+            Category.business_id == business_id,
+            Category.deleted_at.is_(None),
+            func.lower(Category.name) == normalized_name,
+        )
+        if exclude_id is not None:
+            query = query.where(Category.id != exclude_id)
+
+        result = await self.db.execute(query)
+        if result.scalar_one_or_none() is not None:
+            raise ValueError("Ya existe una categoría con ese nombre")
 
     async def get_by_id(
         self,
@@ -131,6 +153,13 @@ class CategoryService:
                 raise ValueError("Categoría padre no encontrada")
 
         update_data = data.model_dump(exclude_unset=True)
+        if "name" in update_data and update_data["name"] is not None:
+            await self._ensure_unique_name(
+                business_id,
+                update_data["name"],
+                exclude_id=category_id,
+            )
+
         for field, value in update_data.items():
             setattr(category, field, value)
 
@@ -153,6 +182,33 @@ class CategoryService:
         category.deleted_at = datetime.utcnow()
         await self.db.commit()
         return True
+
+    async def bulk_delete(
+        self,
+        category_ids: list[UUID],
+        business_id: UUID,
+    ) -> tuple[int, int]:
+        """
+        Elimina múltiples categorías (soft delete).
+        Replica el borrado individual: también elimina subcategorías.
+        """
+        unique_ids = list(dict.fromkeys(category_ids))
+        query = select(Category).where(
+            Category.id.in_(unique_ids),
+            Category.business_id == business_id,
+            Category.deleted_at.is_(None),
+        )
+        result = await self.db.execute(query)
+        categories = list(result.scalars().all())
+
+        now = datetime.utcnow()
+        for category in categories:
+            await self._delete_subcategories(category.id, business_id)
+            category.deleted_at = now
+
+        await self.db.commit()
+        deleted = len(categories)
+        return deleted, len(unique_ids) - deleted
 
     async def _delete_subcategories(self, parent_id: UUID, business_id: UUID) -> None:
         """Elimina subcategorías recursivamente."""

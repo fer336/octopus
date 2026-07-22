@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas.base import MessageResponse, PaginatedResponse
 from app.schemas.category import (
+    CategoryBulkDeleteRequest,
+    CategoryBulkDeleteResponse,
     CategoryCreate,
     CategoryListParams,
     CategoryResponse,
@@ -107,6 +109,18 @@ async def create_category(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         ) from e
+
+
+@router.post("/bulk-delete", response_model=CategoryBulkDeleteResponse)
+async def bulk_delete_categories(
+    data: CategoryBulkDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+    business_id=Depends(get_current_business),
+):
+    """Elimina múltiples categorías del negocio actual."""
+    service = CategoryService(db)
+    deleted, not_found = await service.bulk_delete(data.ids, business_id)
+    return CategoryBulkDeleteResponse(deleted=deleted, not_found=not_found)
 
 
 @router.get("/{category_id}", response_model=CategoryResponse)

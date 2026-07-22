@@ -52,6 +52,11 @@ export interface ClientCreate {
 
 export interface ClientUpdate extends Partial<ClientCreate> {}
 
+export interface ClientBulkDeleteResponse {
+  deleted: number
+  not_found: number
+}
+
 export const clientsService = {
   /**
    * Obtiene la lista de clientes con paginación y filtros.
@@ -96,6 +101,14 @@ export const clientsService = {
    */
   delete: async (id: string): Promise<void> => {
     await httpClient.delete(`/clients/${id}`)
+  },
+
+  /**
+   * Elimina varios clientes (soft delete).
+   */
+  bulkDelete: async (ids: string[]): Promise<ClientBulkDeleteResponse> => {
+    const response = await httpClient.post('/clients/bulk-delete', { ids })
+    return response.data
   },
 
   /**

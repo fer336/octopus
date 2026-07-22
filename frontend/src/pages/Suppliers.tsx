@@ -7,10 +7,11 @@ import { Plus, Edit, Trash2, Truck, Phone, Mail, MapPin, Search, Inbox, Loader2 
 import { Button, Table, Pagination, Modal, Input, ResponsiveTable } from '../components/ui'
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import suppliersService, { SupplierCreate, SupplierUpdate, Supplier } from '../api/suppliersService'
+import suppliersService, { type SupplierCreate, type SupplierUpdate, type Supplier } from '../api/suppliersService'
 import categoriesService from '../api/categoriesService'
 import toast from 'react-hot-toast'
 import DeleteSupplierModal from '../components/suppliers/DeleteSupplierModal'
+import BulkDeleteSupplierModal from '../components/suppliers/BulkDeleteSupplierModal'
 import { useDebounce } from '../hooks/useDebounce'
 
 export default function Suppliers() {
@@ -23,7 +24,9 @@ export default function Suppliers() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'general' | 'categories'>('general')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Query para proveedores
   const { data: suppliersData, isLoading, isFetching, error } = useQuery({
@@ -81,6 +84,27 @@ export default function Suppliers() {
       toast.success('Proveedor eliminado correctamente', { duration: 3000, icon: '🗑️' })
     },
     onError: (error: any) => {
+      toast.error(formatErrorMessage(error))
+    },
+  })
+
+  // Mutation para eliminar proveedores seleccionados
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => suppliersService.bulkDelete(ids),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] })
+      setSelectedIds(new Set())
+      setShowBulkDeleteModal(false)
+
+      const notFoundSuffix = result.not_found > 0
+        ? ` (${result.not_found} no se encontraron o ya no estaban disponibles)`
+        : ''
+      toast.success(`Se eliminaron ${result.deleted} proveedor${result.deleted === 1 ? '' : 'es'}${notFoundSuffix}`, {
+        duration: 4000,
+        icon: '🗑️',
+      })
+    },
+    onError: (error: unknown) => {
       toast.error(formatErrorMessage(error))
     },
   })
@@ -166,6 +190,19 @@ export default function Suppliers() {
     }
   }
 
+  const toggleSelectSupplier = (supplierId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      next.has(supplierId) ? next.delete(supplierId) : next.add(supplierId)
+      return next
+    })
+  }
+
+  const handleConfirmBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    await bulkDeleteMutation.mutateAsync(Array.from(selectedIds))
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -201,8 +238,43 @@ export default function Suppliers() {
   const totalSuppliers = suppliersData?.total || 0
   const totalPages = Math.max(1, Math.ceil(totalSuppliers / 20))
 
+  const visibleSupplierIds = suppliers.map((supplier) => supplier.id)
+  const allVisibleSelected = visibleSupplierIds.length > 0 && visibleSupplierIds.every((id) => selectedIds.has(id))
+
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      setSelectedIds(new Set())
+      return
+    }
+
+    setSelectedIds(new Set(visibleSupplierIds))
+  }
+
   // Columnas para tabla desktop
   const columns = [
+    {
+      key: 'selection',
+      header: (
+        <input
+          type="checkbox"
+          checked={allVisibleSelected}
+          onChange={toggleSelectAllVisible}
+          disabled={visibleSupplierIds.length === 0}
+          className="h-4 w-4 cursor-pointer rounded accent-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Seleccionar todos los proveedores visibles"
+        />
+      ),
+      className: 'w-10',
+      render: (item: Supplier) => (
+        <input
+          type="checkbox"
+          checked={selectedIds.has(item.id)}
+          onChange={() => toggleSelectSupplier(item.id)}
+          className="h-4 w-4 cursor-pointer rounded accent-primary-600"
+          aria-label={`Seleccionar proveedor ${item.name}`}
+        />
+      ),
+    },
     {
       key: 'name',
       header: 'Proveedor',
@@ -332,13 +404,25 @@ export default function Suppliers() {
           </p>
         </div>
 
-        <Button
-          onClick={() => handleOpenModal()}
-          className="bg-primary-600 hover:bg-primary-700 text-white border-none shadow-md"
-        >
-          <Plus size={18} className="mr-2" />
-          Nuevo Proveedor
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <Button
+              onClick={() => setShowBulkDeleteModal(true)}
+              disabled={bulkDeleteMutation.isPending}
+              className="border-none bg-red-600 text-white shadow-md hover:bg-red-700"
+            >
+              <Trash2 size={18} className="mr-2" />
+              Eliminar {selectedIds.size} seleccionado{selectedIds.size === 1 ? '' : 's'}
+            </Button>
+          )}
+          <Button
+            onClick={() => handleOpenModal()}
+            className="bg-primary-600 hover:bg-primary-700 text-white border-none shadow-md"
+          >
+            <Plus size={18} className="mr-2" />
+            Nuevo Proveedor
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -352,6 +436,7 @@ export default function Suppliers() {
               onChange={(e) => {
                 setSearch(e.target.value)
                 setPage(1)
+                setSelectedIds(new Set())
               }}
               placeholder="Buscar por nombre, CUIT, contacto o email..."
               className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
@@ -394,6 +479,13 @@ export default function Suppliers() {
                 className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
               >
                 <div className="flex items-start justify-between gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(item.id)}
+                    onChange={() => toggleSelectSupplier(item.id)}
+                    className="mt-1 h-4 w-4 shrink-0 cursor-pointer rounded accent-primary-600"
+                    aria-label={`Seleccionar proveedor ${item.name}`}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
@@ -469,7 +561,10 @@ export default function Suppliers() {
         currentPage={page}
         totalPages={totalPages}
         totalItems={totalSuppliers}
-        onPageChange={setPage}
+        onPageChange={(nextPage) => {
+          setPage(nextPage)
+          setSelectedIds(new Set())
+        }}
       />
 
       {/* Modal Mejorado con Tabs */}
@@ -685,6 +780,13 @@ export default function Suppliers() {
         }}
         onConfirm={handleConfirmDelete}
         supplierName={supplierToDelete?.name || ''}
+      />
+
+      <BulkDeleteSupplierModal
+        isOpen={showBulkDeleteModal}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onConfirm={handleConfirmBulkDelete}
+        count={selectedIds.size}
       />
     </div>
   )

@@ -15,8 +15,11 @@ const {
   createByAmountMock,
   getPdfMock,
   getVoucherByIdMock,
+  emitInvoiceMock,
   toastSuccessMock,
   toastErrorMock,
+  toastLoadingMock,
+  toastDismissMock,
   paymentMethodsGetAllMock,
 } = vi.hoisted(() => ({
   searchMock: vi.fn(),
@@ -24,8 +27,11 @@ const {
   createByAmountMock: vi.fn(),
   getPdfMock: vi.fn(),
   getVoucherByIdMock: vi.fn(),
+  emitInvoiceMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
+  toastLoadingMock: vi.fn(),
+  toastDismissMock: vi.fn(),
   paymentMethodsGetAllMock: vi.fn(),
 }))
 
@@ -45,8 +51,12 @@ vi.mock('../../../api/paymentMethodsService', () => ({
   default: { getAll: paymentMethodsGetAllMock },
 }))
 
+vi.mock('../../../api/arcaService', () => ({
+  default: { emitInvoice: emitInvoiceMock },
+}))
+
 vi.mock('react-hot-toast', () => ({
-  default: { success: toastSuccessMock, error: toastErrorMock },
+  default: { success: toastSuccessMock, error: toastErrorMock, loading: toastLoadingMock, dismiss: toastDismissMock },
 }))
 
 import MobileSales, { mergeCartLine, calculateTotals, resolveVoucherType } from '../../../pages/mobile/MobileSales'
@@ -117,11 +127,12 @@ let windowOpenSpy: any
 beforeEach(() => {
   vi.clearAllMocks()
   searchMock.mockResolvedValue([])
-  createMock.mockResolvedValue({ id: 'v1' })
+  createMock.mockResolvedValue({ id: 'v1', voucher_type: 'quotation', sale_point: 1, number: 1 })
   createByAmountMock.mockResolvedValue({ id: 's1', name: 'Obra Rivadavia', stockpile_number: 1 })
   getPdfMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }))
   getVoucherByIdMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }))
   paymentMethodsGetAllMock.mockResolvedValue([])
+  emitInvoiceMock.mockResolvedValue({ success: true, cae: '12345678901234', cae_expiration: '2026-07-21' })
   // jsdom doesn't implement URL.createObjectURL — stub it so the in-app PDF
   // viewer (PdfViewerSheet's pdfUrl, built via URL.createObjectURL(blob)) is
   // exercisable.
@@ -986,24 +997,64 @@ describe('MobileSales — optional payment methods (ported from desktop buildPay
   })
 })
 
-describe('MobileSales — Factura is hard-blocked from submission (fiscal ARCA/CAE gap, mobile does not emit electronically yet)', () => {
-  it('disables the CTA with the exact blocking message even with a valid client and cart', async () => {
+describe('MobileSales — Factura with ARCA emission', () => {
+  it('disables the CTA when Factura is selected without a payment method', async () => {
+    paymentMethodsGetAllMock.mockResolvedValue([makePaymentMethod()])
     renderSales([makeLine()])
     await pickClient()
     await userEvent.click(screen.getByRole('button', { name: 'Factura' }))
 
     expect(screen.getByRole('button', { name: /facturar/i })).toBeDisabled()
-    expect(
-      screen.getByText('Facturar no está disponible desde mobile todavía — generala desde el escritorio')
-    ).toBeInTheDocument()
+    expect(screen.getByText('Seleccioná al menos un método de pago')).toBeInTheDocument()
   })
 
-  it('never calls vouchersService.create() when Factura is selected, even if the disabled CTA is clicked', async () => {
+  it('submits Factura with a payment method and calls emitInvoice on success', async () => {
+    createMock.mockResolvedValue({ id: 'v1', voucher_type: 'invoice_b', sale_point: 1, number: 1 })
+    paymentMethodsGetAllMock.mockResolvedValue([makePaymentMethod()])
     renderSales([makeLine()])
     await pickClient()
     await userEvent.click(screen.getByRole('button', { name: 'Factura' }))
 
+    await userEvent.click(screen.getByRole('button', { name: 'Efectivo' }))
+    expect(createMock).toHaveBeenCalledTimes(0)
+
     await userEvent.click(screen.getByRole('button', { name: /facturar/i }))
-    expect(createMock).not.toHaveBeenCalled()
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1))
+    expect(emitInvoiceMock).toHaveBeenCalledWith({ voucher_id: 'v1' })
+  })
+
+  it('shows CAE in the success toast when ARCA emission succeeds', async () => {
+    createMock.mockResolvedValue({ id: 'v1', voucher_type: 'invoice_b', sale_point: 1, number: 1 })
+    emitInvoiceMock.mockResolvedValue({ success: true, cae: '12345678901234', cae_expiration: '2026-07-21' })
+    paymentMethodsGetAllMock.mockResolvedValue([makePaymentMethod()])
+    renderSales([makeLine()])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: 'Factura' }))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Efectivo' }))
+    await userEvent.click(screen.getByRole('button', { name: /facturar/i }))
+
+    await waitFor(() => {
+      expect(toastSuccessMock).toHaveBeenCalledWith(
+        expect.stringContaining('CAE: 12345678901234'),
+        expect.any(Object)
+      )
+    })
+  })
+
+  it('shows error toast when ARCA emission fails', async () => {
+    createMock.mockResolvedValue({ id: 'v1', voucher_type: 'invoice_b', sale_point: 1, number: 1 })
+    emitInvoiceMock.mockResolvedValue({ success: false, message: 'ARCA rechazó la factura', errors: ['Error interno'] })
+    paymentMethodsGetAllMock.mockResolvedValue([makePaymentMethod()])
+    renderSales([makeLine()])
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: 'Factura' }))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Efectivo' }))
+    await userEvent.click(screen.getByRole('button', { name: /facturar/i }))
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith(expect.stringContaining('ARCA rechazó'), expect.any(Object))
+    })
   })
 })

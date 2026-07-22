@@ -206,3 +206,38 @@ class BrandService:
         brand.deleted_at = datetime.utcnow()
         await self.db.commit()
         return True
+
+    async def bulk_delete(
+        self,
+        brand_ids: list[UUID],
+        business_id: UUID,
+    ) -> tuple[int, int]:
+        """
+        Elimina múltiples marcas (soft delete).
+        Replica el borrado individual: bloquea si alguna marca tiene productos.
+        """
+        unique_ids = list(dict.fromkeys(brand_ids))
+        query = select(Brand).where(
+            Brand.id.in_(unique_ids),
+            Brand.business_id == business_id,
+            Brand.deleted_at.is_(None),
+        )
+        result = await self.db.execute(query)
+        brands = list(result.scalars().all())
+
+        for brand in brands:
+            product_count = await self.get_product_count(brand.id)
+            if product_count > 0:
+                raise ValueError(
+                    f"No se puede eliminar la marca \"{brand.name}\": "
+                    f"tiene {product_count} producto{'s' if product_count != 1 else ''} asociado{'s' if product_count != 1 else ''}. "
+                    "Reasigná los productos a otra marca primero."
+                )
+
+        now = datetime.utcnow()
+        for brand in brands:
+            brand.deleted_at = now
+
+        await self.db.commit()
+        deleted = len(brands)
+        return deleted, len(unique_ids) - deleted
