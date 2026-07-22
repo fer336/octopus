@@ -268,6 +268,55 @@ class ProductService:
 
         return products, total
 
+    async def list_ids(
+        self,
+        business_id: UUID,
+        params: ProductListParams,
+    ) -> tuple[builtins.list[UUID], int]:
+        """Lista solo IDs de productos aplicando filtros livianos."""
+        base_conditions = [
+            Product.business_id == business_id,
+            Product.deleted_at.is_(None),
+        ]
+        uses_brand_join = False
+
+        if params.search:
+            base_conditions.append(
+                or_(
+                    Product.code.ilike(f"%{params.search}%"),
+                    Product.supplier_code.ilike(f"%{params.search}%"),
+                    Product.description.ilike(f"%{params.search}%"),
+                    Product.brand.ilike(f"%{params.search}%"),
+                    Brand.name.ilike(f"%{params.search}%"),
+                    Product.line.ilike(f"%{params.search}%"),
+                    Product.application_area.ilike(f"%{params.search}%"),
+                    Product.finish.ilike(f"%{params.search}%"),
+                    Product.customer_terms.ilike(f"%{params.search}%"),
+                )
+            )
+            uses_brand_join = True
+
+        if params.category_id:
+            base_conditions.append(Product.category_id == params.category_id)
+
+        if params.supplier_id:
+            base_conditions.append(Product.supplier_id == params.supplier_id)
+
+        if params.brand_id:
+            base_conditions.append(Product.brand_id == params.brand_id)
+
+        query = select(Product.id).where(*base_conditions).order_by(Product.description.asc())
+        count_query = select(func.count(Product.id)).where(*base_conditions)
+        if uses_brand_join:
+            query = query.outerjoin(Brand, Product.brand_id == Brand.id)
+            count_query = count_query.outerjoin(Brand, Product.brand_id == Brand.id)
+
+        ids_result = await self.db.execute(query)
+        count_result = await self.db.execute(count_query)
+        ids = list(ids_result.scalars().all())
+        total = count_result.scalar() or 0
+        return ids, total
+
     async def update(
         self,
         product_id: UUID,

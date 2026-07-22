@@ -45,3 +45,16 @@ class BrandListParams(BaseSchema):
     search: str | None = Field(None, description="Buscar por nombre")
     page: int = Field(default=1, ge=1)
     per_page: int = Field(default=100, ge=1, le=100)
+
+
+class BrandBulkDeleteRequest(BaseSchema):
+    """Request para eliminar múltiples marcas."""
+
+    ids: list[UUID] = Field(..., min_length=1, description="IDs de marcas")
+
+
+class BrandBulkDeleteResponse(BaseSchema):
+    """Resultado de eliminación masiva de marcas."""
+
+    deleted: int
+    not_found: int

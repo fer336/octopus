@@ -43,6 +43,11 @@ export interface SupplierCreate {
 
 export interface SupplierUpdate extends Partial<SupplierCreate> {}
 
+export interface SupplierBulkDeleteResponse {
+  deleted: number
+  not_found: number
+}
+
 export const suppliersService = {
   /**
    * Obtiene la lista de proveedores con paginación y filtros.
@@ -85,6 +90,14 @@ export const suppliersService = {
    */
   delete: async (id: string): Promise<void> => {
     await httpClient.delete(`/suppliers/${id}`)
+  },
+
+  /**
+   * Elimina varios proveedores (soft delete).
+   */
+  bulkDelete: async (ids: string[]): Promise<SupplierBulkDeleteResponse> => {
+    const response = await httpClient.post('/suppliers/bulk-delete', { ids })
+    return response.data
   },
 }
 

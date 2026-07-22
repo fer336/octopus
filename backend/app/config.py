@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # External agent opaque tokens
+    AGENT_TOKEN_PEPPER: str = ""
+    AGENT_TOKEN_TTL_DAYS: int = 365
+
     # Google OAuth
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""

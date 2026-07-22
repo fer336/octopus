@@ -101,3 +101,16 @@ class SupplierListParams(BaseSchema):
     search: str | None = Field(None, description="Buscar por nombre o CUIT")
     page: int = Field(default=1, ge=1)
     per_page: int = Field(default=20, ge=1, le=100)
+
+
+class SupplierBulkDeleteRequest(BaseSchema):
+    """Request para eliminar múltiples proveedores."""
+
+    ids: list[UUID] = Field(..., min_length=1, description="IDs de proveedores")
+
+
+class SupplierBulkDeleteResponse(BaseSchema):
+    """Resultado de eliminación masiva de proveedores."""
+
+    deleted: int
+    not_found: int

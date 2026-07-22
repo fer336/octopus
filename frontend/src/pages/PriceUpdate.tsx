@@ -7,7 +7,7 @@ import { useState, type MouseEvent } from 'react'
 import { TrendingUp, Search, Filter, DollarSign, FolderOpen, Trash2, ChevronUp, Clock, Package, RefreshCw } from 'lucide-react'
 import { Button, ConfirmModal, Pagination } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import productsService, { Product, ProductBulkUpdateItem } from '../api/productsService'
+import productsService, { type Product, type ProductBulkUpdateItem, type ProductIdsParams } from '../api/productsService'
 import categoriesService from '../api/categoriesService'
 import suppliersService from '../api/suppliersService'
 import priceUpdateDraftsService, { DraftSummary } from '../api/priceUpdateDraftsService'
@@ -70,10 +70,13 @@ export default function PriceUpdate() {
   // Selección de productos
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
   const [showBulkEditModal, setShowBulkEditModal] = useState(false)
+  const [bulkEditProducts, setBulkEditProducts] = useState<EditableProduct[] | null>(null)
   const [showExcelMassUpdateModal, setShowExcelMassUpdateModal] = useState(false)
   const [activeDraftId, setActiveDraftId] = useState<string | undefined>()
   const [showDeleteAllDraftsModal, setShowDeleteAllDraftsModal] = useState(false)
   const [isDeletingAllDrafts, setIsDeletingAllDrafts] = useState(false)
+  const [isSelectingAll, setIsSelectingAll] = useState(false)
+  const [isPreparingBulkEdit, setIsPreparingBulkEdit] = useState(false)
 
   // Panel de borradores
   const [showDrafts, setShowDrafts] = useState(false)
@@ -118,6 +121,7 @@ export default function PriceUpdate() {
   const activeExchangeRate = exchangeRates?.blue.promedio ?? 0
 
   const products = productsData?.items ?? EMPTY_PRODUCTS
+  const totalFilteredProducts = productsData?.total ?? products.length
   const categories = Array.isArray(categoriesData) ? categoriesData : []
   const suppliers = Array.isArray(suppliersData?.items) ? suppliersData.items : []
 
@@ -133,6 +137,37 @@ export default function PriceUpdate() {
 
   // ─── Handlers de selección ──────────────────────────────────────────────────
 
+  const getActiveProductFilters = (): ProductIdsParams => ({
+    search: search || undefined,
+    category_id: selectedCategory || undefined,
+    supplier_id: selectedSupplier || undefined,
+  })
+
+  const fetchProductsForCurrentFilters = async (): Promise<Product[]> => {
+    const firstPage = await productsService.getAll({
+      ...getActiveProductFilters(),
+      page: 1,
+      per_page: 100,
+    })
+    const allProducts = [...firstPage.items]
+
+    for (let pageNumber = 2; pageNumber <= firstPage.pages; pageNumber += 1) {
+      const pageResult = await productsService.getAll({
+        ...getActiveProductFilters(),
+        page: pageNumber,
+        per_page: 100,
+      })
+      allProducts.push(...pageResult.items)
+    }
+
+    return allProducts
+  }
+
+  const resetSelection = () => {
+    setSelectedProducts(new Set())
+    setBulkEditProducts(null)
+  }
+
   const toggleSelectProduct = (productId: string) => {
     setSelectedProducts((prev) => {
       const next = new Set(prev)
@@ -141,11 +176,23 @@ export default function PriceUpdate() {
     })
   }
 
-  const toggleSelectAll = () => {
-    if (selectedProducts.size === products.length && products.length > 0) {
+  const allFilteredSelected = totalFilteredProducts > 0 && selectedProducts.size === totalFilteredProducts
+
+  const toggleSelectAll = async () => {
+    if (allFilteredSelected) {
       setSelectedProducts(new Set())
+      setBulkEditProducts(null)
     } else {
-      setSelectedProducts(new Set(products.map(p => p.id)))
+      setIsSelectingAll(true)
+      try {
+        const result = await productsService.getAllIds(getActiveProductFilters())
+        setSelectedProducts(new Set(result.ids))
+        setBulkEditProducts(null)
+      } catch {
+        toast.error('Error al seleccionar todos los productos filtrados')
+      } finally {
+        setIsSelectingAll(false)
+      }
     }
   }
 
@@ -154,6 +201,38 @@ export default function PriceUpdate() {
     setSelectedSupplier('')
     setSearch('')
     setPage(1)
+    resetSelection()
+  }
+
+  const openBulkEditWithProducts = async () => {
+    if (products.length === 0) return
+
+    setIsPreparingBulkEdit(true)
+    try {
+      if (selectedProducts.size === 0) {
+        const allProducts = await fetchProductsForCurrentFilters()
+        setSelectedProducts(new Set(allProducts.map((product) => product.id)))
+        setBulkEditProducts(allProducts)
+        setShowBulkEditModal(true)
+        return
+      }
+
+      const pageSelectedProducts = products.filter((product) => selectedProducts.has(product.id))
+      if (pageSelectedProducts.length === selectedProducts.size) {
+        setBulkEditProducts(pageSelectedProducts)
+        setShowBulkEditModal(true)
+        return
+      }
+
+      const allProducts = await fetchProductsForCurrentFilters()
+      const selectedFullProducts = allProducts.filter((product) => selectedProducts.has(product.id))
+      setBulkEditProducts(selectedFullProducts)
+      setShowBulkEditModal(true)
+    } catch {
+      toast.error('Error al cargar todos los productos seleccionados')
+    } finally {
+      setIsPreparingBulkEdit(false)
+    }
   }
 
   // ─── Cargar borrador desde BD ────────────────────────────────────────────────
@@ -185,6 +264,7 @@ export default function PriceUpdate() {
 
   const handleCloseBulkEdit = (draftId?: string, products?: EditableProduct[]) => {
     setShowBulkEditModal(false)
+    setBulkEditProducts(null)
 
     if (draftId && products) {
       setActiveDraftId(draftId)
@@ -264,6 +344,7 @@ export default function PriceUpdate() {
       await queryClient.invalidateQueries({ queryKey: ['products'] })
       await queryClient.refetchQueries({ queryKey: ['products'], type: 'active' })
       setSelectedProducts(new Set())
+      setBulkEditProducts(null)
     } catch (error: any) {
       toast.error('Error al guardar cambios: ' + (error.response?.data?.detail || error.message))
       throw error
@@ -325,22 +406,16 @@ export default function PriceUpdate() {
           {/* Botón actualizar: visible con filtro activo o selección */}
           {(hasActiveFilter || selectedProducts.size > 0) && (
             <Button
-              onClick={() => {
-                // Si no hay selección manual, seleccionar todos los filtrados automáticamente
-                if (selectedProducts.size === 0 && products.length > 0) {
-                  setSelectedProducts(new Set(products.map(p => p.id)))
-                }
-                setShowBulkEditModal(true)
-              }}
-              disabled={products.length === 0}
+              onClick={openBulkEditWithProducts}
+              disabled={products.length === 0 || isPreparingBulkEdit}
               size="sm"
               className="h-10 w-full whitespace-nowrap bg-gradient-to-r from-orange-500 to-amber-600 px-3 hover:from-orange-600 hover:to-amber-700 text-white disabled:opacity-50 lg:w-auto"
               data-tour-price-update-top
             >
               <TrendingUp size={14} className="mr-1.5" />
-              Actualizar Precios
+              {isPreparingBulkEdit ? 'Cargando productos...' : 'Actualizar Precios'}
               <span className="ml-2 bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                {selectedProducts.size > 0 ? selectedProducts.size : products.length}
+                {selectedProducts.size > 0 ? selectedProducts.size : totalFilteredProducts}
               </span>
             </Button>
           )}
@@ -434,7 +509,7 @@ export default function PriceUpdate() {
             </label>
             <select
               value={selectedCategory}
-              onChange={(e) => { setPage(1); setSelectedCategory(e.target.value) }}
+              onChange={(e) => { setPage(1); setSelectedCategory(e.target.value); resetSelection() }}
               className="w-full px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm text-gray-900 dark:text-white"
             >
               <option value="">Todas las categorías</option>
@@ -451,7 +526,7 @@ export default function PriceUpdate() {
             </label>
             <select
               value={selectedSupplier}
-              onChange={(e) => { setPage(1); setSelectedSupplier(e.target.value) }}
+              onChange={(e) => { setPage(1); setSelectedSupplier(e.target.value); resetSelection() }}
               className="w-full px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm text-gray-900 dark:text-white"
             >
               <option value="">Todos los proveedores</option>
@@ -471,7 +546,7 @@ export default function PriceUpdate() {
               <input
                 type="text"
                 value={search}
-                onChange={(e) => { setPage(1); setSearch(e.target.value) }}
+                onChange={(e) => { setPage(1); setSearch(e.target.value); resetSelection() }}
                 placeholder="Código o nombre..."
                 className="w-full pl-9 pr-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm text-gray-900 dark:text-white"
                 data-tour-price-search
@@ -535,8 +610,9 @@ export default function PriceUpdate() {
                   <th className="w-10 px-3 py-2.5">
                     <input
                       type="checkbox"
-                      checked={selectedProducts.size === products.length && products.length > 0}
+                      checked={allFilteredSelected}
                       onChange={toggleSelectAll}
+                      disabled={isSelectingAll || totalFilteredProducts === 0}
                       className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                       data-tour-price-select-all
                     />
@@ -744,13 +820,14 @@ export default function PriceUpdate() {
 
             {/* Actualizar */}
             <Button
-              onClick={() => setShowBulkEditModal(true)}
+              onClick={openBulkEditWithProducts}
+              disabled={isPreparingBulkEdit}
               className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white shadow-lg"
               size="md"
               data-tour-price-update-floating
             >
               <TrendingUp size={16} className="mr-2" />
-              Actualizar Precios
+              {isPreparingBulkEdit ? 'Cargando...' : 'Actualizar Precios'}
             </Button>
           </div>
         </div>
@@ -762,7 +839,7 @@ export default function PriceUpdate() {
         onClose={handleCloseBulkEdit}
         onSave={handleSaveBulkEdit}
         onDraftSaved={handleDraftSaved}
-        products={draftProducts ?? products.filter(p => selectedProducts.has(p.id))}
+        products={draftProducts ?? bulkEditProducts ?? products.filter(p => selectedProducts.has(p.id))}
         exchangeRate={activeExchangeRate}
         categories={categories}
         suppliers={suppliers}

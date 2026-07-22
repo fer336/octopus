@@ -512,12 +512,25 @@ class ExcelService:
                 is_new = existing_product is None
                 existing_id = existing_product.id if existing_product else None
 
+                missing_supplier = supplier_id is None and not supplier_name
+
                 if is_new:
-                    new_count += 1
                     row_status = "nuevo"
                 else:
-                    existing_count += 1
-                    row_status = "actualizar"
+                    duplicate_count += 1
+                    row_status = "repetido"
+
+                has_errors = False
+                error_message = None
+                if is_new and missing_supplier:
+                    has_errors = True
+                    error_message = "Debe especificar un proveedor"
+
+                if has_errors:
+                    error_count += 1
+                elif row_status == "nuevo":
+                    valid_count += 1
+                    new_count += 1
 
                 rows.append(ProductImportRow(
                     row_number=row_number,
@@ -550,12 +563,12 @@ class ExcelService:
                     net_price=net_price,
                     sale_price=sale_price,
                     discount_display=discount_display,
-                    has_errors=False,
+                    has_errors=has_errors,
+                    error_message=error_message,
                     is_new=is_new,
                     existing_id=existing_id,
                     status=row_status,
                 ))
-                valid_count += 1
 
             except Exception as e:
                 import traceback
@@ -722,6 +735,10 @@ class ExcelService:
                 import uuid as _uuid
 
                 if row.is_new:
+                    if resolved_supplier_id is None and not row.supplier_name:
+                        errors.append(f"Fila {row.row_number}: Debe especificar un proveedor")
+                        continue
+
                     # Crear nuevo producto (ID pre-generado, sin flush)
                     initial_stock = row.current_stock
                     product_id = _uuid.uuid4()

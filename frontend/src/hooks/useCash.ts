@@ -27,6 +27,9 @@ export function useOpenCash() {
     mutationFn: (data: OpenCashRequest) => cashService.openCash(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] })
+      // El balance (Ingresos/Egresos/expected_cash) vive en cash-summary, no en
+      // cash-current — sin esto queda desactualizado tras abrir la caja.
+      queryClient.invalidateQueries({ queryKey: ['cash-summary'] })
     },
   })
 }
@@ -38,6 +41,8 @@ export function useCloseCash() {
     mutationFn: (data: CloseCashRequest) => cashService.closeCash(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] })
+      // Ver comentario en useOpenCash: cash-summary también debe invalidarse.
+      queryClient.invalidateQueries({ queryKey: ['cash-summary'] })
     },
   })
 }
@@ -49,6 +54,9 @@ export function useAddMovement(cashRegisterId: string) {
     mutationFn: (data: AddMovementRequest) => cashService.addMovement(cashRegisterId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] })
+      // Ver comentario en useOpenCash: cash-summary también debe invalidarse,
+      // si no el balance queda desincronizado tras registrar un movimiento.
+      queryClient.invalidateQueries({ queryKey: ['cash-summary', cashRegisterId] })
     },
   })
 }

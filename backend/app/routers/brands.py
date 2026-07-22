@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas.base import MessageResponse, PaginatedResponse
 from app.schemas.brand import (
+    BrandBulkDeleteRequest,
+    BrandBulkDeleteResponse,
     BrandCreate,
     BrandListParams,
     BrandProductItem,
@@ -70,6 +72,21 @@ async def create_brand(
         return BrandResponse.model_validate(brand)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
+@router.post("/bulk-delete", response_model=BrandBulkDeleteResponse)
+async def bulk_delete_brands(
+    data: BrandBulkDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+    business_id=Depends(get_current_business),
+):
+    """Elimina múltiples marcas del negocio actual."""
+    service = BrandService(db)
+    try:
+        deleted, not_found = await service.bulk_delete(data.ids, business_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    return BrandBulkDeleteResponse(deleted=deleted, not_found=not_found)
 
 
 @router.get("/{brand_id}", response_model=BrandResponse)

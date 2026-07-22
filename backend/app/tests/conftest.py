@@ -3,6 +3,7 @@ Fixtures compartidas para tests del backend.
 """
 
 import asyncio
+import os
 from collections.abc import AsyncGenerator
 
 import pytest
@@ -12,6 +13,9 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.pool import StaticPool
+
+os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("AGENT_TOKEN_PEPPER", "octopustrack-explicit-test-agent-pepper")
 
 from app.database import Base, get_db
 from app.main import app

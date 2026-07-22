@@ -8,10 +8,11 @@ import { Button, Table, Pagination, Modal, Input, Select, ConfirmModal, Responsi
 import { formatErrorMessage } from '../utils/errorHelpers'
 import { TAX_CONDITIONS, DOCUMENT_TYPES, normalizeTaxCondition, getTaxConditionLabel } from '../types'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import clientsService, { ClientCreate, ClientUpdate, Client } from '../api/clientsService'
-import clientTypesService, { ClientType } from '../api/clientTypesService'
+import clientsService, { type ClientCreate, type ClientUpdate, type Client } from '../api/clientsService'
+import clientTypesService, { type ClientType } from '../api/clientTypesService'
 import toast from 'react-hot-toast'
 import { useDebounce } from '../hooks/useDebounce'
+import BulkDeleteClientModal from '../components/clients/BulkDeleteClientModal'
 
 export default function Clients() {
   const queryClient = useQueryClient()
@@ -23,6 +24,8 @@ export default function Clients() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'general' | 'address' | 'notes'>('general')
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isLookingUpCuit, setIsLookingUpCuit] = useState(false)
   const [showTypesModal, setShowTypesModal] = useState(false)
   const [typeName, setTypeName] = useState('')
@@ -99,6 +102,27 @@ export default function Clients() {
       setClientToDelete(null)
     },
     onError: (error: any) => {
+      toast.error(formatErrorMessage(error))
+    },
+  })
+
+  // Mutation para eliminar clientes seleccionados
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => clientsService.bulkDelete(ids),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+      setSelectedIds(new Set())
+      setShowBulkDeleteModal(false)
+
+      const notFoundSuffix = result.not_found > 0
+        ? ` (${result.not_found} no se encontraron o ya no estaban disponibles)`
+        : ''
+      toast.success(`Se eliminaron ${result.deleted} cliente${result.deleted === 1 ? '' : 's'}${notFoundSuffix}`, {
+        duration: 4000,
+        icon: '🗑️',
+      })
+    },
+    onError: (error: unknown) => {
       toast.error(formatErrorMessage(error))
     },
   })
@@ -339,7 +363,56 @@ const data = await clientsService.lookupCuit(cuit)
     setTypeEligible(false)
   }
 
+  const clients = clientsData?.items || []
+  const visibleClientIds = clients.map((client) => client.id)
+  const allVisibleSelected = visibleClientIds.length > 0 && visibleClientIds.every((id) => selectedIds.has(id))
+
+  const toggleSelectClient = (clientId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      next.has(clientId) ? next.delete(clientId) : next.add(clientId)
+      return next
+    })
+  }
+
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      setSelectedIds(new Set())
+      return
+    }
+
+    setSelectedIds(new Set(visibleClientIds))
+  }
+
+  const handleConfirmBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    await bulkDeleteMutation.mutateAsync(Array.from(selectedIds))
+  }
+
   const columns = [
+    {
+      key: 'selection',
+      header: (
+        <input
+          type="checkbox"
+          checked={allVisibleSelected}
+          onChange={toggleSelectAllVisible}
+          disabled={visibleClientIds.length === 0}
+          className="h-4 w-4 cursor-pointer rounded accent-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Seleccionar todos los clientes visibles"
+        />
+      ),
+      className: 'w-10',
+      render: (item: Client) => (
+        <input
+          type="checkbox"
+          checked={selectedIds.has(item.id)}
+          onChange={() => toggleSelectClient(item.id)}
+          className="h-4 w-4 cursor-pointer rounded accent-primary-600"
+          aria-label={`Seleccionar cliente ${item.name}`}
+        />
+      ),
+    },
     {
       key: 'name',
       header: 'Cliente',
@@ -487,8 +560,6 @@ const data = await clientsService.lookupCuit(cuit)
     )
   }
 
-  const clients = clientsData?.items || []
-
   // Indicator inline cuando se está buscando (evita full-page spinner)
   const showInlineLoader = isFetching && !isLoading
 
@@ -514,6 +585,17 @@ const data = await clientsService.lookupCuit(cuit)
           </p>
         </div>
         <div className="flex flex-wrap gap-1.5 lg:gap-2 justify-end">
+          {selectedIds.size > 0 && (
+            <Button
+              onClick={() => setShowBulkDeleteModal(true)}
+              disabled={bulkDeleteMutation.isPending}
+              className="h-8 lg:h-9 px-2.5 lg:px-3 text-xs lg:text-sm border-none bg-red-600 text-white shadow-md hover:bg-red-700"
+            >
+              <Trash2 size={16} className="mr-1.5" />
+              <span className="hidden sm:inline">Eliminar {selectedIds.size} seleccionados</span>
+              <span className="sm:hidden">Eliminar {selectedIds.size}</span>
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() => {
@@ -548,6 +630,7 @@ const data = await clientsService.lookupCuit(cuit)
             onChange={(e) => {
               setSearch(e.target.value)
               setPage(1)
+              setSelectedIds(new Set())
             }}
             placeholder="Buscar por nombre, documento..."
             className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
@@ -568,7 +651,7 @@ const data = await clientsService.lookupCuit(cuit)
             </div>
           }
           renderDesktop={() => (
-            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="max-h-[calc(100vh-14rem)] overflow-y-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
               <Table columns={columns} data={clients} density="compact" />
             </div>
           )}
@@ -580,6 +663,13 @@ const data = await clientsService.lookupCuit(cuit)
                 className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
               >
                 <div className="flex items-start justify-between gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(item.id)}
+                    onChange={() => toggleSelectClient(item.id)}
+                    className="mt-1 h-4 w-4 shrink-0 cursor-pointer rounded accent-primary-600"
+                    aria-label={`Seleccionar cliente ${item.name}`}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <div className="h-7 w-7 shrink-0 rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 flex items-center justify-center text-[10px] font-semibold">
@@ -667,7 +757,10 @@ const data = await clientsService.lookupCuit(cuit)
         currentPage={page}
         totalPages={Math.ceil((clientsData?.total || 0) / 20)}
         totalItems={clientsData?.total || 0}
-        onPageChange={setPage}
+        onPageChange={(nextPage) => {
+          setPage(nextPage)
+          setSelectedIds(new Set())
+        }}
       />
 
       {/* Modal Mejorado con Tabs */}
@@ -1126,6 +1219,13 @@ const data = await clientsService.lookupCuit(cuit)
         description={`¿Estás seguro que deseas eliminar a "${clientToDelete?.name}"? Esta acción no se puede deshacer.`}
         confirmText="Eliminar"
         isLoading={deleteMutation.isPending}
+      />
+
+      <BulkDeleteClientModal
+        isOpen={showBulkDeleteModal}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onConfirm={handleConfirmBulkDelete}
+        count={selectedIds.size}
       />
 
       <ConfirmModal

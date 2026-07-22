@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#e9e7ee;}
+  *{ -webkit-tap-highlight-color: transparent; }
+  ::-webkit-scrollbar{ width:0; height:0; }
+</style>
+</helmet>
+
+<div style="display:flex; justify-content:center; align-items:flex-start; padding:24px; background:#e9e7ee; min-height:100vh; box-sizing:border-box; font-family:'Figtree',system-ui,sans-serif;">
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+
+<div style="position:relative; height:100%; display:flex; flex-direction:column; background:#f0f0f2; overflow:hidden; font-family:'Figtree',system-ui,sans-serif; color:#121325;">
+
+  <!-- ===== HEADER ===== -->
+  <div style="flex:none; padding:54px 18px 16px; background:linear-gradient(140deg, {{ acc.ink }}, {{ acc.mid }}); position:relative; overflow:hidden;">
+    <div style="position:absolute; inset:0; background-image:radial-gradient(rgba(255,255,255,.10) 1px, transparent 1px); background-size:16px 16px; -webkit-mask-image:radial-gradient(120% 90% at 100% 0%, #000, transparent 70%); mask-image:radial-gradient(120% 90% at 100% 0%, #000, transparent 70%);"></div>
+    <div style="position:relative; display:flex; align-items:center; gap:11px;">
+      <button onClick="{{ openMenu }}" style="width:40px; height:40px; flex:none; border:none; border-radius:13px; background:rgba(255,255,255,.14); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; cursor:pointer; backdrop-filter:blur(6px);">
+        <span style="width:18px; height:2px; border-radius:2px; background:#fff;"></span>
+        <span style="width:18px; height:2px; border-radius:2px; background:#fff;"></span>
+        <span style="width:18px; height:2px; border-radius:2px; background:#fff;"></span>
+      </button>
+      <div style="flex:1; min-width:0;">
+        <div style="font-size:11px; font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.62);">{{ shopName }}</div>
+        <div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:21px; line-height:1.05; color:#fff; letter-spacing:-.01em;">{{ screenTitle }}</div>
+      </div>
+      <sc-if value="{{ showAI }}" hint-placeholder-val="{{ true }}">
+      <button onClick="{{ openAI }}" style="width:40px; height:40px; border:none; border-radius:13px; background:rgba(255,255,255,.14); display:flex; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(6px);">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0Z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg>
+      </button>
+      </sc-if>
+      <div style="width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,#3b82f6,#22c55e); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:15px; border:2px solid rgba(255,255,255,.25);">{{ avatarInitials }}</div>
+    </div>
+  </div>
+
+  <!-- ===== MAIN SCROLL ===== -->
+  <div style="flex:1; overflow-y:auto; overflow-x:hidden; position:relative;">
+
+    <!-- ===================== INICIO ===================== -->
+    <sc-if value="{{ isInicio }}" hint-placeholder-val="{{ true }}">
+    <div style="padding:16px 16px 110px;">
+      <div style="font-size:14px; color:#7b6b95; margin:2px 0 14px;">Hola <span style="font-weight:700; color:#5c3a8c;">{{ ownerName }}</span> — {{ todayLabel }}</div>
+
+      <!-- Green caja hero -->
+      <div style="border-radius:20px; padding:18px 18px 16px; background:linear-gradient(150deg,#1a3d1f,#3d8c47); color:#fff; box-shadow:0 14px 30px rgba(26,61,31,.30); position:relative; overflow:hidden;">
+        <div style="position:absolute; right:-30px; top:-30px; width:130px; height:130px; border-radius:50%; background:rgba(126,207,134,.25); filter:blur(10px);"></div>
+        <div style="position:relative;">
+          <div style="display:flex; align-items:center; gap:7px; font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:rgba(224,245,226,.85);">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7ecf86" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+            Ingresado en caja
+          </div>
+          <div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:38px; line-height:1.05; margin:6px 0 2px; letter-spacing:-.02em;">{{ cajaTotalFmt }}</div>
+          <div style="font-size:12px; color:rgba(224,245,226,.8); display:flex; align-items:center; gap:5px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7ecf86" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></svg>
+            Movimientos reales de caja · Junio 2026
+          </div>
+          <div style="display:flex; gap:0; margin-top:14px; padding-top:13px; border-top:1px solid rgba(255,255,255,.16);">
+            <div style="flex:1;"><div style="font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:rgba(224,245,226,.7);">Facturado</div><div style="font-weight:700; font-size:15px; margin-top:2px;">{{ facturadoFmt }}</div></div>
+            <div style="flex:1;"><div style="font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:rgba(224,245,226,.7);">Pendiente</div><div style="font-weight:700; font-size:15px; margin-top:2px;">$0,00</div></div>
+            <div style="flex:none; width:62px;"><div style="font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:rgba(224,245,226,.7);">Facturas</div><div style="font-weight:700; font-size:15px; margin-top:2px;">6</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- two small metric cards -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:11px; margin-top:12px;">
+        <div style="background:#fff; border:1px solid #ece6f6; border-radius:16px; padding:14px;">
+          <div style="display:flex; align-items:center; gap:6px; color:#7b6b95; font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="{{ acc.strong }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+            Ventas hoy
+          </div>
+          <div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:22px; margin-top:6px; color:#121325;">{{ ventasHoyFmt }}</div>
+        </div>
+        <div style="background:#fff; border:1px solid #ece6f6; border-radius:16px; padding:14px;">
+          <div style="display:flex; align-items:center; gap:6px; color:#7b6b95; font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="{{ acc.strong }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+            Comprob.
+          </div>
+          <div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:22px; margin-top:6px; color:#121325;">8</div>
+        </div>
+      </div>
+
+      <!-- composición -->
+      <div style="background:#fff; border:1px solid #ece6f6; border-radius:16px; padding:16px; margin-top:12px; display:flex; align-items:center; gap:18px;">
+        <div style="width:84px; height:84px; border-radius:50%; flex:none; background:conic-gradient(#3d8c47 0 78%, {{ acc.strong }} 78% 92%, #c3abdf 92% 100%); display:flex; align-items:center; justify-content:center;">
+          <div style="width:54px; height:54px; border-radius:50%; background:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center;"><span style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:16px;">$624k</span></div>
+        </div>
+        <div style="flex:1;">
+          <div style="font-weight:700; font-size:14px; margin-bottom:8px;">Composición de ingresos</div>
+          <div style="display:flex; flex-direction:column; gap:6px; font-size:12px; color:#5b5570;">
+            <div style="display:flex; align-items:center; gap:7px;"><span style="width:9px; height:9px; border-radius:3px; background:#3d8c47;"></span>Facturas <b style="margin-left:auto; color:#121325;">78%</b></div>
+            <div style="display:flex; align-items:center; gap:7px;"><span style="width:9px; height:9px; border-radius:3px; background:{{ acc.strong }};"></span>Acopios <b style="margin-left:auto; color:#121325;">14%</b></div>
+            <div style="display:flex; align-items:center; gap:7px;"><span style="width:9px; height:9px; border-radius:3px; background:#c3abdf;"></span>Otros <b style="margin-left:auto; color:#121325;">8%</b></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- quick actions -->
+      <div style="font-size:12px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:#7b6b95; margin:20px 2px 10px;">Accesos rápidos</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:11px;">
+        <button onClick="{{ goVentas }}" style="text-align:left; border:none; cursor:pointer; background:#fff; border:1px solid #ece6f6; border-radius:16px; padding:14px;">
+          <div style="width:38px; height:38px; border-radius:11px; background:{{ acc.tint }}; display:flex; align-items:center; justify-content:center; margin-bottom:9px;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="{{ acc.strong }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></div>
+          <div style="font-weight:700; font-size:14px; color:#121325;">Nueva venta</div>
+          <div style="font-size:11px; color:#7b6b95; margin-top:1px;">Cotización · remito · factura</div>
+        </button>
+        <button onClick="{{ goProductos }}" style="text-align:left; border:none; cursor:pointer; background:#fff; border:1px solid #ece6f6; border-radius:16px; padding:14px;">
+          <div style="width:38px; height:38px; border-radius:11px; background:{{ acc.tint }}; display:flex; align-items:center; justify-content:center; margin-bottom:9px;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="{{ acc.strong }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></div>
+          <div style="font-weight:700; font-size:14px; color:#121325;">Consultar precio</div>
+          <div style="font-size:11px; color:#7b6b95; margin-top:1px;">Buscar o escanear</div>
+        </button>
+        <button onClick="{{ goCaja }}" style="text-align:left; border:none; cursor:pointer; background:#fff; border:1px solid #ece6f6; border-radius:16px; padding:14px;">
+          <div style="width:38px; height:38px; border-radius:11px; background:#e0f5e2; display:flex; align-items:center; justify-content:center; margin-bottom:9px;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#3d8c47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div>
+          <div style="font-weight:700; font-size:14px; color:#121325;">Caja diaria</div>
+          <div style="font-size:11px; color:#7b6b95; margin-top:1px;">Registrar movimiento</div>
+        </button>
+        <button onClick="{{ goCuenta }}" style="text-align:left; border:none; cursor:pointer; background:#fff; border:1px solid #ece6f6; border-radius:16px; padding:14px;">
+          <div style="width:38px; height:38px; border-radius:11px; background:{{ acc.tint }}; display:flex; align-items:center; justify-content:center; margin-bottom:9px;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="{{ acc.strong }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg></div>
+          <div style="font-weight:700; font-size:14px; color:#121325;">Cuenta corriente</div>
+          <div style="font-size:11px; color:#7b6b95; margin-top:1px;">Saldos por cliente</div>
+        </button>
+      </div>
+
+      <!-- actividad -->
+      <div style="font-size:12px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:#7b6b95; margin:20px 2px 10px;">Actividad reciente</div>
+      <div style="background:#fff; border:1px solid #ece6f6; border-radius:16px; overflow:hidden;">
+        <sc-for list="{{ activity }}" as="a" hint-placeholder-count="4">
+          <div style="display:flex; align-items:center; gap:12px; padding:13px 14px; border-bottom:1px solid #f2eefa;">
+            <div style="width:34px; height:34px; border-radius:10px; flex:none; display:flex; align-items:center; justify-content:center; background:{{ a.bg }}; color:{{ a.fg }}; font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:13px;">{{ a.tag }}</div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:600; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.title }}</div>
+              <div style="font-size:11.5px; color:#9089a0; margin-top:1px;">{{ a.sub }}</div>
+            </div>
+            <div style="text-align:right; flex:none;"><div style="font-weight:700; font-size:13px; color:#121325;">{{ a.amount }}</div><div style="font-size:10.5px; color:#b3acc0;">{{ a.time }}</div></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ===================== PRODUCTOS ===================== -->
+    <sc-if value="{{ isProductos }}" hint-placeholder-val="{{ true }}">
+    <div style="padding:14px 16px 110px;">
+      <div style="display:flex; gap:9px;">
+        <div style="flex:1; display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #ece6f6; border-radius:13px; padding:0 12px; height:46px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9089a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input value="{{ query }}" onInput="{{ onSearch }}" placeholder="Buscar código o descripción" style="flex:1; border:none; outline:none; font-size:14px; font-family:inherit; background:transparent; color:#121325;">
+        </div>
+        <button onClick="{{ openScan }}" style="width:46px; height:46px; flex:none; border:none; cursor:pointer; border-radius:13px; background:linear-gradient(140deg,{{ acc.mid }},{{ acc.strong }}); display:flex; align-items:center; justify-content:center; box-shadow:0 6px 14px {{ acc.shadow }};">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+        </button>
+      </div>
+      <div style="display:flex; gap:8px; margin:13px 0 4px; overflow-x:auto;">
+        <sc-for list="{{ catChips }}" as="c" hint-placeholder-count="4">
+          <button onClick="{{ c.onClick }}" style="flex:none; border:1px solid {{ c.border }}; background:{{ c.bg }}; color:{{ c.fg }}; font-family:inherit; font-size:12.5px; font-weight:600; padding:7px 13px; border-radius:999px; cursor:pointer;">{{ c.label }}</button>
+        </sc-for>
+      </div>
+      <div style="font-size:12px; color:#9089a0; margin:12px 2px 8px;">{{ productCount }} productos</div>
+      <div style="display:flex; flex-direction:column; gap:9px;">
+        <sc-for list="{{ products }}" as="p" hint-placeholder-count="6">
+          <div style="background:#fff; border:1px solid #ece6f6; border-radius:15px; padding:13px 13px 13px 14px; display:flex; align-items:center; gap:12px;">
+            <div style="flex:1; min-width:0;">
+              <div style="display:flex; align-items:center; gap:7px; margin-bottom:3px;">
+                <span style="font-family:'SF Mono',ui-monospace,monospace; font-size:10.5px; font-weight:600; color:{{ acc.strong }}; background:{{ acc.tint }}; padding:2px 6px; border-radius:5px;">{{ p.code }}</span>
+                <sc-if value="{{ p.low }}" hint-placeholder-val="{{ false }}"><span style="font-size:10px; font-weight:700; color:#f97316; background:#fff3e8; padding:2px 6px; border-radius:5px;">Stock bajo</span></sc-if>
+              </div>
+              <div style="font-weight:600; font-size:13.5px; line-height:1.25; color:#121325;">{{ p.desc }}</div>
+              <div style="font-size:11.5px; color:#9089a0; margin-top:3px;">{{ p.brand }} · Stock {{ p.stock }} · Lista {{ p.listFmt }}</div>
+            </div>
+            <div style="flex:none; text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:7px;">
+              <div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:16px; color:#121325;">{{ p.saleFmt }}</div>
+              <button onClick="{{ p.onAdd }}" style="border:none; cursor:pointer; width:34px; height:34px; border-radius:11px; background:{{ acc.strong }}; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 10px {{ acc.shadow }};"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ===================== VENTAS ===================== -->
+    <sc-if value="{{ isVentas }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:14px 16px 200px;">
+      <!-- client + doc -->
+      <div style="background:#fff; border:1px solid #ece6f6; border-radius:15px; padding:13px 14px; display:flex; align-items:center; gap:11px;">
+        <div style="width:38px; height:38px; border-radius:11px; background:{{ acc.tint }}; display:flex; align-items:center; justify-content:center; flex:none;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="{{ acc.strong }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></div>
+        <div style="flex:1;"><div style="font-size:11px; color:#9089a0;">Cliente</div><div style="font-weight:700; font-size:14px; color:#121325;">{{ client }}</div></div>
+        <svg width="9" height="15" viewBox="0 0 8 14" fill="none" stroke="#c3abdf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m1 1 6 6-6 6"/></svg>
+      </div>
+      <div style="display:flex; gap:7px; margin-top:11px; overflow-x:auto;">
+        <sc-for list="{{ docTypes }}" as="d" hint-placeholder-count="5">
+          <button onClick="{{ d.onClick }}" style="flex:none; border:1px solid {{ d.border }}; background:{{ d.bg }}; color:{{ d.fg }}; font-family:inherit; font-size:12.5px; font-weight:600; padding:8px 14px; border-radius:11px; cursor:pointer;">{{ d.label }}</button>
+        </sc-for>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; margin:18px 2px 9px;">
+        <div style="font-size:12px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:#7b6b95;">Productos ({{ cartCount }})</div>
+        <button onClick="{{ goProductos }}" style="border:none; background:none; cursor:pointer; color:{{ acc.strong }}; font-family:inherit; font-weight:700; font-size:12.5px; display:flex; align-items:center; gap:4px;">Agregar <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{ acc.strong }}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+      </div>
+
+      <sc-if value="{{ cartEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="background:#fff; border:1px dashed #d9caeb; border-radius:15px; padding:34px 18px; text-align:center; color:#9089a0;">
+          <div style="font-size:13.5px;">Todavía no agregaste productos.</div>
+          <button onClick="{{ goProductos }}" style="margin-top:12px; border:none; cursor:pointer; background:{{ acc.strong }}; color:#fff; font-family:inherit; font-weight:700; font-size:13px; padding:10px 18px; border-radius:11px;">Buscar productos</button>
+        </div>
+      </sc-if>
+
+      <div style="display:flex; flex-direction:column; gap:9px;">
+        <sc-for list="{{ cart }}" as="i" hint-placeholder-count="2">
+          <div style="background:#fff; border:1px solid #ece6f6; border-radius:15px; padding:12px 13px;">
+            <div style="display:flex; align-items:flex-start; gap:10px;">
+              <span style="font-family:'SF Mono',ui-monospace,monospace; font-size:10.5px; font-weight:600; color:{{ acc.strong }}; background:{{ acc.tint }}; padding:2px 6px; border-radius:5px;">{{ i.code }}</span>
+              <div style="flex:1; font-weight:600; font-size:13px; line-height:1.25;">{{ i.desc }}</div>
+              <button onClick="{{ i.del }}" style="border:none; background:none; cursor:pointer; padding:0; color:#cdb9e0;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:11px;">
+              <div style="display:flex; align-items:center; gap:0; border:1px solid #ece6f6; border-radius:10px; overflow:hidden;">
+                <button onClick="{{ i.dec }}" style="width:32px; height:32px; border:none; background:#f7f4fb; cursor:pointer; color:{{ acc.strong }}; display:flex; align-items:center; justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+                <div style="width:38px; text-align:center; font-weight:700; font-size:14px;">{{ i.qty }}</div>
+                <button onClick="{{ i.inc }}" style="width:32px; height:32px; border:none; background:#f7f4fb; cursor:pointer; color:{{ acc.strong }}; display:flex; align-items:center; justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+              </div>
+              <div style="text-align:right;"><div style="font-size:11px; color:#9089a0;">{{ i.priceFmt }} c/u</div><div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:16px;">{{ i.lineFmt }}</div></div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <!-- sticky totals bar -->
+    <sc-if value="{{ showTotals }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute; left:0; right:0; bottom:84px; background:#fff; border-top:1px solid #ece6f6; box-shadow:0 -8px 24px rgba(58,36,89,.10); padding:13px 16px 14px; z-index:30;">
+      <div style="display:flex; justify-content:space-between; font-size:12.5px; color:#7b6b95; margin-bottom:3px;"><span>Subtotal (sin IVA)</span><span style="color:#121325; font-weight:600;">{{ subtotalFmt }}</span></div>
+      <div style="display:flex; justify-content:space-between; font-size:12.5px; color:#7b6b95; margin-bottom:8px;"><span>IVA (21%)</span><span style="color:#121325; font-weight:600;">{{ ivaFmt }}</span></div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="flex:1;"><div style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:#9089a0;">Total</div><div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:26px; line-height:1; color:#121325;">{{ totalFmt }}</div></div>
+        <button style="border:none; cursor:pointer; background:linear-gradient(140deg,{{ acc.mid }},{{ acc.strong }}); color:#fff; font-family:inherit; font-weight:700; font-size:14.5px; padding:13px 20px; border-radius:13px; display:flex; align-items:center; gap:7px; box-shadow:0 8px 18px {{ acc.shadow }};">{{ ctaLabel }} <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button>
+      </div>
+    </div>
+    </sc-if>
+    </sc-if>
+
+    <!-- ===================== CAJA ===================== -->
+    <sc-if value="{{ isCaja }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:16px 16px 110px;">
+      <div style="border-radius:18px; padding:16px; background:linear-gradient(150deg,#1a3d1f,#3d8c47); color:#fff; box-shadow:0 12px 26px rgba(26,61,31,.28);">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div style="display:flex; align-items:center; gap:7px; font-size:11px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:rgba(224,245,226,.85);"><span style="width:8px; height:8px; border-radius:50%; background:#7ecf86; box-shadow:0 0 0 3px rgba(126,207,134,.3);"></span>Caja abierta</div>
+          <div style="font-size:11.5px; color:rgba(224,245,226,.8);">Turno · hoy 08:01</div>
+        </div>
+        <div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:34px; margin:8px 0 2px; letter-spacing:-.02em;">{{ cajaSaldoFmt }}</div>
+        <div style="font-size:12px; color:rgba(224,245,226,.8);">Saldo actual en caja</div>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button onClick="{{ openMov }}" style="flex:1; border:none; cursor:pointer; background:rgba(255,255,255,.16); backdrop-filter:blur(6px); color:#fff; font-family:inherit; font-weight:700; font-size:13px; padding:11px; border-radius:11px; display:flex; align-items:center; justify-content:center; gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Movimiento</button>
+          <button style="flex:1; border:none; cursor:pointer; background:#fff; color:#1a3d1f; font-family:inherit; font-weight:700; font-size:13px; padding:11px; border-radius:11px;">Cerrar caja</button>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:11px; margin-top:12px;">
+        <div style="background:#fff; border:1px solid #ece6f6; border-radius:15px; padding:13px;"><div style="font-size:11px; color:#7b6b95; letter-spacing:.06em; text-transform:uppercase;">Ingresos</div><div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:19px; color:#3d8c47; margin-top:4px;">{{ ingresosFmt }}</div></div>
+        <div style="background:#fff; border:1px solid #ece6f6; border-radius:15px; padding:13px;"><div style="font-size:11px; color:#7b6b95; letter-spacing:.06em; text-transform:uppercase;">Egresos</div><div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:19px; color:#dc2626; margin-top:4px;">{{ egresosFmt }}</div></div>
+      </div>
+
+      <div style="font-size:12px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:#7b6b95; margin:20px 2px 10px;">Movimientos de hoy</div>
+      <div style="background:#fff; border:1px solid #ece6f6; border-radius:16px; overflow:hidden;">
+        <sc-for list="{{ movs }}" as="m" hint-placeholder-count="5">
+          <div style="display:flex; align-items:center; gap:12px; padding:13px 14px; border-bottom:1px solid #f2eefa;">
+            <div style="width:34px; height:34px; border-radius:10px; flex:none; display:flex; align-items:center; justify-content:center; background:{{ m.bg }};"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{{ m.fg }}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="{{ m.arrow }}"/></svg></div>
+            <div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:13.5px;">{{ m.label }}</div><div style="font-size:11.5px; color:#9089a0;">{{ m.method }} · {{ m.time }}</div></div>
+            <div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:14.5px; color:{{ m.fg }};">{{ m.amount }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ===================== CUENTA ===================== -->
+    <sc-if value="{{ isCuenta }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:16px 16px 110px;">
+      <div style="border-radius:18px; padding:16px; background:linear-gradient(140deg,{{ acc.ink }},{{ acc.mid }}); color:#fff;">
+        <div style="font-size:11px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.65);">Total por cobrar</div>
+        <div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:32px; margin:6px 0 2px;">{{ porCobrarFmt }}</div>
+        <div style="font-size:12px; color:rgba(255,255,255,.7);">{{ deudoresCount }} clientes con saldo deudor</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #ece6f6; border-radius:13px; padding:0 12px; height:46px; margin-top:12px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9089a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input placeholder="Buscar cliente" style="flex:1; border:none; outline:none; font-size:14px; font-family:inherit; background:transparent;">
+      </div>
+      <div style="display:flex; flex-direction:column; gap:9px; margin-top:13px;">
+        <sc-for list="{{ clients }}" as="c" hint-placeholder-count="5">
+          <div style="background:#fff; border:1px solid #ece6f6; border-radius:15px; padding:13px 14px; display:flex; align-items:center; gap:12px;">
+            <div style="width:40px; height:40px; border-radius:12px; flex:none; display:flex; align-items:center; justify-content:center; background:{{ c.avBg }}; color:{{ c.avFg }}; font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:15px;">{{ c.initials }}</div>
+            <div style="flex:1; min-width:0;"><div style="font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ c.name }}</div><div style="font-size:11.5px; color:#9089a0;">{{ c.type }}</div></div>
+            <div style="text-align:right; flex:none;"><div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:15px; color:{{ c.amtColor }};">{{ c.amount }}</div><div style="font-size:10.5px; font-weight:600; color:{{ c.statusColor }};">{{ c.status }}</div></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ===================== COMPROBANTES ===================== -->
+    <sc-if value="{{ isComprobantes }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:14px 16px 110px;">
+      <div style="display:flex; gap:8px; overflow-x:auto; margin-bottom:4px;">
+        <sc-for list="{{ compChips }}" as="c" hint-placeholder-count="4">
+          <button onClick="{{ c.onClick }}" style="flex:none; border:1px solid {{ c.border }}; background:{{ c.bg }}; color:{{ c.fg }}; font-family:inherit; font-size:12.5px; font-weight:600; padding:8px 14px; border-radius:999px; cursor:pointer;">{{ c.label }}</button>
+        </sc-for>
+      </div>
+      <div style="font-size:12px; color:#9089a0; margin:12px 2px 9px;">{{ compCount }} comprobantes</div>
+      <div style="display:flex; flex-direction:column; gap:9px;">
+        <sc-for list="{{ comps }}" as="c" hint-placeholder-count="6">
+          <div style="background:#fff; border:1px solid #ece6f6; border-radius:15px; padding:13px 14px;">
+            <div style="display:flex; align-items:center; gap:9px;">
+              <span style="font-size:11px; font-weight:700; color:{{ c.typeFg }}; background:{{ c.typeBg }}; padding:3px 9px; border-radius:7px;">{{ c.type }}</span>
+              <span style="flex:1; font-family:'SF Mono',ui-monospace,monospace; font-size:11.5px; color:#9089a0;">{{ c.num }}</span>
+              <span style="flex:none; font-size:11px; font-weight:600; color:{{ c.stFg }}; background:{{ c.stBg }}; padding:3px 9px; border-radius:7px;">{{ c.status }}</span>
+            </div>
+            <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-top:11px;">
+              <div style="min-width:0;"><div style="font-weight:600; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ c.client }}</div><div style="font-size:11.5px; color:#9089a0; margin-top:1px;">{{ c.date }}</div></div>
+              <div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:17px; flex:none; margin-left:10px;">{{ c.amount }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ===================== STUB (módulos restantes) ===================== -->
+    <sc-if value="{{ isStub }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:54px 28px 110px; display:flex; flex-direction:column; align-items:center; text-align:center;">
+      <img src="assets/tentacle.png" alt="" style="width:64px; height:64px; object-fit:contain; opacity:.92; filter:drop-shadow(0 8px 18px rgba(92,58,140,.3));">
+      <div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:24px; margin:20px 0 8px; color:#121325;">{{ stubTitle }}</div>
+      <div style="font-size:14px; line-height:1.55; color:#7b6b95; max-width:260px;">Este módulo ya funciona en la versión completa de OctopusTrack. Lo estamos adaptando a mobile.</div>
+      <button onClick="{{ goInicio }}" style="margin-top:22px; border:none; cursor:pointer; background:{{ acc.strong }}; color:#fff; font-family:inherit; font-weight:700; font-size:13.5px; padding:12px 22px; border-radius:13px; box-shadow:0 8px 18px {{ acc.shadow }};">Volver al inicio</button>
+    </div>
+    </sc-if>
+
+  </div>
+
+  <!-- ===== TAB BAR ===== -->
+  <div style="flex:none; position:relative; background:rgba(255,255,255,.92); backdrop-filter:blur(16px); border-top:1px solid #e7e0f2; padding:8px 6px 24px; display:flex; align-items:flex-end;">
+    <button onClick="{{ goInicio }}" style="flex:1; border:none; background:none; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 0;">
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="{{ ti.inicio }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+      <span style="font-size:10px; font-weight:600; color:{{ ti.inicio }};">Inicio</span>
+    </button>
+    <button onClick="{{ goProductos }}" style="flex:1; border:none; background:none; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 0;">
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="{{ ti.productos }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+      <span style="font-size:10px; font-weight:600; color:{{ ti.productos }};">Productos</span>
+    </button>
+    <button onClick="{{ goVentas }}" style="flex:1; border:none; background:none; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:5px; padding:0 0 4px; position:relative;">
+      <div style="width:54px; height:54px; margin-top:-22px; border-radius:18px; background:linear-gradient(140deg,{{ acc.mid }},{{ acc.strong }}); display:flex; align-items:center; justify-content:center; box-shadow:0 8px 18px {{ acc.shadow }}; border:3px solid #fff; position:relative;">
+        <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+        <sc-if value="{{ hasCart }}" hint-placeholder-val="{{ false }}"><span style="position:absolute; top:-5px; right:-5px; min-width:19px; height:19px; padding:0 5px; border-radius:999px; background:#dc2626; color:#fff; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; border:2px solid #fff;">{{ cartCount }}</span></sc-if>
+      </div>
+      <span style="font-size:10px; font-weight:700; color:{{ ti.ventas }};">Vender</span>
+    </button>
+    <button onClick="{{ goCaja }}" style="flex:1; border:none; background:none; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 0;">
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="{{ ti.caja }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+      <span style="font-size:10px; font-weight:600; color:{{ ti.caja }};">Caja</span>
+    </button>
+    <button onClick="{{ goCuenta }}" style="flex:1; border:none; background:none; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 0;">
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="{{ ti.cuenta }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span style="font-size:10px; font-weight:600; color:{{ ti.cuenta }};">Cuenta</span>
+    </button>
+  </div>
+
+  <!-- ===== MENU DRAWER ===== -->
+  <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeMenu }}" style="position:absolute; inset:0; background:rgba(7,7,15,.5); backdrop-filter:blur(3px); z-index:70; display:flex;">
+    <div onClick="{{ stop }}" style="width:298px; max-width:84%; height:100%; background:linear-gradient(168deg, {{ acc.ink }}, #150e29); display:flex; flex-direction:column; box-shadow:14px 0 40px rgba(0,0,0,.4);">
+      <div style="padding:56px 18px 16px; display:flex; align-items:center; gap:11px; border-bottom:1px solid rgba(255,255,255,.08);">
+        <img src="assets/tentacle.png" alt="" style="width:34px; height:34px; object-fit:contain;">
+        <div style="flex:1;">
+          <div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:18px; color:#fff; letter-spacing:-.01em;">OctopusTrack</div>
+          <div style="font-size:11px; color:rgba(255,255,255,.5);">{{ shopName }}</div>
+        </div>
+        <button onClick="{{ closeMenu }}" style="border:none; background:rgba(255,255,255,.1); cursor:pointer; width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div style="flex:1; overflow-y:auto; padding:8px 12px 12px;">
+        <sc-for list="{{ navGroups }}" as="g" hint-placeholder-count="4">
+          <div style="font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.38); padding:14px 10px 6px;">{{ g.title }}</div>
+          <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="4">
+            <button onClick="{{ it.onClick }}" style="width:100%; border:none; cursor:pointer; background:{{ it.bg }}; color:{{ it.color }}; display:flex; align-items:center; gap:13px; padding:11px 11px; border-radius:11px; text-align:left; font-family:inherit;">
+              <span style="display:flex; align-items:center; justify-content:center; width:21px; height:21px;">{{ it.icon }}</span>
+              <span style="flex:1; font-size:14px; font-weight:600;">{{ it.label }}</span>
+              <span style="width:6px; height:6px; border-radius:50%; background:{{ it.dot }};"></span>
+            </button>
+          </sc-for>
+        </sc-for>
+      </div>
+      <div style="padding:14px 20px 28px; border-top:1px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-between;">
+        <span style="font-family:'SF Mono',ui-monospace,monospace; font-size:11px; color:rgba(255,255,255,.4);">OctopusTrack v1.6.4</span>
+        <button style="border:none; background:none; cursor:pointer; color:rgba(255,255,255,.7); font-family:inherit; font-size:13px; font-weight:600; display:flex; align-items:center; gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Salir</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ===== AI OVERLAY ===== -->
+  <sc-if value="{{ aiOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeAI }}" style="position:absolute; inset:0; background:rgba(18,19,37,.45); backdrop-filter:blur(3px); z-index:60; display:flex; flex-direction:column; justify-content:flex-end;">
+    <div onClick="{{ stop }}" style="background:#f5f2fa; border-radius:26px 26px 0 0; max-height:78%; display:flex; flex-direction:column; overflow:hidden;">
+      <div style="padding:16px 18px 12px; background:linear-gradient(140deg,{{ acc.ink }},{{ acc.mid }}); color:#fff;">
+        <div style="width:36px; height:4px; border-radius:9px; background:rgba(255,255,255,.3); margin:0 auto 12px;"></div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="width:34px; height:34px; border-radius:11px; background:rgba(255,255,255,.16); display:flex; align-items:center; justify-content:center;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0Z"/></svg></div>
+          <div style="flex:1;"><div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:16px;">Asistente IA</div><div style="font-size:11px; color:rgba(255,255,255,.7);">Consultá precios y stock al instante</div></div>
+          <button onClick="{{ closeAI }}" style="border:none; background:rgba(255,255,255,.14); cursor:pointer; width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+      </div>
+      <div style="flex:1; overflow-y:auto; padding:16px 16px 8px; display:flex; flex-direction:column; gap:11px;">
+        <sc-for list="{{ aiMsgs }}" as="m" hint-placeholder-count="2">
+          <div style="display:flex; justify-content:{{ m.justify }};">
+            <div style="max-width:82%; padding:11px 13px; border-radius:{{ m.radius }}; background:{{ m.bg }}; color:{{ m.color }}; font-size:13.5px; line-height:1.45; box-shadow:0 2px 8px rgba(58,36,89,.06);">{{ m.text }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding:4px 14px 8px; display:flex; gap:8px; overflow-x:auto;">
+        <sc-for list="{{ aiChips }}" as="s" hint-placeholder-count="3">
+          <button onClick="{{ s.onClick }}" style="flex:none; border:1px solid {{ acc.border }}; background:#fff; color:{{ acc.strong }}; font-family:inherit; font-size:12px; font-weight:600; padding:8px 12px; border-radius:999px; cursor:pointer;">{{ s.label }}</button>
+        </sc-for>
+      </div>
+      <div style="padding:8px 14px 26px; display:flex; gap:9px; align-items:center;">
+        <div style="flex:1; display:flex; align-items:center; background:#fff; border:1px solid #e7e0f2; border-radius:14px; padding:0 14px; height:46px; color:#9089a0; font-size:13.5px;">Escribí tu consulta…</div>
+        <button style="width:46px; height:46px; flex:none; border:none; cursor:pointer; border-radius:14px; background:linear-gradient(140deg,{{ acc.mid }},{{ acc.strong }}); display:flex; align-items:center; justify-content:center; box-shadow:0 6px 14px {{ acc.shadow }};"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg></button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ===== SCAN OVERLAY ===== -->
+  <sc-if value="{{ scanOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeScan }}" style="position:absolute; inset:0; background:rgba(7,7,15,.86); backdrop-filter:blur(2px); z-index:60; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px;">
+    <div style="color:rgba(255,255,255,.85); font-size:13px; margin-bottom:22px; text-align:center;">Apuntá al código de barras del producto</div>
+    <div style="width:230px; height:230px; border-radius:24px; position:relative;">
+      <div style="position:absolute; inset:0; border-radius:24px; box-shadow:0 0 0 2px rgba(255,255,255,.15);"></div>
+      <div style="position:absolute; top:-2px; left:-2px; width:42px; height:42px; border-top:4px solid {{ acc.bright }}; border-left:4px solid {{ acc.bright }}; border-radius:24px 0 0 0;"></div>
+      <div style="position:absolute; top:-2px; right:-2px; width:42px; height:42px; border-top:4px solid {{ acc.bright }}; border-right:4px solid {{ acc.bright }}; border-radius:0 24px 0 0;"></div>
+      <div style="position:absolute; bottom:-2px; left:-2px; width:42px; height:42px; border-bottom:4px solid {{ acc.bright }}; border-left:4px solid {{ acc.bright }}; border-radius:0 0 0 24px;"></div>
+      <div style="position:absolute; bottom:-2px; right:-2px; width:42px; height:42px; border-bottom:4px solid {{ acc.bright }}; border-right:4px solid {{ acc.bright }}; border-radius:0 0 24px 0;"></div>
+      <div style="position:absolute; left:14px; right:14px; top:50%; height:2px; background:{{ acc.bright }}; box-shadow:0 0 12px {{ acc.bright }};"></div>
+    </div>
+    <button onClick="{{ closeScan }}" style="margin-top:30px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.08); color:#fff; font-family:inherit; font-weight:600; font-size:13.5px; padding:11px 24px; border-radius:13px; cursor:pointer;">Cancelar</button>
+  </div>
+  </sc-if>
+
+  <!-- ===== MOV SHEET ===== -->
+  <sc-if value="{{ movOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeMov }}" style="position:absolute; inset:0; background:rgba(18,19,37,.45); backdrop-filter:blur(3px); z-index:60; display:flex; flex-direction:column; justify-content:flex-end;">
+    <div onClick="{{ stop }}" style="background:#fff; border-radius:26px 26px 0 0; padding:16px 18px 30px;">
+      <div style="width:36px; height:4px; border-radius:9px; background:#e0d8ee; margin:0 auto 14px;"></div>
+      <div style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:18px; margin-bottom:14px;">Registrar movimiento</div>
+      <div style="display:flex; gap:9px; margin-bottom:14px;">
+        <button style="flex:1; border:1px solid #c9eccd; background:#e0f5e2; color:#3d8c47; font-family:inherit; font-weight:700; font-size:13.5px; padding:11px; border-radius:12px; cursor:pointer;">Ingreso</button>
+        <button style="flex:1; border:1px solid #ece6f6; background:#fff; color:#9089a0; font-family:inherit; font-weight:700; font-size:13.5px; padding:11px; border-radius:12px; cursor:pointer;">Egreso</button>
+      </div>
+      <div style="background:#f7f4fb; border:1px solid #ece6f6; border-radius:13px; padding:14px 14px; display:flex; align-items:baseline; gap:6px; margin-bottom:12px;"><span style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:26px; color:#c3abdf;">$</span><span style="font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:26px; color:#c3abdf;">0,00</span></div>
+      <div style="background:#f7f4fb; border:1px solid #ece6f6; border-radius:13px; padding:13px 14px; color:#9089a0; font-size:13.5px; margin-bottom:16px;">Concepto (ej: cobro factura, pago proveedor)</div>
+      <button onClick="{{ closeMov }}" style="width:100%; border:none; cursor:pointer; background:linear-gradient(140deg,{{ acc.mid }},{{ acc.strong }}); color:#fff; font-family:inherit; font-weight:700; font-size:14.5px; padding:14px; border-radius:14px; box-shadow:0 8px 18px {{ acc.shadow }};">Registrar en caja</button>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+</x-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;452px&quot;,&quot;height&quot;:&quot;922px&quot;},&quot;accent&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;track&quot;,&quot;tool&quot;,&quot;flow&quot;],&quot;default&quot;:&quot;track&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Marca&quot;},&quot;shopName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Sanitarios del Plata&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Marca&quot;},&quot;ownerName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Fernando&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Marca&quot;},&quot;showAI&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Funciones&quot;}}">
+class Component extends DCLogic {
+  state = {
+    tab: 'inicio',
+    query: '',
+    cat: 'Todas',
+    cart: [
+      { code: '4241', desc: 'Abrazadera Inox 110mm Awaduct', qty: 2, price: 3511.03 },
+      { code: '1103', desc: 'Caño PVC 110mm x 3m Tigre', qty: 6, price: 8990 },
+    ],
+    aiOpen: false,
+    scanOpen: false,
+    movOpen: false,
+    aiMsgs: [
+      { role: 'ai', text: '¡Hola! Preguntame por el precio o stock de cualquier producto. Por ejemplo: "¿a cuánto está el caño de 110?"' },
+    ],
+    menuOpen: false,
+    compFilter: 'Todos',
+    stubTitle: '',
+  };
+
+  comprobantes = [
+    { type: 'Factura B', num: '0001-00001235', client: 'Constructora Belgrano S.A.', amt: 236253.54, status: 'Cobrado', date: '30/06 · 11:42' },
+    { type: 'Cotización', num: '0001-00001236', client: 'Consumidor final', amt: 3511.03, status: 'Vigente', date: '30/06 · 10:40' },
+    { type: 'Remito', num: '0001-00000884', client: 'Plomería del Sur', amt: 48900, status: 'Pendiente', date: '29/06 · 17:20' },
+    { type: 'Factura B', num: '0001-00001234', client: 'Ferretería López', amt: 112430.10, status: 'Pendiente', date: '29/06 · 09:12' },
+    { type: 'Factura A', num: '0002-00000451', client: 'Arq. Martín Pereyra', amt: 96320, status: 'Cobrado', date: '28/06 · 16:05' },
+    { type: 'Remito', num: '0001-00000883', client: 'Juan Domínguez', amt: 54120, status: 'Cobrado', date: '28/06 · 12:48' },
+  ];
+
+  ICONS = {
+    home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
+    cart: '<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>',
+    receipt: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8H8"/><path d="M16 12H8"/>',
+    card: '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>',
+    wallet: '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    layers: '<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/>',
+    package: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+    trending: '<path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/>',
+    list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
+    boxes: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/><path d="m7.5 4.3 9 5.1"/>',
+    bag: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+    bar: '<line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>',
+    settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/>',
+  };
+
+  icon(name) {
+    return React.createElement('svg', { width: 21, height: 21, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', dangerouslySetInnerHTML: { __html: this.ICONS[name] || '' } });
+  }
+
+  f(n) { return n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+  products = [
+    { code: '4241', fab: 'AWA-04241', desc: 'Abrazadera Inox 110mm Awaduct', brand: 'Awaduct', cat: 'Plomería', list: 49137.98, sale: 3511.03, stock: 279 },
+    { code: '1103', fab: 'TIG-11003', desc: 'Caño PVC 110mm x 3m', brand: 'Tigre', cat: 'Plomería', list: 12450, sale: 8990, stock: 64 },
+    { code: '9011', fab: 'AWA-09011', desc: 'Codo PVC 90° 110mm', brand: 'Awaduct', cat: 'Plomería', list: 2100, sale: 1650, stock: 412 },
+    { code: '5542', fab: 'AWA-05542', desc: 'Abrazadera Inox 110mm Plástica', brand: 'Awaduct', cat: 'Plomería', list: 67385.04, sale: 4980.51, stock: 8 },
+    { code: '7720', fab: 'FV-07720', desc: 'Canilla de paso 1/2" FV cromada', brand: 'FV', cat: 'Grifería', list: 28900, sale: 19450, stock: 37 },
+    { code: '3380', fab: 'ROC-03380', desc: 'Mochila inodoro Roca dual', brand: 'Roca', cat: 'Sanitarios', list: 41200, sale: 31800, stock: 5 },
+    { code: '6612', fab: 'TIG-06612', desc: 'Caño termofusión 20mm x 4m', brand: 'Tigre', cat: 'Plomería', list: 9870, sale: 7240, stock: 156 },
+    { code: '2204', fab: 'GEN-02204', desc: 'Teflón 12mm x 10m (caja x10)', brand: 'Genérico', cat: 'Insumos', list: 5400, sale: 3990, stock: 220 },
+    { code: '8830', fab: 'FER-08830', desc: 'Llave inglesa 10" Bahco', brand: 'Bahco', cat: 'Ferretería', list: 33500, sale: 24900, stock: 19 },
+    { code: '4417', fab: 'AWA-04417', desc: 'Sifón botella reforzado 1 1/4"', brand: 'Awaduct', cat: 'Plomería', list: 7600, sale: 5450, stock: 9 },
+    { code: '1190', fab: 'ROC-01190', desc: 'Flexible malla acero 1/2" 40cm', brand: 'Roca', cat: 'Grifería', list: 4200, sale: 3100, stock: 340 },
+    { code: '9905', fab: 'GEN-09905', desc: 'Cinta aisladora 19mm negra', brand: 'Genérico', cat: 'Insumos', list: 1800, sale: 1290, stock: 480 },
+  ];
+
+  clients = [
+    { name: 'Constructora Belgrano S.A.', type: 'Mayorista · Cta. Cte.', bal: 236253.54 },
+    { name: 'Ferretería López', type: 'Minorista · Cta. Cte.', bal: 112430.10 },
+    { name: 'Plomería del Sur', type: 'Gremio · Cta. Cte.', bal: 48900 },
+    { name: 'Arq. Martín Pereyra', type: 'Profesional', bal: 0 },
+    { name: 'Juan Domínguez', type: 'Acopio de obra', bal: -15000 },
+  ];
+
+  movs = [
+    { label: 'Cobro Factura B 0001-1235', method: 'Transferencia', time: '11:42', amt: 236253.54, type: 'in' },
+    { label: 'Venta mostrador', method: 'Efectivo', time: '10:18', amt: 84520, type: 'in' },
+    { label: 'Pago proveedor Tigre', method: 'Cheque', time: '09:55', amt: 120000, type: 'out' },
+    { label: 'Venta mostrador', method: 'Mercado Pago', time: '09:30', amt: 31800, type: 'in' },
+    { label: 'Retiro de caja', method: 'Efectivo', time: '08:40', amt: 20000, type: 'out' },
+  ];
+
+  activity = [
+    { tag: 'FB', title: 'Factura B 0001-00001235', sub: 'Constructora Belgrano', amount: '$236.253,54', time: 'hace 12 min', bg: '#ece6f6', fg: '#5c3a8c' },
+    { tag: 'CO', title: 'Cotización 0001-00001236', sub: 'Consumidor final', amount: '$3.511,03', time: 'hace 40 min', bg: '#dbeafe', fg: '#2563eb' },
+    { tag: '$', title: 'Ingreso en caja', sub: 'Efectivo · venta mostrador', amount: '$84.520,00', time: 'hace 1 h', bg: '#e0f5e2', fg: '#3d8c47' },
+    { tag: 'RE', title: 'Remito 0001-00000884', sub: 'Plomería del Sur', amount: '$48.900,00', time: 'hace 2 h', bg: '#ece6f6', fg: '#5c3a8c' },
+  ];
+
+  f(n) { return n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  fInt(n) { return n.toLocaleString('es-AR'); }
+
+  accent() {
+    const p = this.props.accent || 'track';
+    const map = {
+      track: { ink: '#2f1d4d', mid: '#5c3a8c', strong: '#7c5ca8', bright: '#9d84bf', tint: '#ece6f6', border: '#d9caeb', shadow: 'rgba(92,58,140,.35)' },
+      tool:  { ink: '#10300f', mid: '#1f5a28', strong: '#3d8c47', bright: '#5aad62', tint: '#e0f5e2', border: '#c2e6c6', shadow: 'rgba(61,140,71,.35)' },
+      flow:  { ink: '#172b6b', mid: '#1d4ed8', strong: '#2563eb', bright: '#3b82f6', tint: '#dbeafe', border: '#bfd6fb', shadow: 'rgba(37,99,235,.32)' },
+    };
+    return map[p] || map.track;
+  }
+
+  setTab = (t) => this.setState({ tab: t, aiOpen: false });
+  addToCart = (p) => this.setState(s => {
+    const ex = s.cart.find(i => i.code === p.code);
+    const cart = ex
+      ? s.cart.map(i => i.code === p.code ? { ...i, qty: i.qty + 1 } : i)
+      : [...s.cart, { code: p.code, desc: p.desc, qty: 1, price: p.sale }];
+    return { cart, tab: 'ventas' };
+  });
+  changeQty = (code, d) => this.setState(s => ({ cart: s.cart.map(i => i.code === code ? { ...i, qty: Math.max(1, i.qty + d) } : i) }));
+  removeItem = (code) => this.setState(s => ({ cart: s.cart.filter(i => i.code !== code) }));
+  setCat = (c) => this.setState({ cat: c });
+  onSearch = (e) => this.setState({ query: e.target.value });
+
+  askAI = (label) => {
+    let answer = 'Buscando en tu catálogo…';
+    if (/110/.test(label)) answer = 'El Caño PVC 110mm x 3m (Tigre) está a $8.990,00 venta. Tenés 64 en stock. La Abrazadera Inox 110mm a $3.511,03.';
+    else if (/stock bajo|reponer/i.test(label)) answer = 'Tenés 4 productos con stock bajo: Mochila Roca dual (5), Sifón botella (9), Abrazadera Plástica (8) y Llave inglesa Bahco (19).';
+    else if (/cotiz/i.test(label)) answer = 'Listo. Armé una cotización con los 2 productos del carrito: total $86.... ¿La querés generar como Cotización o Remito?';
+    this.setState(s => ({ aiMsgs: [...s.aiMsgs, { role: 'me', text: label }, { role: 'ai', text: answer }] }));
+  };
+
+  openAI = () => this.setState({ aiOpen: true });
+  closeAI = () => this.setState({ aiOpen: false });
+  openScan = () => this.setState({ scanOpen: true });
+  closeScan = () => this.setState({ scanOpen: false });
+  openMov = () => this.setState({ movOpen: true });
+  closeMov = () => this.setState({ movOpen: false });
+  openMenu = () => this.setState({ menuOpen: true });
+  closeMenu = () => this.setState({ menuOpen: false });
+  setCompFilter = (c) => this.setState({ compFilter: c });
+  stop = (e) => e.stopPropagation();
+
+  renderVals() {
+    const acc = this.accent();
+    const tab = this.state.tab;
+    const titles = { inicio: 'Inicio', productos: 'Productos', ventas: 'Nueva venta', caja: 'Caja diaria', cuenta: 'Cuenta corriente', comprobantes: 'Comprobantes' };
+    const tint = (t) => tab === t ? acc.strong : '#a59fb5';
+
+    const q = this.state.query.trim().toLowerCase();
+    const cat = this.state.cat;
+    const products = this.products
+      .filter(p => cat === 'Todas' || p.cat === cat)
+      .filter(p => !q || p.desc.toLowerCase().includes(q) || p.code.includes(q) || p.fab.toLowerCase().includes(q))
+      .map(p => ({ ...p, saleFmt: '$' + this.f(p.sale), listFmt: '$' + this.f(p.list), low: p.stock < 12, onAdd: () => this.addToCart(p) }));
+
+    const cats = ['Todas', 'Plomería', 'Grifería', 'Sanitarios', 'Ferretería', 'Insumos'];
+    const catChips = cats.map(c => ({
+      label: c, onClick: () => this.setCat(c),
+      bg: c === cat ? acc.strong : '#fff', fg: c === cat ? '#fff' : '#5b5570',
+      border: c === cat ? acc.strong : '#ece6f6',
+    }));
+
+    const cart = this.state.cart.map(i => ({
+      ...i, lineFmt: '$' + this.f(i.qty * i.price), priceFmt: '$' + this.f(i.price),
+      inc: () => this.changeQty(i.code, 1), dec: () => this.changeQty(i.code, -1), del: () => this.removeItem(i.code),
+    }));
+    const subtotal = this.state.cart.reduce((a, i) => a + i.qty * i.price, 0);
+    const iva = subtotal * 0.21;
+    const total = subtotal + iva;
+
+    const movs = this.movs.map(m => ({
+      ...m, amount: (m.type === 'in' ? '+ $' : '− $') + this.f(m.amt),
+      fg: m.type === 'in' ? '#3d8c47' : '#dc2626', bg: m.type === 'in' ? '#e0f5e2' : '#fdeaea',
+      arrow: m.type === 'in' ? 'm6 9 6 6 6-6' : 'm18 15-6-6-6 6',
+    }));
+    const ingresos = this.movs.filter(m => m.type === 'in').reduce((a, m) => a + m.amt, 0);
+    const egresos = this.movs.filter(m => m.type === 'out').reduce((a, m) => a + m.amt, 0);
+
+    const clients = this.clients.map(c => {
+      const debt = c.bal > 0, credit = c.bal < 0, even = c.bal === 0;
+      return {
+        name: c.name, type: c.type,
+        initials: c.name.split(' ').filter(w => /[A-ZÁÉÍÓÚ]/.test(w[0])).slice(0, 2).map(w => w[0]).join(''),
+        amount: even ? 'Al día' : '$' + this.f(Math.abs(c.bal)),
+        amtColor: debt ? '#dc2626' : credit ? '#3d8c47' : '#9089a0',
+        status: debt ? 'Debe' : credit ? 'A favor' : 'Sin saldo',
+        statusColor: debt ? '#dc2626' : credit ? '#3d8c47' : '#a59fb5',
+        avBg: acc.tint, avFg: acc.strong,
+      };
+    });
+    const porCobrar = this.clients.filter(c => c.bal > 0).reduce((a, c) => a + c.bal, 0);
+    const deudores = this.clients.filter(c => c.bal > 0).length;
+
+    const docList = ['Cotización', 'Remito', 'Factura', 'Cta Cte', 'Acopio'];
+    const active = this.state.docType || 'Cotización';
+    const docTypes = docList.map(d => ({
+      label: d, onClick: () => this.setState({ docType: d }),
+      bg: d === active ? acc.strong : '#fff', fg: d === active ? '#fff' : '#5b5570',
+      border: d === active ? acc.strong : '#ece6f6',
+    }));
+    const ctaLabels = { 'Cotización': 'Generar', 'Remito': 'Emitir remito', 'Factura': 'Facturar', 'Cta Cte': 'Cargar a cuenta', 'Acopio': 'Registrar acopio' };
+
+    const aiMsgs = this.state.aiMsgs.map(m => ({
+      text: m.text,
+      justify: m.role === 'me' ? 'flex-end' : 'flex-start',
+      bg: m.role === 'me' ? acc.strong : '#fff',
+      color: m.role === 'me' ? '#fff' : '#121325',
+      radius: m.role === 'me' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+    }));
+    const aiChips = [
+      { label: '¿A cuánto está el caño de 110?', onClick: () => this.askAI('¿A cuánto está el caño de 110?') },
+      { label: '¿Qué tengo con stock bajo?', onClick: () => this.askAI('¿Qué tengo con stock bajo?') },
+      { label: 'Armá una cotización', onClick: () => this.askAI('Armá una cotización con el carrito') },
+    ];
+
+    // ---- Comprobantes ----
+    const typeStyle = (t) => t.startsWith('Factura') ? { bg: '#ece6f6', fg: '#5c3a8c' } : t === 'Remito' ? { bg: '#dbeafe', fg: '#2563eb' } : { bg: '#fff3e8', fg: '#d97a16' };
+    const statusStyle = (s) => s === 'Cobrado' ? { bg: '#e0f5e2', fg: '#3d8c47' } : s === 'Pendiente' ? { bg: '#fff3e8', fg: '#f97316' } : { bg: '#ece6f6', fg: '#7c5ca8' };
+    const cf = this.state.compFilter;
+    const comps = this.comprobantes
+      .filter(c => cf === 'Todos' || c.type.startsWith(cf))
+      .map(c => ({ ...c, amount: '$' + this.f(c.amt), typeBg: typeStyle(c.type).bg, typeFg: typeStyle(c.type).fg, stBg: statusStyle(c.status).bg, stFg: statusStyle(c.status).fg }));
+    const compChips = ['Todos', 'Cotización', 'Remito', 'Factura'].map(c => ({
+      label: c, onClick: () => this.setCompFilter(c),
+      bg: c === cf ? acc.strong : '#fff', fg: c === cf ? '#fff' : '#5b5570', border: c === cf ? acc.strong : '#ece6f6',
+    }));
+
+    // ---- Menú lateral (todos los módulos) ----
+    const realScreens = { inicio: 1, productos: 1, ventas: 1, caja: 1, cuenta: 1, comprobantes: 1 };
+    const navDef = [
+      { title: 'General', items: [['Dashboard', 'home', 'inicio']] },
+      { title: 'Ventas y caja', items: [['Ventas', 'cart', 'ventas'], ['Comprobantes', 'receipt', 'comprobantes'], ['Métodos de pago', 'card', 'mp'], ['Caja diaria', 'wallet', 'caja'], ['Cuenta corriente', 'users', 'cuenta'], ['Acopios', 'layers', 'acopios']] },
+      { title: 'Catálogo e inventario', items: [['Productos', 'package', 'productos'], ['Actualizar precios', 'trending', 'precios'], ['Listas de precios', 'list', 'listas'], ['Inventario', 'boxes', 'inventario'], ['Mercado Libre', 'bag', 'meli']] },
+      { title: 'Análisis y ajustes', items: [['Rentabilidad', 'bar', 'renta'], ['Configuración', 'settings', 'config']] },
+    ];
+    const curStub = this.state.tab === 'stub' ? this.state.stubTitle : null;
+    const navGroups = navDef.map(g => ({
+      title: g.title,
+      items: g.items.map(([label, ic, id]) => {
+        const real = realScreens[id];
+        const active = real ? this.state.tab === id : curStub === label;
+        return {
+          label, icon: this.icon(ic), active,
+          bg: active ? 'rgba(255,255,255,.14)' : 'transparent',
+          color: active ? '#ffffff' : 'rgba(255,255,255,.66)',
+          dot: active ? acc.bright : 'transparent',
+          onClick: real ? (() => this.setState({ tab: id, menuOpen: false, aiOpen: false })) : (() => this.setState({ tab: 'stub', stubTitle: label, menuOpen: false, aiOpen: false })),
+        };
+      }),
+    }));
+
+    return {
+      acc,
+      shopName: this.props.shopName ?? 'Sanitarios del Plata',
+      ownerName: this.props.ownerName ?? 'Fernando',
+      avatarInitials: 'FC',
+      screenTitle: titles[tab] || this.state.stubTitle,
+      todayLabel: 'martes 30 de junio',
+      showAI: this.props.showAI ?? true,
+
+      menuOpen: this.state.menuOpen, openMenu: this.openMenu, closeMenu: this.closeMenu, navGroups,
+
+      isInicio: tab === 'inicio', isProductos: tab === 'productos', isVentas: tab === 'ventas', isCaja: tab === 'caja', isCuenta: tab === 'cuenta',
+      isComprobantes: tab === 'comprobantes', isStub: tab === 'stub',
+      comps, compChips, compCount: comps.length, stubTitle: this.state.stubTitle,
+      ti: { inicio: tint('inicio'), productos: tint('productos'), ventas: tab === 'ventas' ? acc.strong : '#5b5570', caja: tint('caja'), cuenta: tint('cuenta') },
+
+      goInicio: () => this.setTab('inicio'), goProductos: () => this.setTab('productos'), goVentas: () => this.setTab('ventas'), goCaja: () => this.setTab('caja'), goCuenta: () => this.setTab('cuenta'),
+
+      cajaTotalFmt: '$' + this.f(624563.65), facturadoFmt: '$' + this.f(624563.65),
+      ventasHoyFmt: '$' + this.f(116320),
+      products, productCount: products.length, catChips,
+      query: this.state.query, onSearch: this.onSearch,
+
+      client: 'Consumidor final', docTypes, ctaLabel: ctaLabels[active],
+      cart, cartCount: this.state.cart.length, hasCart: this.state.cart.length > 0,
+      cartEmpty: this.state.cart.length === 0, showTotals: tab === 'ventas' && this.state.cart.length > 0,
+      subtotalFmt: '$' + this.f(subtotal), ivaFmt: '$' + this.f(iva), totalFmt: '$' + this.f(total),
+
+      cajaSaldoFmt: '$' + this.f(ingresos - egresos + 200000), movs,
+      ingresosFmt: '$' + this.f(ingresos), egresosFmt: '$' + this.f(egresos),
+
+      clients, porCobrarFmt: '$' + this.f(porCobrar), deudoresCount: deudores,
+
+      activity: this.activity,
+
+      aiOpen: this.state.aiOpen, openAI: this.openAI, closeAI: this.closeAI, aiMsgs, aiChips,
+      scanOpen: this.state.scanOpen, openScan: this.openScan, closeScan: this.closeScan,
+      movOpen: this.state.movOpen, openMov: this.openMov, closeMov: this.closeMov,
+      stop: this.stop,
+    };
+  }
+}
+</script>
+</body>
+</html>

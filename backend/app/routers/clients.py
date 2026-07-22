@@ -13,6 +13,8 @@ from app.database import get_db
 from app.models.business import Business
 from app.schemas.base import MessageResponse, PaginatedResponse
 from app.schemas.client import (
+    ClientBulkDeleteRequest,
+    ClientBulkDeleteResponse,
     ClientCreate,
     ClientListParams,
     ClientResponse,
@@ -129,6 +131,18 @@ async def create_client(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         ) from e
+
+
+@router.post("/bulk-delete", response_model=ClientBulkDeleteResponse)
+async def bulk_delete_clients(
+    data: ClientBulkDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """Elimina múltiples clientes del negocio actual."""
+    service = ClientService(db)
+    deleted, not_found = await service.bulk_delete(data.ids, business_id)
+    return ClientBulkDeleteResponse(deleted=deleted, not_found=not_found)
 
 
 @router.get("/{client_id}", response_model=ClientResponse)
