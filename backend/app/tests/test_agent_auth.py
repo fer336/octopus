@@ -174,7 +174,7 @@ async def test_non_agent_http_errors_keep_existing_detail_shape_and_no_agent_hea
     client: AsyncClient,
     user_a: User,
 ):
-    response = await client.get("/api/admin/tenants", headers={"Authorization": f"Bearer invalid-user-token"})
+    response = await client.get("/api/admin/tenants", headers={"Authorization": "Bearer invalid-user-token"})
 
     assert response.status_code == 401
     assert set(response.json()) == {"detail"}
