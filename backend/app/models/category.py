@@ -2,7 +2,7 @@
 Modelo de Categoría de productos.
 Soporta categorías jerárquicas (padre-hijo).
 """
-from sqlalchemy import Column, ForeignKey, String, Text
+from sqlalchemy import Column, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -16,6 +16,9 @@ class Category(BaseModel):
     """
 
     __tablename__ = "categories"
+    __table_args__ = (
+        UniqueConstraint("name", "business_id", name="uq_category_name_business"),
+    )
 
     business_id = Column(
         UUID(as_uuid=True),

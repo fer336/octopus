@@ -43,6 +43,7 @@ from app.schemas.product import (
     ProductBulkUpdateRequest,
     ProductBulkUpdateResponse,
     ProductCreate,
+    ProductIdsResponse,
     ProductListParams,
     ProductResponse,
     ProductUpdate,
@@ -186,6 +187,28 @@ async def bulk_delete_alt(
         logger.error(f"ERROR: {str(e)}", exc_info=True)
         await db.rollback()
         return {"deleted_count": 0, "message": f"Error: {str(e)}"}
+
+
+@router.get("/ids", response_model=ProductIdsResponse)
+async def list_product_ids(
+    search: str | None = Query(None, description="Buscar por código o descripción"),
+    category_id: UUID | None = Query(None, description="Filtrar por categoría"),
+    supplier_id: UUID | None = Query(None, description="Filtrar por proveedor"),
+    brand_id: UUID | None = Query(None, description="Filtrar por marca normalizada"),
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+):
+    """Lista todos los IDs de productos filtrados, sin paginación."""
+    service = ProductService(db)
+    params = ProductListParams(
+        search=search,
+        category_id=category_id,
+        supplier_id=supplier_id,
+        brand_id=brand_id,
+        is_active=None,
+    )
+    ids, total = await service.list_ids(business_id, params)
+    return ProductIdsResponse(ids=ids, total=total)
 
 
 @router.get("", response_model=PaginatedResponse[ProductResponse])

@@ -12,6 +12,8 @@ from app.database import get_db
 from app.schemas.base import MessageResponse, PaginatedResponse
 from app.schemas.supplier import (
     CategoryDiscountItem,
+    SupplierBulkDeleteRequest,
+    SupplierBulkDeleteResponse,
     SupplierCreate,
     SupplierListParams,
     SupplierResponse,
@@ -76,6 +78,18 @@ async def create_supplier(
     supplier = await service.create(business_id, data)
     # No acceder a supplier.categories - es lazy loaded y causa error
     return SupplierResponse.model_validate(supplier)
+
+
+@router.post("/bulk-delete", response_model=SupplierBulkDeleteResponse)
+async def bulk_delete_suppliers(
+    data: SupplierBulkDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+    business_id=Depends(get_current_business),
+):
+    """Elimina múltiples proveedores del negocio actual."""
+    service = SupplierService(db)
+    deleted, not_found = await service.bulk_delete(data.ids, business_id)
+    return SupplierBulkDeleteResponse(deleted=deleted, not_found=not_found)
 
 
 @router.get("/{supplier_id}", response_model=SupplierResponse)

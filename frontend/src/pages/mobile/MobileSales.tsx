@@ -65,6 +65,7 @@ import { Minus, Plus, Trash2, User, ArrowRight } from 'lucide-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import vouchersService, { type VoucherCreate, type VoucherPayment } from '../../api/vouchersService'
+import arcaService from '../../api/arcaService'
 import stockpileService from '../../api/stockpileService'
 import paymentMethodsService, { type PaymentMethod } from '../../api/paymentMethodsService'
 import type { Client } from '../../api/clientsService'
@@ -163,10 +164,7 @@ export function calculateTotals(
 /**
  * Ported (with one deliberate mobile-V1 simplification) from desktop
  * `Sales.tsx`'s `buildPaymentsPayload`/`validatePayments` (lines 2898-2988).
- * Payments are entirely OPTIONAL here: desktop's invoice-only branches
- * (`voucherType === 'invoice'`/`'invoice_x'` requiring at least one payment)
- * are omitted — they're unreachable on mobile since Factura is hard-blocked
- * from submission (see the `KNOWN GAP` comment above `createVoucherMutation`).
+ * Payments are required for Factura (mirrors desktop), optional otherwise.
  * Also simplified: desktop's "Cheque" due-date heuristic (`isCheckPaymentMethod`,
  * a fragile name/code match, plus an `extra_date` field formatted into the
  * reference string) is NOT ported — every `requires_reference` method just
@@ -205,10 +203,13 @@ function buildPaymentsPayload(
 function validatePayments(
   paymentMethods: PaymentMethod[],
   selections: PaymentSelections,
-  expectedTotal: number
+  expectedTotal: number,
+  requirePayments = false
 ): { valid: boolean; message?: string } {
   const selectedMethods = paymentMethods.filter((method) => selections[method.id]?.selected)
-  if (selectedMethods.length === 0) return { valid: true }
+  if (selectedMethods.length === 0) {
+    return requirePayments ? { valid: false, message: 'Seleccioná al menos un método de pago' } : { valid: true }
+  }
 
   for (const method of selectedMethods) {
     const selection = selections[method.id]
@@ -356,35 +357,55 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
     })
   }
 
-  /**
-   * KNOWN GAP vs desktop (not fixed here, flagged for a dedicated follow-up):
-   * desktop's `createVoucherMutation.onSuccess` (Sales.tsx ~888-935) additionally
-   * calls `arcaService.emitInvoice()` for real invoice types (invoice_a/b/c,
-   * not invoice_x) to get a CAE from AFIP/ARCA, and DELETES the voucher if that
-   * emission fails/mismatches — a voucher without CAE is not fiscally valid.
-   * This mobile screen does not replicate that step: a "Factura" submitted from
-   * here would be created in the DB but never emitted, unlike desktop.
-   *
-   * Because of that gap, "Factura" is now explicitly HARD-BLOCKED at the UI
-   * level (not just an unmentioned gap) — see `canSubmit`/`submitBlockedReason`
-   * below and the defensive early return at the top of `handleSubmit` — until
-   * the ARCA/CAE decision for mobile is made. `resolveVoucherType`'s Factura
-   * branch and `createVoucherMutation` itself are intentionally left intact
-   * (not deleted) for when that block is lifted.
-   */
+  const isArcaNumberMismatch = (msg: string): boolean => {
+    const m = msg.toLowerCase()
+    return m.includes('10016') || m.includes('numero de comprobante') || m.includes('número de comprobante') || m.includes('no es el correcto')
+  }
+
   const createVoucherMutation = useMutation({
     mutationFn: (payload: VoucherCreate) => vouchersService.create(payload),
     onSuccess: async (data) => {
+      const isInvoice = data.voucher_type.startsWith('invoice_') && data.voucher_type !== 'invoice_x'
       const fullNumber = data.sale_point ? `${data.sale_point}-${data.number}` : data.number
-      toast.success(`Comprobante ${fullNumber} generado correctamente`)
-      setCart([])
-      setSelectedClient(null)
 
-      // Mirrors desktop Sales.tsx's post-success PDF flow (~lines 888-935):
-      // fetch the just-created voucher's PDF and show it in the in-app
-      // viewer. A failure here is just the PDF step failing, NOT the voucher
-      // creation itself — the voucher already exists, so the success
-      // toast/cart-clear above stand.
+      // ARCA/AFIP emission for real invoices — mirroring desktop Sales.tsx
+      if (isInvoice) {
+        toast.loading('Emitiendo factura electrónica en ARCA/AFIP...', { id: 'emitting' })
+        try {
+          const emitResponse = await arcaService.emitInvoice({ voucher_id: data.id })
+          if (emitResponse.success) {
+            toast.success(
+              `Factura emitida correctamente\nCAE: ${emitResponse.cae}\nVencimiento: ${emitResponse.cae_expiration}`,
+              { id: 'emitting', duration: 5000, icon: '🎉' }
+            )
+          } else {
+            const errMsg = `${emitResponse.message}\n${emitResponse.errors?.join('\n') || ''}`.trim()
+            toast.dismiss('emitting')
+            if (isArcaNumberMismatch(errMsg)) {
+              toast.error(`Error de numeración con ARCA: ${errMsg}`, { duration: 7000 })
+              return
+            }
+            try {
+              await vouchersService.delete(data.id, 'Anulado automáticamente: ARCA rechazó la emisión')
+            } catch (_) { /* best-effort delete */ }
+            toast.error(`Error al emitir factura:\n${errMsg}`, { duration: 7000 })
+            return
+          }
+        } catch (error: any) {
+          const errMsg = error.response?.data?.detail || error.message || ''
+          toast.dismiss('emitting')
+          try {
+            await vouchersService.delete(data.id, 'Anulado automáticamente: error de conexión con ARCA')
+          } catch (_) { /* best-effort delete */ }
+          toast.error(`Error al emitir factura electrónica:\n${errMsg}`, { duration: 7000 })
+          return
+        }
+      } else {
+        toast.success(`Comprobante ${fullNumber} generado correctamente`)
+        setCart([])
+        setSelectedClient(null)
+      }
+
       try {
         const blob = await vouchersService.getPdf(data.id)
         showPdf(blob, `Comprobante ${fullNumber}`)
@@ -453,24 +474,19 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
   const isFactura = docType === 'Factura'
   const acopioAmountValue = Number(acopioAmount) || 0
   const acopioFormValid = acopioName.trim().length > 0 && acopioAmountValue > 0
-  const paymentsValidation = isAcopio ? { valid: true } : validatePayments(paymentMethods, paymentSelections, totals.total)
-  /** Mirrors desktop Sales.tsx's `!selectedClient` guard for every doc type; Acopio additionally requires its own mini-form (name + amount) to be filled, mirroring desktop's `handleGenerateClick` Acopio validation. The empty "Buscar cliente" state is a prompt, never a submittable client. Factura is hard-blocked pending the ARCA/CAE gap (see the `KNOWN GAP` comment above `createVoucherMutation`) — never submittable regardless of client/cart. */
-  const canSubmit = !noClientSelected && !isFactura && (!isAcopio || acopioFormValid) && paymentsValidation.valid && !isSubmitting
+  const paymentsValidation = isAcopio ? { valid: true } : validatePayments(paymentMethods, paymentSelections, totals.total, isFactura)
+  /** Mirrors desktop Sales.tsx's `!selectedClient` guard for every doc type; Acopio additionally requires its own mini-form (name + amount) to be filled, mirroring desktop's `handleGenerateClick` Acopio validation. Factura requires at least one payment method (mirrors desktop's invoice-only `validatePayments` branch). */
+  const canSubmit = !noClientSelected && (!isAcopio || acopioFormValid) && paymentsValidation.valid && !isSubmitting
   const submitBlockedReason = noClientSelected
     ? 'Elegí un cliente para continuar'
-    : isFactura
-      ? 'Facturar no está disponible desde mobile todavía — generala desde el escritorio'
-      : isAcopio && !acopioFormValid
-        ? 'Completá nombre y monto del acopio'
-        : !paymentsValidation.valid
-          ? (paymentsValidation.message ?? null)
-          : null
+    : isAcopio && !acopioFormValid
+      ? 'Completá nombre y monto del acopio'
+      : !paymentsValidation.valid
+        ? (paymentsValidation.message ?? null)
+        : null
   const showTotalsBar = isAcopio || !cartEmpty
 
   const handleSubmit = () => {
-    // Belt-and-suspenders alongside the `canSubmit` gate — Factura must never
-    // reach `vouchersService.create()`, see the `KNOWN GAP` comment above.
-    if (isFactura) return
     if (!canSubmit || !selectedClient) return
 
     if (isAcopio) {
@@ -698,13 +714,13 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
             <span className="text-[11px] text-[#9089a0]">% desc. general</span>
           </div>
 
-          {/* Optional payment-method selection — ported (simplified, see
+          {/* Payment-method selection — ported (simplified, see
               buildPaymentsPayload/validatePayments doc comment above) from
-              desktop's payment section. Not shown for Acopio (no payments
-              concept there). */}
+              desktop's payment section. Required for Factura, optional for
+              others. Not shown for Acopio (no payments concept there). */}
           <div className="mt-[18px] flex flex-col gap-[9px]">
             <p className="text-xs font-semibold uppercase tracking-[.1em] text-[#7b6b95]">
-              Métodos de pago (opcional)
+              Métodos de pago{isFactura ? ' *' : ' (opcional)'}
             </p>
             {paymentMethods.map((method) => {
               const selection = paymentSelections[method.id] ?? { selected: false, amount: '', reference: '' }

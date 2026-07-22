@@ -234,6 +234,13 @@ class StockDeltaResponse(BaseSchema):
     total_failures: int
 
 
+class ProductIdsResponse(BaseSchema):
+    """Respuesta liviana con IDs de productos filtrados."""
+
+    ids: list[UUID]
+    total: int
+
+
 class ProductListParams(BaseSchema):
     """Parámetros para listar productos."""
 

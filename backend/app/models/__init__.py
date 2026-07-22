@@ -4,6 +4,7 @@ Exporta todos los modelos para facilitar las importaciones.
 """
 
 from app.models.ai_provider_config import AIProvider, AIProviderConfig
+from app.models.agent_credential import AgentCredential, AgentCredentialStatus, AgentSurface
 from app.models.audit_log import AuditLog
 from app.models.authorization import AuthorizationRequest, AuthorizationStatus, AuthorizationType
 from app.models.base import BaseModel
@@ -69,6 +70,9 @@ __all__ = [
     "User",
     "Business",
     "Brand",
+    "AgentCredential",
+    "AgentCredentialStatus",
+    "AgentSurface",
     "TenantSecret",
     "TenantMembership",
     "MembershipRole",

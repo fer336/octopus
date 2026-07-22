@@ -45,6 +45,11 @@ export interface BrandProductsResponse {
   pages: number
 }
 
+export interface BrandBulkDeleteResponse {
+  deleted: number
+  not_found: number
+}
+
 export const brandsService = {
   getAll: async (params?: { search?: string; page?: number; per_page?: number }): Promise<BrandsPaginatedResponse> => {
     const response = await httpClient.get('/brands', { params })
@@ -68,6 +73,11 @@ export const brandsService = {
 
   delete: async (id: string): Promise<void> => {
     await httpClient.delete(`/brands/${id}`)
+  },
+
+  bulkDelete: async (ids: string[]): Promise<BrandBulkDeleteResponse> => {
+    const response = await httpClient.post('/brands/bulk-delete', { ids })
+    return response.data
   },
 }
 

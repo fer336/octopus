@@ -5,14 +5,19 @@ Punto de entrada de la aplicación FastAPI.
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import async_session_maker, close_db
 from app.services.meli.sync import SyncWorker
+from app.utils.agent_security import validate_agent_security_settings
 from app.routers import (
     admin,
+    agent_admin,
+    agent_credentials,
+    agent_tenant,
     ai,
     ai_config,
     arca,
@@ -56,6 +61,7 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Maneja el ciclo de vida de la aplicación."""
     # Startup
+    validate_agent_security_settings()
     _sync_worker = SyncWorker(async_session_maker)
     _sync_worker.start()
     yield
@@ -73,6 +79,14 @@ app = FastAPI(
     redoc_url="/redoc",
     redirect_slashes=False,  # Evita 307 que consume el code de OAuth antes de procesarlo
 )
+
+
+@app.exception_handler(HTTPException)
+async def agent_error_exception_handler(request: Request, exc: HTTPException):
+    """Return agent error contracts without FastAPI's default detail wrapper."""
+    if isinstance(exc.detail, dict) and "error" in exc.detail:
+        return JSONResponse(status_code=exc.status_code, content=exc.detail, headers=exc.headers)
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)
 
 
 # Logging de configuración CORS en startup
@@ -136,6 +150,9 @@ app.include_router(profitability.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(cc_drafts.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(meli.router, prefix="/api/v1")
 app.include_router(admin.router)  # /api/admin/* (prefijo interno)
+app.include_router(agent_credentials.router)  # /api/admin/agent-credentials/*
+app.include_router(agent_tenant.router)  # /api/agent/tenant/*
+app.include_router(agent_admin.router)  # /api/agent/admin/*
 app.include_router(feedback.admin_router)
 app.include_router(billing.router)
 app.include_router(public.router, prefix="/api/public")

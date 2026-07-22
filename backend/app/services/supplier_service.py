@@ -181,3 +181,29 @@ class SupplierService:
         supplier.deleted_at = datetime.utcnow()
         await self.db.commit()
         return True
+
+    async def bulk_delete(
+        self,
+        supplier_ids: list[UUID],
+        business_id: UUID,
+    ) -> tuple[int, int]:
+        """
+        Elimina múltiples proveedores (soft delete).
+        Replica el borrado individual: no modifica productos asociados.
+        """
+        unique_ids = list(dict.fromkeys(supplier_ids))
+        query = select(Supplier).where(
+            Supplier.id.in_(unique_ids),
+            Supplier.business_id == business_id,
+            Supplier.deleted_at.is_(None),
+        )
+        result = await self.db.execute(query)
+        suppliers = list(result.scalars().all())
+
+        now = datetime.utcnow()
+        for supplier in suppliers:
+            supplier.deleted_at = now
+
+        await self.db.commit()
+        deleted = len(suppliers)
+        return deleted, len(unique_ids) - deleted

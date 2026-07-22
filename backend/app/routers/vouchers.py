@@ -138,6 +138,7 @@ async def _log_audit(
         await db.commit()
     except Exception as e:
         logger.error(f"Failed to write audit log: {e}")
+        await db.rollback()
 
 
 async def _get_business_or_404(db: AsyncSession, business_id: UUID) -> Business:
