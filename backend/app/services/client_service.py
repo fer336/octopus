@@ -3,6 +3,7 @@ Servicio de Clientes.
 Contiene toda la lógica de negocio para clientes.
 """
 
+import builtins
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
@@ -233,14 +234,14 @@ class ClientService:
 
     async def bulk_delete(
         self,
-        client_ids: list[UUID],
+        client_ids: builtins.list[UUID],
         business_id: UUID,
     ) -> tuple[int, int]:
         """
         Elimina múltiples clientes (soft delete).
         Replica el borrado individual: no bloquea por saldo ni movimientos.
         """
-        unique_ids = list(dict.fromkeys(client_ids))
+        unique_ids: builtins.list[UUID] = list(dict.fromkeys(client_ids))
         query = select(Client).where(
             Client.id.in_(unique_ids),
             Client.business_id == business_id,

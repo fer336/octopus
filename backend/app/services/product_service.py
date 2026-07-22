@@ -272,7 +272,7 @@ class ProductService:
         self,
         business_id: UUID,
         params: ProductListParams,
-    ) -> tuple[list[UUID], int]:
+    ) -> tuple[builtins.list[UUID], int]:
         """Lista solo IDs de productos aplicando filtros livianos."""
         base_conditions = [
             Product.business_id == business_id,

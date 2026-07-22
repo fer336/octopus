@@ -2,6 +2,7 @@
 Servicio de Proveedores.
 Contiene toda la lógica de negocio para proveedores.
 """
+import builtins
 from datetime import datetime
 from uuid import UUID
 
@@ -184,14 +185,14 @@ class SupplierService:
 
     async def bulk_delete(
         self,
-        supplier_ids: list[UUID],
+        supplier_ids: builtins.list[UUID],
         business_id: UUID,
     ) -> tuple[int, int]:
         """
         Elimina múltiples proveedores (soft delete).
         Replica el borrado individual: no modifica productos asociados.
         """
-        unique_ids = list(dict.fromkeys(supplier_ids))
+        unique_ids: builtins.list[UUID] = list(dict.fromkeys(supplier_ids))
         query = select(Supplier).where(
             Supplier.id.in_(unique_ids),
             Supplier.business_id == business_id,
