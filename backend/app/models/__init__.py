@@ -31,6 +31,12 @@ from app.models.payment_receipt import PaymentReceipt
 from app.models.payment_method import PaymentMethodCatalog
 from app.models.price_history import PriceHistory
 from app.models.product import Product
+from app.models.purchase_invoice import (
+    PurchaseInvoice,
+    PurchaseInvoiceItem,
+    PurchaseInvoiceSource,
+    PurchaseInvoiceStatus,
+)
 from app.models.purchase_order import (
     PurchaseOrder,
     PurchaseOrderItem,
@@ -121,6 +127,11 @@ __all__ = [
     "PurchaseOrder",
     "PurchaseOrderItem",
     "PurchaseOrderStatus",
+    # Facturas de compra (Compras)
+    "PurchaseInvoice",
+    "PurchaseInvoiceItem",
+    "PurchaseInvoiceStatus",
+    "PurchaseInvoiceSource",
     # Acopio
     "Stockpile",
     "StockpileItem",
