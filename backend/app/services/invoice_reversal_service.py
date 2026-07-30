@@ -86,6 +86,23 @@ class InvoiceReversalService:
     def _round_money(value: Decimal) -> Decimal:
         return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
+    @staticmethod
+    def _net_cost(product: Product | None, gross_unit_cost: Decimal) -> Decimal:
+        """Costo neto real pagado (post-descuentos del producto).
+
+        Mismo criterio que `PurchaseInvoiceService._net_cost` (ver ese
+        docstring): `unit_cost` es el precio de lista BRUTO del proveedor,
+        pero `Product.cost_price` / `ProductLot.cost_price` deben reflejar el
+        costo NETO tras discount_1/2/3 (los usa `profitability_service`).
+        """
+        if product is None:
+            return gross_unit_cost.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        d1 = Decimal(str(product.discount_1 or 0))
+        d2 = Decimal(str(product.discount_2 or 0))
+        d3 = Decimal(str(product.discount_3 or 0))
+        net = gross_unit_cost * (1 - d1 / 100) * (1 - d2 / 100) * (1 - d3 / 100)
+        return net.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
     async def _get_confirmed_invoice(
         self, invoice_id: UUID, business_id: UUID
     ) -> PurchaseInvoice:
@@ -284,6 +301,8 @@ class InvoiceReversalService:
         await self.db.flush()
 
         if invoice.update_stock and new_data.product_id:
+            product = await self.db.get(Product, new_data.product_id)
+            cost_price = self._net_cost(product, Decimal(str(new_data.unit_cost)))
             lot = await lot_service.create_uncommitted(
                 product_id=new_data.product_id,
                 business_id=business_id,
@@ -291,7 +310,7 @@ class InvoiceReversalService:
                     quantity=int(new_data.quantity),
                     initial_quantity=int(new_data.quantity),
                     expiration_date=new_data.expiration_date,
-                    cost_price=new_data.unit_cost,
+                    cost_price=cost_price,
                     code=f"FC-{invoice.invoice_number}",
                 ),
                 user_id=user_id,
@@ -318,12 +337,19 @@ class InvoiceReversalService:
         old_item.expiration_date = new_data.expiration_date
         old_item.recalculate()
 
+        product = (
+            await self.db.get(Product, new_data.product_id)
+            if new_data.product_id
+            else None
+        )
+        cost_price = self._net_cost(product, Decimal(str(new_data.unit_cost)))
+
         if old_lot is not None and old_lot.id in conflict_lot_ids:
             # Ajuste compensatorio sobre el MISMO lote (preserva trazabilidad de consumo)
             delta = int(new_data.quantity) - old_lot.initial_quantity
             old_lot.quantity = max(0, old_lot.quantity + delta)
             old_lot.initial_quantity = int(new_data.quantity)
-            old_lot.cost_price = new_data.unit_cost
+            old_lot.cost_price = cost_price
             old_lot.expiration_date = new_data.expiration_date
             return
 
@@ -341,7 +367,7 @@ class InvoiceReversalService:
                     quantity=int(new_data.quantity),
                     initial_quantity=int(new_data.quantity),
                     expiration_date=new_data.expiration_date,
-                    cost_price=new_data.unit_cost,
+                    cost_price=cost_price,
                     code=f"FC-{invoice.invoice_number}",
                 ),
                 user_id=user_id,
@@ -401,7 +427,7 @@ class InvoiceReversalService:
             old_sale_price = product.sale_price
 
             product.list_price = item.unit_cost
-            product.cost_price = item.unit_cost
+            product.cost_price = self._net_cost(product, Decimal(str(item.unit_cost)))
             product.calculate_prices()
 
             self.db.add(

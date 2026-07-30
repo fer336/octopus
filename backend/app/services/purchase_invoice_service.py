@@ -53,6 +53,27 @@ class PurchaseInvoiceService:
         del proyecto — ver `VoucherService._round_money`)."""
         return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
+    @staticmethod
+    def _net_cost(product: Product | None, gross_unit_cost: Decimal) -> Decimal:
+        """Costo neto real pagado (post-descuentos del producto).
+
+        `PurchaseInvoiceItem.unit_cost` es el precio de lista BRUTO del
+        proveedor (antes de bonificaciones) — correcto tal cual para
+        `Product.list_price` (ver `Product.calculate_prices`). Pero
+        `Product.cost_price` / `ProductLot.cost_price` se usan en
+        `profitability_service` como el costo NETO efectivamente pagado, así
+        que hay que aplicarles la misma cadena de descuentos que
+        `calculate_prices()` (solo discount_1/2/3, sin extra_cost/
+        profit_margin/IVA).
+        """
+        if product is None:
+            return gross_unit_cost.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        d1 = Decimal(str(product.discount_1 or 0))
+        d2 = Decimal(str(product.discount_2 or 0))
+        d3 = Decimal(str(product.discount_3 or 0))
+        net = gross_unit_cost * (1 - d1 / 100) * (1 - d2 / 100) * (1 - d3 / 100)
+        return net.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
     def _build_items(
         self, items_data: list[PurchaseInvoiceItemCreate]
     ) -> tuple[list[PurchaseInvoiceItem], Decimal, Decimal, Decimal]:
@@ -375,6 +396,9 @@ class PurchaseInvoiceService:
             if not item.product_id:
                 continue  # IA no matcheó producto — no puede impactar stock
 
+            product = await self.db.get(Product, item.product_id)
+            cost_price = self._net_cost(product, Decimal(str(item.unit_cost)))
+
             lot = await lot_service.create_uncommitted(
                 product_id=item.product_id,
                 business_id=business_id,
@@ -382,7 +406,7 @@ class PurchaseInvoiceService:
                     quantity=int(item.quantity),
                     initial_quantity=int(item.quantity),
                     expiration_date=item.expiration_date,
-                    cost_price=item.unit_cost,
+                    cost_price=cost_price,
                     code=f"FC-{invoice.invoice_number}",
                 ),
                 user_id=user_id,
@@ -412,7 +436,7 @@ class PurchaseInvoiceService:
             old_sale_price = product.sale_price
 
             product.list_price = item.unit_cost
-            product.cost_price = item.unit_cost
+            product.cost_price = self._net_cost(product, Decimal(str(item.unit_cost)))
             product.calculate_prices()
 
             self.db.add(

@@ -52,6 +52,27 @@ async def product_a(db, business_a):
     return product
 
 
+@pytest_asyncio.fixture
+async def product_with_discounts(db, business_a):
+    """Producto con descuentos de proveedor — para validar que cost_price
+    (usado por profitability_service) sea el costo NETO, no el unit_cost
+    bruto de la factura."""
+    product = Product(
+        business_id=business_a.id,
+        code="DESC-001",
+        description="Producto con descuentos de proveedor",
+        list_price=Decimal("100.00"),
+        discount_1=Decimal("10"),
+        discount_2=Decimal("5"),
+        discount_3=Decimal("0"),
+        iva_rate=Decimal("21.00"),
+    )
+    db.add(product)
+    await db.commit()
+    await db.refresh(product)
+    return product
+
+
 def _create_data(**overrides) -> PurchaseInvoiceCreate:
     defaults = dict(
         invoice_number="0001-00000001",
@@ -337,6 +358,72 @@ class TestConfirm:
 
         await db.refresh(product_a)
         assert product_a.list_price == Decimal("150.00")
+
+    async def test_confirm_with_stock_creates_lot_with_net_cost_price(
+        self, db, business_a, user_a, product_with_discounts
+    ):
+        """RED — ProductLot.cost_price debe ser el costo NETO (post-descuentos
+        del producto), no el unit_cost bruto de la factura. cost_price se usa
+        en profitability_service para calcular margen real."""
+        service = PurchaseInvoiceService(db)
+        invoice, _ = await service.create_draft(
+            business_id=business_a.id,
+            user_id=user_a.id,
+            data=_create_data(
+                items=[
+                    PurchaseInvoiceItemCreate(
+                        product_id=product_with_discounts.id,
+                        description="Con descuentos",
+                        quantity=Decimal("5"),
+                        unit_cost=Decimal("200"),
+                    )
+                ]
+            ),
+        )
+
+        confirmed = await service.confirm(
+            invoice.id,
+            business_a.id,
+            user_a.id,
+            PurchaseInvoiceConfirmRequest(update_stock=True, update_prices=False),
+        )
+
+        lot = await db.get(ProductLot, confirmed.items[0].lot_id)
+        # 200 * (1 - 10/100) * (1 - 5/100) = 171.00
+        assert lot.cost_price == Decimal("171.00")
+
+    async def test_confirm_with_prices_sets_net_cost_price_keeps_gross_list_price(
+        self, db, business_a, user_a, product_with_discounts
+    ):
+        """RED — Product.cost_price debe quedar en el costo NETO tras confirmar
+        con update_prices=True; Product.list_price sigue siendo el unit_cost
+        bruto (comportamiento correcto y ya existente, no debe cambiar)."""
+        service = PurchaseInvoiceService(db)
+        invoice, _ = await service.create_draft(
+            business_id=business_a.id,
+            user_id=user_a.id,
+            data=_create_data(
+                items=[
+                    PurchaseInvoiceItemCreate(
+                        product_id=product_with_discounts.id,
+                        description="Con descuentos",
+                        quantity=Decimal("5"),
+                        unit_cost=Decimal("200"),
+                    )
+                ]
+            ),
+        )
+
+        await service.confirm(
+            invoice.id,
+            business_a.id,
+            user_a.id,
+            PurchaseInvoiceConfirmRequest(update_stock=False, update_prices=True),
+        )
+
+        await db.refresh(product_with_discounts)
+        assert product_with_discounts.list_price == Decimal("200.00")
+        assert product_with_discounts.cost_price == Decimal("171.00")
 
     async def test_confirm_item_without_product_never_creates_lot(
         self, db, business_a, user_a

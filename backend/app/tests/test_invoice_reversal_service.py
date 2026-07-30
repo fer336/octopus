@@ -55,6 +55,27 @@ async def product_a(db, business_a):
     return product
 
 
+@pytest_asyncio.fixture
+async def product_with_discounts(db, business_a):
+    """Producto con descuentos de proveedor — para validar que cost_price
+    (usado por profitability_service) sea el costo NETO, no el unit_cost
+    bruto de la factura."""
+    product = Product(
+        business_id=business_a.id,
+        code="REV-DESC-001",
+        description="Producto con descuentos para test de reversión",
+        list_price=Decimal("100.00"),
+        discount_1=Decimal("10"),
+        discount_2=Decimal("5"),
+        discount_3=Decimal("0"),
+        iva_rate=Decimal("21.00"),
+    )
+    db.add(product)
+    await db.commit()
+    await db.refresh(product)
+    return product
+
+
 async def _confirmed_invoice_with_lot(
     db, business_a, user_a, product_a, quantity=Decimal("10"), update_prices=False
 ):
@@ -166,6 +187,74 @@ class TestEditWithNoConsumption:
         new_lot = await db.get(ProductLot, new_lot_id)
         assert new_lot.quantity == 15
         assert new_lot.initial_quantity == 15
+
+    async def test_edit_quantity_recreates_lot_with_net_cost_price(
+        self, db, business_a, user_a, product_with_discounts
+    ):
+        """RED — cost_price del lote recreado debe ser el costo NETO
+        (post-descuentos del producto), no el unit_cost bruto del ítem editado."""
+        invoice, _old_lot = await _confirmed_invoice_with_lot(
+            db, business_a, user_a, product_with_discounts, quantity=Decimal("10")
+        )
+
+        service = InvoiceReversalService(db)
+        updated = await service.edit_confirmed(
+            invoice.id,
+            business_a.id,
+            user_a.id,
+            PurchaseInvoiceReversalRequest(
+                items=[
+                    PurchaseInvoiceItemCreate(
+                        product_id=product_with_discounts.id,
+                        description="Ítem con stock",
+                        quantity=Decimal("15"),
+                        unit_cost=Decimal("200"),
+                    )
+                ]
+            ),
+        )
+
+        new_lot = await db.get(ProductLot, updated.items[0].lot_id)
+        # 200 * (1 - 10/100) * (1 - 5/100) = 171.00
+        assert new_lot.cost_price == Decimal("171.00")
+
+    async def test_edit_adds_new_item_lot_with_net_cost_price(
+        self, db, business_a, user_a, product_with_discounts
+    ):
+        """RED — al agregar un ítem nuevo en la edición (más ítems que antes),
+        el lote creado también debe usar el costo NETO."""
+        invoice, _old_lot = await _confirmed_invoice_with_lot(
+            db, business_a, user_a, product_with_discounts, quantity=Decimal("10")
+        )
+
+        service = InvoiceReversalService(db)
+        updated = await service.edit_confirmed(
+            invoice.id,
+            business_a.id,
+            user_a.id,
+            PurchaseInvoiceReversalRequest(
+                items=[
+                    PurchaseInvoiceItemCreate(
+                        product_id=product_with_discounts.id,
+                        description="Ítem con stock",
+                        quantity=Decimal("10"),
+                        unit_cost=Decimal("50"),
+                    ),
+                    PurchaseInvoiceItemCreate(
+                        product_id=product_with_discounts.id,
+                        description="Ítem nuevo agregado en la edición",
+                        quantity=Decimal("3"),
+                        unit_cost=Decimal("200"),
+                    ),
+                ]
+            ),
+        )
+
+        assert len(updated.items) == 2
+        new_item = updated.items[1]
+        new_lot = await db.get(ProductLot, new_item.lot_id)
+        # 200 * (1 - 10/100) * (1 - 5/100) = 171.00
+        assert new_lot.cost_price == Decimal("171.00")
 
     async def test_edit_recalculates_invoice_totals(self, db, business_a, user_a, product_a):
         invoice, _ = await _confirmed_invoice_with_lot(
@@ -336,6 +425,42 @@ class TestEditWithConsumption:
         assert adjusted_lot.initial_quantity == 15
         assert adjusted_lot.quantity == 9
 
+    async def test_force_adjustment_sets_net_cost_price_on_same_lot(
+        self, db, business_a, user_a, product_with_discounts
+    ):
+        """RED — el ajuste compensatorio sobre el MISMO lote (consumo detectado
+        + force_adjustment=True) también debe fijar el costo NETO, no el
+        unit_cost bruto del ítem editado."""
+        invoice, lot = await _confirmed_invoice_with_lot(
+            db, business_a, user_a, product_with_discounts, quantity=Decimal("10")
+        )
+        lot.quantity = 4
+        await db.commit()
+        original_lot_id = lot.id
+
+        service = InvoiceReversalService(db)
+        updated = await service.edit_confirmed(
+            invoice.id,
+            business_a.id,
+            user_a.id,
+            PurchaseInvoiceReversalRequest(
+                items=[
+                    PurchaseInvoiceItemCreate(
+                        product_id=product_with_discounts.id,
+                        description="Ítem con stock",
+                        quantity=Decimal("15"),
+                        unit_cost=Decimal("200"),
+                    )
+                ],
+                force_adjustment=True,
+            ),
+        )
+
+        assert updated.items[0].lot_id == original_lot_id
+        adjusted_lot = await db.get(ProductLot, original_lot_id)
+        # 200 * (1 - 10/100) * (1 - 5/100) = 171.00
+        assert adjusted_lot.cost_price == Decimal("171.00")
+
     async def test_full_consumption_with_force_applies_compensating_delta_clamped_at_zero(
         self, db, business_a, user_a, product_a
     ):
@@ -464,6 +589,42 @@ class TestEditWithPriceUpdates:
         # Una del confirm() original + una nueva de la edición
         assert len(rows) == 2
         assert rows[-1].change_reason == "Compras: edición de factura"
+
+    async def test_edit_price_update_sets_net_cost_price_keeps_gross_list_price(
+        self, db, business_a, user_a, product_with_discounts
+    ):
+        """RED — al re-aplicar precios durante una edición, Product.cost_price
+        debe quedar en el costo NETO; Product.list_price sigue siendo el
+        unit_cost bruto (comportamiento correcto y ya existente, no cambia)."""
+        invoice, _lot = await _confirmed_invoice_with_lot(
+            db,
+            business_a,
+            user_a,
+            product_with_discounts,
+            quantity=Decimal("10"),
+            update_prices=True,
+        )
+
+        service = InvoiceReversalService(db)
+        await service.edit_confirmed(
+            invoice.id,
+            business_a.id,
+            user_a.id,
+            PurchaseInvoiceReversalRequest(
+                items=[
+                    PurchaseInvoiceItemCreate(
+                        product_id=product_with_discounts.id,
+                        description="Ítem con stock",
+                        quantity=Decimal("10"),
+                        unit_cost=Decimal("200"),
+                    )
+                ]
+            ),
+        )
+
+        await db.refresh(product_with_discounts)
+        assert product_with_discounts.list_price == Decimal("200.00")
+        assert product_with_discounts.cost_price == Decimal("171.00")
 
 
 class TestEditGuards:
