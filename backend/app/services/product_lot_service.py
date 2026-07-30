@@ -72,6 +72,61 @@ class ProductLotService:
         await self.db.refresh(lot)
         return lot
 
+    async def create_uncommitted(
+        self,
+        product_id: UUID,
+        business_id: UUID,
+        data: ProductLotCreate,
+        user_id: UUID | None = None,
+    ) -> ProductLot:
+        """Crea un lote de producto SIN comitear (flush-only).
+
+        Variante de `create()` pensada para llamadores que necesitan
+        atomicidad con otras escrituras dentro de su propia transacción
+        (ej. `PurchaseInvoiceService.confirm()`,
+        `InvoiceReversalService.edit_confirmed()`). El llamador es
+        responsable de `await self.db.commit()` (éxito) o
+        `await self.db.rollback()` (falla) al final de su operación.
+
+        No toca `create()` ni ningún otro método existente: éste sigue
+        comiteando inmediatamente para no romper a los callers actuales
+        (voucher/lot router).
+        """
+        lot = ProductLot(
+            product_id=product_id,
+            business_id=business_id,
+            quantity=data.quantity,
+            initial_quantity=data.initial_quantity or data.quantity,
+            expiration_date=data.expiration_date,
+            cost_price=data.cost_price,
+            code=data.code,
+            received_date=data.received_date or date.today(),
+            created_by=user_id,
+        )
+        self.db.add(lot)
+
+        # Flushear para obtener lot.id sin comitear la transacción
+        await self.db.flush()
+
+        if user_id:
+            audit = AuditLog(
+                user_id=user_id,
+                business_id=business_id,
+                action="create",
+                resource_type="lot_operation",
+                resource_id=lot.id,
+                details={
+                    "product_id": str(product_id),
+                    "quantity": data.quantity,
+                    "code": data.code,
+                    "delta": data.quantity,
+                },
+            )
+            self.db.add(audit)
+            await self.db.flush()
+
+        return lot
+
     async def fifo_consume(
         self,
         product_id: UUID,
