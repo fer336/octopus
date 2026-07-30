@@ -70,7 +70,7 @@ class PurchaseInvoiceCreate(BaseSchema):
     items: list[PurchaseInvoiceItemCreate]
 
     @model_validator(mode="after")
-    def items_required(self) -> "PurchaseInvoiceCreate":
+    def items_required(self) -> PurchaseInvoiceCreate:
         if not self.items:
             raise ValueError("La factura debe tener al menos un ítem")
         return self

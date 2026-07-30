@@ -396,7 +396,9 @@ class TestConfirm:
         broken_item.quantity = Decimal("0")
         await db.commit()
 
-        with pytest.raises(Exception):
+        # ProductLotCreate(quantity=0) viola gt=0 -> pydantic ValidationError
+        # (subclase de ValueError) al intentar crear el segundo lote.
+        with pytest.raises(ValueError):
             await service.confirm(
                 invoice_id,
                 business_id,
