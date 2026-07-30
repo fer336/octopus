@@ -2,6 +2,7 @@
 Tests para modelos PurchaseInvoice y PurchaseInvoiceItem (Compras — PR1).
 """
 from datetime import date
+from decimal import Decimal
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -233,3 +234,63 @@ class TestPurchaseInvoiceItemModel:
 
         result = await db.get(PurchaseInvoiceItem, item_id)
         assert result is None
+
+
+class TestPurchaseInvoiceItemRecalculate:
+    """RED → recalculate() debe redondear con ROUND_HALF_UP (convención del
+    proyecto, ver `VoucherService._round_money` en voucher_service.py),
+    no con el `round()` built-in de Python (ROUND_HALF_EVEN / banker's rounding).
+    """
+
+    def test_recalculate_normal_case(self):
+        """GREEN → caso normal, sin ties de redondeo."""
+        item = PurchaseInvoiceItem(
+            description="Ítem normal",
+            quantity=10,
+            unit_cost=100,
+            iva_rate=21,
+        )
+        item.recalculate()
+
+        assert item.subtotal == Decimal("1000.00")
+        assert item.iva_amount == Decimal("210.00")
+        assert item.total == Decimal("1210.00")
+
+    def test_recalculate_uses_round_half_up_not_half_even(self):
+        """RED → un subtotal que cae exacto en un ".xx5" debe redondear hacia
+        arriba (ROUND_HALF_UP), no hacia el dígito par (ROUND_HALF_EVEN, que es
+        lo que usa el `round()` built-in de Python sobre Decimal).
+
+        unit_cost=8.50 * quantity=0.25 = subtotal exacto 2.125:
+          - round() built-in (HALF_EVEN) → 2.12 (2 es par, "banker's rounding")
+          - ROUND_HALF_UP (convención del proyecto) → 2.13
+        """
+        item = PurchaseInvoiceItem(
+            description="Ítem con tie de redondeo",
+            quantity=Decimal("0.25"),
+            unit_cost=Decimal("8.50"),
+            iva_rate=Decimal("0"),
+        )
+        item.recalculate()
+
+        assert item.subtotal == Decimal("2.13"), (
+            "subtotal debe redondear 2.125 a 2.13 con ROUND_HALF_UP "
+            f"(igual que voucher_service.py), no a {item.subtotal} "
+            "(ROUND_HALF_EVEN / round() built-in)"
+        )
+        assert item.total == Decimal("2.13")
+
+    def test_recalculate_subtotal_plus_iva_equals_total(self):
+        """GREEN → subtotal + iva_amount debe ser igual a total tras redondear."""
+        item = PurchaseInvoiceItem(
+            description="Ítem con decimales",
+            quantity=Decimal("3"),
+            unit_cost=Decimal("10.333"),
+            iva_rate=Decimal("21"),
+        )
+        item.recalculate()
+
+        assert item.subtotal == Decimal("31.00")
+        assert item.iva_amount == Decimal("6.51")
+        assert item.total == Decimal("37.51")
+        assert item.subtotal + item.iva_amount == item.total

@@ -4,6 +4,7 @@ Registra facturas de proveedores en estado borrador hasta su confirmación,
 momento en el cual pueden impactar stock (ProductLot) y precios (PriceHistory).
 """
 import enum
+from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import Boolean, Column, Date, DateTime, Enum, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
@@ -169,9 +170,13 @@ class PurchaseInvoiceItem(BaseModel):
     lot = relationship("ProductLot")
 
     def recalculate(self) -> None:
-        """Recalcula subtotal, iva_amount y total para este ítem."""
-        from decimal import Decimal
+        """Recalcula subtotal, iva_amount y total para este ítem.
 
+        Redondea con ROUND_HALF_UP (convención monetaria del proyecto, ver
+        `VoucherService._round_money` en `voucher_service.py`), no con el
+        `round()` built-in de Python (que usa ROUND_HALF_EVEN / banker's
+        rounding sobre Decimal).
+        """
         unit_cost = Decimal(str(self.unit_cost or 0))
         qty = Decimal(str(self.quantity or 0))
         iva_rate = Decimal(str(self.iva_rate or 0))
@@ -179,9 +184,11 @@ class PurchaseInvoiceItem(BaseModel):
         subtotal = unit_cost * qty
         iva_amount = subtotal * iva_rate / 100
 
-        self.subtotal = round(subtotal, 2)
-        self.iva_amount = round(iva_amount, 2)
-        self.total = round(subtotal + iva_amount, 2)
+        self.subtotal = subtotal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        self.iva_amount = iva_amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        self.total = (subtotal + iva_amount).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
 
     def __repr__(self) -> str:
         return f"<PurchaseInvoiceItem {self.description[:30]}: qty={self.quantity}>"
