@@ -45,6 +45,7 @@ from app.routers import (
     products,
     profitability,
     public,
+    purchase_invoices,
     purchase_orders,
     reports,
     suppliers,
@@ -138,6 +139,7 @@ app.include_router(payment_methods.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(price_update_drafts.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(cash.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(purchase_orders.router, prefix=settings.API_TENANT_PREFIX)
+app.include_router(purchase_invoices.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(ai.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(ai_config.router, prefix=settings.API_TENANT_PREFIX)
 app.include_router(feedback.tenant_router, prefix=settings.API_TENANT_PREFIX)
