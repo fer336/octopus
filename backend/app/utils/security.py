@@ -406,6 +406,7 @@ def require_module_access(module_key: str):
             "inventory": "inventory_enabled",
             "stockpiles": "stockpile_enabled",
             "profitability": "profitability_enabled",
+            "purchases": "purchases_enabled",
         }
         feature_field = feature_by_module.get(module_key)
         if feature_field:

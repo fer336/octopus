@@ -153,6 +153,7 @@ export interface FeatureFlagsResponse {
   srx_enabled?: boolean
   profitability_enabled?: boolean
   invoice_zero_stock_enabled: boolean
+  purchases_enabled: boolean
 }
 
 export interface FeatureFlagsUpdate {
@@ -173,6 +174,7 @@ export interface FeatureFlagsUpdate {
   srx_enabled?: boolean
   profitability_enabled?: boolean
   invoice_zero_stock_enabled?: boolean
+  purchases_enabled?: boolean
 }
 
 export const AI_PROVIDERS = {

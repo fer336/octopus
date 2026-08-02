@@ -53,6 +53,7 @@ interface SidebarProps {
   stockpileEnabled?: boolean
   whatsappEnabled?: boolean
   profitabilityEnabled?: boolean
+  purchasesEnabled?: boolean
 }
 
 export default function Sidebar({
@@ -67,6 +68,7 @@ export default function Sidebar({
   stockpileEnabled = true,
   whatsappEnabled = true,
   profitabilityEnabled = true,
+  purchasesEnabled = false,
 }: SidebarProps) {
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
@@ -93,6 +95,9 @@ export default function Sidebar({
         if (item.path === '/inventory' && !inventoryEnabled) {
           return false
         }
+        if (item.path === '/purchase-invoices' && !purchasesEnabled) {
+          return false
+        }
         if (item.path === '/stockpiles' && !stockpileEnabled) {
           return false
         }
@@ -104,7 +109,7 @@ export default function Sidebar({
         }
         return hasPathAccess(user, item.path)
       }),
-    [currentAccountEnabled, priceUpdateEnabled, wholesaleListsEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, whatsappEnabled, profitabilityEnabled, user],
+    [currentAccountEnabled, priceUpdateEnabled, wholesaleListsEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, whatsappEnabled, profitabilityEnabled, purchasesEnabled, user],
   )
 
   const getActiveSection = (pathname: string) =>

@@ -69,6 +69,7 @@ class Business(BaseModel):
     quotation_enabled = Column(Boolean, nullable=False, default=True)
     inventory_enabled = Column(Boolean, nullable=False, default=True)
     stockpile_enabled = Column(Boolean, nullable=False, default=True)
+    purchases_enabled = Column(Boolean, nullable=False, default=False)
     price_update_enabled = Column(Boolean, nullable=False, default=True)
     wholesale_lists_enabled = Column(Boolean, nullable=False, default=False)
     profitability_enabled = Column(Boolean, nullable=False, default=True)
