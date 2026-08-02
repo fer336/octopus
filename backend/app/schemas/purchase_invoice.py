@@ -146,6 +146,7 @@ class PurchaseInvoiceResponse(BaseResponse):
     # Datos relacionados (para mostrar en UI)
     supplier_name: str | None = None
     created_by_name: str | None = None
+    duplicate_warning: DuplicateWarning | None = None
 
 
 class PurchaseInvoiceListItem(BaseResponse):

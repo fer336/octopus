@@ -14,6 +14,7 @@ from app.database import get_db
 from app.models.purchase_invoice import PurchaseInvoiceSource, PurchaseInvoiceStatus
 from app.schemas.base import PaginatedResponse
 from app.schemas.purchase_invoice import (
+    DuplicateWarning,
     PurchaseInvoiceConfirmRequest,
     PurchaseInvoiceCreate,
     PurchaseInvoiceListItem,
@@ -37,8 +38,25 @@ from app.utils.security import (
 router = APIRouter(
     prefix="/purchase-invoices",
     tags=["Facturas de Compra"],
-    dependencies=[Depends(require_module_access("inventory"))],
+    dependencies=[Depends(require_module_access("purchases"))],
 )
+
+
+async def _attach_duplicate_warning(
+    db: AsyncSession, invoice, is_duplicate: bool, business_id: UUID
+) -> None:
+    """`create_draft`/`create_draft_from_pdf` solo informan un bool — acá se
+    resuelve la factura original para que el frontend pueda linkearla."""
+    if not is_duplicate:
+        return
+    existing = await PurchaseInvoiceService(db).check_duplicate(
+        business_id, invoice.supplier_id, invoice.invoice_number, exclude_id=invoice.id
+    )
+    invoice.duplicate_warning = DuplicateWarning(
+        is_duplicate=True,
+        existing_invoice_id=existing.id if existing else None,
+        existing_invoice_status=existing.status if existing else None,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +92,7 @@ async def ai_extract_purchase_invoice(
     service = InvoiceAIService(db)
 
     try:
-        invoice, _is_duplicate = await service.create_draft_from_pdf(
+        invoice, is_duplicate = await service.create_draft_from_pdf(
             business_id=current_business,
             user_id=current_user.id,
             pdf_bytes=file_bytes,
@@ -83,6 +101,7 @@ async def ai_extract_purchase_invoice(
     except InvoiceAIParseError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
+    await _attach_duplicate_warning(db, invoice, is_duplicate, current_business)
     return invoice
 
 
@@ -102,12 +121,13 @@ async def create_purchase_invoice(
 ):
     """Crea una factura de compra en estado borrador (carga manual)."""
     service = PurchaseInvoiceService(db)
-    invoice, _is_duplicate = await service.create_draft(
+    invoice, is_duplicate = await service.create_draft(
         business_id=current_business,
         user_id=current_user.id,
         data=data,
         source=PurchaseInvoiceSource.MANUAL,
     )
+    await _attach_duplicate_warning(db, invoice, is_duplicate, current_business)
     return invoice
 
 
