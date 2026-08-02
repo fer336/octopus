@@ -97,6 +97,7 @@ async def business_a(db: AsyncSession, user_a: User) -> Business:
         name="Tenant A",
         cuit="30-11111111-1",
         tax_condition="Responsable Inscripto",
+        purchases_enabled=True,
     )
     db.add(b)
     await db.commit()
@@ -112,6 +113,7 @@ async def business_b(db: AsyncSession, user_b: User) -> Business:
         name="Tenant B",
         cuit="30-22222222-2",
         tax_condition="Monotributista",
+        purchases_enabled=True,
     )
     db.add(b)
     await db.commit()
