@@ -10,12 +10,19 @@ exclusiva de la factura que se vincule después, ver `PurchaseInvoiceService`).
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.product import Product
+from app.models.purchase_invoice import (
+    PurchaseInvoice,
+    PurchaseInvoiceItem,
+    PurchaseInvoiceStatus,
+)
 from app.models.purchase_receipt import (
     PurchaseReceipt,
     PurchaseReceiptItem,
@@ -29,6 +36,7 @@ from app.schemas.purchase_receipt import (
     PurchaseReceiptUpdate,
 )
 from app.services.product_lot_service import ProductLotService
+from app.services.purchase_invoice_service import PurchaseInvoiceService
 
 
 class PurchaseReceiptService:
@@ -235,6 +243,52 @@ class PurchaseReceiptService:
         return await self.get_by_id(receipt_id, business_id)
 
     # ------------------------------------------------------------------
+    # Vinculación con factura
+    # ------------------------------------------------------------------
+
+    async def link_to_invoice(
+        self,
+        receipt_id: UUID,
+        business_id: UUID,
+        purchase_invoice_id: UUID,
+        user_id: UUID,
+    ) -> PurchaseReceipt:
+        """
+        Vincula un remito (borrador o confirmado) a la factura real del
+        proveedor. Solo metadata: nunca toca stock.
+
+        Rechaza vincular a una factura que ya actualizó stock directamente
+        (`update_stock=True`) — esa factura ya creó lotes para todos sus
+        ítems sin saber de este remito, vincular ahora duplicaría stock.
+        También rechaza re-vincular a una factura distinta de la ya
+        vinculada; vincular dos veces a la misma factura es idempotente.
+        """
+        receipt = await self.get_by_id(receipt_id, business_id)
+        if not receipt:
+            raise ValueError("Remito no encontrado")
+
+        invoice = await self.db.get(PurchaseInvoice, purchase_invoice_id)
+        if not invoice or invoice.business_id != business_id or invoice.deleted_at is not None:
+            raise ValueError("Factura de compra no encontrada")
+
+        # `update_stock` tiene default=True a nivel de columna (se aplica ya
+        # en create_draft, antes de confirmar) — solo es una señal real de
+        # "ya actualizó stock directamente" cuando la factura está CONFIRMED.
+        if invoice.status == PurchaseInvoiceStatus.CONFIRMED and invoice.update_stock:
+            raise ValueError(
+                "No se puede vincular un remito a una factura que ya actualizó "
+                "stock directamente"
+            )
+
+        if receipt.purchase_invoice_id and receipt.purchase_invoice_id != purchase_invoice_id:
+            raise ValueError("El remito ya está vinculado a otra factura")
+
+        receipt.purchase_invoice_id = purchase_invoice_id
+        await self.db.commit()
+
+        return await self.get_by_id(receipt_id, business_id)
+
+    # ------------------------------------------------------------------
     # Confirmación (atómica)
     # ------------------------------------------------------------------
 
@@ -284,8 +338,13 @@ class PurchaseReceiptService:
         user_id: UUID,
     ) -> None:
         """Crea un ProductLot por ítem, con `received_date` real del remito
-        (no `date.today()`) y `cost_price=None` (el remito no maneja costo)."""
+        (no `date.today()`). Si el remito ya está vinculado a una factura
+        CONFIRMADA (escenario 2: factura primero, remito después), usa el
+        costo neto ya conocido de esa factura; si no, `cost_price=None` (lo
+        corrige la factura cuando se confirme y vincule más adelante, ver
+        `PurchaseInvoiceService._correct_lots_from_receipts`)."""
         lot_service = ProductLotService(self.db)
+        cost_by_product = await self._invoice_net_costs_by_product(receipt)
 
         for item in receipt.items:
             lot = await lot_service.create_uncommitted(
@@ -295,10 +354,41 @@ class PurchaseReceiptService:
                     quantity=int(item.quantity),
                     initial_quantity=int(item.quantity),
                     expiration_date=item.expiration_date,
-                    cost_price=None,
+                    cost_price=cost_by_product.get(item.product_id),
                     code=f"RM-{receipt.receipt_number}",
                     received_date=receipt.received_date,
                 ),
                 user_id=user_id,
             )
             item.lot_id = lot.id
+
+    async def _invoice_net_costs_by_product(
+        self, receipt: PurchaseReceipt
+    ) -> dict[UUID, Decimal]:
+        """Si el remito está vinculado a una factura ya CONFIRMADA, retorna
+        el costo neto por `product_id` de esa factura (mismo criterio que
+        `PurchaseInvoiceService._net_cost`). Sin factura vinculada, o
+        todavía en borrador, retorna `{}` (el costo queda `None` hasta que
+        se vincule/confirme una factura)."""
+        if not receipt.purchase_invoice_id:
+            return {}
+
+        invoice = await self.db.get(PurchaseInvoice, receipt.purchase_invoice_id)
+        if not invoice or invoice.status != PurchaseInvoiceStatus.CONFIRMED:
+            return {}
+
+        result = await self.db.execute(
+            select(PurchaseInvoiceItem).where(
+                PurchaseInvoiceItem.purchase_invoice_id == invoice.id
+            )
+        )
+
+        costs: dict[UUID, Decimal] = {}
+        for item in result.scalars().all():
+            if not item.product_id:
+                continue
+            product = await self.db.get(Product, item.product_id)
+            costs[item.product_id] = PurchaseInvoiceService._net_cost(
+                product, Decimal(str(item.unit_cost))
+            )
+        return costs

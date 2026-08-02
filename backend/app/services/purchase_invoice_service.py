@@ -15,17 +15,24 @@ from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.audit_log import AuditLog
 from app.models.price_history import PriceHistory
 from app.models.product import Product
+from app.models.product_lot import ProductLot
 from app.models.purchase_invoice import (
     PurchaseInvoice,
     PurchaseInvoiceItem,
     PurchaseInvoiceSource,
     PurchaseInvoiceStatus,
+)
+from app.models.purchase_receipt import (
+    PurchaseReceipt,
+    PurchaseReceiptItem,
+    PurchaseReceiptStatus,
 )
 from app.schemas.product_lot import ProductLotCreate
 from app.schemas.purchase_invoice import (
@@ -354,6 +361,12 @@ class PurchaseInvoiceService:
         recalcula precios y agrega `PriceHistory` para toda la factura. Si
         cualquier paso falla, se hace rollback completo y la factura queda
         en `draft` (ningún lote ni price_history persiste).
+
+        Si hay remitos vinculados (`data.receipt_ids` o ya pre-vinculados
+        vía `PurchaseReceiptService.link_to_invoice`) y están CONFIRMADOS,
+        los ítems que cubren NO generan un lote nuevo — se corrige el costo
+        del lote que el remito ya creó (ver `_correct_lots_from_receipts`).
+        Sin remitos vinculados, el comportamiento es idéntico al de antes.
         """
         invoice = await self.get_by_id(invoice_id, business_id)
         if not invoice:
@@ -363,9 +376,23 @@ class PurchaseInvoiceService:
         if not invoice.items:
             raise ValueError("La factura no tiene ítems")
 
+        stock_warnings: list[str] = []
+
         try:
+            linked_receipts = await self._resolve_linked_receipts(
+                invoice, business_id, data.receipt_ids
+            )
+
+            covered_product_ids: set[UUID] = set()
+            if linked_receipts:
+                covered_product_ids, stock_warnings = await self._correct_lots_from_receipts(
+                    invoice, linked_receipts, user_id
+                )
+
             if data.update_stock:
-                await self._create_lots_for_items(invoice, business_id, user_id)
+                await self._create_lots_for_items(
+                    invoice, business_id, user_id, skip_product_ids=covered_product_ids
+                )
 
             if data.update_prices:
                 await self._apply_price_updates(invoice, user_id)
@@ -381,20 +408,155 @@ class PurchaseInvoiceService:
             await self.db.rollback()
             raise
 
-        return await self.get_by_id(invoice_id, business_id)
+        result = await self.get_by_id(invoice_id, business_id)
+        result.stock_warnings = stock_warnings
+        return result
+
+    async def _resolve_linked_receipts(
+        self,
+        invoice: PurchaseInvoice,
+        business_id: UUID,
+        receipt_ids: list[UUID] | None,
+    ) -> list[PurchaseReceipt]:
+        """
+        Resuelve los remitos vinculados a esta factura: los pasados
+        explícitamente por `receipt_ids` + los ya pre-vinculados
+        (`receipt.purchase_invoice_id == invoice.id`). Valida proveedor
+        coincidente y ausencia de vínculo a otra factura, y vincula
+        (idempotente) dentro de esta misma transacción.
+        """
+        conditions = [PurchaseReceipt.purchase_invoice_id == invoice.id]
+        if receipt_ids:
+            conditions.append(PurchaseReceipt.id.in_(receipt_ids))
+
+        result = await self.db.execute(
+            select(PurchaseReceipt)
+            .options(selectinload(PurchaseReceipt.items))
+            .where(
+                PurchaseReceipt.business_id == business_id,
+                PurchaseReceipt.deleted_at.is_(None),
+                or_(*conditions),
+            )
+        )
+        receipts = list(result.scalars().all())
+
+        if receipt_ids:
+            missing = set(receipt_ids) - {r.id for r in receipts}
+            if missing:
+                raise ValueError(
+                    "Remito(s) no encontrado(s): "
+                    + ", ".join(str(m) for m in missing)
+                )
+
+        for receipt in receipts:
+            if receipt.purchase_invoice_id and receipt.purchase_invoice_id != invoice.id:
+                raise ValueError(
+                    f"El remito {receipt.receipt_number} ya está vinculado a otra factura"
+                )
+            if (
+                receipt.supplier_id
+                and invoice.supplier_id
+                and receipt.supplier_id != invoice.supplier_id
+            ):
+                raise ValueError(
+                    f"El remito {receipt.receipt_number} pertenece a otro proveedor"
+                )
+            receipt.purchase_invoice_id = invoice.id
+
+        return receipts
+
+    async def _correct_lots_from_receipts(
+        self,
+        invoice: PurchaseInvoice,
+        linked_receipts: list[PurchaseReceipt],
+        user_id: UUID,
+    ) -> tuple[set[UUID], list[str]]:
+        """
+        Para ítems de factura cuyo `product_id` está cubierto por un remito
+        ya CONFIRMADO y vinculado, no crea lote nuevo: corrige el
+        `cost_price` del lote existente (costo neto real facturado, mismo
+        criterio que `_net_cost`) y registra un `AuditLog`. Retorna
+        (product_ids cubiertos, warnings de mismatch de cantidad — no
+        bloqueantes).
+        """
+        receipt_items_by_product: dict[UUID, list[PurchaseReceiptItem]] = {}
+        for receipt in linked_receipts:
+            if receipt.status != PurchaseReceiptStatus.CONFIRMED:
+                continue
+            for r_item in receipt.items:
+                if r_item.lot_id is None:
+                    continue
+                receipt_items_by_product.setdefault(r_item.product_id, []).append(r_item)
+
+        covered_product_ids: set[UUID] = set()
+        warnings: list[str] = []
+
+        for item in invoice.items:
+            if not item.product_id or item.product_id not in receipt_items_by_product:
+                continue
+
+            r_items = receipt_items_by_product[item.product_id]
+            covered_product_ids.add(item.product_id)
+
+            product = await self.db.get(Product, item.product_id)
+            net_cost = self._net_cost(product, Decimal(str(item.unit_cost)))
+
+            receipt_qty_total = sum((Decimal(str(r.quantity)) for r in r_items), Decimal("0"))
+            if receipt_qty_total != Decimal(str(item.quantity)):
+                warnings.append(
+                    f"Cantidad recibida ({receipt_qty_total}) no coincide con la "
+                    f"cantidad facturada ({item.quantity}) para "
+                    f"{product.code if product else item.product_id}"
+                )
+
+            for r_item in r_items:
+                lot = await self.db.get(ProductLot, r_item.lot_id)
+                if not lot:
+                    continue
+                old_cost_price = lot.cost_price
+                lot.cost_price = net_cost
+
+                self.db.add(
+                    AuditLog(
+                        user_id=user_id,
+                        business_id=invoice.business_id,
+                        action="update",
+                        resource_type="lot_operation",
+                        resource_id=lot.id,
+                        details={
+                            "product_id": str(item.product_id),
+                            "old_cost_price": (
+                                str(old_cost_price) if old_cost_price is not None else None
+                            ),
+                            "new_cost_price": str(net_cost),
+                            "reason": "Corrección de costo por vinculación remito-factura",
+                            "purchase_invoice_id": str(invoice.id),
+                        },
+                    )
+                )
+
+        await self.db.flush()
+        return covered_product_ids, warnings
 
     async def _create_lots_for_items(
         self,
         invoice: PurchaseInvoice,
         business_id: UUID,
         user_id: UUID,
+        skip_product_ids: set[UUID] | None = None,
     ) -> None:
-        """Crea un ProductLot por ítem matcheado (product_id != None)."""
+        """Crea un ProductLot por ítem matcheado (product_id != None).
+        Ítems cuyo `product_id` está en `skip_product_ids` se omiten: ya
+        tienen lote creado por un remito vinculado (ver
+        `_correct_lots_from_receipts`)."""
         lot_service = ProductLotService(self.db)
+        skip_product_ids = skip_product_ids or set()
 
         for item in invoice.items:
             if not item.product_id:
                 continue  # IA no matcheó producto — no puede impactar stock
+            if item.product_id in skip_product_ids:
+                continue
 
             product = await self.db.get(Product, item.product_id)
             cost_price = self._net_cost(product, Decimal(str(item.unit_cost)))

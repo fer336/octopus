@@ -15,6 +15,7 @@ from app.schemas.base import PaginatedResponse
 from app.schemas.purchase_receipt import (
     PurchaseReceiptConfirmRequest,
     PurchaseReceiptCreate,
+    PurchaseReceiptLinkInvoiceRequest,
     PurchaseReceiptListItem,
     PurchaseReceiptResponse,
     PurchaseReceiptUpdate,
@@ -123,6 +124,40 @@ async def update_purchase_receipt(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Remito de proveedor no encontrado",
         )
+    return receipt
+
+
+# ---------------------------------------------------------------------------
+# Vinculación con factura
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{receipt_id}/link-invoice", response_model=PurchaseReceiptResponse)
+async def link_purchase_receipt_to_invoice(
+    receipt_id: UUID,
+    data: PurchaseReceiptLinkInvoiceRequest,
+    db: AsyncSession = Depends(get_db),
+    current_business=Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """Vincula un remito (borrador o confirmado) a la factura real del
+    proveedor. Solo metadata: nunca toca stock."""
+    service = PurchaseReceiptService(db)
+
+    receipt = await service.get_by_id(receipt_id, current_business)
+    if not receipt:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Remito de proveedor no encontrado",
+        )
+
+    try:
+        receipt = await service.link_to_invoice(
+            receipt_id, current_business, data.purchase_invoice_id, current_user.id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
     return receipt
 
 

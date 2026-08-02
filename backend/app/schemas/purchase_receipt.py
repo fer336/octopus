@@ -82,6 +82,14 @@ class PurchaseReceiptUpdate(BaseSchema):
     items: list[PurchaseReceiptItemCreate] | None = None
 
 
+class PurchaseReceiptLinkInvoiceRequest(BaseSchema):
+    """Datos para vincular un remito (borrador o confirmado) a la factura
+    real del proveedor. Solo metadata: nunca toca stock (ver
+    `PurchaseReceiptService.link_to_invoice`)."""
+
+    purchase_invoice_id: UUID
+
+
 class PurchaseReceiptConfirmRequest(BaseSchema):
     """
     Datos para confirmar un remito.

@@ -98,10 +98,18 @@ class PurchaseInvoiceConfirmRequest(BaseSchema):
 
     `update_stock` y `update_prices` son toggles independientes que aplican a
     toda la factura (no por ítem). `update_prices` default False.
+
+    `receipt_ids` vincula remitos de proveedor ya CONFIRMADOS a esta factura
+    (además de los que ya estuvieran pre-vinculados vía
+    `PurchaseReceiptService.link_to_invoice`): para los ítems cuyo producto
+    esté cubierto por uno de esos remitos, no se crea un lote nuevo — se
+    corrige el costo del lote que el remito ya creó (ver
+    `PurchaseInvoiceService._correct_lots_from_receipts`).
     """
 
     update_stock: bool = True
     update_prices: bool = False
+    receipt_ids: list[UUID] | None = None
 
 
 class PurchaseInvoiceReversalRequest(BaseSchema):
@@ -147,6 +155,7 @@ class PurchaseInvoiceResponse(BaseResponse):
     supplier_name: str | None = None
     created_by_name: str | None = None
     duplicate_warning: DuplicateWarning | None = None
+    stock_warnings: list[str] = []
 
 
 class PurchaseInvoiceListItem(BaseResponse):
