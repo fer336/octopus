@@ -825,6 +825,52 @@ async def get_payment_receipt_pdf(
     )
 
 
+@router.post("/{voucher_id}/cancel", response_model=VoucherResponse)
+async def cancel_voucher(
+    voucher_id: UUID,
+    reason: str | None = Query(default=None, description="Motivo de anulación"),
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """Anula un comprobante no fiscal y restaura el stock descontado al confirmarlo."""
+    service = VoucherService(db)
+    before_voucher = await service.get_by_id(voucher_id, business_id)
+    if not before_voucher:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Comprobante no encontrado"
+        )
+
+    try:
+        voucher = await service.cancel_receipt(
+            voucher_id=voucher_id,
+            business_id=business_id,
+            cancelled_by_user_id=current_user.id,
+            reason=reason,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    response_payload = serialize_voucher(voucher)
+
+    await _log_audit(
+        db=db,
+        user_id=current_user.id,
+        business_id=business_id,
+        action="cancel_voucher",
+        resource_type="voucher",
+        resource_id=voucher_id,
+        details={
+            "description": "Comprobante anulado y stock restaurado",
+            "reason": reason,
+            "before": _voucher_snapshot(before_voucher),
+            "after": _voucher_snapshot(voucher),
+        },
+    )
+
+    return response_payload
+
+
 @router.delete("/{voucher_id}/delete")
 async def delete_voucher(
     voucher_id: UUID,

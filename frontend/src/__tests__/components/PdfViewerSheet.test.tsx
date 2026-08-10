@@ -40,4 +40,28 @@ describe('PdfViewerSheet — in-app PDF viewer (replaces the new-tab window.open
     )
     expect(screen.getByText('Comprobante 0001-00000042')).toBeInTheDocument()
   })
+
+  it('opens a fresh PDF object URL from the Blob when Abrir PDF is clicked', async () => {
+    const createObjectURL = vi.fn(() => 'blob:fresh-url')
+    const revokeObjectURL = vi.fn()
+    const open = vi.spyOn(window, 'open').mockImplementation(() => ({}) as Window)
+    ;(URL as unknown as { createObjectURL: (blob: Blob) => string }).createObjectURL = createObjectURL
+    ;(URL as unknown as { revokeObjectURL: (url: string) => void }).revokeObjectURL = revokeObjectURL
+
+    render(
+      <PdfViewerSheet
+        open={true}
+        onClose={vi.fn()}
+        pdfUrl="blob:viewer-url"
+        pdfBlob={new Blob(['pdf'], { type: 'application/pdf' })}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir PDF' }))
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1)
+    expect(open).toHaveBeenCalledWith('blob:fresh-url', '_blank', 'noopener,noreferrer')
+
+    open.mockRestore()
+  })
 })
