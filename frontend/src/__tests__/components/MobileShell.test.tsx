@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -138,11 +138,12 @@ function renderShell(initialCart: CartLine[] = []) {
 describe('MobileShell — bottom tab bar', () => {
   it('renders all 5 tabs in the bottom bar', () => {
     renderShell()
-    expect(screen.getByRole('button', { name: 'Ventas' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Caja' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Comprobantes' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Productos' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Cuenta Corriente' })).toBeInTheDocument()
+    const nav = screen.getByRole('navigation', { name: 'Navegación principal' })
+    expect(within(nav).getByRole('button', { name: 'Ventas' })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Caja' })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Comprobantes' })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Productos' })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Cta Cte' })).toBeInTheDocument()
   })
 
   it('defaults to the Ventas tab', () => {
@@ -164,7 +165,8 @@ describe('MobileShell — bottom tab bar', () => {
 
   it('switches to Cuenta Corriente tab', async () => {
     renderShell()
-    await userEvent.click(screen.getByRole('button', { name: 'Cuenta Corriente' }))
+    const nav = screen.getByRole('navigation', { name: 'Navegación principal' })
+    await userEvent.click(within(nav).getByRole('button', { name: 'Cta Cte' }))
     expect(await screen.findByText(/total por cobrar/i)).toBeInTheDocument()
   })
 
