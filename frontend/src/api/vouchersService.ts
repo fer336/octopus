@@ -292,6 +292,16 @@ const vouchersService = {
   },
 
   /**
+   * Anula un remito y restaura el stock descontado por lote.
+   */
+  cancel: async (id: string, reason: string): Promise<Voucher> => {
+    const response = await httpClient.post<Voucher>(`/vouchers/${id}/cancel`, null, {
+      params: { reason }
+    })
+    return response.data
+  },
+
+  /**
    * Lista los comprobantes pendientes de facturar (cotizaciones y/o remitos sin invoiced_voucher_id).
    */
   getPendingQuotations: async (params?: {
