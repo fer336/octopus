@@ -7,7 +7,7 @@ Cubre:
 - Integración VoucherService: crear remito descuenta lote, anular restaura stock
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
@@ -18,6 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.product import Product
 from app.models.product_lot import ProductLot
+from app.models.payment_method import PaymentMethodCatalog
+from app.models.cash_register import CashRegister, CashRegisterStatus
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
 from app.models.client import Client
@@ -527,6 +529,213 @@ async def test_voucher_reverts_lot(
     deleted_voucher = result.scalar_one()
     assert deleted_voucher.deleted_at is not None
     assert deleted_voucher.deletion_reason == "test"
+
+
+@pytest.mark.asyncio
+async def test_cancel_receipt_restores_consumed_lots_without_soft_delete(
+    db: AsyncSession, client: AsyncClient,
+    product: Product, business_a: Business,
+    lot_a: ProductLot, lot_b: ProductLot,
+    client_for_voucher: Client,
+    user_a: User, membership_a,
+):
+    """Anular un remito normal restaura cada lote consumido y conserva historial."""
+    headers = make_auth_header(user_a)
+    today = str(date.today())
+
+    create_resp = await client.post(
+        "/api/tenant/vouchers",
+        headers=headers,
+        json={
+            "voucher_type": "receipt",
+            "date": today,
+            "client_id": str(client_for_voucher.id),
+            "items": [
+                {
+                    "product_id": str(product.id),
+                    "quantity": 60,
+                    "unit_price": 100.00,
+                }
+            ],
+        },
+    )
+    assert create_resp.status_code in (200, 201), create_resp.text
+    voucher_id = create_resp.json()["id"]
+
+    await db.refresh(lot_b)
+    await db.refresh(lot_a)
+    assert lot_b.quantity == 0
+    assert lot_a.quantity == 20
+
+    cancel_resp = await client.post(
+        f"/api/tenant/vouchers/{voucher_id}/cancel?reason=error%20de%20carga",
+        headers=headers,
+    )
+    assert cancel_resp.status_code == 200, cancel_resp.text
+    assert cancel_resp.json()["status"] == VoucherStatus.CANCELLED.value
+
+    await db.refresh(lot_b)
+    await db.refresh(lot_a)
+    assert lot_b.quantity == 30
+    assert lot_a.quantity == 50
+
+    from uuid import UUID
+    result = await db.execute(select(Voucher).where(Voucher.id == UUID(voucher_id)))
+    cancelled_voucher = result.scalar_one()
+    assert cancelled_voucher.status == VoucherStatus.CANCELLED
+    assert cancelled_voucher.deleted_at is None
+
+
+@pytest.mark.asyncio
+async def test_cancel_invoiced_receipt_rejected_keeps_lots_consumed(
+    db: AsyncSession, client: AsyncClient,
+    product: Product, business_a: Business,
+    lot_a: ProductLot, lot_b: ProductLot,
+    client_for_voucher: Client,
+    user_a: User, membership_a,
+):
+    """No se puede anular un remito normal que ya quedó vinculado a una factura."""
+    headers = make_auth_header(user_a)
+    today = str(date.today())
+
+    create_resp = await client.post(
+        "/api/tenant/vouchers",
+        headers=headers,
+        json={
+            "voucher_type": "receipt",
+            "date": today,
+            "client_id": str(client_for_voucher.id),
+            "items": [
+                {
+                    "product_id": str(product.id),
+                    "quantity": 60,
+                    "unit_price": 100.00,
+                }
+            ],
+        },
+    )
+    assert create_resp.status_code in (200, 201), create_resp.text
+    voucher_id = create_resp.json()["id"]
+
+    await db.refresh(lot_b)
+    await db.refresh(lot_a)
+    assert lot_b.quantity == 0
+    assert lot_a.quantity == 20
+
+    invoice = Voucher(
+        business_id=business_a.id,
+        client_id=client_for_voucher.id,
+        created_by=user_a.id,
+        voucher_type=VoucherType.INVOICE_B,
+        status=VoucherStatus.CONFIRMED,
+        sale_point="0001",
+        number="99999999",
+        date=date.today(),
+        subtotal=Decimal("6000.00"),
+        iva_amount=Decimal("1260.00"),
+        total=Decimal("7260.00"),
+    )
+    db.add(invoice)
+    await db.flush()
+
+    from uuid import UUID
+    receipt = await db.get(Voucher, UUID(voucher_id))
+    receipt.invoiced_voucher_id = invoice.id
+    await db.commit()
+
+    cancel_resp = await client.post(
+        f"/api/tenant/vouchers/{voucher_id}/cancel?reason=error%20de%20carga",
+        headers=headers,
+    )
+    assert cancel_resp.status_code == 400, cancel_resp.text
+    assert cancel_resp.json()["detail"] == "No se puede anular un remito ya facturado"
+
+    await db.refresh(lot_b)
+    await db.refresh(lot_a)
+    assert lot_b.quantity == 0
+    assert lot_a.quantity == 20
+
+
+@pytest.mark.asyncio
+async def test_cancel_invoice_x_restores_consumed_lots_without_soft_delete(
+    db: AsyncSession, client: AsyncClient,
+    product: Product, business_a: Business,
+    lot_a: ProductLot, lot_b: ProductLot,
+    client_for_voucher: Client,
+    user_a: User, membership_a,
+):
+    """Anular Comprobante X restaura lotes y conserva el comprobante visible."""
+    business_a.srx_enabled = True
+    payment_method = PaymentMethodCatalog(
+        business_id=business_a.id,
+        name="Efectivo",
+        code="CASH",
+        is_active=True,
+        requires_reference=False,
+    )
+    cash_register = CashRegister(
+        business_id=business_a.id,
+        opened_by=user_a.id,
+        status=CashRegisterStatus.OPEN,
+        opening_amount=Decimal("0"),
+        opened_at=datetime.utcnow(),
+    )
+    db.add(payment_method)
+    db.add(cash_register)
+    await db.commit()
+    await db.refresh(payment_method)
+
+    headers = make_auth_header(user_a)
+    today = str(date.today())
+
+    create_resp = await client.post(
+        "/api/tenant/vouchers",
+        headers=headers,
+        json={
+            "voucher_type": "invoice_x",
+            "date": today,
+            "client_id": str(client_for_voucher.id),
+            "items": [
+                {
+                    "product_id": str(product.id),
+                    "quantity": 60,
+                    "unit_price": 100.00,
+                }
+            ],
+            "payments": [
+                {
+                    "payment_method_id": str(payment_method.id),
+                    "amount": 7260.00,
+                }
+            ],
+        },
+    )
+    assert create_resp.status_code in (200, 201), create_resp.text
+    voucher_id = create_resp.json()["id"]
+
+    await db.refresh(lot_b)
+    await db.refresh(lot_a)
+    assert lot_b.quantity == 0
+    assert lot_a.quantity == 20
+
+    cancel_resp = await client.post(
+        f"/api/tenant/vouchers/{voucher_id}/cancel?reason=error%20de%20carga",
+        headers=headers,
+    )
+    assert cancel_resp.status_code == 200, cancel_resp.text
+    assert cancel_resp.json()["status"] == VoucherStatus.CANCELLED.value
+
+    await db.refresh(lot_b)
+    await db.refresh(lot_a)
+    assert lot_b.quantity == 30
+    assert lot_a.quantity == 50
+
+    from uuid import UUID
+    result = await db.execute(select(Voucher).where(Voucher.id == UUID(voucher_id)))
+    cancelled_voucher = result.scalar_one()
+    assert cancelled_voucher.voucher_type == VoucherType.INVOICE_X
+    assert cancelled_voucher.status == VoucherStatus.CANCELLED
+    assert cancelled_voucher.deleted_at is None
 
 
 @pytest.mark.asyncio
