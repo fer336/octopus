@@ -4,10 +4,10 @@ on:
   workflow_call:
   pull_request:
     branches:
-      - main
+      - master
   push:
     branches:
-      - main
+      - master
       - develop
 
 concurrency:
