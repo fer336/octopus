@@ -62,9 +62,9 @@
  */
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { Minus, Plus, Trash2, User, ArrowRight } from 'lucide-react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import vouchersService, { type VoucherCreate, type VoucherPayment } from '../../api/vouchersService'
+import vouchersService, { type PaginatedVouchers, type VoucherCreate, type VoucherPayment } from '../../api/vouchersService'
 import arcaService from '../../api/arcaService'
 import stockpileService from '../../api/stockpileService'
 import paymentMethodsService, { type PaymentMethod } from '../../api/paymentMethodsService'
@@ -234,6 +234,7 @@ function validatePayments(
 }
 
 export default function MobileSales({ cart, setCart, onNavigateToProductos }: MobileSalesProps) {
+  const queryClient = useQueryClient()
   const [docType, setDocType] = useState<DocType>('Cotización')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [clientPickerOpen, setClientPickerOpen] = useState(false)
@@ -340,6 +341,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
    * `closePdfViewer`) so we never leak object URLs across submissions.
    */
   const [viewingPdfUrl, setViewingPdfUrl] = useState<string | null>(null)
+  const [viewingPdfBlob, setViewingPdfBlob] = useState<Blob | null>(null)
   const [viewingPdfTitle, setViewingPdfTitle] = useState<string | undefined>(undefined)
 
   const showPdf = (blob: Blob, title?: string) => {
@@ -347,6 +349,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
       if (prev) URL.revokeObjectURL(prev)
       return URL.createObjectURL(blob)
     })
+    setViewingPdfBlob(blob)
     setViewingPdfTitle(title)
   }
 
@@ -355,6 +358,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
       if (prev) URL.revokeObjectURL(prev)
       return null
     })
+    setViewingPdfBlob(null)
   }
 
   const isArcaNumberMismatch = (msg: string): boolean => {
@@ -365,6 +369,13 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
   const createVoucherMutation = useMutation({
     mutationFn: (payload: VoucherCreate) => vouchersService.create(payload),
     onSuccess: async (data) => {
+      queryClient.setQueryData<PaginatedVouchers>(['mobile-comprobantes'], (current) => {
+        if (!current) return current
+        const withoutDuplicate = current.items.filter((voucher) => voucher.id !== data.id)
+        return { ...current, items: [data, ...withoutDuplicate], total: current.total + (withoutDuplicate.length === current.items.length ? 1 : 0) }
+      })
+      queryClient.invalidateQueries({ queryKey: ['mobile-comprobantes'] })
+
       const isInvoice = data.voucher_type.startsWith('invoice_') && data.voucher_type !== 'invoice_x'
       const fullNumber = data.sale_point ? `${data.sale_point}-${data.number}` : data.number
 
@@ -422,6 +433,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
     mutationFn: (payload: Parameters<typeof stockpileService.createByAmount>[0]) =>
       stockpileService.createByAmount(payload),
     onSuccess: async (data) => {
+      queryClient.invalidateQueries({ queryKey: ['mobile-comprobantes'] })
       toast.success(`Acopio "${data.name}" creado correctamente`)
       setAcopioName('')
       setAcopioAmount('')
@@ -818,6 +830,7 @@ export default function MobileSales({ cart, setCart, onNavigateToProductos }: Mo
         open={viewingPdfUrl !== null}
         onClose={closePdfViewer}
         pdfUrl={viewingPdfUrl}
+        pdfBlob={viewingPdfBlob}
         title={viewingPdfTitle}
       />
     </div>

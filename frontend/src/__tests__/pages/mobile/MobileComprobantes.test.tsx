@@ -5,16 +5,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import type { Voucher, PaginatedVouchers, DeleteVoucherResponse } from '../../../api/vouchersService'
 
-const { getAllVouchersMock, getPdfMock, deleteMock, toastSuccessMock, toastErrorMock } = vi.hoisted(() => ({
+const { getAllVouchersMock, getPdfMock, deleteMock, cancelMock, toastSuccessMock, toastErrorMock } = vi.hoisted(() => ({
   getAllVouchersMock: vi.fn(),
   getPdfMock: vi.fn(),
   deleteMock: vi.fn(),
+  cancelMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
 }))
 
 vi.mock('../../../api/vouchersService', () => ({
-  default: { getAll: getAllVouchersMock, getPdf: getPdfMock, delete: deleteMock },
+  default: { getAll: getAllVouchersMock, getPdf: getPdfMock, delete: deleteMock, cancel: cancelMock },
 }))
 
 vi.mock('react-hot-toast', () => ({
@@ -71,6 +72,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   getPdfMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }))
   deleteMock.mockResolvedValue({ message: 'Comprobante eliminado correctamente' } satisfies DeleteVoucherResponse)
+  cancelMock.mockResolvedValue(makeVoucher({ id: 'v1', voucher_type: 'receipt', status: 'cancelled' }))
   // jsdom doesn't implement these — stub them so the in-app PDF viewer
   // (PdfViewerSheet's pdfUrl, built via URL.createObjectURL(blob)) is
   // exercisable, matching MobileSales.test.tsx's convention.
@@ -86,12 +88,20 @@ describe('MobileComprobantes — pure helpers', () => {
     expect(resolveComprobanteStatus(makeVoucher({ voucher_type: 'invoice_x', is_paid: true }))).toBe('cobrado')
   })
 
-  it('resolveComprobanteStatus: invoice + is_paid=false -> pendiente', () => {
-    expect(resolveComprobanteStatus(makeVoucher({ voucher_type: 'invoice_a', is_paid: false }))).toBe('pendiente')
+  it('resolveComprobanteStatus: unpaid non-current-account invoice -> inputada', () => {
+    expect(resolveComprobanteStatus(makeVoucher({ voucher_type: 'invoice_a', is_paid: false, is_current_account: false }))).toBe('inputada')
   })
 
-  it('resolveComprobanteStatus: invoice + is_paid=undefined -> pendiente', () => {
-    expect(resolveComprobanteStatus(makeVoucher({ voucher_type: 'invoice_a', is_paid: undefined }))).toBe('pendiente')
+  it('resolveComprobanteStatus: unpaid current-account invoice -> a_cobrar', () => {
+    expect(resolveComprobanteStatus(makeVoucher({ voucher_type: 'invoice_a', is_paid: false, is_current_account: true }))).toBe('a_cobrar')
+  })
+
+  it('resolveComprobanteStatus: cancelled voucher -> anulado', () => {
+    expect(resolveComprobanteStatus(makeVoucher({ voucher_type: 'receipt', status: 'cancelled' }))).toBe('anulado')
+  })
+
+  it('resolveComprobanteStatus: invoice + is_paid=undefined -> inputada', () => {
+    expect(resolveComprobanteStatus(makeVoucher({ voucher_type: 'invoice_a', is_paid: undefined }))).toBe('inputada')
   })
 
   it('resolveComprobanteStatus: quotation -> vigente regardless of is_paid', () => {
@@ -273,13 +283,32 @@ describe('MobileComprobantes — card rendering', () => {
     expect(await screen.findByText('Consumidor final')).toBeInTheDocument()
   })
 
-  it('shows "Pendiente" status for an unpaid invoice', async () => {
+  it('shows "Inputada" status for an unpaid non-current-account invoice', async () => {
     getAllVouchersMock.mockResolvedValue(
-      fixture([makeVoucher({ id: '1', voucher_type: 'invoice_a', is_paid: false })])
+      fixture([makeVoucher({ id: '1', voucher_type: 'invoice_a', is_paid: false, is_current_account: false })])
     )
     renderComprobantes()
-    await screen.findByText('Pendiente')
-    expect(screen.getByText('Pendiente')).toBeInTheDocument()
+    await screen.findByText('Inputada')
+    expect(screen.getByText('Inputada')).toBeInTheDocument()
+    expect(screen.queryByText('Pendiente')).not.toBeInTheDocument()
+  })
+
+  it('shows "A cobrar" status for an unpaid current-account invoice', async () => {
+    getAllVouchersMock.mockResolvedValue(
+      fixture([makeVoucher({ id: '1', voucher_type: 'invoice_a', is_paid: false, is_current_account: true })])
+    )
+    renderComprobantes()
+    await screen.findByText('A cobrar')
+    expect(screen.getByText('A cobrar')).toBeInTheDocument()
+    expect(screen.queryByText('Pendiente')).not.toBeInTheDocument()
+  })
+
+  it('shows "Anulado" status for a cancelled receipt', async () => {
+    getAllVouchersMock.mockResolvedValue(
+      fixture([makeVoucher({ id: '1', voucher_type: 'receipt', status: 'cancelled' })])
+    )
+    renderComprobantes()
+    expect(await screen.findByText('Anulado')).toBeInTheDocument()
   })
 
   it('shows "Vigente" status and "Cotización" badge for a quotation', async () => {
@@ -403,7 +432,7 @@ describe('MobileComprobantes — Eliminar eligibility (matches desktop\'s exact 
     expect(screen.queryByLabelText('Eliminar comprobante 0001-00000123')).not.toBeInTheDocument()
   })
 
-  it('does not render Eliminar for a receipt linked to a current-account closure', async () => {
+  it('does not render Anular for a receipt linked to a current-account closure', async () => {
     getAllVouchersMock.mockResolvedValue(
       fixture([
         makeVoucher({
@@ -418,7 +447,43 @@ describe('MobileComprobantes — Eliminar eligibility (matches desktop\'s exact 
     renderComprobantes()
     await screen.findByTestId('comprobante-card')
 
-    expect(screen.queryByLabelText('Eliminar comprobante 0001-00000123')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Anular comprobante 0001-00000123')).not.toBeInTheDocument()
+  })
+
+  it('does not render Anular for a cancelled receipt', async () => {
+    getAllVouchersMock.mockResolvedValue(
+      fixture([
+        makeVoucher({
+          id: '1',
+          sale_point: '0001',
+          number: '00000123',
+          voucher_type: 'receipt',
+          status: 'cancelled',
+        }),
+      ])
+    )
+    renderComprobantes()
+    await screen.findByTestId('comprobante-card')
+
+    expect(screen.queryByLabelText('Anular comprobante 0001-00000123')).not.toBeInTheDocument()
+  })
+
+  it('does not render Anular for a cancelled Comprobante X', async () => {
+    getAllVouchersMock.mockResolvedValue(
+      fixture([
+        makeVoucher({
+          id: '1',
+          sale_point: '5001',
+          number: '00000123',
+          voucher_type: 'invoice_x',
+          status: 'cancelled',
+        }),
+      ])
+    )
+    renderComprobantes()
+    await screen.findByTestId('comprobante-card')
+
+    expect(screen.queryByLabelText('Anular comprobante 5001-00000123')).not.toBeInTheDocument()
   })
 })
 
@@ -488,5 +553,45 @@ describe('MobileComprobantes — Eliminar action', () => {
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith(expect.stringMatching(/network error/i)))
     expect(screen.getByRole('dialog', { name: /eliminar comprobante/i })).toBeInTheDocument()
+  })
+
+  it('uses Anular for receipts, calls vouchersService.cancel, shows remito toast, and refetches the list', async () => {
+    getAllVouchersMock.mockResolvedValue(fixture([makeVoucher({ id: 'r1', sale_point: '0001', number: '00000124', voucher_type: 'receipt' })]))
+    renderComprobantes()
+    await screen.findByTestId('comprobante-card')
+
+    await userEvent.click(screen.getByLabelText('Anular comprobante 0001-00000124'))
+
+    const dialog = await screen.findByRole('dialog', { name: /anular comprobante/i })
+    expect(dialog).toHaveTextContent(/se restaurará el stock descontado/i)
+    expect(screen.getByRole('button', { name: 'Anular' })).toBeDisabled()
+
+    await userEvent.type(screen.getByLabelText(/motivo de anulación/i), 'Error de carga')
+    await userEvent.click(screen.getByRole('button', { name: 'Anular' }))
+
+    await waitFor(() => expect(cancelMock).toHaveBeenCalledWith('r1', 'Error de carga'))
+    expect(deleteMock).not.toHaveBeenCalled()
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('Remito anulado correctamente', { icon: '✅' }))
+    await waitFor(() => expect(getAllVouchersMock).toHaveBeenCalledTimes(2))
+  })
+
+  it('uses Anular for Comprobante X, calls vouchersService.cancel, shows Comprobante X toast, and refetches the list', async () => {
+    getAllVouchersMock.mockResolvedValue(fixture([makeVoucher({ id: 'x1', sale_point: '5001', number: '00000124', voucher_type: 'invoice_x' })]))
+    renderComprobantes()
+    await screen.findByTestId('comprobante-card')
+
+    await userEvent.click(screen.getByLabelText('Anular comprobante 5001-00000124'))
+
+    const dialog = await screen.findByRole('dialog', { name: /anular comprobante/i })
+    expect(dialog).toHaveTextContent(/Comprobante X/i)
+    expect(dialog).toHaveTextContent(/se restaurará el stock descontado/i)
+
+    await userEvent.type(screen.getByLabelText(/motivo de anulación/i), 'Error de carga')
+    await userEvent.click(screen.getByRole('button', { name: 'Anular' }))
+
+    await waitFor(() => expect(cancelMock).toHaveBeenCalledWith('x1', 'Error de carga'))
+    expect(deleteMock).not.toHaveBeenCalled()
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('Comprobante X anulado correctamente', { icon: '✅' }))
+    await waitFor(() => expect(getAllVouchersMock).toHaveBeenCalledTimes(2))
   })
 })

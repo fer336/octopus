@@ -1,5 +1,5 @@
 /**
- * Bottom sheet for searching/selecting a client on the "Nueva venta" screen.
+ * Top sheet for searching/selecting a client on the "Nueva venta" screen.
  * Reuses the same search-input visual pattern as MobileProducts. Fetches via
  * `clientsService.search(query)` (dedicated, server-side-filtered, capped at
  * 10 results) — debounced, since the design decision explicitly calls this
@@ -56,7 +56,7 @@ export default function ClientPickerSheet({ open, onClose, onSelect }: ClientPic
     <div
       role="dialog"
       aria-label="Buscar cliente"
-      className="fixed inset-x-0 bottom-0 z-[400] flex max-h-[78%] flex-col overflow-hidden rounded-t-[26px] bg-white"
+      className="fixed inset-x-0 top-0 z-[400] flex max-h-[78%] flex-col overflow-hidden rounded-b-[26px] bg-white shadow-[0_18px_40px_rgba(58,36,89,.16)]"
     >
       <div className="flex items-center gap-[10px] px-[18px] pb-3 pt-4" style={{ background: '#f7f4fb' }}>
         <p className="flex-1 text-base font-extrabold text-[#121325]">Buscar cliente</p>

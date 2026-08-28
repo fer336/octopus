@@ -179,6 +179,7 @@ class FeatureFlagsResponse(BaseModel):
     quotation_enabled: bool
     inventory_enabled: bool
     stockpile_enabled: bool
+    purchases_enabled: bool = True
     price_update_enabled: bool
     wholesale_lists_enabled: bool = False
     reports_enabled: bool
@@ -201,6 +202,7 @@ class FeatureFlagsUpdate(BaseModel):
     quotation_enabled: bool | None = None
     inventory_enabled: bool | None = None
     stockpile_enabled: bool | None = None
+    purchases_enabled: bool | None = None
     price_update_enabled: bool | None = None
     wholesale_lists_enabled: bool | None = None
     reports_enabled: bool | None = None
@@ -1696,6 +1698,7 @@ async def get_feature_flags(
         quotation_enabled=bool(getattr(business, "quotation_enabled", True)),
         inventory_enabled=bool(getattr(business, "inventory_enabled", True)),
         stockpile_enabled=bool(getattr(business, "stockpile_enabled", True)),
+        purchases_enabled=bool(getattr(business, "purchases_enabled", True)),
         price_update_enabled=bool(business.price_update_enabled),
         wholesale_lists_enabled=bool(getattr(business, "wholesale_lists_enabled", False)),
         reports_enabled=bool(business.reports_enabled),
@@ -1765,6 +1768,7 @@ async def update_feature_flags(
         quotation_enabled=bool(getattr(business, "quotation_enabled", True)),
         inventory_enabled=bool(getattr(business, "inventory_enabled", True)),
         stockpile_enabled=bool(getattr(business, "stockpile_enabled", True)),
+        purchases_enabled=bool(getattr(business, "purchases_enabled", True)),
         price_update_enabled=bool(business.price_update_enabled),
         wholesale_lists_enabled=bool(getattr(business, "wholesale_lists_enabled", False)),
         reports_enabled=bool(business.reports_enabled),

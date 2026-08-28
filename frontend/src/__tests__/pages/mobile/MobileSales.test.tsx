@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import type { CartLine } from '../../../components/layout/MobileShell'
 import type { Client } from '../../../api/clientsService'
-import type { VoucherCreate } from '../../../api/vouchersService'
+import type { PaginatedVouchers, VoucherCreate } from '../../../api/vouchersService'
 import type { PaymentMethod } from '../../../api/paymentMethodsService'
 
 const {
@@ -117,7 +117,7 @@ function renderSales(initialCart: CartLine[] = []) {
       <Harness />
     </QueryClientProvider>
   )
-  return { ...utils, setCartSpy }
+  return { ...utils, queryClient, setCartSpy }
 }
 
 // vi.spyOn's overload-resolved return type for window.open isn't cleanly
@@ -594,6 +594,31 @@ describe('MobileSales — submit feedback (previously silent: tapping the CTA ga
 
     await waitFor(() => expect(toastSuccessMock).toHaveBeenCalled())
     expect(screen.getByText(/todavía no agregaste productos/i)).toBeInTheDocument()
+  })
+
+  it('preinserts the created voucher into the mobile-comprobantes cache and invalidates it for sync', async () => {
+    const createdVoucher = { id: 'v-new', sale_point: '0001', number: '00000043', voucher_type: 'receipt' }
+    createMock.mockResolvedValue(createdVoucher)
+
+    const { queryClient } = renderSales([makeLine()])
+    queryClient.setQueryData<PaginatedVouchers>(['mobile-comprobantes'], {
+      items: [],
+      total: 0,
+      page: 1,
+      per_page: 50,
+      pages: 1,
+    })
+
+    await pickClient()
+    await userEvent.click(screen.getByRole('button', { name: 'Remito' }))
+    await userEvent.click(screen.getByRole('button', { name: /emitir remito/i }))
+
+    await waitFor(() => {
+      const cached = queryClient.getQueryData<PaginatedVouchers>(['mobile-comprobantes'])
+      expect(cached?.items[0]).toEqual(createdVoucher)
+      expect(cached?.total).toBe(1)
+    })
+    await waitFor(() => expect(queryClient.isFetching({ queryKey: ['mobile-comprobantes'] })).toBe(0))
   })
 
   it('shows a visible error toast and keeps the cart intact when vouchersService.create() rejects', async () => {

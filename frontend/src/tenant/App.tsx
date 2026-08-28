@@ -30,6 +30,7 @@ const PaymentMethods = lazy(() => import('../pages/PaymentMethods'))
 const Reports    = lazy(() => import('../pages/Reports'))
 const Cash       = lazy(() => import('../pages/Cash'))
 const Inventory  = lazy(() => import('../pages/Inventory'))
+const PurchaseInvoices = lazy(() => import('../pages/PurchaseInvoices'))
 const Feedback   = lazy(() => import('../pages/Feedback'))
 const CurrentAccount = lazy(() => import('../pages/CurrentAccount'))
 const Stockpiles  = lazy(() => import('../pages/Stockpiles'))
@@ -200,6 +201,9 @@ export default function App() {
               } />
               <Route path="inventory" element={
                 <Suspense fallback={<PageLoader />}><Inventory /></Suspense>
+              }/>
+              <Route path="purchase-invoices" element={
+                <Suspense fallback={<PageLoader />}><PurchaseInvoices /></Suspense>
               }/>
               <Route path="current-account" element={
                 <Suspense fallback={<PageLoader />}><CurrentAccount /></Suspense>

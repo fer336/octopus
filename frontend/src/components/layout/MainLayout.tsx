@@ -48,6 +48,9 @@ export default function MainLayout() {
   const whatsappEnabled = business?.whatsapp_enabled ?? true
   const profitabilityEnabled = business?.profitability_enabled ?? true
   const qrScannerEnabled = business?.qr_scanner_enabled ?? true
+  // Módulo opt-in nuevo: a diferencia de los flags legacy (ej. inventory_enabled),
+  // el default es false — la activación es 100% responsabilidad del panel admin/CMS.
+  const purchasesEnabled = business?.purchases_enabled ?? false
 
   useEffect(() => {
     if (!aiEnabled) {
@@ -101,11 +104,16 @@ export default function MainLayout() {
       return
     }
 
+    if (location.pathname.startsWith('/purchase-invoices') && business !== undefined && !purchasesEnabled) {
+      navigate('/', { replace: true })
+      return
+    }
+
     if (user && !hasPathAccess(user, location.pathname)) {
       const fallbackPath = navigationItems.find((item) => hasPathAccess(user, item.path))?.path ?? '/'
       navigate(fallbackPath, { replace: true })
     }
-  }, [currentAccountEnabled, priceUpdateEnabled, wholesaleListsEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, whatsappEnabled, profitabilityEnabled, business, location.pathname, navigate, user])
+  }, [currentAccountEnabled, priceUpdateEnabled, wholesaleListsEnabled, reportsEnabled, inventoryEnabled, stockpileEnabled, whatsappEnabled, profitabilityEnabled, purchasesEnabled, business, location.pathname, navigate, user])
 
   const toggleSidebar = () => {
     if (window.innerWidth < 768) return // mobile: MobileShell handles navigation
@@ -173,6 +181,7 @@ export default function MainLayout() {
           stockpileEnabled={stockpileEnabled}
           whatsappEnabled={whatsappEnabled}
           profitabilityEnabled={profitabilityEnabled}
+          purchasesEnabled={purchasesEnabled}
         />
 
       {/* Main content */}

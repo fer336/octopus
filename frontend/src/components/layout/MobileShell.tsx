@@ -35,7 +35,7 @@ const TAB_ITEMS: Array<{
   { key: 'caja', label: 'Caja', icon: Wallet },
   { key: 'comprobantes', label: 'Comprobantes', icon: FileText },
   { key: 'productos', label: 'Productos', icon: Package },
-  { key: 'cuenta', label: 'Cuenta Corriente', icon: ClipboardList },
+  { key: 'cuenta', label: 'Cta Cte', icon: ClipboardList },
 ]
 
 const TAB_TITLES: Record<MobileTab, string> = {

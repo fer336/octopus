@@ -79,6 +79,12 @@ const statusLabels: Record<string, { label: string; className: string }> = {
 
 const isInvoiceVoucher = (voucher: VoucherListItem): boolean => voucher.voucher_type?.startsWith('invoice_')
 
+const isFiscalInvoiceVoucher = (voucher: VoucherListItem): boolean =>
+  voucher.voucher_type === 'invoice_a' || voucher.voucher_type === 'invoice_b' || voucher.voucher_type === 'invoice_c'
+
+const isVoucherCancellation = (voucher: VoucherListItem | null): boolean =>
+  voucher?.voucher_type === 'invoice_x'
+
 const isCurrentAccountReceipt = (voucher: VoucherListItem): boolean =>
   voucher.voucher_type === 'receipt' &&
   !voucher.is_current_account_closure &&
@@ -482,6 +488,22 @@ export default function Vouchers() {
     },
   })
 
+  const cancelMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      vouchersService.cancel(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vouchers'] })
+      toast.success('Comprobante X anulado correctamente', { icon: '✅' })
+      setShowDeleteModal(false)
+      setVoucherToDelete(null)
+      setDeleteReason('')
+      setDeleteReasonError('')
+    },
+    onError: (error: any) => {
+      toast.error(formatErrorMessage(error))
+    },
+  })
+
   const compileMutation = useMutation({
     mutationFn: ({ quotationIds, payments, general_discount, fiscal_client_id, price_strategy, currentAccount }: { quotationIds: string[]; payments?: VoucherPayment[]; general_discount?: number; fiscal_client_id?: string; price_strategy: PriceStrategy; currentAccount?: { enabled: boolean; paymentDays?: number } }) =>
       vouchersService.compileToInvoice(quotationIds, payments, general_discount, fiscal_client_id, price_strategy, currentAccount),
@@ -586,11 +608,23 @@ export default function Vouchers() {
 
     const trimmedReason = deleteReason.trim()
     if (!trimmedReason) {
-      setDeleteReasonError('El motivo de eliminación es obligatorio.')
+      setDeleteReasonError(
+        isVoucherCancellation(voucherToDelete)
+          ? 'El motivo de anulación es obligatorio.'
+          : 'El motivo de eliminación es obligatorio.',
+      )
       return
     }
 
     setDeleteReasonError('')
+    if (isVoucherCancellation(voucherToDelete)) {
+      cancelMutation.mutate({
+        id: voucherToDelete.id,
+        reason: trimmedReason,
+      })
+      return
+    }
+
     deleteMutation.mutate({
       id: voucherToDelete.id,
       reason: trimmedReason,
@@ -1241,7 +1275,7 @@ export default function Vouchers() {
                   </button>
                 )}
                 
-                {!isInvoiceVoucher(item) && (
+                {!isFiscalInvoiceVoucher(item) && (
                 <button
                   onClick={(e) => {
                     animateButton(e)
@@ -1259,11 +1293,7 @@ export default function Vouchers() {
                       ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
                       : 'text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30'
                   }`}
-                  title={
-                    isLockedByClosure
-                      ? closureLockInfo.reason
-                      : 'Eliminar'
-                  }
+                  title={isLockedByClosure ? closureLockInfo.reason : isVoucherCancellation(item) ? 'Anular' : 'Eliminar'}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -1820,14 +1850,14 @@ export default function Vouchers() {
                           <Menu size={16} />
                         </button>
                       )}
-                      {!isInvoiceVoucher(voucher) && (
+                      {!isFiscalInvoiceVoucher(voucher) && (
                       <button onClick={(e) => {
                         animateButton(e)
                         if (!voucher.is_current_account_closure && !voucher.is_receipt_linked_to_current_account_closure) {
                           setVoucherToDelete(voucher)
                           setDeleteReasonError('')
                         }
-                      }} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg" title="Eliminar">
+                      }} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg" title={isVoucherCancellation(voucher) ? 'Anular' : 'Eliminar'}>
                         <Trash2 size={16} />
                       </button>
                       )}
@@ -2008,7 +2038,7 @@ export default function Vouchers() {
           setDeleteReason('')
           setDeleteReasonError('')
         }}
-        title="Eliminar Comprobante"
+        title={isVoucherCancellation(voucherToDelete) ? 'Anular Comprobante' : 'Eliminar Comprobante'}
       >
         {voucherToDelete && (
           <div className="space-y-4">
@@ -2019,15 +2049,24 @@ export default function Vouchers() {
                   ¿Estás seguro?
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Vas a eliminar el comprobante <strong>{voucherToDelete.sale_point}-{voucherToDelete.number}</strong>.
-                  El registro quedará marcado como eliminado pero visible en el historial.
+                  {isVoucherCancellation(voucherToDelete) ? (
+                    <>
+                      Vas a anular el Comprobante X <strong>{voucherToDelete.sale_point}-{voucherToDelete.number}</strong>.
+                      El registro quedará visible como anulado y se restaurará el stock descontado.
+                    </>
+                  ) : (
+                    <>
+                      Vas a eliminar el comprobante <strong>{voucherToDelete.sale_point}-{voucherToDelete.number}</strong>.
+                      El registro quedará marcado como eliminado pero visible en el historial.
+                    </>
+                  )}
                 </p>
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Motivo de eliminación <span className="text-red-600 dark:text-red-400">*</span>
+                {isVoucherCancellation(voucherToDelete) ? 'Motivo de anulación' : 'Motivo de eliminación'} <span className="text-red-600 dark:text-red-400">*</span>
               </label>
               <Input
                 value={deleteReason}
@@ -2059,10 +2098,12 @@ export default function Vouchers() {
               <Button 
                 variant="danger" 
                 onClick={handleConfirmDelete}
-                disabled={deleteMutation.isPending || !deleteReason.trim()}
+                disabled={deleteMutation.isPending || cancelMutation.isPending || !deleteReason.trim()}
                 className="flex-1"
               >
-                {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+                {isVoucherCancellation(voucherToDelete)
+                  ? (cancelMutation.isPending ? 'Anulando...' : 'Anular')
+                  : (deleteMutation.isPending ? 'Eliminando...' : 'Eliminar')}
               </Button>
             </div>
           </div>
