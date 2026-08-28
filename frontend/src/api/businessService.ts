@@ -47,6 +47,7 @@ export interface Business {
   alternative_sale_point?: string | null
   srx_enabled?: boolean | null
   last_invoice_x_number?: string | null
+  purchases_enabled: boolean
 }
 
 export interface BusinessUpdate {

@@ -104,6 +104,7 @@ class BusinessResponse(BaseModel):
     wholesale_lists_enabled: bool = False
     reports_enabled: bool
     profitability_enabled: bool = True
+    purchases_enabled: bool = False
     sql_backup_enabled: bool
     invoice_zero_stock_enabled: bool = False
 

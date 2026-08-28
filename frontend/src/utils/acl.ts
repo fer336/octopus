@@ -10,6 +10,7 @@ export const MODULE_ROUTE_MAP: Record<string, string> = {
   '/brands': 'products',
   '/price-update': 'price_update',
   '/inventory': 'inventory',
+  '/purchase-invoices': 'purchases',
   '/clients': 'clients',
   '/suppliers': 'suppliers',
   '/categories': 'categories',

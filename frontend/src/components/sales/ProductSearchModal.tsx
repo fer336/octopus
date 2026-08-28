@@ -12,6 +12,7 @@
  * F8 cicla entre modos. Enter = staging. ESC con items staged = confirmar y cerrar.
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Search,
   X,
@@ -573,8 +574,8 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProducts }: P
   const isCategoryOrSupplier = mode === 'category' || mode === 'supplier'
   const showBody = !isCategoryOrSupplier || (mode === 'category' && selectedCategoryId) || (mode === 'supplier' && selectedSupplierId)
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]" onClick={onClose}>
+  return createPortal(
+    <div className="fixed inset-0 z-[10000] flex items-start justify-center pt-[8vh]" onClick={onClose}>
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40" />
 
@@ -640,6 +641,7 @@ export default function ProductSearchModal({ isOpen, onClose, onAddProducts }: P
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

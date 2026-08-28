@@ -24,6 +24,7 @@ from app.models.client_authorization import ClientAuthorization
 from app.models.payment_method import PaymentMethodCatalog
 from app.models.product import Product
 from app.models.product_lot import ProductLot
+from app.models.lot_consumption import LotConsumption
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
 from app.models.voucher_payment import VoucherPayment
@@ -53,6 +54,14 @@ class VoucherService:
     def _round_money(value: Decimal) -> Decimal:
         """Redondea montos monetarios a 2 decimales (estilo ARS)."""
         return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @staticmethod
+    def _format_percent(value: Decimal | int | str | None) -> str:
+        """Formatea porcentajes para presentación en PDF sin recalcular importes."""
+        percent = Decimal(str(value or 0)).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        return f"{percent.normalize():f}%"
 
     async def _get_client_or_raise(self, client_id: UUID, business_id: UUID) -> Client:
         """Obtiene cliente válido del tenant o lanza error."""
@@ -1216,6 +1225,7 @@ class VoucherService:
                 selectinload(Voucher.billing_client),
                 selectinload(Voucher.operating_client),
                 selectinload(Voucher.created_by_user),
+                selectinload(Voucher.credit_notes),
                 selectinload(Voucher.child_stockpiles),
                 selectinload(Voucher.principal_stockpile).selectinload(
                     Stockpile.principal_voucher
@@ -1461,6 +1471,130 @@ class VoucherService:
 
         await self.db.commit()
         return True
+
+    async def cancel_receipt(
+        self,
+        voucher_id: UUID,
+        business_id: UUID,
+        cancelled_by_user_id: UUID,
+        reason: str | None = None,
+    ) -> Voucher:
+        """Anula un comprobante no fiscal y restaura el stock consumido por lote."""
+        voucher = await self.get_by_id(voucher_id, business_id)
+        if not voucher:
+            raise ValueError("Comprobante no encontrado")
+
+        if not reason or not reason.strip():
+            raise ValueError("Debe indicar un motivo de anulación")
+
+        if voucher.deleted_at is not None:
+            raise ValueError("No se puede anular un comprobante eliminado")
+
+        cancellable_types = {VoucherType.RECEIPT, VoucherType.INVOICE_X}
+        if voucher.voucher_type not in cancellable_types:
+            raise ValueError("Solo se pueden anular remitos y Comprobantes X")
+
+        voucher_label = (
+            "Comprobante X"
+            if voucher.voucher_type == VoucherType.INVOICE_X
+            else "remito"
+        )
+
+        if voucher.status == VoucherStatus.CANCELLED:
+            raise ValueError(f"El {voucher_label} ya está anulado")
+
+        if voucher.is_current_account_closure:
+            raise ValueError("No se puede anular un cierre de cuenta corriente")
+
+        if voucher.is_current_account:
+            raise ValueError(
+                f"No se puede anular un {voucher_label} de cuenta corriente desde este flujo"
+            )
+
+        if await self._is_receipt_linked_to_closure(voucher):
+            raise ValueError(
+                "No se puede anular un remito incluido en un cierre de cuenta corriente"
+            )
+
+        if voucher.stockpile_id or getattr(voucher, "child_stockpiles", None):
+            raise ValueError(
+                f"No se puede anular un {voucher_label} asociado a un acopio desde este flujo"
+            )
+
+        if (
+            voucher.voucher_type == VoucherType.RECEIPT
+            and voucher.invoiced_voucher_id is not None
+        ):
+            raise ValueError("No se puede anular un remito ya facturado")
+
+        await self._restore_receipt_stock_from_consumptions(voucher)
+
+        voucher.status = VoucherStatus.CANCELLED
+        note = f"Anulado: {reason.strip()}"
+        voucher.internal_notes = (
+            f"{voucher.internal_notes}\n{note}" if voucher.internal_notes else note
+        )
+
+        cash_movements_result = await self.db.execute(
+            select(CashMovement).where(CashMovement.voucher_id == voucher.id)
+        )
+        for movement in cash_movements_result.scalars().all():
+            movement.amount = Decimal("0")
+            if "anulado" not in (movement.description or "").lower():
+                movement.description = f"{movement.description} (anulado)"
+
+        await self.db.commit()
+        return await self.get_by_id(voucher.id, business_id)
+
+    async def _restore_receipt_stock_from_consumptions(self, voucher: Voucher) -> None:
+        """Restaura stock al lote exacto consumido; usa product_lot_id solo para legacy."""
+        for item in voucher.items:
+            qty = int(item.quantity)
+            if qty <= 0:
+                continue
+
+            result = await self.db.execute(
+                select(LotConsumption).where(
+                    LotConsumption.voucher_item_id == item.id,
+                    LotConsumption.deleted_at.is_(None),
+                )
+            )
+            consumptions = list(result.scalars().all())
+
+            if consumptions:
+                for consumption in consumptions:
+                    lot_result = await self.db.execute(
+                        select(ProductLot)
+                        .where(
+                            ProductLot.id == consumption.lot_id,
+                            ProductLot.business_id == voucher.business_id,
+                        )
+                        .with_for_update()
+                    )
+                    lot = lot_result.scalar_one_or_none()
+                    if not lot:
+                        raise ValueError("No se encontró el lote consumido por el comprobante")
+                    lot.quantity += int(consumption.quantity_taken)
+                continue
+
+            if item.product_lot_id:
+                lot_result = await self.db.execute(
+                    select(ProductLot)
+                    .where(
+                        ProductLot.id == item.product_lot_id,
+                        ProductLot.business_id == voucher.business_id,
+                    )
+                    .with_for_update()
+                )
+                lot = lot_result.scalar_one_or_none()
+                if not lot:
+                    raise ValueError("No se encontró el lote del comprobante")
+                lot.quantity += qty
+                continue
+
+            raise ValueError(
+                "No se puede restaurar stock: el comprobante no tiene trazabilidad de lote"
+            )
 
     async def _revert_stock_from_voucher(self, voucher: Voucher) -> None:
         """Revierte el stock de los items de un voucher usando lotes.
@@ -1825,16 +1959,13 @@ class VoucherService:
             except Exception as e:
                 print(f"Error al generar QR de AFIP: {e}")
 
+        general_discount_display = self._format_percent(voucher.general_discount)
         arca_item_net = sum(Decimal(str(i.subtotal)) for i in voucher.items)
         arca_item_gross = arca_item_net * Decimal("1.21")
         arca_abs_total = abs(Decimal(str(voucher.total or 0)))
-        if arca_item_gross > 0 and arca_abs_total < arca_item_gross - Decimal("0.01"):
-            arca_discount_pct = round((1 - arca_abs_total / arca_item_gross) * Decimal("100"), 2)
-        else:
-            arca_discount_pct = Decimal("0")
         arca_totals = {
             "subtotal": f"{arca_item_gross:,.2f}",
-            "discount": f"{arca_discount_pct:g}%",
+            "discount": general_discount_display,
             "iva": "21%",
             "total": f"{arca_abs_total:,.2f}",
         }
@@ -2067,12 +2198,12 @@ class VoucherService:
             and len(getattr(voucher, "child_stockpiles", []) or []) > 0
         )
 
+        general_discount_display = self._format_percent(voucher.general_discount)
+
         # Calcular subtotales de referencia
         # raw_subtotal: precio de lista (sin ningún descuento)
-        # item_subtotal_sum: solo con descuentos individuales (sin desc. general)
         # item_sum_with_iva: con descuentos individuales + IVA (sin desc. general) → "Importe total" visible
         raw_subtotal = Decimal("0")
-        item_subtotal_sum = Decimal("0")
         item_sum_with_iva = Decimal("0")
         iva_no_discount = Decimal("0")
         for item in voucher.items:
@@ -2080,7 +2211,6 @@ class VoucherService:
             raw_subtotal += item.unit_price * qty
             # Descuento individual por item (si tiene)
             item_disc_pct = Decimal(str(item.discount_percent)) if hasattr(item, "discount_percent") and item.discount_percent else Decimal("0")
-            item_subtotal_sum += item.unit_price * qty * (1 - item_disc_pct / Decimal("100"))
             # IVA sin descuentos (para modo hide_discount)
             iva_rate_item = Decimal(str(item.iva_rate)) if item.iva_rate else Decimal("21")
             iva_no_discount += abs(item.unit_price * qty) * (iva_rate_item / Decimal("100"))
@@ -2089,22 +2219,7 @@ class VoucherService:
             item_sum_with_iva += abs(net_after_item_disc) * (Decimal("1") + iva_rate_item / Decimal("100"))
 
         # Para notas de crédito los montos son negativos → usar absolutos
-        if voucher.is_return_receipt:
-            abs_raw = abs(raw_subtotal)
-            abs_item_sum = abs(item_subtotal_sum)
-            abs_subtotal = abs(Decimal(str(voucher.subtotal or 0)))
-        else:
-            abs_raw = raw_subtotal
-            abs_item_sum = item_subtotal_sum
-            abs_subtotal = Decimal(str(voucher.subtotal or 0))
-
-        # Calcular % de descuento general
-        if abs_item_sum > 0 and abs_subtotal < abs_item_sum:
-            general_discount_pct = (1 - abs_subtotal / abs_item_sum) * Decimal("100")
-            # Redondear a 2 decimales para evitar 9.99999999%
-            general_discount_pct_rounded = round(general_discount_pct, 2)
-        else:
-            general_discount_pct_rounded = Decimal("0")
+        abs_raw = abs(raw_subtotal) if voucher.is_return_receipt else raw_subtotal
 
         # Usar valores almacenados en DB (calculados correctamente en _build_items_and_totals)
         abs_iva = abs(Decimal(str(voucher.iva_amount or 0)))
@@ -2242,7 +2357,7 @@ class VoucherService:
                 if hide_discount
                 else {
                     "subtotal": f"{item_sum_with_iva:,.2f}",
-                    "discount": f"{general_discount_pct_rounded:g}%",
+                    "discount": general_discount_display,
                     "iva": "21%",
                     "rounding": float(voucher.rounding_amount) if voucher.rounding_amount else None,
                     "total": f"{abs_total:,.2f}",
