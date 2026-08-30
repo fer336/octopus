@@ -20,25 +20,31 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     conn = op.get_bind()
 
-    # 9d0e1f2a3b4c already merges active duplicates before creating this
-    # constraint, so by the time this migration runs there is nothing left
-    # to dedupe — just convert it into a partial index scoped to active rows,
-    # so a soft-deleted category never collides with an active one sharing
-    # its name (categories.deleted_at; category_service._ensure_unique_name
-    # only checks active rows, case-insensitive).
+    # 9d0e1f2a3b4c ahora crea directamente el índice parcial (nunca llegó a
+    # correr en producción con el constraint plano viejo), pero esta
+    # migración se deja idempotente por si alguna base quedó en el estado
+    # intermedio: dropea el constraint plano si existe, y solo crea el
+    # índice si todavía no está.
     conn.execute(
         sa.text(
             "ALTER TABLE categories DROP CONSTRAINT IF EXISTS uq_category_name_business"
         )
     )
 
-    op.create_index(
-        "uq_category_name_business",
-        "categories",
-        ["name", "business_id"],
-        unique=True,
-        postgresql_where=sa.text("deleted_at IS NULL"),
-    )
+    index_exists = conn.execute(
+        sa.text(
+            "SELECT 1 FROM pg_indexes WHERE indexname = 'uq_category_name_business'"
+        )
+    ).scalar()
+
+    if not index_exists:
+        op.create_index(
+            "uq_category_name_business",
+            "categories",
+            ["name", "business_id"],
+            unique=True,
+            postgresql_where=sa.text("deleted_at IS NULL"),
+        )
 
 
 def downgrade() -> None:
