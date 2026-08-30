@@ -1,0 +1,53 @@
+name: Auto Tag Release
+
+# Al mergear un PR a master, crea automáticamente el próximo tag vX.Y.Z
+# (bump de patch) y lo pushea. Ese push de tag dispara system-deploy.yml,
+# que build-ea, publica imágenes y despliega a Portainer.
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Crear tag de release
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calcular próximo tag
+        id: next_tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST="$(gh api repos/${{ github.repository }}/releases/latest --jq .tag_name 2>/dev/null || true)"
+          if [ -z "$LATEST" ]; then
+            echo "No hay releases previos, arranco en v1.0.0"
+            NEXT="v1.0.0"
+          else
+            VERSION="${LATEST#v}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+            NEXT="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+          fi
+          echo "Último release: ${LATEST:-ninguno} → próximo tag: $NEXT"
+          echo "tag=$NEXT" >> "$GITHUB_OUTPUT"
+
+      - name: Crear y pushear tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.next_tag.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG" "${{ github.sha }}"
+          git push origin "$TAG"
+          echo "## Tag creado: $TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "PR mergeado: #${{ github.event.pull_request.number }} — ${{ github.event.pull_request.title }}" >> "$GITHUB_STEP_SUMMARY"
