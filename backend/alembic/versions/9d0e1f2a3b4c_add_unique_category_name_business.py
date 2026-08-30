@@ -97,16 +97,20 @@ def upgrade() -> None:
                 {"dup": dup_id},
             )
 
-    op.create_unique_constraint(
+    # Índice parcial, no constraint plano: el dedup de arriba solo fusiona
+    # duplicados entre filas ACTIVAS (deleted_at IS NULL). Si además existe
+    # una fila ya borrada lógicamente con el mismo (name, business_id), un
+    # constraint plano choca igual contra ella aunque no haya ningún
+    # duplicado activo real — visto en producción con "Griferias". El
+    # índice parcial ignora las filas borradas por completo.
+    op.create_index(
         "uq_category_name_business",
         "categories",
         ["name", "business_id"],
+        unique=True,
+        postgresql_where=sa.text("deleted_at IS NULL"),
     )
 
 
 def downgrade() -> None:
-    op.drop_constraint(
-        "uq_category_name_business",
-        "categories",
-        type_="unique",
-    )
+    op.drop_index("uq_category_name_business", table_name="categories")
