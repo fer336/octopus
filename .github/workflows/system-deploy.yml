@@ -228,11 +228,14 @@ jobs:
       contents: write
 
     steps:
+      # Usa AUTOMATION_PAT (no el GITHUB_TOKEN del bot) porque master exige
+      # PR + review, y el bypass del ruleset está scopeado al rol admin del
+      # dueño del repo — el GITHUB_TOKEN no cuenta como ese actor.
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: master
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.AUTOMATION_PAT }}
 
       - name: Update docs/devops/stack.system.yml
         run: |
@@ -254,7 +257,7 @@ jobs:
           else
             git commit -m "chore: pin production stack to ${VERSION} [skip ci]"
             git push origin master \
-              || echo "::warning::Pin a master rechazado (rama protegida). Bookkeeping omitido; el deploy no depende de esto."
+              || echo "::warning::Pin a master rechazado. Revisá que AUTOMATION_PAT exista y siga vigente. Bookkeeping omitido; el deploy no depende de esto."
           fi
 
   # CAMBIO 2 (NUEVO JOB): backup de la base productiva ANTES de deployar/migrar.
