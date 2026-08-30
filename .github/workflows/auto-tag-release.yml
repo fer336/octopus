@@ -1,8 +1,13 @@
 name: Auto Tag Release
 
 # Al mergear un PR a master, crea automáticamente el próximo tag vX.Y.Z
-# (bump de patch) y lo pushea. Ese push de tag dispara system-deploy.yml,
-# que build-ea, publica imágenes y despliega a Portainer.
+# (bump de patch) y lanza system-deploy.yml para esa versión, que build-ea,
+# publica imágenes y despliega a Portainer.
+#
+# OJO: un push hecho con el GITHUB_TOKEN por defecto NO dispara otros
+# workflows (anti-recursión de GitHub Actions) — así que el push del tag
+# por sí solo NO alcanza para que `on.push.tags` de system-deploy.yml
+# arranque. Por eso lo disparamos explícito con workflow_dispatch al final.
 on:
   pull_request:
     types: [closed]
@@ -11,6 +16,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   tag:
@@ -51,3 +57,11 @@ jobs:
           git push origin "$TAG"
           echo "## Tag creado: $TAG" >> "$GITHUB_STEP_SUMMARY"
           echo "PR mergeado: #${{ github.event.pull_request.number }} — ${{ github.event.pull_request.title }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Disparar System Deploy para el tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.next_tag.outputs.tag }}"
+          gh workflow run system-deploy.yml --ref "$TAG" -f "tag=$TAG"
+          echo "Disparado System Deploy para $TAG" >> "$GITHUB_STEP_SUMMARY"
