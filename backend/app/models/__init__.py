@@ -42,6 +42,11 @@ from app.models.purchase_order import (
     PurchaseOrderItem,
     PurchaseOrderStatus,
 )
+from app.models.purchase_receipt import (
+    PurchaseReceipt,
+    PurchaseReceiptItem,
+    PurchaseReceiptStatus,
+)
 from app.models.supplier import Supplier
 from app.models.supplier_category import supplier_category
 from app.models.supplier_category_discount import SupplierCategoryDiscount
@@ -132,6 +137,10 @@ __all__ = [
     "PurchaseInvoiceItem",
     "PurchaseInvoiceStatus",
     "PurchaseInvoiceSource",
+    # Remitos de proveedor (Compras)
+    "PurchaseReceipt",
+    "PurchaseReceiptItem",
+    "PurchaseReceiptStatus",
     # Acopio
     "Stockpile",
     "StockpileItem",
