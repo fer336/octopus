@@ -711,3 +711,116 @@ async def test_import_from_excel_unit_cost_three_discounts():
         Decimal("1000") * Decimal("0.85") * Decimal("0.90") * Decimal("0.95"), 2
     )
     assert captured_items[0].unit_cost == expected
+
+
+@pytest.mark.asyncio
+async def test_import_from_excel_skips_rows_without_both_inventory_values():
+    """Importa solo filas con conteo físico y cantidad a pedir numéricos."""
+    db = AsyncMock(spec=AsyncSession)
+    business_id = uuid4()
+    supplier_id = uuid4()
+    user_id = uuid4()
+    products = {
+        code: _make_product(code=code)
+        for code in (
+            "COMPLETE-001",
+            "BLANK-BOTH",
+            "BLANK-COUNTED",
+            "BLANK-ORDER",
+            "INVALID-COUNTED",
+            "COMPLETE-002",
+        )
+    }
+    svc = PurchaseOrderService(db=db)
+    captured_items = []
+
+    async def _fake_create(business_id, user_id, data):
+        captured_items.extend(data.items)
+        return MagicMock(id=uuid4())
+
+    svc.create = _fake_create
+
+    async def _execute_side_effect(query, *args, **kwargs):
+        result = MagicMock()
+        requested_code = str(query.compile(compile_kwargs={"literal_binds": True}))
+        product = next(
+            (item for code, item in products.items() if f"'{code}'" in requested_code),
+            None,
+        )
+        result.scalar_one_or_none.return_value = product
+        return result
+
+    db.execute = _execute_side_effect
+
+    import io
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["codigo", "stock sistema", "conteo fisico", "a pedir"])
+    ws.append(["COMPLETE-001", 10, 5, 3])
+    ws.append(["BLANK-BOTH", 10, None, None])
+    ws.append(["BLANK-COUNTED", 10, None, 4])
+    ws.append(["BLANK-ORDER", 10, 6, None])
+    ws.append(["INVALID-COUNTED", 10, "sin completar", 2])
+    ws.append(["COMPLETE-002", 10, 7, 1])
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+
+    await svc.import_from_excel(
+        business_id=business_id,
+        user_id=user_id,
+        supplier_id=supplier_id,
+        category_id=None,
+        file_bytes=buffer.getvalue(),
+    )
+
+    assert [item.product_id for item in captured_items] == [
+        products["COMPLETE-001"].id,
+        products["COMPLETE-002"].id,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_import_from_excel_preserves_explicit_zero_inventory_values():
+    """Un cero escrito explícitamente sigue siendo un valor importable."""
+    db = AsyncMock(spec=AsyncSession)
+    business_id = uuid4()
+    supplier_id = uuid4()
+    user_id = uuid4()
+    product = _make_product(code="ZERO-001")
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = product
+    db.execute = AsyncMock(return_value=result)
+    svc = PurchaseOrderService(db=db)
+    captured_items = []
+
+    async def _fake_create(business_id, user_id, data):
+        captured_items.extend(data.items)
+        return MagicMock(id=uuid4())
+
+    svc.create = _fake_create
+
+    import io
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["codigo", "stock sistema", "conteo fisico", "a pedir"])
+    ws.append(["ZERO-001", 10, 0, 0])
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+
+    await svc.import_from_excel(
+        business_id=business_id,
+        user_id=user_id,
+        supplier_id=supplier_id,
+        category_id=None,
+        file_bytes=buffer.getvalue(),
+    )
+
+    assert len(captured_items) == 1
+    assert captured_items[0].counted_stock == 0
+    assert captured_items[0].quantity_to_order == 0
