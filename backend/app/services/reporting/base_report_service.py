@@ -124,8 +124,5 @@ class BaseReportService(ABC, Generic[FilterT]):
     @staticmethod
     def filters_to_dict(filters: FilterT) -> dict[str, Any]:
         """Devuelve filtros como diccionario plano apto para impresión."""
-        if isinstance(filters, BaseModel):
-            raw = filters.model_dump()
-        else:
-            raw = dict(filters)
+        raw = filters.model_dump() if isinstance(filters, BaseModel) else dict(filters)
         return {key: value for key, value in raw.items() if value not in (None, "")}
