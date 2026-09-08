@@ -8,6 +8,8 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from weasyprint import HTML
 
+from app.services.reporting.base_report_service import ReportDataset
+
 
 class ReportPdfService:
     """Orquestador común para render de templates de reportes."""
@@ -23,6 +25,12 @@ class ReportPdfService:
     def render(self, template_name: str, context: dict[str, Any]) -> bytes:
         template = self._env.get_template(template_name)
         html_content = template.render(**context)
+        return HTML(string=html_content, base_url=str(self._template_dir)).write_pdf()
+
+    def render_dataset(self, template_name: str, dataset: ReportDataset) -> bytes:
+        """Renderiza un dataset compartido con el contexto estándar de reportes."""
+        template = self._env.get_template(template_name)
+        html_content = template.render(**dataset.to_dict())
         return HTML(string=html_content, base_url=str(self._template_dir)).write_pdf()
 
 
