@@ -1,0 +1,15 @@
+{% extends "base_report.html" %}
+
+{% block totals %}
+<tfoot>
+    <tr class="total-row">
+        <td colspan="{{ headers|length if headers else 1 }}" style="text-align: center;">
+            Proveedores: {{ totals.get('Proveedores', 0) }} &nbsp;·&nbsp;
+            Productos: {{ totals.get('Productos', 0) }} &nbsp;·&nbsp;
+            Stock: {{ totals.get('Stock', 0) }} &nbsp;·&nbsp;
+            Valor stock: ${{ "%.2f"|format(totals.get('Valor stock', 0)) }} &nbsp;·&nbsp;
+            Margen promedio: {{ "%.2f"|format(totals.get('Margen promedio', 0)) }}%
+        </td>
+    </tr>
+</tfoot>
+{% endblock %}

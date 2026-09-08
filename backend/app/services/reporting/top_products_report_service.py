@@ -2,7 +2,6 @@
 Servicio de reporte de productos más vendidos en PDF.
 """
 
-from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -13,10 +12,11 @@ from app.models.business import Business
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
 from app.schemas.report_schemas import TopProductsReportFilters
+from app.services.reporting.base_report_service import BaseReportService, ReportDataset
 from app.services.reporting.report_pdf_service import report_pdf_service
 
 
-class TopProductsReportService:
+class TopProductsReportService(BaseReportService[TopProductsReportFilters]):
     """Genera reporte de ranking de productos vendidos."""
 
     _SALES_TYPES = [
@@ -35,6 +35,15 @@ class TopProductsReportService:
         filters: TopProductsReportFilters,
         generated_by: str | None = None,
     ) -> bytes:
+        dataset = await self.build_dataset(business_id, filters, generated_by)
+        return report_pdf_service.render_dataset("products_report.html", dataset)
+
+    async def build_dataset(
+        self,
+        business_id: UUID,
+        filters: TopProductsReportFilters,
+        generated_by: str | None = None,
+    ) -> ReportDataset:
         business = await self._get_business(business_id)
 
         conditions = [
@@ -74,42 +83,29 @@ class TopProductsReportService:
             total_qty += qty
             rows.append(
                 {
-                    "code": row.code,
-                    "description": row.description,
-                    "quantity": float(qty),
-                    "amount": float(amount),
-                    "vouchers_count": int(row.vouchers_count or 0),
+                    "Código": row.code,
+                    "Descripción": row.description,
+                    "Comprobantes": int(row.vouchers_count or 0),
+                    "Cantidad": float(qty),
+                    "Monto": float(amount),
                 }
             )
 
-        context = {
-            "business": {
-                "name": business.name,
-                "cuit": business.cuit,
+        return self.create_dataset(
+            title="Reporte de Productos Más Vendidos",
+            business=business,
+            filters=filters,
+            headers=["Código", "Descripción", "Comprobantes", "Cantidad", "Monto"],
+            rows=rows,
+            totals={
+                "Filas": len(rows),
+                "Cantidad": float(total_qty),
+                "Monto": float(total_amount),
+                "Comprobantes": sum(row["Comprobantes"] for row in rows),
             },
-            "report": {
-                "title": "Reporte de Productos Más Vendidos",
-                "generated_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                "generated_by": generated_by or "Sistema",
-            },
-            "filters": {
-                "date_from": filters.date_from.strftime("%d/%m/%Y")
-                if filters.date_from
-                else "—",
-                "date_to": filters.date_to.strftime("%d/%m/%Y")
-                if filters.date_to
-                else "—",
-                "limit": filters.limit,
-            },
-            "summary": {
-                "rows": len(rows),
-                "total_qty": float(total_qty),
-                "total_amount": float(total_amount),
-            },
-            "rows": rows,
-        }
-
-        return report_pdf_service.render("products_report.html", context)
+            generated_by=generated_by,
+            orientation="portrait",
+        )
 
     async def _get_business(self, business_id: UUID) -> Business:
         result = await self.db.execute(

@@ -1,0 +1,14 @@
+{% extends "base_report.html" %}
+
+{% block totals %}
+<tfoot>
+    <tr class="total-row">
+        <td colspan="{{ headers|length if headers else 1 }}" style="text-align: center;">
+            Categorías: {{ totals.get('Categorías', 0) }} &nbsp;·&nbsp;
+            Productos: {{ totals.get('Productos', 0) }} &nbsp;·&nbsp;
+            Unidades: {{ totals.get('Unidades', 0) }} &nbsp;·&nbsp;
+            Valor stock: ${{ "%.2f"|format(totals.get('Valor stock', 0)) }}
+        </td>
+    </tr>
+</tfoot>
+{% endblock %}

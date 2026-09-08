@@ -2,7 +2,7 @@
 Servicio de reporte de stock en PDF.
 """
 
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -16,10 +16,11 @@ from app.models.product_lot import ProductLot
 from app.models.voucher import Voucher, VoucherStatus
 from app.models.voucher_item import VoucherItem
 from app.schemas.report_schemas import StockReportFilters
+from app.services.reporting.base_report_service import BaseReportService, ReportDataset
 from app.services.reporting.report_pdf_service import report_pdf_service
 
 
-class StockReportService:
+class StockReportService(BaseReportService[StockReportFilters]):
     """Genera el reporte PDF de estado de stock."""
 
     def __init__(self, db: AsyncSession):
@@ -31,6 +32,15 @@ class StockReportService:
         filters: StockReportFilters,
         generated_by: str | None = None,
     ) -> bytes:
+        dataset = await self.build_dataset(business_id, filters, generated_by)
+        return report_pdf_service.render_dataset("stock_report.html", dataset)
+
+    async def build_dataset(
+        self,
+        business_id: UUID,
+        filters: StockReportFilters,
+        generated_by: str | None = None,
+    ) -> ReportDataset:
         business = await self._get_business(business_id)
         products = await self._get_products(business_id, filters)
 
@@ -104,13 +114,54 @@ class StockReportService:
             )
 
         # Actualizar summary con items estancados e info de lotes
-        context = await self._build_context(
-            business, rows, filters, generated_by,
-            total_stock_units, total_stock_value, low_stock_items, stagnant_items,
-            total_expired_lots, total_expiring_soon_lots,
-        )
+        headers = [
+            "Código",
+            "Cód. Prov.",
+            "Descripción",
+            "Categoría",
+            "Proveedor",
+            "Stock",
+            "Mín.",
+            "Precio Vta",
+            "Valor Stock",
+            "Últ. Venta",
+            "Días",
+        ]
+        export_rows = [
+            {
+                "Código": row["code"],
+                "Cód. Prov.": row["supplier_code"],
+                "Descripción": row["description"],
+                "Categoría": row["category_name"],
+                "Proveedor": row["supplier_name"],
+                "Stock": row["current_stock"],
+                "Mín.": row["minimum_stock"],
+                "Precio Vta": row["sale_price"],
+                "Valor Stock": row["stock_value"],
+                "Últ. Venta": row["last_sale_date"],
+                "Días": row["days_without_sale"] if row["days_without_sale"] is not None else "—",
+            }
+            for row in rows
+        ]
 
-        return report_pdf_service.render("stock_report.html", context)
+        return self.create_dataset(
+            title="Reporte de Stock",
+            business=business,
+            filters=filters,
+            headers=headers,
+            rows=export_rows,
+            totals={
+                "Ítems": len(rows),
+                "Unidades": total_stock_units,
+                "Stock bajo": low_stock_items,
+                "Sin ventas +90d": stagnant_items,
+                "Valor stock": float(total_stock_value),
+                "Lotes vencidos": total_expired_lots,
+                "Lotes por vencer": total_expiring_soon_lots,
+            },
+            generated_by=generated_by,
+            orientation="landscape",
+        )
 
     async def _get_last_sale_dates(
         self, business_id: UUID, product_ids: list[UUID]
@@ -136,51 +187,6 @@ class StockReportService:
 
         result = await self.db.execute(subq)
         return {row.product_id: row.last_sale.date() for row in result}
-
-    async def _build_context(
-        self,
-        business,
-        rows,
-        filters,
-        generated_by,
-        total_stock_units,
-        total_stock_value,
-        low_stock_items,
-        stagnant_items,
-        total_expired_lots=0,
-        total_expiring_soon_lots=0,
-    ):
-        return {
-            "business": {
-                "name": business.name,
-                "cuit": business.cuit,
-                "address": business.address,
-                "city": business.city,
-                "province": business.province,
-                "phone": business.phone,
-                "email": business.email,
-            },
-            "report": {
-                "title": "Reporte de Stock",
-                "generated_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                "generated_by": generated_by or "Sistema",
-            },
-            "filters": {
-                "search": filters.search or "—",
-                "low_stock_only": filters.low_stock_only,
-                "include_inactive": filters.include_inactive,
-            },
-            "summary": {
-                "total_items": len(rows),
-                "low_stock_items": low_stock_items,
-                "stagnant_items": stagnant_items,
-                "total_stock_units": total_stock_units,
-                "total_stock_value": float(total_stock_value),
-                "total_expired_lots": total_expired_lots,
-                "total_expiring_soon_lots": total_expiring_soon_lots,
-            },
-            "rows": rows,
-        }
 
     async def _get_business(self, business_id: UUID) -> Business:
         result = await self.db.execute(

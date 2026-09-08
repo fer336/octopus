@@ -3,9 +3,13 @@ Schemas de filtros para reportes PDF.
 """
 
 from datetime import date
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
+
+
+ReportFormat = Literal["pdf", "xlsx", "csv"]
 
 
 class BaseReportFilters(BaseModel):
@@ -47,3 +51,48 @@ class ClientAccountsReportFilters(BaseModel):
     """Filtros para reporte de cuentas corrientes."""
 
     only_with_balance: bool = True
+
+
+class CategoryReportFilters(BaseReportFilters):
+    """Filtros para reporte por categoría."""
+
+    category_id: UUID | None = None
+
+
+class SupplierReportFilters(BaseReportFilters):
+    """Filtros para reporte por proveedor."""
+
+    supplier_id: UUID | None = None
+    only_with_stock: bool = False
+
+
+class PurchaseOrderHistoryReportFilters(BaseReportFilters):
+    """Filtros para historial de órdenes de pedido."""
+
+    supplier_id: UUID | None = None
+    status: Literal["draft", "confirmed"] | None = None
+
+
+class StockpileWithdrawalsReportFilters(BaseReportFilters):
+    """Filtros para retiros de acopio."""
+
+    stockpile_id: UUID | None = None
+
+
+class CurrentAccountWithdrawalsReportFilters(BaseReportFilters):
+    """Filtros para retiros de cuenta corriente."""
+
+    client_id: UUID | None = None
+
+
+class InventoryCountReportFilters(BaseModel):
+    """Filtros para planilla de conteo de inventario."""
+
+    supplier_id: UUID | None = None
+    category_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_required_filter(self):
+        if not self.supplier_id and not self.category_id:
+            raise ValueError("Debe especificar al menos un proveedor o una categoría")
+        return self
