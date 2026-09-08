@@ -2,7 +2,6 @@
 Servicio de reporte de ventas en PDF.
 """
 
-from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -12,10 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.business import Business
 from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.schemas.report_schemas import SalesReportFilters
+from app.services.reporting.base_report_service import BaseReportService, ReportDataset
 from app.services.reporting.report_pdf_service import report_pdf_service
 
 
-class SalesReportService:
+class SalesReportService(BaseReportService[SalesReportFilters]):
     """Genera reporte de ventas por período."""
 
     _BASE_TYPES = [
@@ -33,6 +33,15 @@ class SalesReportService:
         filters: SalesReportFilters,
         generated_by: str | None = None,
     ) -> bytes:
+        dataset = await self.build_dataset(business_id, filters, generated_by)
+        return report_pdf_service.render_dataset("sales_report.html", dataset)
+
+    async def build_dataset(
+        self,
+        business_id: UUID,
+        filters: SalesReportFilters,
+        generated_by: str | None = None,
+    ) -> ReportDataset:
         business = await self._get_business(business_id)
         voucher_types = list(self._BASE_TYPES)
         if filters.include_receipts:
@@ -75,43 +84,29 @@ class SalesReportService:
 
         rows = [
             {
-                "date": row.date.strftime("%d/%m/%Y"),
-                "voucher_type": str(row.voucher_type.value),
-                "number": f"{row.sale_point}-{row.number}",
-                "total": float(row.total or 0),
+                "Fecha": row.date.strftime("%d/%m/%Y"),
+                "Tipo": str(row.voucher_type.value),
+                "Número": f"{row.sale_point}-{row.number}",
+                "Total": float(row.total or 0),
             }
             for row in rows_result
         ]
 
-        context = {
-            "business": {
-                "name": business.name,
-                "cuit": business.cuit,
+        return self.create_dataset(
+            title="Reporte de Ventas",
+            business=business,
+            filters=filters,
+            headers=["Fecha", "Tipo", "Número", "Total"],
+            rows=rows,
+            totals={
+                "Comprobantes": int(count or 0),
+                "Subtotal": float(Decimal(str(subtotal or 0))),
+                "IVA": float(Decimal(str(iva or 0))),
+                "Total": float(Decimal(str(total or 0))),
             },
-            "report": {
-                "title": "Reporte de Ventas",
-                "generated_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                "generated_by": generated_by or "Sistema",
-            },
-            "filters": {
-                "date_from": filters.date_from.strftime("%d/%m/%Y")
-                if filters.date_from
-                else "—",
-                "date_to": filters.date_to.strftime("%d/%m/%Y")
-                if filters.date_to
-                else "—",
-                "include_receipts": filters.include_receipts,
-            },
-            "summary": {
-                "voucher_count": int(count or 0),
-                "subtotal": float(Decimal(str(subtotal or 0))),
-                "iva": float(Decimal(str(iva or 0))),
-                "total": float(Decimal(str(total or 0))),
-            },
-            "rows": rows,
-        }
-
-        return report_pdf_service.render("sales_report.html", context)
+            generated_by=generated_by,
+            orientation="portrait",
+        )
 
     async def _get_business(self, business_id: UUID) -> Business:
         result = await self.db.execute(
