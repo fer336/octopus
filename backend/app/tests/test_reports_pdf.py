@@ -312,6 +312,13 @@ def _xlsx_headers(content: bytes) -> list[str]:
     return [cell.value for cell in sheet[1]]
 
 
+def _xlsx_data_row_count(content: bytes) -> int:
+    """Cuenta filas de datos exportadas debajo de los encabezados."""
+    workbook = load_workbook(io.BytesIO(content))
+    sheet = workbook.active
+    return max(sheet.max_row - 1, 0)
+
+
 @pytest.mark.asyncio
 async def test_stock_report_provider_builds_shared_dataset_with_totals(
     db: AsyncSession,
@@ -1073,3 +1080,113 @@ async def test_invalid_report_date_range_returns_400(
 
     assert response.status_code == 400
     assert not response.content.startswith(b"%PDF")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/tenant/reports/sales?unknown_filter=1",
+        "/api/tenant/reports/category?unexpected=1",
+        "/api/tenant/reports/current-account-withdrawals?not_allowed=1",
+    ],
+)
+async def test_cross_cutting_unknown_filters_return_400_before_file_generation(
+    client: AsyncClient,
+    user_a: User,
+    business_a,
+    membership_a,
+    path: str,
+):
+    """Los filtros desconocidos representativos deben fallar antes de renderizar archivos."""
+    response = await client.get(path, headers=make_auth_header(user_a))
+
+    assert response.status_code == 400
+    assert "Filtro no permitido" in response.text
+    assert not response.content.startswith(b"%PDF")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/tenant/reports/sales?date_from=2026-02-01&date_to=2026-01-01",
+        "/api/tenant/reports/purchase-order-history?date_from=2026-02-01&date_to=2026-01-01",
+        "/api/tenant/reports/stockpile-withdrawals?date_from=2026-02-01&date_to=2026-01-01",
+    ],
+)
+async def test_cross_cutting_invalid_date_ranges_return_400_before_file_generation(
+    client: AsyncClient,
+    user_a: User,
+    business_a,
+    membership_a,
+    path: str,
+):
+    """Los rangos inválidos representativos deben fallar sin contenido descargable."""
+    response = await client.get(path, headers=make_auth_header(user_a))
+
+    assert response.status_code == 400
+    assert not response.content.startswith(b"%PDF")
+    assert not response.headers.get("content-type", "").startswith("application/pdf")
+
+
+@pytest.mark.asyncio
+async def test_all_report_endpoints_return_empty_downloadable_tables_for_valid_empty_results(
+    client: AsyncClient,
+    db: AsyncSession,
+    user_a: User,
+    business_a,
+    membership_a,
+):
+    """Todos los reportes deben exportar una tabla vacía válida cuando no hay datos."""
+    empty_category = await _create_category(db, business_a.id, name="Categoría sin productos")
+    empty_supplier = await _create_supplier(db, business_a.id, name="Proveedor sin productos")
+    empty_stockpile_client = await _create_client(db, business_a.id, name="Cliente sin retiros")
+    empty_stockpile = await _create_stockpile(
+        db,
+        business_a.id,
+        empty_stockpile_client,
+        "Acopio sin retiros",
+    )
+
+    report_cases = [
+        ("/api/tenant/reports/stock?search=sin-resultados", "Código"),
+        ("/api/tenant/reports/sales?date_from=2030-01-01&date_to=2030-01-31", "Fecha"),
+        ("/api/tenant/reports/top-products?date_from=2030-01-01&date_to=2030-01-31", "Código"),
+        ("/api/tenant/reports/client-accounts?only_with_balance=true", "Cliente"),
+        (f"/api/tenant/reports/inventory-count?supplier_id={empty_supplier.id}", "Código"),
+        (f"/api/tenant/reports/category?category_id={empty_category.id}", "Categoría"),
+        (f"/api/tenant/reports/supplier?supplier_id={empty_supplier.id}", "Proveedor"),
+        ("/api/tenant/reports/purchase-order-history?date_from=2030-01-01&date_to=2030-01-31", "Número"),
+        (f"/api/tenant/reports/stockpile-withdrawals?stockpile_id={empty_stockpile.id}", "Fecha"),
+        (
+            f"/api/tenant/reports/current-account-withdrawals?client_id={empty_stockpile_client.id}",
+            "Fecha",
+        ),
+    ]
+
+    for path, expected_header in report_cases:
+        separator = "&" if "?" in path else "?"
+
+        pdf_response = await client.get(path, headers=make_auth_header(user_a))
+        assert pdf_response.status_code == 200, f"{path}: {pdf_response.text}"
+        assert pdf_response.headers["content-type"].startswith("application/pdf")
+        assert pdf_response.content.startswith(b"%PDF")
+
+        xlsx_response = await client.get(
+            f"{path}{separator}format=xlsx",
+            headers=make_auth_header(user_a),
+        )
+        assert xlsx_response.status_code == 200, f"{path}: {xlsx_response.text}"
+        assert _xlsx_headers(xlsx_response.content)[0] == expected_header
+        assert _xlsx_data_row_count(xlsx_response.content) == 0
+
+        csv_response = await client.get(
+            f"{path}{separator}format=csv",
+            headers=make_auth_header(user_a),
+        )
+        assert csv_response.status_code == 200, f"{path}: {csv_response.text}"
+        assert csv_response.headers["content-type"].startswith("text/csv")
+        csv_lines = csv_response.text.splitlines()
+        assert csv_lines[0].startswith(expected_header)
+        assert len(csv_lines) == 1
