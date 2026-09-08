@@ -23,11 +23,13 @@ from app.models.voucher import Voucher, VoucherStatus, VoucherType
 from app.models.voucher_item import VoucherItem
 from app.schemas.report_schemas import (
     ClientAccountsReportFilters,
+    InventoryCountReportFilters,
     SalesReportFilters,
     StockReportFilters,
     TopProductsReportFilters,
 )
 from app.services.reporting.client_accounts_report_service import ClientAccountsReportService
+from app.services.reporting.inventory_count_report_service import InventoryCountReportService
 from app.services.reporting.sales_report_service import SalesReportService
 from app.services.reporting.stock_report_service import StockReportService
 from app.services.reporting.top_products_report_service import TopProductsReportService
@@ -321,6 +323,81 @@ async def test_client_accounts_report_provider_filters_balances(
 
 
 @pytest.mark.asyncio
+async def test_inventory_count_report_provider_reuses_count_sheet_rows(
+    db: AsyncSession,
+    business_a,
+    user_a: User,
+):
+    """Conteo de inventario debe usar los productos activos de la planilla existente."""
+    category = await _create_category(db, business_a.id)
+    supplier = await _create_supplier(db, business_a.id)
+    await _create_product(
+        db,
+        business_a.id,
+        code="CNT-001",
+        description="Producto para conteo",
+        category_id=category.id,
+        supplier_id=supplier.id,
+        stock=8,
+    )
+    await _create_product(
+        db,
+        business_a.id,
+        code="CNT-INACTIVE",
+        category_id=category.id,
+        supplier_id=supplier.id,
+        is_active=False,
+    )
+
+    dataset = await InventoryCountReportService(db).build_dataset(
+        business_a.id,
+        InventoryCountReportFilters(supplier_id=supplier.id),
+        generated_by=user_a.email,
+    )
+
+    assert dataset.title == "Planilla de Conteo de Inventario"
+    assert dataset.headers == [
+        "Código",
+        "Descripción",
+        "Categoría",
+        "Proveedor",
+        "Stock Sistema",
+        "Conteo Físico",
+        "A Pedir",
+    ]
+    assert dataset.rows == [
+        {
+            "Código": "CNT-001",
+            "Descripción": "Producto para conteo",
+            "Categoría": "Grifería",
+            "Proveedor": "Proveedor Norte",
+            "Stock Sistema": 8,
+            "Conteo Físico": "",
+            "A Pedir": "",
+        }
+    ]
+    assert dataset.totals["Productos"] == 1
+    assert dataset.orientation == "landscape"
+
+
+@pytest.mark.asyncio
+async def test_inventory_count_report_provider_returns_empty_dataset_for_valid_empty_filter(
+    db: AsyncSession,
+    business_a,
+):
+    """Un filtro válido sin productos debe generar tabla vacía con total cero."""
+    supplier = await _create_supplier(db, business_a.id)
+
+    dataset = await InventoryCountReportService(db).build_dataset(
+        business_a.id,
+        InventoryCountReportFilters(supplier_id=supplier.id),
+    )
+
+    assert dataset.rows == []
+    assert dataset.totals["Productos"] == 0
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("path", "expected_filename", "expected_header"),
     [
@@ -362,6 +439,74 @@ async def test_report_endpoints_export_pdf_xlsx_and_csv(
     assert csv_response.status_code == 200, csv_response.text
     assert csv_response.headers["content-type"].startswith("text/csv")
     assert csv_response.text.splitlines()[0].startswith(expected_header)
+
+
+@pytest.mark.asyncio
+async def test_inventory_count_report_endpoint_exports_pdf_xlsx_and_csv(
+    client: AsyncClient,
+    db: AsyncSession,
+    user_a: User,
+    business_a,
+    membership_a,
+):
+    """El hub de reportes debe descargar conteo de inventario en los tres formatos."""
+    category = await _create_category(db, business_a.id)
+    supplier = await _create_supplier(db, business_a.id)
+    await _create_product(
+        db,
+        business_a.id,
+        code="CNT-002",
+        description="Producto exportable",
+        category_id=category.id,
+        supplier_id=supplier.id,
+        stock=11,
+    )
+    path = f"/api/tenant/reports/inventory-count?supplier_id={supplier.id}"
+
+    pdf_response = await client.get(path, headers=make_auth_header(user_a))
+    assert pdf_response.status_code == 200, pdf_response.text
+    assert pdf_response.headers["content-type"].startswith("application/pdf")
+    assert "reporte_planilla_conteo_" in pdf_response.headers.get("content-disposition", "")
+    assert pdf_response.content.startswith(b"%PDF")
+
+    xlsx_response = await client.get(f"{path}&format=xlsx", headers=make_auth_header(user_a))
+    assert xlsx_response.status_code == 200, xlsx_response.text
+    assert xlsx_response.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert _xlsx_headers(xlsx_response.content) == [
+        "Código",
+        "Descripción",
+        "Categoría",
+        "Proveedor",
+        "Stock Sistema",
+        "Conteo Físico",
+        "A Pedir",
+    ]
+
+    csv_response = await client.get(f"{path}&format=csv", headers=make_auth_header(user_a))
+    assert csv_response.status_code == 200, csv_response.text
+    assert csv_response.headers["content-type"].startswith("text/csv")
+    lines = csv_response.text.splitlines()
+    assert lines[0] == "Código,Descripción,Categoría,Proveedor,Stock Sistema,Conteo Físico,A Pedir"
+    assert lines[1].startswith("CNT-002,Producto exportable,Grifería,Proveedor Norte,11,")
+
+
+@pytest.mark.asyncio
+async def test_inventory_count_report_requires_supplier_or_category_filter(
+    client: AsyncClient,
+    user_a: User,
+    business_a,
+    membership_a,
+):
+    """La ruta de reportes debe rechazar planillas de conteo sin filtros."""
+    response = await client.get(
+        "/api/tenant/reports/inventory-count",
+        headers=make_auth_header(user_a),
+    )
+
+    assert response.status_code == 400
+    assert "proveedor o una categoría" in response.text
 
 
 @pytest.mark.asyncio

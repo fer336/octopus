@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas.report_schemas import (
     ClientAccountsReportFilters,
+    InventoryCountReportFilters,
     ReportFormat,
     SalesReportFilters,
     StockReportFilters,
@@ -24,6 +25,7 @@ from app.schemas.report_schemas import (
 from app.services.export_service import EXPORT_CONTENT_TYPES, ExportService
 from app.services.reporting.base_report_service import ReportDataset, ReportRowProvider
 from app.services.reporting.client_accounts_report_service import ClientAccountsReportService
+from app.services.reporting.inventory_count_report_service import InventoryCountReportService
 from app.services.reporting.sales_report_service import SalesReportService
 from app.services.reporting.stock_report_service import StockReportService
 from app.services.reporting.top_products_report_service import TopProductsReportService
@@ -45,6 +47,7 @@ REPORT_FILTERS: dict[str, set[str]] = {
     "sales": {"date_from", "date_to", "include_receipts"},
     "top-products": {"date_from", "date_to", "limit"},
     "client-accounts": {"only_with_balance"},
+    "inventory-count": {"supplier_id", "category_id"},
 }
 
 
@@ -234,6 +237,35 @@ async def export_client_accounts_report(
         report_format=report_format,
         filename_prefix="cuentas_corrientes",
         template_name="accounts_report.html",
+    )
+
+
+@router.get("/inventory-count")
+async def export_inventory_count_report(
+    request: Request,
+    report_format: ReportFormat = Query(default="pdf", alias="format"),
+    supplier_id: UUID | None = Query(default=None),
+    category_id: UUID | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    business_id: UUID = Depends(get_current_business),
+    current_user=Depends(get_current_user),
+):
+    """Exporta la planilla de conteo de inventario desde el hub de reportes."""
+    _validate_allowed_filters(request, "inventory-count")
+    filters = _filters_or_400(
+        lambda: InventoryCountReportFilters(
+            supplier_id=supplier_id,
+            category_id=category_id,
+        )
+    )
+    return await _build_and_render_report(
+        provider=InventoryCountReportService(db),
+        filters=filters,
+        business_id=business_id,
+        generated_by=getattr(current_user, "email", None),
+        report_format=report_format,
+        filename_prefix="planilla_conteo",
+        template_name="inventory_count.html",
     )
 
 

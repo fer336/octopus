@@ -51,3 +51,16 @@ class ClientAccountsReportFilters(BaseModel):
     """Filtros para reporte de cuentas corrientes."""
 
     only_with_balance: bool = True
+
+
+class InventoryCountReportFilters(BaseModel):
+    """Filtros para planilla de conteo de inventario."""
+
+    supplier_id: UUID | None = None
+    category_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_required_filter(self):
+        if not self.supplier_id and not self.category_id:
+            raise ValueError("Debe especificar al menos un proveedor o una categoría")
+        return self

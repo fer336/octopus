@@ -5,7 +5,7 @@ Servicio común para renderizar reportes en PDF.
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import ChoiceLoader, Environment, FileSystemLoader, select_autoescape
 from weasyprint import HTML
 
 from app.services.reporting.base_report_service import ReportDataset
@@ -16,9 +16,15 @@ class ReportPdfService:
 
     def __init__(self):
         template_dir = Path(__file__).parents[2] / "templates" / "pdf" / "reports"
+        pdf_template_dir = template_dir.parent
         self._template_dir = template_dir
         self._env = Environment(
-            loader=FileSystemLoader(str(template_dir)),
+            loader=ChoiceLoader(
+                [
+                    FileSystemLoader(str(template_dir)),
+                    FileSystemLoader(str(pdf_template_dir)),
+                ]
+            ),
             autoescape=select_autoescape(["html", "xml"]),
         )
 
