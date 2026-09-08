@@ -3,9 +3,13 @@ Schemas de filtros para reportes PDF.
 """
 
 from datetime import date
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
+
+
+ReportFormat = Literal["pdf", "xlsx", "csv"]
 
 
 class BaseReportFilters(BaseModel):
