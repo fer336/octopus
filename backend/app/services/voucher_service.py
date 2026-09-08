@@ -2219,10 +2219,7 @@ class VoucherService:
             item_sum_with_iva += abs(net_after_item_disc) * (Decimal("1") + iva_rate_item / Decimal("100"))
 
         # Para notas de crédito los montos son negativos → usar absolutos
-        if voucher.is_return_receipt:
-            abs_raw = abs(raw_subtotal)
-        else:
-            abs_raw = raw_subtotal
+        abs_raw = abs(raw_subtotal) if voucher.is_return_receipt else raw_subtotal
 
         # Usar valores almacenados en DB (calculados correctamente en _build_items_and_totals)
         abs_iva = abs(Decimal(str(voucher.iva_amount or 0)))
