@@ -1,0 +1,15 @@
+{% extends "base_report.html" %}
+
+{% block totals %}
+<tfoot>
+    <tr class="total-row">
+        <td colspan="{{ headers|length if headers else 1 }}" style="text-align: center;">
+            Órdenes: {{ totals.get('Órdenes', 0) }} &nbsp;·&nbsp;
+            Ítems: {{ totals.get('Ítems', 0) }} &nbsp;·&nbsp;
+            Subtotal: ${{ "%.2f"|format(totals.get('Subtotal', 0)) }} &nbsp;·&nbsp;
+            IVA: ${{ "%.2f"|format(totals.get('IVA', 0)) }} &nbsp;·&nbsp;
+            Total: ${{ "%.2f"|format(totals.get('Total', 0)) }}
+        </td>
+    </tr>
+</tfoot>
+{% endblock %}
