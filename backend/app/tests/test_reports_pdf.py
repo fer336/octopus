@@ -111,6 +111,7 @@ async def _create_product(
     discount_3: Decimal = Decimal("0.00"),
     sale_price: Decimal = Decimal("145.20"),
     is_active: bool = True,
+    created_at: datetime | None = None,
 ) -> Product:
     """Crea un producto con lote para alimentar el stock calculado."""
     product = Product(
@@ -136,6 +137,8 @@ async def _create_product(
         iva_rate=Decimal("21.00"),
         is_active=is_active,
     )
+    if created_at is not None:
+        product.created_at = created_at
     db.add(product)
     await db.commit()
     await db.refresh(product)
@@ -455,6 +458,32 @@ async def test_client_accounts_report_provider_filters_balances(
 
 
 @pytest.mark.asyncio
+async def test_client_accounts_report_provider_includes_all_clients_when_only_with_balance_false(
+    db: AsyncSession,
+    business_a,
+):
+    """Cuentas corrientes debe incluir clientes en cero cuando only_with_balance es false."""
+    await _create_client(db, business_a.id, name="Cliente Deudor", balance=Decimal("1500.00"))
+    await _create_client(db, business_a.id, name="Cliente Cero", balance=Decimal("0.00"))
+    await _create_client(db, business_a.id, name="Cliente A Favor", balance=Decimal("-200.00"))
+
+    dataset = await ClientAccountsReportService(db).build_dataset(
+        business_a.id,
+        ClientAccountsReportFilters(only_with_balance=False),
+    )
+
+    assert [row["Cliente"] for row in dataset.rows] == [
+        "Cliente Deudor",
+        "Cliente Cero",
+        "Cliente A Favor",
+    ]
+    assert [row["Estado"] for row in dataset.rows] == ["Deudor", "Al día", "A favor"]
+    assert dataset.totals["Clientes"] == 3
+    assert dataset.totals["Deuda"] == 1500.0
+    assert dataset.totals["A favor"] == 200.0
+
+
+@pytest.mark.asyncio
 async def test_inventory_count_report_provider_reuses_count_sheet_rows(
     db: AsyncSession,
     business_a,
@@ -599,6 +628,57 @@ async def test_category_report_provider_returns_empty_dataset_for_no_matches(
 
 
 @pytest.mark.asyncio
+async def test_category_report_provider_applies_date_range_to_product_creation(
+    db: AsyncSession,
+    business_a,
+):
+    """Categorías debe filtrar por fecha de creación del producto de forma inclusiva."""
+    category = await _create_category(db, business_a.id, name="Sanitarios")
+    await _create_product(
+        db,
+        business_a.id,
+        code="CAT-ANTES",
+        description="Z Producto anterior",
+        category_id=category.id,
+        created_at=datetime(2025, 12, 31, 12, 0),
+    )
+    await _create_product(
+        db,
+        business_a.id,
+        code="CAT-DENTRO",
+        description="A Producto dentro",
+        category_id=category.id,
+        created_at=datetime(2026, 1, 15, 10, 0),
+    )
+    await _create_product(
+        db,
+        business_a.id,
+        code="CAT-BORDE",
+        description="B Producto borde",
+        category_id=category.id,
+        created_at=datetime(2026, 1, 31, 23, 30),
+    )
+    await _create_product(
+        db,
+        business_a.id,
+        code="CAT-DESPUES",
+        description="C Producto posterior",
+        category_id=category.id,
+        created_at=datetime(2026, 2, 1, 0, 30),
+    )
+
+    dataset = await CategoryReportService(db).build_dataset(
+        business_a.id,
+        CategoryReportFilters(date_from=date(2026, 1, 1), date_to=date(2026, 1, 31)),
+    )
+
+    assert [row["Código"] for row in dataset.rows] == ["CAT-DENTRO", "CAT-BORDE"]
+    assert dataset.totals["Productos"] == 2
+    assert dataset.totals["Unidades"] == 10
+    assert dataset.totals["Categorías"] == 1
+
+
+@pytest.mark.asyncio
 async def test_supplier_report_provider_filters_identity_and_margin_totals(
     db: AsyncSession,
     business_a,
@@ -644,6 +724,57 @@ async def test_supplier_report_provider_filters_identity_and_margin_totals(
     assert dataset.totals["Stock"] == 5
     assert dataset.totals["Valor stock"] == 500.0
     assert dataset.totals["Margen promedio"] == 50.0
+
+
+@pytest.mark.asyncio
+async def test_supplier_report_provider_applies_date_range_to_product_creation(
+    db: AsyncSession,
+    business_a,
+):
+    """Proveedor debe filtrar por fecha de creación del producto de forma inclusiva."""
+    supplier = await _create_supplier(db, business_a.id)
+    await _create_product(
+        db,
+        business_a.id,
+        code="SUP-ANTES",
+        description="Z Producto anterior",
+        supplier_id=supplier.id,
+        created_at=datetime(2025, 12, 31, 12, 0),
+    )
+    await _create_product(
+        db,
+        business_a.id,
+        code="SUP-DENTRO",
+        description="A Producto dentro",
+        supplier_id=supplier.id,
+        created_at=datetime(2026, 1, 15, 10, 0),
+    )
+    await _create_product(
+        db,
+        business_a.id,
+        code="SUP-BORDE",
+        description="B Producto borde",
+        supplier_id=supplier.id,
+        created_at=datetime(2026, 1, 31, 23, 30),
+    )
+    await _create_product(
+        db,
+        business_a.id,
+        code="SUP-DESPUES",
+        description="C Producto posterior",
+        supplier_id=supplier.id,
+        created_at=datetime(2026, 2, 1, 0, 30),
+    )
+
+    dataset = await SupplierReportService(db).build_dataset(
+        business_a.id,
+        SupplierReportFilters(supplier_id=supplier.id, date_from=date(2026, 1, 1), date_to=date(2026, 1, 31)),
+    )
+
+    assert [row["Código"] for row in dataset.rows] == ["SUP-DENTRO", "SUP-BORDE"]
+    assert dataset.totals["Proveedores"] == 1
+    assert dataset.totals["Productos"] == 2
+    assert dataset.totals["Stock"] == 10
 
 
 @pytest.mark.asyncio
@@ -842,6 +973,56 @@ async def test_current_account_withdrawals_report_provider_excludes_non_withdraw
     assert dataset.totals["Subtotal"] == 200.0
     assert dataset.totals["IVA"] == 42.0
     assert dataset.totals["Total"] == 242.0
+
+
+@pytest.mark.asyncio
+async def test_current_account_withdrawals_report_provider_applies_inclusive_date_range(
+    db: AsyncSession,
+    business_a,
+):
+    """Retiros de cuenta corriente debe aplicar el rango de fechas de forma inclusiva."""
+    product = await _create_product(db, business_a.id, code="CC-002")
+    billing_client = await _create_client(db, business_a.id, name="Cliente Facturación")
+    withdrawal_client = await _create_client(db, business_a.id, name="Cliente Retira")
+
+    async def _withdrawal(voucher_number: str, voucher_date: date) -> Voucher:
+        voucher = await _create_confirmed_voucher(
+            db,
+            business_a.id,
+            product,
+            billing_client,
+            voucher_date=voucher_date,
+            voucher_type=VoucherType.RECEIPT,
+            number=voucher_number,
+        )
+        voucher.is_current_account = True
+        voucher.billing_client_id = billing_client.id
+        voucher.operating_client_id = withdrawal_client.id
+        db.add(voucher)
+        return voucher
+
+    before = await _withdrawal("00000040", date(2026, 1, 9))
+    inside = await _withdrawal("00000041", date(2026, 1, 15))
+    boundary = await _withdrawal("00000042", date(2026, 1, 31))
+    after = await _withdrawal("00000043", date(2026, 2, 1))
+    await db.commit()
+    await db.refresh(before)
+    await db.refresh(inside)
+    await db.refresh(boundary)
+    await db.refresh(after)
+
+    dataset = await CurrentAccountWithdrawalsReportService(db).build_dataset(
+        business_a.id,
+        CurrentAccountWithdrawalsReportFilters(
+            date_from=date(2026, 1, 10),
+            date_to=date(2026, 1, 31),
+        ),
+    )
+
+    assert [row["Comprobante"] for row in dataset.rows] == ["0001-00000042", "0001-00000041"]
+    assert dataset.totals["Filas"] == 2
+    assert dataset.totals["Cantidad"] == 4.0
+    assert dataset.totals["Total"] == 484.0
 
 
 @pytest.mark.asyncio
