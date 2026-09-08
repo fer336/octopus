@@ -3,78 +3,142 @@
  */
 import { httpClient } from './httpClient'
 
-export type ReportType = 'sales' | 'products' | 'stock' | 'accounts'
-export type ReportPeriod = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
+export const REPORT_FORMAT = {
+  PDF: 'pdf',
+  EXCEL: 'xlsx',
+  CSV: 'csv',
+} as const
 
-interface DateRange {
+export type ReportFormat = (typeof REPORT_FORMAT)[keyof typeof REPORT_FORMAT]
+
+export const REPORT_TYPE = {
+  STOCK: 'stock',
+  SALES: 'sales',
+  TOP_PRODUCTS: 'top-products',
+  CLIENT_ACCOUNTS: 'client-accounts',
+  INVENTORY_COUNT: 'inventory-count',
+  CATEGORY: 'category',
+  SUPPLIER: 'supplier',
+  PURCHASE_ORDER_HISTORY: 'purchase-order-history',
+  STOCKPILE_WITHDRAWALS: 'stockpile-withdrawals',
+  CURRENT_ACCOUNT_WITHDRAWALS: 'current-account-withdrawals',
+} as const
+
+export type ReportType = (typeof REPORT_TYPE)[keyof typeof REPORT_TYPE]
+
+export interface ReportFilters {
+  search?: string
+  categoryId?: string
+  supplierId?: string
+  lowStockOnly?: boolean
+  includeInactive?: boolean
+  includeReceipts?: boolean
+  onlyWithBalance?: boolean
+  onlyWithStock?: boolean
   dateFrom?: string
   dateTo?: string
-}
-
-function getDateRange(period: ReportPeriod): DateRange {
-  const now = new Date()
-  const toIsoDate = (date: Date) => date.toISOString().split('T')[0]
-
-  if (period === 'custom') {
-    return {}
-  }
-
-  const end = new Date(now)
-  let start = new Date(now)
-
-  if (period === 'today') {
-    // start/end hoy
-  } else if (period === 'week') {
-    const day = now.getDay() || 7
-    start.setDate(now.getDate() - day + 1)
-  } else if (period === 'month') {
-    start = new Date(now.getFullYear(), now.getMonth(), 1)
-  } else if (period === 'quarter') {
-    const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3
-    start = new Date(now.getFullYear(), quarterStartMonth, 1)
-  } else if (period === 'year') {
-    start = new Date(now.getFullYear(), 0, 1)
-  }
-
-  return {
-    dateFrom: toIsoDate(start),
-    dateTo: toIsoDate(end),
-  }
+  limit?: number
+  status?: string
+  stockpileId?: string
+  clientId?: string
 }
 
 const endpointByType: Record<ReportType, string> = {
-  sales: '/reports/sales/pdf',
-  products: '/reports/products/pdf',
-  stock: '/reports/stock/pdf',
-  accounts: '/reports/accounts/pdf',
+  [REPORT_TYPE.STOCK]: '/reports/stock',
+  [REPORT_TYPE.SALES]: '/reports/sales',
+  [REPORT_TYPE.TOP_PRODUCTS]: '/reports/top-products',
+  [REPORT_TYPE.CLIENT_ACCOUNTS]: '/reports/client-accounts',
+  [REPORT_TYPE.INVENTORY_COUNT]: '/reports/inventory-count',
+  [REPORT_TYPE.CATEGORY]: '/reports/category',
+  [REPORT_TYPE.SUPPLIER]: '/reports/supplier',
+  [REPORT_TYPE.PURCHASE_ORDER_HISTORY]: '/reports/purchase-order-history',
+  [REPORT_TYPE.STOCKPILE_WITHDRAWALS]: '/reports/stockpile-withdrawals',
+  [REPORT_TYPE.CURRENT_ACCOUNT_WITHDRAWALS]: '/reports/current-account-withdrawals',
+}
+
+const filenameByType: Record<ReportType, string> = {
+  [REPORT_TYPE.STOCK]: 'stock',
+  [REPORT_TYPE.SALES]: 'ventas',
+  [REPORT_TYPE.TOP_PRODUCTS]: 'productos_mas_vendidos',
+  [REPORT_TYPE.CLIENT_ACCOUNTS]: 'cuentas_corrientes',
+  [REPORT_TYPE.INVENTORY_COUNT]: 'planilla_conteo',
+  [REPORT_TYPE.CATEGORY]: 'categorias',
+  [REPORT_TYPE.SUPPLIER]: 'proveedores',
+  [REPORT_TYPE.PURCHASE_ORDER_HISTORY]: 'historial_ordenes',
+  [REPORT_TYPE.STOCKPILE_WITHDRAWALS]: 'retiros_acopio',
+  [REPORT_TYPE.CURRENT_ACCOUNT_WITHDRAWALS]: 'retiros_cuenta_corriente',
+}
+
+function appendIfPresent(params: URLSearchParams, key: string, value?: string | number | boolean) {
+  if (value !== undefined && value !== '') {
+    params.append(key, String(value))
+  }
+}
+
+function buildReportParams(format: ReportFormat, filters: ReportFilters): URLSearchParams {
+  const params = new URLSearchParams({ format })
+
+  appendIfPresent(params, 'search', filters.search)
+  appendIfPresent(params, 'category_id', filters.categoryId)
+  appendIfPresent(params, 'supplier_id', filters.supplierId)
+  appendIfPresent(params, 'low_stock_only', filters.lowStockOnly)
+  appendIfPresent(params, 'include_inactive', filters.includeInactive)
+  appendIfPresent(params, 'include_receipts', filters.includeReceipts)
+  appendIfPresent(params, 'only_with_balance', filters.onlyWithBalance)
+  appendIfPresent(params, 'only_with_stock', filters.onlyWithStock)
+  appendIfPresent(params, 'date_from', filters.dateFrom)
+  appendIfPresent(params, 'date_to', filters.dateTo)
+  appendIfPresent(params, 'limit', filters.limit)
+  appendIfPresent(params, 'status', filters.status)
+  appendIfPresent(params, 'stockpile_id', filters.stockpileId)
+  appendIfPresent(params, 'client_id', filters.clientId)
+
+  return params
+}
+
+function getExtension(format: ReportFormat): string {
+  return format === REPORT_FORMAT.EXCEL ? 'xlsx' : format
+}
+
+function getDownloadFilename(type: ReportType, format: ReportFormat): string {
+  const today = new Date().toISOString().split('T')[0].replace(/-/g, '_')
+  return `reporte_${filenameByType[type]}_${today}.${getExtension(format)}`
+}
+
+function getMimeType(format: ReportFormat): string {
+  if (format === REPORT_FORMAT.PDF) return 'application/pdf'
+  if (format === REPORT_FORMAT.EXCEL) {
+    return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  }
+  return 'text/csv;charset=utf-8'
+}
+
+function triggerDownload(data: BlobPart, type: ReportType, format: ReportFormat) {
+  const blob = new Blob([data], { type: getMimeType(format) })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', getDownloadFilename(type, format))
+
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
 }
 
 const reportsService = {
-  async downloadPdf(type: ReportType, period: ReportPeriod): Promise<void> {
-    const endpoint = endpointByType[type]
-    const range = getDateRange(period)
-    const params = new URLSearchParams()
-
-    if (range.dateFrom) params.append('date_from', range.dateFrom)
-    if (range.dateTo) params.append('date_to', range.dateTo)
-
-    const query = params.toString()
-    const response = await httpClient.get(query ? `${endpoint}?${query}` : endpoint, {
+  async downloadReport(
+    type: ReportType,
+    format: ReportFormat,
+    filters: ReportFilters = {}
+  ): Promise<void> {
+    const params = buildReportParams(format, filters)
+    const response = await httpClient.get(endpointByType[type], {
+      params,
       responseType: 'blob',
     })
 
-    const blob = new Blob([response.data], { type: 'application/pdf' })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-
-    const today = new Date().toISOString().split('T')[0].replace(/-/g, '_')
-    link.setAttribute('download', `reporte_${type}_${today}.pdf`)
-
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
+    triggerDownload(response.data, type, format)
   },
 }
 

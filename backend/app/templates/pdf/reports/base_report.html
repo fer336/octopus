@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <title>{{ title }}</title>
+    <style type="text/css">
+        @page {
+            size: A4 {{ orientation|default('landscape') }};
+            margin: 10mm 10mm;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: "Courier New", Courier, monospace;
+            font-size: 12px;
+            color: #000;
+            background: #fff;
+        }
+
+        .header {
+            width: 100%;
+            border-bottom: 2px solid #000;
+            padding-bottom: 5px;
+            margin-bottom: 6px;
+        }
+        .header-table,
+        .info-table,
+        .footer-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .header-table td {
+            vertical-align: top;
+            padding: 0;
+        }
+        .business-name {
+            font-size: 16px;
+            font-weight: bold;
+            color: #000;
+            text-transform: uppercase;
+        }
+        .business-info,
+        .report-meta {
+            font-size: 11px;
+            color: #000;
+            margin-top: 1px;
+        }
+        .report-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: #000;
+            text-align: right;
+            text-transform: uppercase;
+        }
+
+        .info-bar {
+            border: 1px solid #000;
+            padding: 4px 8px;
+            margin-bottom: 6px;
+        }
+        .info-bar td {
+            padding: 1px 0;
+            font-size: 11px;
+            vertical-align: top;
+        }
+        .info-label {
+            color: #000;
+            width: 80px;
+        }
+        .info-value {
+            color: #000;
+            font-weight: bold;
+        }
+
+        table.report-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #000;
+        }
+        table.report-table thead {
+            display: table-header-group;
+        }
+        table.report-table thead tr {
+            background: #fff;
+            color: #000;
+        }
+        table.report-table thead th {
+            padding: 5px 4px;
+            text-align: center;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border: 1px solid #000;
+            white-space: nowrap;
+        }
+        table.report-table tbody tr {
+            background: #fff;
+            page-break-inside: avoid;
+        }
+        table.report-table tbody td {
+            padding: 4px 4px;
+            border: 1px solid #000;
+            font-size: 11px;
+            vertical-align: middle;
+            text-align: center;
+        }
+        table.report-table tbody td.empty-row {
+            font-style: italic;
+            height: 12mm;
+        }
+        table.report-table tfoot td {
+            padding: 4px 4px;
+            border: 1px solid #000;
+            border-top: 2px solid #000;
+            font-size: 11px;
+            vertical-align: middle;
+        }
+        table.report-table tfoot tr.total-row td {
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .footer {
+            margin-top: 8px;
+            border-top: 1px solid #000;
+            padding-top: 4px;
+        }
+        .footer-table td {
+            font-size: 10px;
+            color: #000;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    {% block header %}
+    <div class="header">
+        <table class="header-table">
+            <tr>
+                <td style="width: 55%;">
+                    {% if not business.hide_business_name_in_pdf %}
+                    <div class="business-name">{{ business.name }}</div>
+                    {% endif %}
+                    {% if business.address %}
+                    <div class="business-info">{{ business.address }}{% if business.city %}, {{ business.city }}{% endif %}</div>
+                    {% endif %}
+                    {% if business.cuit %}
+                    <div class="business-info">CUIT: {{ business.cuit }}</div>
+                    {% endif %}
+                    {% if business.phone or business.email %}
+                    <div class="business-info">{{ business.phone or '' }}{% if business.phone and business.email %} · {% endif %}{{ business.email or '' }}</div>
+                    {% endif %}
+                </td>
+                <td style="width: 45%;">
+                    <div class="report-title">{{ title }}</div>
+                    {% if subtitle %}
+                    <div class="report-meta" style="text-align: right;">{{ subtitle }}</div>
+                    {% endif %}
+                    <div class="report-meta" style="text-align: right;">Generado: {{ generated_at }}</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+    {% endblock %}
+
+    {% block info_bar %}
+    <div class="info-bar">
+        <table class="info-table">
+            <tr>
+                <td class="info-label">Negocio:</td>
+                <td class="info-value">{{ business.name }}</td>
+                <td style="width: 16px;"></td>
+                <td class="info-label">Reporte:</td>
+                <td class="info-value">{{ title }}</td>
+                <td style="width: 16px;"></td>
+                <td class="info-label">Filtros:</td>
+                <td class="info-value">
+                    {% if filters %}
+                        {% for key, value in filters.items() %}
+                            {{ key }}: {{ value if value not in [none, ''] else '—' }}{% if not loop.last %} · {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        Sin filtros
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+    </div>
+    {% endblock %}
+
+    {% block content %}
+    <table class="report-table">
+        <thead>
+            <tr>
+                {% for header in headers %}
+                <th>{{ header }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+                {% for row in rows %}
+            <tr>
+                {% for header in headers %}
+                <td>{{ row.get(header, '') }}</td>
+                {% endfor %}
+            </tr>
+            {% else %}
+            <tr>
+                <td class="empty-row" colspan="{{ headers|length if headers else 1 }}">Sin datos para los filtros seleccionados</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        {% block totals %}
+        <tfoot>
+            <tr class="total-row">
+                <td colspan="{{ headers|length if headers else 1 }}" style="text-align: center;">
+                    {% if totals %}
+                        {% for label, value in totals.items() %}
+                            {{ label }}: {{ value }}{% if not loop.last %} &nbsp;·&nbsp; {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        Total de filas: {{ rows|length }}
+                    {% endif %}
+                </td>
+            </tr>
+        </tfoot>
+        {% endblock %}
+    </table>
+    {% endblock %}
+
+    {% block footer %}
+    <div class="footer">
+        <table class="footer-table">
+            <tr>
+                <td>{{ business.name }} — Sistema OctopusTrack</td>
+                <td style="text-align: right;">Generado el {{ generated_at }}</td>
+            </tr>
+        </table>
+    </div>
+    {% endblock %}
+</body>
+</html>

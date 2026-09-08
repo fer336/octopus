@@ -22,7 +22,11 @@ class ExportService:
     TEXT_ALIGNMENT = Alignment(horizontal="left", vertical="center")
 
     @staticmethod
-    def to_excel(data: list[dict[str, Any]], sheet_name: str = "Datos") -> bytes:
+    def to_excel(
+        data: list[dict[str, Any]],
+        sheet_name: str = "Datos",
+        headers: list[str] | None = None,
+    ) -> bytes:
         """
         Genera un archivo Excel (.xlsx) desde una lista de diccionarios.
 
@@ -37,14 +41,14 @@ class ExportService:
         ws = wb.active
         ws.title = sheet_name[:31]  # Excel sheet name max 31 chars
 
-        if not data:
+        headers = headers or (list(data[0].keys()) if data else [])
+        if not data and not headers:
             ws.append(["Sin datos"])
             output = io.BytesIO()
             wb.save(output)
             output.seek(0)
             return output.getvalue()
 
-        headers = list(data[0].keys())
         ws.append(headers)
 
         # Estilo de encabezados
@@ -56,7 +60,7 @@ class ExportService:
 
         # Filas de datos
         for row_data in data:
-            ws.append(list(row_data.values()))
+            ws.append([row_data.get(header) for header in headers])
 
         # Ajustar ancho de columnas automáticamente
         for col_idx, header in enumerate(headers, 1):
@@ -82,7 +86,7 @@ class ExportService:
         return output.getvalue()
 
     @staticmethod
-    def to_csv(data: list[dict[str, Any]]) -> str:
+    def to_csv(data: list[dict[str, Any]], headers: list[str] | None = None) -> str:
         """
         Genera un string CSV desde una lista de diccionarios.
 
@@ -93,10 +97,11 @@ class ExportService:
             Contenido CSV como string.
         """
         output = io.StringIO()
-        if not data:
+        headers = headers or (list(data[0].keys()) if data else [])
+        if not headers:
             return ""
 
-        writer = csv.DictWriter(output, fieldnames=list(data[0].keys()))
+        writer = csv.DictWriter(output, fieldnames=headers, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(data)
         return output.getvalue()

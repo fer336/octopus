@@ -2,7 +2,6 @@
 Servicio de reporte de cuentas corrientes en PDF.
 """
 
-from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -12,10 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.business import Business
 from app.models.client import Client
 from app.schemas.report_schemas import ClientAccountsReportFilters
+from app.services.reporting.base_report_service import BaseReportService, ReportDataset
 from app.services.reporting.report_pdf_service import report_pdf_service
 
 
-class ClientAccountsReportService:
+class ClientAccountsReportService(BaseReportService[ClientAccountsReportFilters]):
     """Genera reporte de saldos de cuenta corriente por cliente."""
 
     def __init__(self, db: AsyncSession):
@@ -27,6 +27,15 @@ class ClientAccountsReportService:
         filters: ClientAccountsReportFilters,
         generated_by: str | None = None,
     ) -> bytes:
+        dataset = await self.build_dataset(business_id, filters, generated_by)
+        return report_pdf_service.render_dataset("accounts_report.html", dataset)
+
+    async def build_dataset(
+        self,
+        business_id: UUID,
+        filters: ClientAccountsReportFilters,
+        generated_by: str | None = None,
+    ) -> ReportDataset:
         business = await self._get_business(business_id)
 
         query = select(Client).where(
@@ -56,37 +65,29 @@ class ClientAccountsReportService:
 
             rows.append(
                 {
-                    "name": client.name,
-                    "document": f"{client.document_type} {client.document_number}",
-                    "tax_condition": client.tax_condition,
-                    "balance": float(balance),
-                    "credit_limit": float(Decimal(str(client.credit_limit or 0))),
-                    "status": status,
+                    "Cliente": client.name,
+                    "Documento": f"{client.document_type} {client.document_number}",
+                    "Condición IVA": client.tax_condition,
+                    "Estado": status,
+                    "Saldo": float(balance),
+                    "Límite crédito": float(Decimal(str(client.credit_limit or 0))),
                 }
             )
 
-        context = {
-            "business": {
-                "name": business.name,
-                "cuit": business.cuit,
+        return self.create_dataset(
+            title="Reporte de Cuentas Corrientes",
+            business=business,
+            filters=filters,
+            headers=["Cliente", "Documento", "Condición IVA", "Estado", "Saldo", "Límite crédito"],
+            rows=rows,
+            totals={
+                "Clientes": len(rows),
+                "Deuda": float(debt_total),
+                "A favor": float(favor_total),
             },
-            "report": {
-                "title": "Reporte de Cuentas Corrientes",
-                "generated_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                "generated_by": generated_by or "Sistema",
-            },
-            "filters": {
-                "only_with_balance": filters.only_with_balance,
-            },
-            "summary": {
-                "clients_count": len(rows),
-                "debt_total": float(debt_total),
-                "favor_total": float(favor_total),
-            },
-            "rows": rows,
-        }
-
-        return report_pdf_service.render("accounts_report.html", context)
+            generated_by=generated_by,
+            orientation="portrait",
+        )
 
     async def _get_business(self, business_id: UUID) -> Business:
         result = await self.db.execute(
