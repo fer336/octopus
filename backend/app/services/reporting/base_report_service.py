@@ -1,7 +1,7 @@
 """Shared contracts and helpers for report datasets."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Generic, Literal, Protocol, TypeVar, runtime_checkable
 
@@ -28,6 +28,7 @@ class ReportDataset:
     generated_by: str
     orientation: ReportOrientation = "portrait"
     subtitle: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Devuelve una representación serializable del dataset."""
@@ -42,6 +43,7 @@ class ReportDataset:
             "generated_at": self.generated_at,
             "generated_by": self.generated_by,
             "orientation": self.orientation,
+            "metadata": self.metadata,
         }
 
 
@@ -88,6 +90,7 @@ class BaseReportService(ABC, Generic[FilterT]):
         generated_by: str | None = None,
         orientation: ReportOrientation = "portrait",
         subtitle: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> TabularReportDataset:
         """Crea un dataset normalizado para render y exportación."""
         return TabularReportDataset(
@@ -101,7 +104,38 @@ class BaseReportService(ABC, Generic[FilterT]):
             generated_at=datetime.now().strftime("%d/%m/%Y %H:%M"),
             generated_by=generated_by or "Sistema",
             orientation=orientation,
+            metadata=metadata or {},
         )
+
+    @staticmethod
+    def build_client_groups(
+        rows: list[dict[str, Any]],
+        client_field: str,
+        total_fields: list[str],
+    ) -> list[dict[str, Any]]:
+        """Agrupa índices de filas por cliente para el árbol del PDF.
+
+        Los clientes se ordenan por nombre ascendente y los índices dentro de
+        cada grupo preservan el orden de aparición de las filas (el orden
+        intra-grupo ya definido por cada reporte).
+        """
+        buckets: dict[str, list[int]] = {}
+        for index, row in enumerate(rows):
+            buckets.setdefault(str(row.get(client_field, "")), []).append(index)
+        return [
+            {
+                "client": name,
+                "row_indices": indices,
+                "totals": {
+                    field_name: round(
+                        sum(float(rows[index].get(field_name, 0) or 0) for index in indices),
+                        2,
+                    )
+                    for field_name in total_fields
+                },
+            }
+            for name, indices in sorted(buckets.items())
+        ]
 
     @staticmethod
     def business_to_dict(business: Business) -> dict[str, Any]:

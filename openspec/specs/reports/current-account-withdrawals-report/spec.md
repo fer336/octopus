@@ -47,3 +47,22 @@ The system shall provide PDF, Excel, and CSV outputs with the same rows, numeric
 - GIVEN no withdrawals match the filters
 - WHEN any format is generated
 - THEN an empty table and zero totals are returned
+
+### Requirement: Client-grouped tree rendering in PDF
+
+The system shall render the PDF grouped by billing client with a client header row, indented voucher rows, and a per-client subtotal row with quantity, subtotal, VAT, and total, while Excel and CSV exports keep the flat row order.
+
+#### Scenario: Client hierarchy in PDF
+- GIVEN withdrawals exist for multiple billing clients
+- WHEN the PDF is rendered
+- THEN clients appear ordered by name ascending with their voucher rows indented beneath the client header and a per-client subtotal with quantity, subtotal, VAT, and total before the grand totals footer
+
+#### Scenario: Single-voucher client keeps the tree
+- GIVEN a billing client has only one withdrawal voucher
+- WHEN the PDF is rendered
+- THEN the client header, voucher row, and subtotal row are still rendered for that client
+
+#### Scenario: Flat exports unchanged
+- GIVEN the PDF renders client groups
+- WHEN Excel or CSV is generated
+- THEN the export keeps the same flat headers and rows without group headers or subtotals
