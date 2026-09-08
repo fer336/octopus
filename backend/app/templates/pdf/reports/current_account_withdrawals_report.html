@@ -1,15 +1,67 @@
 {% extends "base_report.html" %}
 
-{% block totals %}
-<tfoot>
-    <tr class="total-row">
-        <td colspan="{{ headers|length if headers else 1 }}" style="text-align: center;">
-            Filas: {{ totals.get('Filas', 0) }} &nbsp;·&nbsp;
-            Cantidad: {{ "%.2f"|format(totals.get('Cantidad', 0)) }} &nbsp;·&nbsp;
-            Subtotal: ${{ "%.2f"|format(totals.get('Subtotal', 0)) }} &nbsp;·&nbsp;
-            IVA: ${{ "%.2f"|format(totals.get('IVA', 0)) }} &nbsp;·&nbsp;
-            Total: ${{ "%.2f"|format(totals.get('Total', 0)) }}
-        </td>
-    </tr>
-</tfoot>
+{% block content %}
+<table class="report-table">
+    <thead>
+        <tr>
+            {% for header in headers %}
+            <th>{{ header }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% set groups = metadata.get('groups', []) if metadata else [] %}
+        {% if groups %}
+            {% for group in groups %}
+            <tr class="client-header-row">
+                <td colspan="{{ headers|length if headers else 1 }}" style="text-align: left; font-weight: bold; text-transform: uppercase;">
+                    {{ group.client }}
+                </td>
+            </tr>
+            {% for row_index in group.row_indices %}
+            {% set row = rows[row_index] %}
+            <tr>
+                {% for header in headers %}
+                <td style="{% if loop.first %}text-align: left; padding-left: 14px;{% endif %}">{{ row.get(header, '') }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+            <tr class="client-subtotal-row">
+                <td colspan="{{ headers|length if headers else 1 }}" style="text-align: left; font-weight: bold; border-top: 1px solid #000;">
+                    Subtotal {{ group.client }}:
+                    Cantidad: {{ "%.2f"|format(group.totals.get('Cantidad', 0)) }} &nbsp;·&nbsp;
+                    Subtotal: ${{ "%.2f"|format(group.totals.get('Subtotal', 0)) }} &nbsp;·&nbsp;
+                    IVA: ${{ "%.2f"|format(group.totals.get('IVA', 0)) }} &nbsp;·&nbsp;
+                    Total: ${{ "%.2f"|format(group.totals.get('Total', 0)) }}
+                </td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            {% for row in rows %}
+            <tr>
+                {% for header in headers %}
+                <td>{{ row.get(header, '') }}</td>
+                {% endfor %}
+            </tr>
+            {% else %}
+            <tr>
+                <td class="empty-row" colspan="{{ headers|length if headers else 1 }}">Sin datos para los filtros seleccionados</td>
+            </tr>
+            {% endfor %}
+        {% endif %}
+    </tbody>
+    {% block totals %}
+    <tfoot>
+        <tr class="total-row">
+            <td colspan="{{ headers|length if headers else 1 }}" style="text-align: center;">
+                Filas: {{ totals.get('Filas', 0) }} &nbsp;·&nbsp;
+                Cantidad: {{ "%.2f"|format(totals.get('Cantidad', 0)) }} &nbsp;·&nbsp;
+                Subtotal: ${{ "%.2f"|format(totals.get('Subtotal', 0)) }} &nbsp;·&nbsp;
+                IVA: ${{ "%.2f"|format(totals.get('IVA', 0)) }} &nbsp;·&nbsp;
+                Total: ${{ "%.2f"|format(totals.get('Total', 0)) }}
+            </td>
+        </tr>
+    </tfoot>
+    {% endblock %}
+</table>
 {% endblock %}
