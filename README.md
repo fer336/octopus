@@ -37,6 +37,17 @@ Solicitá acceso de prueba por WhatsApp: [+54 9 2254 59-6618](https://wa.me/5492
 
 ---
 
+## Unreleased
+
+### Reports hub exports
+
+- Added 10 report entries to the Reports hub: stock, sales, top products, client accounts, inventory count, category, supplier, purchase order history, stockpile withdrawals, and current account withdrawals.
+- Each report can be downloaded as PDF, Excel (`.xlsx`), or CSV through the unified format-aware `/reports/*?format=pdf|xlsx|csv` API surface.
+- The hub exposes per-report filters that match the backend contracts, including dates, category, supplier, stockpile, client, status, result limit, stock-only toggles, balance-only toggles, and the required supplier-or-category filter for inventory count.
+- Unknown report filters return HTTP 400, invalid date ranges return HTTP 400 before file generation, and valid empty results download empty tables instead of returning server errors.
+
+---
+
 ## Capturas del sistema
 
 ### Login
