@@ -5,10 +5,12 @@ Tests de integración para exportación de reportes PDF, Excel y CSV.
 import io
 from datetime import date, datetime
 from decimal import Decimal
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+from jinja2 import ChoiceLoader, Environment, FileSystemLoader, select_autoescape
 from openpyxl import load_workbook
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1155,6 +1157,268 @@ async def test_new_report_endpoints_export_empty_pdf_xlsx_and_csv(
     assert csv_response.status_code == 200, csv_response.text
     assert csv_response.headers["content-type"].startswith("text/csv")
     assert csv_response.text.splitlines()[0].startswith(expected_header)
+
+
+_PDF_TEMPLATE_DIR = Path(__file__).parents[1] / "templates" / "pdf"
+_REPORT_TEMPLATE_DIR = _PDF_TEMPLATE_DIR / "reports"
+
+
+def _render_report_html(template_name: str, dataset) -> str:
+    """Renderiza un template de reporte con Jinja2 sin pasar por WeasyPrint."""
+    environment = Environment(
+        loader=ChoiceLoader(
+            [
+                FileSystemLoader(str(_REPORT_TEMPLATE_DIR)),
+                FileSystemLoader(str(_PDF_TEMPLATE_DIR)),
+            ]
+        ),
+        autoescape=select_autoescape(["html", "xml"]),
+    )
+    return environment.get_template(template_name).render(**dataset.to_dict())
+
+
+async def _create_current_account_withdrawal(
+    db: AsyncSession,
+    business_id,
+    product: Product,
+    billing_client: Client,
+    operating_client: Client,
+    *,
+    voucher_date: date,
+    number: str,
+) -> Voucher:
+    """Crea un retiro de cuenta corrienta confirmado con cliente de facturación y retiro."""
+    voucher = await _create_confirmed_voucher(
+        db,
+        business_id,
+        product,
+        billing_client,
+        voucher_date=voucher_date,
+        voucher_type=VoucherType.RECEIPT,
+        number=number,
+    )
+    voucher.is_current_account = True
+    voucher.billing_client_id = billing_client.id
+    voucher.operating_client_id = operating_client.id
+    db.add(voucher)
+    return voucher
+
+
+@pytest.mark.asyncio
+async def test_stockpile_withdrawals_report_groups_rows_by_client_with_subtotals(
+    db: AsyncSession,
+    business_a,
+):
+    """Retiros de acopio debe agrupar filas por cliente con subtotales y orden determinista."""
+    product = await _create_product(db, business_a.id, code="ACO-TREE")
+    client_alfa = await _create_client(db, business_a.id, name="Cliente Alfa")
+    client_beta = await _create_client(db, business_a.id, name="Cliente Beta")
+    stockpile_alfa = await _create_stockpile(db, business_a.id, client_alfa, "Obra Alfa")
+    stockpile_beta = await _create_stockpile(db, business_a.id, client_beta, "Obra Beta")
+
+    beta_old = await _create_confirmed_voucher(
+        db,
+        business_a.id,
+        product,
+        client_beta,
+        voucher_date=date(2026, 1, 10),
+        voucher_type=VoucherType.RECEIPT,
+        number="00000050",
+    )
+    beta_old.stockpile_id = stockpile_beta.id
+    alfa_only = await _create_confirmed_voucher(
+        db,
+        business_a.id,
+        product,
+        client_alfa,
+        voucher_date=date(2026, 1, 11),
+        voucher_type=VoucherType.RECEIPT,
+        number="00000051",
+    )
+    alfa_only.stockpile_id = stockpile_alfa.id
+    beta_new = await _create_confirmed_voucher(
+        db,
+        business_a.id,
+        product,
+        client_beta,
+        voucher_date=date(2026, 1, 12),
+        voucher_type=VoucherType.RECEIPT,
+        number="00000052",
+    )
+    beta_new.stockpile_id = stockpile_beta.id
+    await db.commit()
+
+    dataset = await StockpileWithdrawalsReportService(db).build_dataset(
+        business_a.id,
+        StockpileWithdrawalsReportFilters(
+            date_from=date(2026, 1, 1),
+            date_to=date(2026, 1, 31),
+        ),
+    )
+
+    assert dataset.headers == StockpileWithdrawalsReportService.HEADERS
+    assert all(set(row) == set(dataset.headers) for row in dataset.rows)
+    assert [row["Comprobante"] for row in dataset.rows] == [
+        "0001-00000052",
+        "0001-00000051",
+        "0001-00000050",
+    ]
+
+    groups = dataset.metadata["groups"]
+    assert [group["client"] for group in groups] == ["Cliente Alfa", "Cliente Beta"]
+    assert groups[0]["row_indices"] == [1]
+    assert groups[1]["row_indices"] == [0, 2]
+    assert groups[0]["totals"] == {"Cantidad": 2.0, "Valor": 242.0}
+    assert groups[1]["totals"] == {"Cantidad": 4.0, "Valor": 484.0}
+
+
+@pytest.mark.asyncio
+async def test_current_account_withdrawals_report_groups_rows_by_client_with_subtotals(
+    db: AsyncSession,
+    business_a,
+):
+    """Retiros de cuenta corriente debe agrupar por cliente de facturación con subtotales."""
+    product = await _create_product(db, business_a.id, code="CC-TREE")
+    client_ana = await _create_client(db, business_a.id, name="Cliente Ana")
+    client_zeta = await _create_client(db, business_a.id, name="Cliente Zeta")
+    withdrawal_client = await _create_client(db, business_a.id, name="Cliente Retira")
+
+    zeta_only = await _create_current_account_withdrawal(
+        db,
+        business_a.id,
+        product,
+        client_zeta,
+        withdrawal_client,
+        voucher_date=date(2026, 1, 10),
+        number="00000060",
+    )
+    ana_only = await _create_current_account_withdrawal(
+        db,
+        business_a.id,
+        product,
+        client_ana,
+        withdrawal_client,
+        voucher_date=date(2026, 1, 12),
+        number="00000061",
+    )
+    await db.commit()
+    await db.refresh(zeta_only)
+    await db.refresh(ana_only)
+
+    dataset = await CurrentAccountWithdrawalsReportService(db).build_dataset(
+        business_a.id,
+        CurrentAccountWithdrawalsReportFilters(
+            date_from=date(2026, 1, 1),
+            date_to=date(2026, 1, 31),
+        ),
+    )
+
+    assert dataset.headers == CurrentAccountWithdrawalsReportService.HEADERS
+    assert all(set(row) == set(dataset.headers) for row in dataset.rows)
+    assert [row["Comprobante"] for row in dataset.rows] == ["0001-00000061", "0001-00000060"]
+
+    groups = dataset.metadata["groups"]
+    assert [group["client"] for group in groups] == ["Cliente Ana", "Cliente Zeta"]
+    assert groups[0]["row_indices"] == [0]
+    assert groups[1]["row_indices"] == [1]
+    assert groups[0]["totals"] == {
+        "Cantidad": 2.0,
+        "Subtotal": 200.0,
+        "IVA": 42.0,
+        "Total": 242.0,
+    }
+    assert groups[1]["totals"] == {
+        "Cantidad": 2.0,
+        "Subtotal": 200.0,
+        "IVA": 42.0,
+        "Total": 242.0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_stockpile_withdrawals_report_renders_client_tree_in_html(
+    db: AsyncSession,
+    business_a,
+):
+    """El PDF de retiros de acopio debe renderizar encabezado, filas y subtotales por cliente."""
+    product = await _create_product(db, business_a.id, code="ACO-HTML")
+    client_alfa = await _create_client(db, business_a.id, name="Cliente Alfa")
+    client_beta = await _create_client(db, business_a.id, name="Cliente Beta")
+    stockpile = await _create_stockpile(db, business_a.id, client_alfa, "Obra HTML")
+    for client, voucher_date, number in [
+        (client_alfa, date(2026, 1, 10), "00000070"),
+        (client_beta, date(2026, 1, 11), "00000071"),
+        (client_alfa, date(2026, 1, 12), "00000072"),
+    ]:
+        voucher = await _create_confirmed_voucher(
+            db,
+            business_a.id,
+            product,
+            client,
+            voucher_date=voucher_date,
+            voucher_type=VoucherType.RECEIPT,
+            number=number,
+        )
+        voucher.stockpile_id = stockpile.id
+        db.add(voucher)
+    await db.commit()
+
+    dataset = await StockpileWithdrawalsReportService(db).build_dataset(
+        business_a.id,
+        StockpileWithdrawalsReportFilters(date_from=date(2026, 1, 1), date_to=date(2026, 1, 31)),
+    )
+    html = _render_report_html("stockpile_withdrawals_report.html", dataset)
+
+    assert html.count("client-header-row") == 2
+    assert html.count("client-subtotal-row") == 2
+    assert "Cliente Alfa" in html
+    assert "Cliente Beta" in html
+    assert "Subtotal Cliente Alfa:" in html
+    assert "Subtotal Cliente Beta:" in html
+    assert "padding-left" in html
+    assert "Cantidad: 6.00" in html and "Valor: $726.00" in html
+
+
+@pytest.mark.asyncio
+async def test_current_account_withdrawals_report_renders_client_tree_in_html(
+    db: AsyncSession,
+    business_a,
+):
+    """El PDF de retiros de cuenta corriente debe renderizar el árbol por cliente."""
+    product = await _create_product(db, business_a.id, code="CC-HTML")
+    client_alfa = await _create_client(db, business_a.id, name="Cliente Alfa")
+    client_beta = await _create_client(db, business_a.id, name="Cliente Beta")
+    withdrawal_client = await _create_client(db, business_a.id, name="Cliente Retira")
+    for client, voucher_date, number in [
+        (client_alfa, date(2026, 1, 10), "00000080"),
+        (client_beta, date(2026, 1, 11), "00000081"),
+    ]:
+        voucher = await _create_current_account_withdrawal(
+            db,
+            business_a.id,
+            product,
+            client,
+            withdrawal_client,
+            voucher_date=voucher_date,
+            number=number,
+        )
+        db.add(voucher)
+    await db.commit()
+
+    dataset = await CurrentAccountWithdrawalsReportService(db).build_dataset(
+        business_a.id,
+        CurrentAccountWithdrawalsReportFilters(date_from=date(2026, 1, 1), date_to=date(2026, 1, 31)),
+    )
+    html = _render_report_html("current_account_withdrawals_report.html", dataset)
+
+    assert html.count("client-header-row") == 2
+    assert html.count("client-subtotal-row") == 2
+    assert "Cliente Alfa" in html
+    assert "Cliente Beta" in html
+    assert "Subtotal Cliente Alfa:" in html
+    assert "Subtotal Cliente Beta:" in html
+    assert "padding-left" in html
+    assert "Filas: 2" in html and "Subtotal: $400.00" in html and "IVA: $84.00" in html
 
 
 @pytest.mark.asyncio

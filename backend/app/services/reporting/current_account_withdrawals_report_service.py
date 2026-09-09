@@ -97,6 +97,13 @@ class CurrentAccountWithdrawalsReportService(BaseReportService[CurrentAccountWit
             },
             generated_by=generated_by,
             orientation="landscape",
+            metadata={
+                "groups": self.build_client_groups(
+                    rows,
+                    "Cliente facturación",
+                    ["Cantidad", "Subtotal", "IVA", "Total"],
+                )
+            },
         )
 
     def _query(self, business_id: UUID, filters: CurrentAccountWithdrawalsReportFilters):
