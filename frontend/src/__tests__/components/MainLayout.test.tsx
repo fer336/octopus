@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -126,11 +126,12 @@ function renderMainLayout() {
 describe('MainLayout — mobile mount point swap', () => {
   it('renders MobileShell (bottom tab bar) instead of the removed MobileNav for mobile viewport', () => {
     renderMainLayout()
-    expect(screen.getByRole('button', { name: 'Ventas' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Caja' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Comprobantes' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Productos' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Cuenta Corriente' })).toBeInTheDocument()
+    const nav = screen.getByRole('navigation', { name: 'Navegación principal' })
+    expect(within(nav).getByRole('button', { name: 'Ventas' })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Caja' })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Comprobantes' })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Productos' })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Cta Cte' })).toBeInTheDocument()
   })
 
   it('does not render MobileNav’s old "más" tab or full-item bottom sheet trigger', () => {

@@ -423,6 +423,8 @@ class PurchaseOrderService:
 
         if "code" not in col_map:
             raise ValueError("Columna 'Código' no encontrada en el archivo.")
+        if "counted" not in col_map:
+            raise ValueError("Columna 'Conteo Físico' no encontrada en el archivo.")
         if "to_order" not in col_map:
             raise ValueError("Columna 'A Pedir' no encontrada en el archivo.")
 
@@ -437,18 +439,17 @@ class PurchaseOrderService:
             code = str(code_val).strip()
 
             to_order_val = row[col_map["to_order"] - 1]
-            counted_val = row[col_map.get("counted", 0) - 1] if col_map.get("counted") else None
+            counted_val = row[col_map["counted"] - 1]
             system_stock_val = row[col_map.get("system_stock", 0) - 1] if col_map.get("system_stock") else None
 
-            try:
-                quantity_to_order = int(to_order_val or 0)
-            except (ValueError, TypeError):
-                quantity_to_order = 0
+            if counted_val in (None, "") or to_order_val in (None, ""):
+                continue
 
             try:
-                counted_stock = int(counted_val) if counted_val not in (None, "") else None
+                counted_stock = int(counted_val)
+                quantity_to_order = int(to_order_val)
             except (ValueError, TypeError):
-                counted_stock = None
+                continue
 
             # Buscar producto en la base de datos
             result = await self.db.execute(

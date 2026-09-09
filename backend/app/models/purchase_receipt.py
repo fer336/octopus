@@ -66,7 +66,7 @@ class PurchaseReceipt(BaseModel):
         nullable=True,
     )
 
-    status = Column(
+    status: PurchaseReceiptStatus = Column(  # type: ignore[assignment]
         Enum(PurchaseReceiptStatus),
         default=PurchaseReceiptStatus.DRAFT,
         nullable=False,

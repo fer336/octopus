@@ -11,6 +11,7 @@ La edición de una factura YA CONFIRMADA vive en `InvoiceReversalService`
 """
 from __future__ import annotations
 
+import builtins
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
@@ -416,8 +417,8 @@ class PurchaseInvoiceService:
         self,
         invoice: PurchaseInvoice,
         business_id: UUID,
-        receipt_ids: list[UUID] | None,
-    ) -> list[PurchaseReceipt]:
+        receipt_ids: builtins.list[UUID] | None,
+    ) -> builtins.list[PurchaseReceipt]:
         """
         Resuelve los remitos vinculados a esta factura: los pasados
         explícitamente por `receipt_ids` + los ya pre-vinculados
@@ -441,7 +442,7 @@ class PurchaseInvoiceService:
         receipts = list(result.scalars().all())
 
         if receipt_ids:
-            missing = set(receipt_ids) - {r.id for r in receipts}
+            missing: set[UUID] = set(receipt_ids) - {r.id for r in receipts}
             if missing:
                 raise ValueError(
                     "Remito(s) no encontrado(s): "
@@ -468,9 +469,9 @@ class PurchaseInvoiceService:
     async def _correct_lots_from_receipts(
         self,
         invoice: PurchaseInvoice,
-        linked_receipts: list[PurchaseReceipt],
+        linked_receipts: builtins.list[PurchaseReceipt],
         user_id: UUID,
-    ) -> tuple[set[UUID], list[str]]:
+    ) -> tuple[set[UUID], builtins.list[str]]:
         """
         Para ítems de factura cuyo `product_id` está cubierto por un remito
         ya CONFIRMADO y vinculado, no crea lote nuevo: corrige el
